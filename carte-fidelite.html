@@ -664,6 +664,7 @@ window.addEventListener('load', () => {
 });
 
 // ── RÉSERVATION ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
 const RESA_SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",RESA_SB_KEY="sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X";
 let rnPax=2;
 
@@ -751,6 +752,7 @@ document.getElementById('rn-submit').addEventListener('click',async function(){
   }
   this.disabled=false;this.textContent='🔥 Confirmer la réservation';
 });
+}); // end DOMContentLoaded
 </script>
 
 
