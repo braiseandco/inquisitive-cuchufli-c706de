@@ -347,7 +347,7 @@ document.getElementById('btn-form-submit').onclick=async function(){
     showLoader(false);
     ['f-prenom','f-nom','f-email','f-tel'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('success-msg').innerHTML='Bienvenue <strong>'+prenom+'</strong> ! Collectez 1 tampon par passage. Au '+MAX_STAMPS+'ème, <strong>un repas vous est offert !</strong>';
-    const mobileLink='https://inquisitive-cuchufli-c706de.netlify.app/?carte='+id;
+    const mobileLink='https://braiseandco.github.io/inquisitive-cuchufli-c706de/carte-fidelite.html?carte='+id;
     drawQR(document.getElementById('qr-success-canvas'),mobileLink);
     currentId=id;go('ss');
   }catch(e){showLoader(false);toast('Erreur de connexion. Réessayez.','ko');}
