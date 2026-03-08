@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0f">
+<title>Braise &amp; Co — Réservations</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Raleway:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;
+  --accent:#FF6B00;--accent2:#FFa500;--accent3:#FFD700;
+  --red:#e53935;--green:#43a047;--blue:#1e88e5;--purple:#8e24aa;
+  --text:#F0EDE8;--text-dim:rgba(240,237,232,0.5);--text-faint:rgba(240,237,232,0.22);
+  --border:rgba(255,107,0,0.15);--border2:rgba(255,107,0,0.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway',sans-serif;color:var(--text);}
+
+/* ── APP SHELL ── */
+.app{display:flex;flex-direction:column;height:100%;}
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100;}
+.topbar-logo{font-family:'Cinzel',serif;font-size:16px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.topbar-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-faint);}
+.topbar-date{margin-left:auto;font-size:12px;color:var(--text-dim);letter-spacing:1px;}
+
+/* ── NAV TABS ── */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:13px 8px;text-align:center;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:'Raleway',sans-serif;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab:active{background:rgba(255,107,0,0.05);}
+
+/* ── SCREENS ── */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.screen.active{display:flex;}
+.scroll-zone{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px;}
+
+/* ── DATE NAV ── */
+.date-nav{display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.date-nav-btn{width:36px;height:36px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.06);color:var(--accent);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.date-nav-btn:active{background:rgba(255,107,0,0.15);}
+.date-nav-label{flex:1;text-align:center;font-family:'Cinzel',serif;font-size:15px;font-weight:700;color:var(--text);cursor:pointer;}
+.date-nav-today{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);cursor:pointer;padding:6px 12px;border:1px solid var(--border2);border-radius:8px;background:rgba(255,107,0,0.06);transition:all .2s;}
+.date-nav-today:active{background:rgba(255,107,0,0.15);}
+
+/* ── SERVICE FILTER ── */
+.service-tabs{display:flex;gap:8px;padding:12px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.stab{flex:1;padding:9px;text-align:center;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);cursor:pointer;border:1px solid var(--border);border-radius:10px;background:none;font-family:'Raleway',sans-serif;transition:all .2s;}
+.stab.active{background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);}
+
+/* ── STATS BAR ── */
+.stats-bar{display:flex;gap:0;padding:0;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;}
+.stat-item{flex:1;padding:12px 8px;text-align:center;border-right:1px solid var(--border);}
+.stat-item:last-child{border-right:none;}
+.stat-n{font-family:'Cinzel',serif;font-size:22px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.stat-l{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-top:2px;}
+
+/* ── RESERVATION CARDS ── */
+.resa-group-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.resa-group-title:first-child{margin-top:0;}
+.resa-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:15px 16px;margin-bottom:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.resa-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green);}
+.resa-card.en-attente::before{background:var(--accent);}
+.resa-card.annulee::before{background:var(--red);opacity:0.5;}
+.resa-card:active{transform:scale(0.99);background:var(--bg3);}
+.resa-card-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.resa-heure{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--accent);min-width:52px;}
+.resa-nom{font-weight:700;font-size:15px;flex:1;}
+.resa-pax{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:11px;padding:4px 10px;border-radius:20px;flex-shrink:0;}
+.resa-meta{font-size:12px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap;}
+.resa-table-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(255,107,0,0.1);border:1px solid var(--border2);border-radius:8px;padding:3px 9px;font-size:11px;color:var(--accent);}
+.resa-table-badge.none{color:var(--text-faint);border-color:var(--border);background:none;}
+.empty-day{text-align:center;padding:60px 20px;color:var(--text-faint);}
+.empty-day-ico{font-size:52px;margin-bottom:16px;}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:28px;right:24px;z-index:200;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--accent));border:none;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 0 24px rgba(255,107,0,0.45),0 4px 16px rgba(0,0,0,0.5);transition:all .2s;display:flex;align-items:center;justify-content:center;}
+.fab:active{transform:scale(0.93);}
+
+/* ── MODAL ── */
+.overlay{display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;padding:0;}
+.overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:22px 22px 0 0;padding:24px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;}
+.modal-handle{width:36px;height:4px;background:var(--border2);border-radius:4px;margin:0 auto 20px;}
+.modal-title{font-family:'Cinzel',serif;font-size:20px;font-weight:700;color:var(--accent);margin-bottom:18px;}
+.field-group{margin-bottom:16px;}
+.field-label{display:block;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent2);margin-bottom:7px;font-weight:700;}
+.field-input{width:100%;padding:13px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,107,0,0.2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:16px;outline:none;transition:all .2s;-webkit-appearance:none;}
+.field-input:focus{border-color:var(--accent);background:rgba(255,107,0,0.06);box-shadow:0 0 0 3px rgba(255,107,0,0.1);}
+.field-input.err{border-color:var(--red);}
+.field-input::placeholder{color:rgba(240,237,232,0.2);}
+.field-err{font-size:12px;color:var(--red);margin-top:4px;display:none;}
+.field-err.show{display:block;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.time-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.time-pill{padding:8px 14px;border:1px solid var(--border2);border-radius:10px;font-size:13px;font-weight:600;color:var(--text-dim);cursor:pointer;transition:all .15s;background:none;font-family:'Raleway',sans-serif;}
+.time-pill.active{background:rgba(255,107,0,0.15);border-color:var(--accent);color:var(--accent);}
+.modal-btns{display:flex;gap:10px;margin-top:20px;}
+.btn-primary{flex:1;padding:15px;background:linear-gradient(135deg,var(--red),var(--accent));border:none;border-radius:12px;color:#fff;font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;box-shadow:0 0 18px rgba(255,107,0,0.3);}
+.btn-primary:active{transform:scale(0.97);}
+.btn-cancel{padding:15px 20px;background:rgba(255,107,0,0.05);border:1px solid var(--border2);border-radius:12px;color:var(--text-dim);font-family:'Raleway',sans-serif;font-size:14px;cursor:pointer;}
+
+/* ── PLAN DE SALLE ── */
+#screen-plan{background:var(--bg);}
+.plan-controls{display:flex;gap:8px;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;align-items:center;}
+.plan-zone-btn{padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text-faint);font-family:'Raleway',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;text-transform:uppercase;}
+.plan-zone-btn.active{background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);}
+.plan-legend{display:flex;gap:12px;margin-left:auto;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-faint);}
+.legend-dot{width:10px;height:10px;border-radius:50%;}
+
+/* ── NOTIFICATIONS ── */
+.notif-banner{position:fixed;top:0;left:0;right:0;z-index:1000;transform:translateY(-100%);transition:transform .4s cubic-bezier(.34,1.56,.64,1);}
+.notif-banner.show{transform:translateY(0);}
+.notif-inner{background:linear-gradient(135deg,#1a2a1a,#0f1a0f);border-bottom:2px solid #43a047;padding:14px 20px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 24px rgba(0,0,0,.5);}
+.notif-icon{font-size:28px;}
+.notif-text{flex:1;}
+.notif-title{font-family:"Cinzel",serif;font-size:14px;font-weight:700;color:#81c784;}
+.notif-sub{font-size:12px;color:rgba(240,237,232,.6);margin-top:2px;}
+.notif-close{padding:6px 14px;background:rgba(67,160,71,.15);border:1px solid rgba(67,160,71,.3);border-radius:8px;color:#81c784;font-family:"Raleway",sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+.new-resa-badge{position:fixed;bottom:96px;right:24px;z-index:500;background:linear-gradient(135deg,#43a047,#66bb6a);border-radius:50%;width:46px;height:46px;display:none;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px rgba(67,160,71,.5);cursor:pointer;}
+.new-resa-badge.show{display:flex;animation:popIn .4s cubic-bezier(.34,1.56,.64,1);}
+.pulse-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(67,160,71,.4);animation:ringPulse 1.5s ease infinite;}
+@keyframes popIn{from{transform:scale(0);}to{transform:scale(1);}}
+@keyframes ringPulse{0%{transform:scale(1);opacity:1;}100%{transform:scale(1.6);opacity:0;}}
+
+.plan-wrap{flex:1;overflow:auto;position:relative;background:var(--bg);cursor:grab;}
+.plan-wrap:active{cursor:grabbing;}
+.plan-canvas{position:relative;width:2400px;height:1800px;background-image:radial-gradient(circle,rgba(255,107,0,0.06) 1px,transparent 1px);background-size:40px 40px;}
+
+/* TABLE ELEMENT */
+.table-el{position:absolute;cursor:pointer;user-select:none;}
+.table-el.dragging{opacity:0.75;z-index:999;transform:scale(1.05);}
+.table-el.merge-target{animation:mergeGlow .5s ease infinite alternate;}
+@keyframes mergeGlow{from{filter:drop-shadow(0 0 6px var(--accent));}to{filter:drop-shadow(0 0 18px var(--accent3));}}
+
+.table-shape{border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;transition:border-color .2s,box-shadow .2s;border:2px solid transparent;position:relative;}
+.table-shape.libre{background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);box-shadow:0 0 14px rgba(67,160,71,0.12);}
+.table-shape.occupee{background:rgba(67,160,71,0.2);border-color:rgba(67,160,71,0.6);box-shadow:0 0 14px rgba(67,160,71,0.2);}
+.table-shape.occupee-late{background:rgba(229,57,53,0.2);border-color:rgba(229,57,53,0.5);box-shadow:0 0 14px rgba(229,57,53,0.15);}
+.table-shape.fusionnee{border-radius:10px;}
+
+.table-num{font-size:18px;font-weight:900;color:var(--text);}
+.table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:2px;}
+.table-resa-name{font-size:9px;color:var(--accent2);margin-top:4px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;}
+.table-merge-badge{position:absolute;top:-8px;right:-8px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
+
+/* TABLE PANEL */
+.table-panel{position:fixed;bottom:0;left:0;right:0;z-index:600;background:var(--bg2);border-top:1px solid var(--border2);border-radius:22px 22px 0 0;padding:20px;transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.56,.64,1);max-height:75vh;overflow-y:auto;}
+.table-panel.open{transform:translateY(0);}
+.table-panel-title{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--accent);margin-bottom:4px;}
+.table-panel-sub{font-size:12px;color:var(--text-faint);margin-bottom:16px;}
+.assign-list{margin-bottom:12px;}
+.assign-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:12px;margin-bottom:8px;cursor:pointer;transition:all .2s;border:1px solid transparent;}
+.assign-item:active{background:rgba(255,107,0,0.1);}
+.assign-item-name{font-weight:700;flex:1;}
+.assign-item-meta{font-size:11px;color:var(--text-dim);}
+.assign-item-pax{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:10px;padding:3px 8px;border-radius:12px;}
+.btn-unassign{width:100%;padding:12px;background:rgba(229,57,53,0.1);border:1px solid rgba(229,57,53,0.3);border-radius:10px;color:var(--red);font-family:'Raleway',sans-serif;font-size:13px;cursor:pointer;margin-top:8px;transition:all .2s;}
+.btn-unassign:active{background:rgba(229,57,53,0.2);}
+.panel-actions{display:flex;gap:8px;margin-top:10px;}
+.btn-panel-action{flex:1;padding:11px;border-radius:10px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:rgba(255,107,0,0.06);color:var(--text-dim);transition:all .2s;letter-spacing:.5px;}
+.btn-panel-action:active{background:rgba(255,107,0,0.15);color:var(--accent);}
+
+/* LONG PRESS EDIT MODAL */
+.edit-table-modal{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:28px;}
+.edit-table-modal.open{display:flex;}
+.edit-table-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:24px;width:100%;max-width:320px;}
+.edit-table-title{font-family:'Cinzel',serif;font-size:18px;color:var(--accent);margin-bottom:16px;}
+
+/* MERGE CONFIRM */
+.merge-bar{position:fixed;top:0;left:0;right:0;z-index:700;background:linear-gradient(135deg,rgba(255,107,0,0.95),rgba(255,165,0,0.95));padding:14px 20px;display:flex;align-items:center;gap:12px;transform:translateY(-100%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);backdrop-filter:blur(8px);}
+.merge-bar.show{transform:translateY(0);}
+.merge-bar-text{flex:1;font-family:'Cinzel',serif;font-size:13px;font-weight:700;color:#000;}
+.merge-bar-btn{padding:8px 16px;border-radius:8px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:none;}
+.merge-confirm-btn{background:#000;color:var(--accent3);}
+.merge-cancel-btn{background:rgba(0,0,0,0.2);color:#000;}
+</style>
+</head>
+<body>
+<div class="loader" id="loader"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<div class="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Braise &amp; Co</div>
+      <div class="topbar-sub">Gestion des réservations</div>
+    </div>
+    <div class="topbar-date" id="topbar-date"></div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" data-screen="reservations">📋 Réservations</button>
+    <button class="tab" data-screen="plan">🗺 Plan de salle</button>
+  </div>
+
+  <!-- ══ SCREEN: RESERVATIONS ══ -->
+  <div class="screen active" id="screen-reservations">
+    <div class="date-nav">
+      <button class="date-nav-btn" id="prev-day">‹</button>
+      <div class="date-nav-label" id="date-label">Aujourd'hui</div>
+      <button class="date-nav-btn today-btn" id="next-day">›</button>
+      <button class="date-nav-today" id="btn-today">Aujourd'hui</button>
+    </div>
+    <div class="service-tabs">
+      <button class="stab active" data-service="all">Tout le jour</button>
+      <button class="stab" data-service="midi">🌞 Midi</button>
+      <button class="stab" data-service="soir">🌙 Soir</button>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-item"><div class="stat-n" id="stat-resas">0</div><div class="stat-l">Réservations</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">0</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-dispo">0</div><div class="stat-l">Tables libres</div></div>
+    </div>
+    <div class="scroll-zone" id="resa-list"></div>
+  </div>
+
+  <!-- ══ SCREEN: PLAN ══ -->
+  <div class="screen" id="screen-plan">
+    <div class="plan-controls">
+      <button class="plan-zone-btn active" data-zone="interieur">🏠 Intérieur</button>
+      <button class="plan-zone-btn" data-zone="terrasse">🌿 Terrasse</button>
+      <div class="plan-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div>Libre</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#43a047;opacity:0.7;border:2px solid #43a047"></div>Avant 21h</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e53935"></div>À partir de 21h</div>
+      </div>
+    </div>
+    <div class="date-nav" style="padding:10px 16px;">
+      <button class="date-nav-btn" id="plan-prev-day">‹</button>
+      <div class="date-nav-label" id="plan-date-label"></div>
+      <button class="date-nav-btn" id="plan-next-day">›</button>
+      <div class="service-tabs" style="padding:0;background:none;border:none;flex:0;gap:6px;">
+        <button class="stab active" data-plan-service="midi" style="padding:6px 12px;font-size:10px;">Midi</button>
+        <button class="stab" data-plan-service="soir" style="padding:6px 12px;font-size:10px;">Soir</button>
+      </div>
+    </div>
+    <div id="assign-banner" style="display:none;position:sticky;top:0;z-index:300;background:linear-gradient(135deg,rgba(255,107,0,0.95),rgba(255,165,0,0.95));padding:14px 20px;align-items:center;gap:12px;">
+  <span style="font-size:20px;">🪑</span>
+  <span style="font-family:'Cinzel',serif;font-size:13px;font-weight:700;color:#000;flex:1;">Tapez sur une table libre pour affecter la réservation</span>
+  <button onclick="pendingResaId=null;document.getElementById('assign-banner').style.display='none';" style="background:rgba(0,0,0,0.2);border:none;border-radius:8px;padding:8px 14px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;color:#000;cursor:pointer;">Annuler</button>
+</div>
+<div class="plan-wrap" id="plan-wrap" style="overflow:scroll;">
+      <div class="plan-canvas" id="plan-canvas" style="width:900px;height:700px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab">＋</button>
+
+<!-- TABLE PANEL -->
+<div class="table-panel" id="table-panel">
+  <div class="modal-handle"></div>
+  <div class="table-panel-title" id="tp-title">Table 1</div>
+  <div class="table-panel-sub" id="tp-sub">4 couverts • Libre</div>
+  <div class="assign-list" id="tp-assign-list"></div>
+  <button class="btn-unassign" id="tp-unassign" style="display:none;">Désaffecter cette table</button>
+  <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
+</div>
+<div id="table-panel-overlay" style="display:none;position:fixed;inset:0;z-index:599;" ></div>
+
+<!-- MODAL: NOUVELLE RÉSERVATION -->
+<div class="overlay" id="modal-resa">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-resa-title">Nouvelle réservation</div>
+    <div class="form-row">
+      <div class="field-group">
+        <label class="field-label">Nom *</label>
+        <input type="text" class="field-input" id="r-nom" placeholder="Dupont" autocomplete="off">
+        <div class="field-err" id="err-nom">Nom requis</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Couverts *</label>
+        <input type="number" class="field-input" id="r-pax" placeholder="2" min="1" max="50">
+        <div class="field-err" id="err-pax">Nombre requis</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field-group">
+        <label class="field-label">Téléphone</label>
+        <input type="tel" class="field-input" id="r-tel" placeholder="06 12 34 56 78" autocomplete="off">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Email</label>
+        <input type="email" class="field-input" id="r-email" placeholder="nom@email.com" autocomplete="off">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field-group">
+        <label class="field-label">Date *</label>
+        <input type="date" class="field-input" id="r-date">
+        <div class="field-err" id="err-date">Date requise</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Heure *</label>
+        <input type="time" class="field-input" id="r-heure">
+        <div class="field-err" id="err-heure">Heure requise</div>
+      </div>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Horaires rapides</label>
+      <div class="time-pills" id="time-pills">
+        <button class="time-pill" data-time="12:00">12h00</button>
+        <button class="time-pill" data-time="12:15">12h15</button>
+        <button class="time-pill" data-time="12:30">12h30</button>
+        <button class="time-pill" data-time="12:45">12h45</button>
+        <button class="time-pill" data-time="13:00">13h00</button>
+        <button class="time-pill" data-time="13:15">13h15</button>
+        <button class="time-pill separator" data-time="19:00">19h00</button>
+        <button class="time-pill" data-time="19:30">19h30</button>
+        <button class="time-pill" data-time="20:00">20h00</button>
+        <button class="time-pill" data-time="20:30">20h30</button>
+        <button class="time-pill" data-time="21:00">21h00</button>
+        <button class="time-pill" data-time="21:30">21h30</button>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="btn-resa-cancel">Annuler</button>
+      <button class="btn-primary" id="btn-resa-save">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETAIL RÉSERVATION -->
+<div class="overlay" id="modal-detail">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="detail-nom"></div>
+    <div id="detail-body"></div>
+    <div class="status-pills">
+      <button class="status-pill confirmee" data-status="confirmee">✓ Confirmée</button>
+      <button class="status-pill en-attente" data-status="en-attente">⏳ En attente</button>
+      <button class="status-pill annulee" data-status="annulee">✕ Annulée</button>
+    </div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-cancel" id="btn-detail-close">Fermer</button>
+      <button class="btn-primary" id="btn-detail-edit">✏️ Modifier</button>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#c62828,#e53935);flex:0;padding:15px 18px;" id="btn-detail-delete">🗑</button>
+    </div>
+  </div>
+</div>
+<script>
+const SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",SB_KEY="sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X";
+
+// ── Supabase ─────────────────────────────────────────────────
+async function sbFetch(path,opts={}){
+  const res=await fetch(SB_URL+'/rest/v1/'+path,{
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':opts.prefer||'',...(opts.headers||{})},...opts
+  });
+  if(!res.ok){const e=await res.text();throw new Error('SB:'+e);}
+  const t=await res.text();return t?JSON.parse(t):null;
+}
+const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc');
+const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
+const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
+const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
+const updateResa=(id,d)=>sbFetch('reservations?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
+const deleteResa=id=>sbFetch('reservations?id=eq.'+id,{method:'DELETE'});
+const createTable=d=>sbFetch('tables_salle',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
+const updateTable=(id,d)=>sbFetch('tables_salle?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
+
+// ── Utils ─────────────────────────────────────────────────────
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
+function fmtDateShort(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function dateStr(d){const p=s=>s.toString().padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return dateStr(d);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let _tt;
+function toast(msg,type){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type?' '+type:'');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3200);}
+function showLoader(v){document.getElementById('loader').classList.toggle('show',v);}
+
+// ── State ─────────────────────────────────────────────────────
+let currentDate=todayStr(),currentService='all';
+let planDate=todayStr(),planService='midi',planZone='interieur';
+let currentResaId=null,editMode=false;
+let allTables=[],tableResas={};
+
+// Update topbar date
+function updateTopbar(){
+  const now=new Date();
+  document.getElementById('topbar-date').textContent=now.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+}
+updateTopbar();setInterval(updateTopbar,60000);
+
+// ── TABS ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.onclick=function(){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('screen-'+this.dataset.screen).classList.add('active');
+    if(this.dataset.screen==='plan')loadPlan();
+    else loadResas();
+  };
+});
+
+// ── DATE NAV ─────────────────────────────────────────────────
+function updateDateLabel(){
+  const label=document.getElementById('date-label');
+  if(currentDate===todayStr())label.textContent="Aujourd'hui";
+  else if(currentDate===addDays(todayStr(),1))label.textContent='Demain';
+  else if(currentDate===addDays(todayStr(),-1))label.textContent='Hier';
+  else label.textContent=fmtDate(currentDate);
+}
+document.getElementById('prev-day').onclick=()=>{currentDate=addDays(currentDate,-1);updateDateLabel();loadResas();};
+document.getElementById('next-day').onclick=()=>{currentDate=addDays(currentDate,1);updateDateLabel();loadResas();};
+document.getElementById('btn-today').onclick=()=>{currentDate=todayStr();updateDateLabel();loadResas();};
+updateDateLabel();
+
+// ── SERVICE FILTER ────────────────────────────────────────────
+document.querySelectorAll('.stab[data-service]').forEach(b=>{
+  b.onclick=function(){
+    document.querySelectorAll('.stab[data-service]').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    currentService=this.dataset.service;
+    loadResas();
+  };
+});
+document.querySelectorAll('.stab[data-plan-service]').forEach(b=>{
+  b.onclick=function(){
+    document.querySelectorAll('.stab[data-plan-service]').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    planService=this.dataset.planService;
+    loadPlan();
+  };
+});
+document.querySelectorAll('.plan-zone-btn').forEach(b=>{
+  b.onclick=function(){
+    document.querySelectorAll('.plan-zone-btn').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    planZone=this.dataset.zone;
+    renderPlan();
+  };
+});
+
+// Plan date nav
+function updatePlanDateLabel(){
+  const label=document.getElementById('plan-date-label');
+  if(planDate===todayStr())label.textContent="Aujourd'hui";
+  else label.textContent=fmtDate(planDate);
+}
+document.getElementById('plan-prev-day').onclick=()=>{planDate=addDays(planDate,-1);updatePlanDateLabel();loadPlan();};
+document.getElementById('plan-next-day').onclick=()=>{planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
+updatePlanDateLabel();
+
+// ── LOAD RESERVATIONS ─────────────────────────────────────────
+async function loadResas(){
+  showLoader(true);
+  try{
+    let resas=await getResas(currentDate);
+    showLoader(false);
+    // filter service
+    if(currentService==='midi')resas=resas.filter(r=>r.heure<'14:00');
+    else if(currentService==='soir')resas=resas.filter(r=>r.heure>='14:00');
+    // Filter out cancelled
+    resas=resas.filter(r=>r.statut!=='annulee');
+    // Sort alphabetically by name
+    resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
+    renderResas(resas);
+  }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
+}
+
+function renderResas(resas){
+  const container=document.getElementById('resa-list');
+  const total=resas.length;
+  const couverts=resas.reduce((a,r)=>a+(r.personnes||0),0);
+  const placed=resas.filter(r=>r.table_id).length;
+
+  document.getElementById('stat-resas').textContent=total;
+  document.getElementById('stat-couverts').textContent=couverts;
+  document.getElementById('stat-tables').textContent=placed;
+
+  // Tables libres = total tables - tables occupées aujourd'hui
+  document.getElementById('stat-dispo').textContent='—';
+
+  if(!total){
+    container.innerHTML='<div class="empty-day"><div class="empty-day-ico">📅</div><div style="font-family:Cinzel,serif;font-size:18px;color:var(--text-faint);margin-bottom:8px;">Aucune réservation</div><div style="font-size:13px;color:var(--text-faint);">Appuyez sur + pour en créer une</div></div>';
+    return;
+  }
+
+  // Group by midi / soir
+  const midi=resas.filter(r=>r.heure<'14:00');
+  const soir=resas.filter(r=>r.heure>='14:00');
+
+  let html='';
+  if(midi.length){
+    html+='<div class="resa-group-title">🌞 Service du midi</div>';
+    midi.forEach(r=>html+=resaCardHtml(r));
+  }
+  if(soir.length){
+    html+='<div class="resa-group-title">🌙 Service du soir</div>';
+    soir.forEach(r=>html+=resaCardHtml(r));
+  }
+  container.innerHTML=html;
+
+  // Bind clicks
+  container.querySelectorAll('.resa-card').forEach(card=>{
+    card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
+  });
+}
+
+function resaCardHtml(r){
+  const heure=r.heure?r.heure.slice(0,5):'';
+  const tableBadge=r.table_id
+    ?'<span class="resa-table-badge">🪑 Table '+esc(r.table_id.replace('t',''))+'</span>'
+    :'<span class="resa-table-badge none">Non placée</span>';
+  return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
+    '<div class="resa-card-top">'+
+    '<div class="resa-heure">'+heure+'</div>'+
+    '<div class="resa-nom">'+esc(r.nom)+'</div>'+
+    '<div class="resa-pax">'+r.personnes+'p</div>'+
+    '</div>'+
+    '<div class="resa-meta">'+tableBadge+
+    (r.telephone?'<span>📞 '+esc(r.telephone)+'</span>':'')+
+    (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
+    '</div></div>';
+}
+
+// ── DETAIL ────────────────────────────────────────────────────
+// Clic sur une résa → si pas de table: aller sur le plan pour affecter
+//                  si table déjà affectée: ouvrir le détail
+let pendingResaId = null;
+
+function clickResa(id, tableId){
+  if(tableId){
+    openDetail(id);
+  }else{
+    // Store the resa to assign
+    pendingResaId = id;
+    // Get heure from card to set correct service
+    const card = document.querySelector('.resa-card[data-id="'+id+'"]');
+    const heureMeta = card ? card.querySelector('.resa-heure') : null;
+    const heure = heureMeta ? heureMeta.textContent : '12:00';
+    planDate = currentDate;
+    planService = heure < '14:00' ? 'midi' : 'soir';
+    document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active', b.dataset.planService===planService));
+    // Switch tab
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.querySelector('.tab[data-screen="plan"]').classList.add('active');
+    document.getElementById('screen-plan').classList.add('active');
+    updatePlanDateLabel();
+    loadPlan();
+    setTimeout(()=>toast('🪑 Tapez sur une table libre pour affecter la réservation','ok'), 600);
+  }
+}
+
+async function openDetail(id){
+  showLoader(true);
+  try{
+    const resas=await getResas(currentDate);
+    showLoader(false);
+    const r=resas.find(x=>x.id===id);
+    if(!r){toast('Introuvable','ko');return;}
+    currentResaId=id;
+    document.getElementById('detail-nom').textContent=r.nom+' — '+r.personnes+' pers.';
+    document.getElementById('detail-body').innerHTML=
+      '<div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">'+fmtDate(r.date)+' à '+r.heure.slice(0,5)+'</div><div class="detail-lbl">Date & heure</div></div></div>'+
+      (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
+      (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
+      '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?'Table '+r.table_id.replace('t',''):'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>';
+
+    // Status pills
+    document.querySelectorAll('.status-pill').forEach(p=>{
+      p.classList.toggle('active-status',p.dataset.status===r.statut);
+      p.onclick=async()=>{
+        if(p.dataset.status==='annulee'){
+          if(!confirm('Annuler cette réservation ? Elle sera supprimée de la liste.'))return;
+          showLoader(true);
+          try{
+            await updateResa(id,{table_id:null});
+            await deleteResa(id);
+            showLoader(false);
+            document.getElementById('modal-detail').classList.remove('open');
+            toast('Réservation annulée et supprimée ✓','ok');
+            loadResas();
+          }catch(e){showLoader(false);toast('Erreur','ko');}
+          return;
+        }
+        showLoader(true);
+        await updateResa(id,{statut:p.dataset.status});
+        showLoader(false);
+        document.getElementById('modal-detail').classList.remove('open');
+        toast('Statut mis à jour ✓','ok');
+        loadResas();
+      };
+    });
+
+    document.getElementById('modal-detail').classList.add('open');
+  }catch(e){showLoader(false);toast('Erreur','ko');}
+}
+
+document.getElementById('btn-detail-close').onclick=()=>document.getElementById('modal-detail').classList.remove('open');
+document.getElementById('btn-detail-edit').onclick=()=>{
+  document.getElementById('modal-detail').classList.remove('open');
+  openEditForm(currentResaId);
+};
+document.getElementById('btn-detail-delete').onclick=async function(){
+  if(!confirm('Supprimer définitivement cette réservation ?'))return;
+  showLoader(true);
+  try{
+    // First remove table assignment if any
+    await updateResa(currentResaId,{table_id:null});
+    await deleteResa(currentResaId);
+    showLoader(false);
+    document.getElementById('modal-detail').classList.remove('open');
+    toast('Réservation supprimée ✓','ok');
+    currentDate = currentDate; // keep same date
+    loadResas();
+  }catch(e){showLoader(false);toast('Erreur suppression','ko');console.error(e);}
+};
+
+// ── FORM ──────────────────────────────────────────────────────
+document.getElementById('fab').onclick=()=>openNewForm();
+document.getElementById('btn-resa-cancel').onclick=()=>document.getElementById('modal-resa').classList.remove('open');
+
+function openNewForm(){
+  editMode=false;currentResaId=null;
+  document.getElementById('modal-resa-title').textContent='Nouvelle réservation';
+  document.getElementById('r-nom').value='';
+  document.getElementById('r-pax').value='';
+  document.getElementById('r-tel').value='';
+  document.getElementById('r-email').value='';
+  document.getElementById('r-date').value=currentDate;
+  document.getElementById('r-heure').value='';
+  document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
+  ['nom','pax','date','heure'].forEach(f=>{document.getElementById('err-'+f).classList.remove('show');document.getElementById('r-'+f).classList.remove('err');});
+  document.getElementById('modal-resa').classList.add('open');
+  setTimeout(()=>document.getElementById('r-nom').focus(),300);
+}
+
+async function openEditForm(id){
+  showLoader(true);
+  try{
+    const resas=await getResas(currentDate);
+    const r=resas.find(x=>x.id===id);
+    showLoader(false);
+    if(!r)return;
+    editMode=true;currentResaId=id;
+    document.getElementById('modal-resa-title').textContent='Modifier la réservation';
+    document.getElementById('r-nom').value=r.nom||'';
+    document.getElementById('r-pax').value=r.personnes||'';
+    document.getElementById('r-tel').value=r.telephone||'';
+    document.getElementById('r-email').value=r.email||'';
+    document.getElementById('r-date').value=r.date||'';
+    document.getElementById('r-heure').value=r.heure||'';
+    document.querySelectorAll('.time-pill').forEach(p=>{p.classList.toggle('active',p.dataset.time===r.heure);});
+    document.getElementById('modal-resa').classList.add('open');
+  }catch(e){showLoader(false);toast('Erreur','ko');}
+}
+
+// Time pills
+document.getElementById('time-pills').onclick=function(e){
+  const pill=e.target.closest('.time-pill');
+  if(!pill)return;
+  document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
+  pill.classList.add('active');
+  document.getElementById('r-heure').value=pill.dataset.time;
+};
+
+document.getElementById('btn-resa-save').onclick=async function(){
+  const nom=document.getElementById('r-nom').value.trim();
+  const pax=parseInt(document.getElementById('r-pax').value);
+  const date=document.getElementById('r-date').value;
+  const heure=document.getElementById('r-heure').value;
+  let ok=true;
+  ['nom','pax','date','heure'].forEach(f=>{document.getElementById('err-'+f).classList.remove('show');document.getElementById('r-'+f).classList.remove('err');});
+  if(!nom){setErr('nom','Nom requis');ok=false;}
+  if(!pax||pax<1){setErr('pax','Nombre requis');ok=false;}
+  if(!date){setErr('date','Date requise');ok=false;}
+  if(!heure){setErr('heure','Heure requise');ok=false;}
+  if(!ok)return;
+  showLoader(true);
+  try{
+    const data={nom,personnes:pax,date,heure,telephone:document.getElementById('r-tel').value.trim(),email:document.getElementById('r-email').value.trim().toLowerCase(),statut:'confirmee'};
+    if(editMode)await updateResa(currentResaId,data);
+    else await createResa({...data,id:genId()});
+    showLoader(false);
+    document.getElementById('modal-resa').classList.remove('open');
+    toast(editMode?'Réservation modifiée ✓':'Réservation créée — choisissez une table 🪑','ok');
+    currentDate=date;updateDateLabel();
+    if(!editMode){
+      // Switch to plan and highlight unassigned
+      planDate=date;
+      // Detect service
+      planService=heure<'14:00'?'midi':'soir';
+      document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
+      updatePlanDateLabel();
+      // Switch tab
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      document.querySelector('.tab[data-screen="plan"]').classList.add('active');
+      document.getElementById('screen-plan').classList.add('active');
+      // Show tip toast after short delay
+      setTimeout(()=>toast('Cliquez sur une table pour placer la réservation 🗺','ok'),800);
+      loadPlan();
+    } else {
+      loadResas();
+    }
+  }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
+};
+
+function setErr(f,m){const el=document.getElementById('err-'+f);el.textContent=m;el.classList.add('show');document.getElementById('r-'+f).classList.add('err');}
+
+// Close modals on backdrop
+['modal-resa','modal-detail'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+});
+
+// ── PLAN DE SALLE ─────────────────────────────────────────────
+async function loadPlan(){
+  showLoader(true);
+  try{
+    allTables = await getTables() || [];
+    const resas = await getResas(planDate) || [];
+    showLoader(false);
+    const filtered = planService==='midi' ? resas.filter(r=>r.heure<'14:00') : resas.filter(r=>r.heure>='14:00');
+    tableResas = {};
+    filtered.forEach(r=>{ if(r.table_id) tableResas[r.table_id]=r; });
+    if(!allTables.length) await initDefaultTables();
+    else renderPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); console.error(e); }
+}
+
+async function initDefaultTables(){
+  showLoader(true);
+  const tables = [];
+  for(let i=1;i<=20;i++){
+    const col=(i-1)%5, row=Math.floor((i-1)/5);
+    tables.push({id:'t'+i, numero:i, zone:'interieur', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
+  }
+  for(let i=21;i<=35;i++){
+    const col=(i-21)%5, row=Math.floor((i-21)/5);
+    tables.push({id:'t'+i, numero:i, zone:'terrasse', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
+  }
+  try{
+    for(const t of tables) await createTable(t);
+    allTables = tables; showLoader(false); renderPlan();
+  }catch(e){ showLoader(false); toast('Erreur init tables','ko'); }
+}
+
+function renderPlan(){
+  const canvas = document.getElementById('plan-canvas');
+  canvas.innerHTML = '';
+  // Show assign banner if a resa is pending
+  const banner = document.getElementById('assign-banner');
+  if(pendingResaId){
+    banner.style.display='flex';
+  }else{
+    banner.style.display='none';
+  }
+  const visible = allTables.filter(t=>t.zone===planZone && (t.x_pos||0) >= 0);
+
+  visible.forEach(t=>{
+    const resa = tableResas[t.id];
+    let status = 'libre';
+    if(resa){
+      status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
+    }
+    const isMerged = t.merged_with && t.merged_with.length > 0;
+    const w = isMerged ? 190 : 110;
+    const h = resa && resa.telephone ? 120 : 105;
+
+    const el = document.createElement('div');
+    el.className = 'table-el';
+    el.dataset.id = t.id;
+    el.style.cssText = 'left:'+(t.x_pos||80)+'px;top:'+(t.y_pos||80)+'px;width:'+w+'px;height:'+h+'px;';
+
+    el.innerHTML =
+      '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;">'+
+      (isMerged ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
+      '<div class="table-num">'+t.numero+'</div>'+
+      '<div class="table-cap">'+t.capacite+'p</div>'+
+      (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
+      (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
+      (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
+      '</div>';
+
+    setupTableInteractions(el, t, visible);
+    canvas.appendChild(el);
+  });
+
+  // Stats
+  const total = allTables.filter(t=>t.zone===planZone && (t.x_pos||0)>=0).length;
+  const occupied = Object.keys(tableResas).filter(id=>allTables.find(t=>t.id===id&&t.zone===planZone)).length;
+  document.getElementById('stat-dispo').textContent = Math.max(0, total-occupied);
+}
+
+// ── TABLE INTERACTIONS (click / long-press / drag) ────────────
+let editingTableId = null;
+
+function setupTableInteractions(el, table, allVisible){
+  let t0=0, x0=0, y0=0, dragging=false, longTimer=null;
+  let ox=table.x_pos||80, oy=table.y_pos||80;
+
+  // ── TOUCH START / MOUSE DOWN ──
+  function start(cx,cy){
+    t0=Date.now(); x0=cx; y0=cy; dragging=false;
+    ox=table.x_pos||80; oy=table.y_pos||80;
+    longTimer=setTimeout(()=>{ if(!dragging) openEditTableModal(table); },700);
+  }
+  el.addEventListener('mousedown', e=>{ start(e.clientX,e.clientY); e.stopPropagation(); });
+  el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); }, {passive:true});
+
+  // ── MOVE ──
+  el.addEventListener('mousemove', e=>{
+    if(!e.buttons) return;
+    const dx=e.clientX-x0, dy=e.clientY-y0;
+    if(!dragging && (Math.abs(dx)>8||Math.abs(dy)>8)){
+      dragging=true; clearTimeout(longTimer);
+      el.style.zIndex=999; el.style.opacity='0.8';
+    }
+    if(!dragging) return;
+    const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
+    el.style.left=nx+'px'; el.style.top=ny+'px';
+    // merge highlight
+    allVisible.forEach(t2=>{
+      if(t2.id===table.id)return;
+      const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
+      if(!e2)return;
+      e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
+    });
+  });
+  el.addEventListener('touchmove', e=>{
+    const t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    if(!dragging && (Math.abs(dx)>8||Math.abs(dy)>8)){
+      dragging=true; clearTimeout(longTimer);
+      el.style.zIndex=999; el.style.opacity='0.8';
+    }
+    if(!dragging)return;
+    const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
+    el.style.left=nx+'px'; el.style.top=ny+'px';
+    allVisible.forEach(t2=>{
+      if(t2.id===table.id)return;
+      const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
+      if(!e2)return;
+      e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
+    });
+  },{passive:true});
+
+  // ── END ──
+  async function end(){
+    clearTimeout(longTimer);
+    el.style.zIndex=''; el.style.opacity='';
+    document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
+
+    if(!dragging){
+      // ── SIMPLE TAP ──
+      if(pendingResaId && !tableResas[table.id]){
+        const rid=pendingResaId; pendingResaId=null;
+        document.getElementById('assign-banner').style.display='none';
+        assignTable(rid,table.id);
+      }else{
+        openTablePanel(table, tableResas[table.id]);
+      }
+      return;
+    }
+
+    dragging=false;
+    // find merge target
+    const tgt=allVisible.find(t2=>{
+      if(t2.id===table.id)return false;
+      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+      return Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90;
+    });
+
+    if(tgt){
+      if(confirm('Fusionner table '+table.numero+' avec table '+tgt.numero+' ?')){
+        showLoader(true);
+        try{
+          await updateTable(table.id,{capacite:(table.capacite||4)+(tgt.capacite||4),numero:Math.min(table.numero,tgt.numero),merged_with:String(tgt.numero),x_pos:tgt.x_pos,y_pos:tgt.y_pos});
+          await updateTable(tgt.id,{x_pos:-500,y_pos:-500});
+          showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
+        }catch(e){showLoader(false);toast('Erreur','ko');}
+      }else{
+        el.style.left=ox+'px'; el.style.top=oy+'px';
+      }
+    }else{
+      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+      table.x_pos=nx; table.y_pos=ny;
+      try{ await updateTable(table.id,{x_pos:nx,y_pos:ny}); }
+      catch(e){ toast('Erreur sauvegarde','ko'); }
+    }
+  }
+  el.addEventListener('mouseup', end);
+  el.addEventListener('touchend', end, {passive:true});
+}
+
+// Edit table modal
+function openEditTableModal(table){
+  editingTableId = table.id;
+  document.getElementById('edit-table-num').value = table.numero;
+  document.getElementById('edit-table-cap').value = table.capacite;
+  document.getElementById('edit-table-modal').classList.add('open');
+}
+document.getElementById('edit-table-cancel').onclick = () => document.getElementById('edit-table-modal').classList.remove('open');
+document.getElementById('edit-table-save').onclick = async function(){
+  const num = parseInt(document.getElementById('edit-table-num').value);
+  const cap = parseInt(document.getElementById('edit-table-cap').value);
+  if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
+  showLoader(true);
+  try{
+    await updateTable(editingTableId, {numero:num, capacite:cap});
+    showLoader(false);
+    document.getElementById('edit-table-modal').classList.remove('open');
+    toast('Table modifiée ✓','ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); }
+};
+document.getElementById('merge-cancel-btn').onclick = () => {
+  document.getElementById('merge-bar').classList.remove('show');
+  document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
+  renderPlan();
+};
+
+// ── TABLE PANEL ───────────────────────────────────────────────
+let currentTableId=null, currentTableResa=null;
+
+async function openTablePanel(table, resa){
+  currentTableId = table.id;
+  currentTableResa = resa;
+  document.getElementById('tp-title').textContent = 'Table '+table.numero;
+  document.getElementById('tp-sub').textContent = table.capacite+' couverts • '+(resa?'Occupée':'Libre');
+  const list = document.getElementById('tp-assign-list');
+  const unassign = document.getElementById('tp-unassign');
+
+  if(resa){
+    const statusHtml = resa.statut==='confirmee'?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
+    list.innerHTML =
+      '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;">Réservation affectée</div>'+
+      '<div style="background:rgba(229,57,53,0.08);border:1px solid rgba(229,57,53,0.25);border-radius:14px;padding:16px;">'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'+
+          '<div style="font-family:Cinzel,serif;font-size:24px;font-weight:900;color:var(--accent);">'+resa.heure.slice(0,5)+'</div>'+
+          '<div style="flex:1;">'+
+            '<div style="font-weight:700;font-size:17px;">'+esc(resa.nom)+'</div>'+
+            '<div style="font-size:11px;color:var(--text-faint);margin-top:2px;">'+statusHtml+'</div>'+
+          '</div>'+
+          '<div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:16px;padding:8px 14px;border-radius:20px;">'+resa.personnes+'p</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:9px;padding-top:12px;border-top:1px solid rgba(255,107,0,0.15);">'+
+          (resa.telephone?'<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-dim);"><span>📞</span><span>'+esc(resa.telephone)+'</span></div>':'')+
+          (resa.email?'<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-dim);"><span>✉</span><span>'+esc(resa.email)+'</span></div>':'')+
+        '</div>'+
+      '</div>';
+    unassign.style.display = 'block';
+  }else{
+    // Show unassigned reservations to assign
+    showLoader(true);
+    try{
+      const allResas = await getResas(planDate);
+      showLoader(false);
+      const filtered = planService==='midi' ? allResas.filter(r=>r.heure<'14:00') : allResas.filter(r=>r.heure>='14:00');
+      const unassigned = filtered.filter(r=>!r.table_id && r.statut!=='annulee');
+      unassigned.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+
+      // If coming from a resa click, assign directly without panel
+      if(pendingResaId){
+        const pr = unassigned.find(r=>r.id===pendingResaId) || unassigned[0];
+        if(pr){
+          pendingResaId = null;
+          await assignTable(pr.id, table.id);
+          return;
+        }
+        pendingResaId = null;
+      }
+      if(!unassigned.length){
+        list.innerHTML = '<div style="text-align:center;padding:20px 0;"><div style="font-size:32px;margin-bottom:8px;">✅</div><div style="color:var(--text-faint);font-size:13px;">Toutes les réservations sont placées !</div></div>';
+      }else{
+        list.innerHTML = '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">Appuyez pour affecter à cette table</div>';
+        unassigned.forEach((r,i)=>{
+          const item = document.createElement('div');
+          item.className = 'assign-item';
+          if(i===0) item.style.cssText = 'border:1px solid var(--accent);background:rgba(255,107,0,0.12);';
+          item.innerHTML =
+            '<div style="flex:1;">'+
+              '<div class="assign-item-name">'+esc(r.nom)+(i===0?' <span style="font-size:10px;color:var(--accent);font-weight:700;">← nouvelle</span>':'')+'</div>'+
+              '<div class="assign-item-meta">'+r.heure.slice(0,5)+' • '+r.personnes+' pers.'+(r.telephone?' • '+esc(r.telephone):'')+'</div>'+
+            '</div>'+
+            '<div class="assign-item-pax">'+r.personnes+'p</div>';
+          item.addEventListener('click', ()=>assignTable(r.id, table.id));
+          list.appendChild(item);
+        });
+      }
+      unassign.style.display = 'none';
+    }catch(e){ showLoader(false); toast('Erreur','ko'); }
+  }
+
+  document.getElementById('table-panel').classList.add('open');
+  document.getElementById('table-panel-overlay').style.display = 'block';
+}
+
+async function assignTable(resaId, tableId){
+  showLoader(true);
+  try{
+    await updateResa(resaId, {table_id:tableId});
+    showLoader(false);
+    closeTablePanel();
+    toast('Table affectée ✓','ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); }
+}
+
+document.getElementById('tp-unassign').onclick = async function(){
+  if(!currentTableResa) return;
+  showLoader(true);
+  try{
+    await updateResa(currentTableResa.id, {table_id:null});
+    showLoader(false);
+    closeTablePanel();
+    toast('Table désaffectée','ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); }
+};
+
+function closeTablePanel(){
+  document.getElementById('table-panel').classList.remove('open');
+  document.getElementById('table-panel-overlay').style.display = 'none';
+}
+document.getElementById('tp-close').onclick = closeTablePanel;
+document.getElementById('table-panel-overlay').onclick = closeTablePanel;
+
+// ── NOTIFICATIONS TEMPS RÉEL ──────────────────────────────────
+let lastResaIds = new Set();
+let pollingActive = true;
+
+async function initPolling(){
+  // Load initial IDs silently
+  try{
+    const all = await getAllResas();
+    all.forEach(r=>lastResaIds.add(r.id));
+  }catch(e){}
+  // Poll every 30 seconds
+  setInterval(checkNewResas, 30000);
+}
+
+async function checkNewResas(){
+  if(!pollingActive) return;
+  try{
+    const all = await getAllResas();
+    const newOnes = all.filter(r=>!lastResaIds.has(r.id));
+    if(newOnes.length > 0){
+      newOnes.forEach(r=>lastResaIds.add(r.id));
+      showNotification(newOnes);
+    }
+  }catch(e){ console.log('Polling error:', e); }
+}
+
+function showNotification(newResas){
+  const r = newResas[0];
+  const dateStr = new Date(r.date+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+  const title = newResas.length > 1 ? newResas.length+' nouvelles réservations !' : 'Nouvelle réservation en ligne !';
+  const sub = r.nom+' — '+r.personnes+'p — '+dateStr+' à '+r.heure.slice(0,5);
+
+  document.getElementById('notif-title').textContent = title;
+  document.getElementById('notif-sub').textContent = sub;
+  document.getElementById('notif-banner').classList.add('show');
+  document.getElementById('new-resa-badge').classList.add('show');
+
+  // Sound alert
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [523,659,784].forEach((freq,i)=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + i*0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.15 + 0.3);
+      osc.start(ctx.currentTime + i*0.15);
+      osc.stop(ctx.currentTime + i*0.15 + 0.3);
+    });
+  }catch(e){}
+
+  // Auto-hide after 8s
+  setTimeout(()=>document.getElementById('notif-banner').classList.remove('show'), 8000);
+
+  // Refresh list if on reservations tab
+  if(document.getElementById('screen-reservations').classList.contains('active')){
+    currentDate = r.date;
+    updateDateLabel();
+    loadResas();
+  }
+}
+
+document.getElementById('notif-close').onclick = ()=>{
+  document.getElementById('notif-banner').classList.remove('show');
+  document.getElementById('new-resa-badge').classList.remove('show');
+  // Go to the date of the new resa
+  const lastNew = [...lastResaIds].pop();
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelector('.tab[data-screen="reservations"]').classList.add('active');
+  document.getElementById('screen-reservations').classList.add('active');
+  loadResas();
+};
+document.getElementById('new-resa-badge').onclick = ()=>document.getElementById('notif-close').click();
+
+// ── INIT ──────────────────────────────────────────────────────
+loadResas();
+initPolling();
+</script>
+
+
+<!-- NOTIFICATION BANNER -->
+<div class="notif-banner" id="notif-banner">
+  <div class="notif-inner">
+    <div class="notif-icon">🔔</div>
+    <div class="notif-text">
+      <div class="notif-title" id="notif-title">Nouvelle réservation !</div>
+      <div class="notif-sub" id="notif-sub"></div>
+    </div>
+    <button class="notif-close" id="notif-close">Voir</button>
+  </div>
+</div>
+<div class="new-resa-badge" id="new-resa-badge" title="Nouvelle réservation">
+  <div class="pulse-ring"></div>
+  🔔
+</div>
+<!-- MERGE BAR -->
+<div class="merge-bar" id="merge-bar">
+  <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
+  <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
+</div>
+
+<!-- EDIT TABLE MODAL -->
+<div class="edit-table-modal" id="edit-table-modal">
+  <div class="edit-table-box">
+    <div class="edit-table-title">✏️ Modifier la table</div>
+    <div class="field-group">
+      <label class="field-label">Numéro</label>
+      <input type="number" class="field-input" id="edit-table-num" placeholder="1" min="1" max="999">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Capacité (couverts)</label>
+      <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
+      <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
+    </div>
+  </div>
+</div>
+</body></html>
