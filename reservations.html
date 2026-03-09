@@ -251,6 +251,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="plan-controls">
       <button class="plan-zone-btn active" data-zone="interieur">🏠 Intérieur</button>
       <button class="plan-zone-btn" data-zone="terrasse">🌿 Terrasse</button>
+      <button class="plan-zone-btn" id="btn-add-table" style="background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);">＋ Table</button>
       <div class="plan-legend">
         <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div>Libre</div>
         <div class="legend-item"><div class="legend-dot" style="background:#43a047;opacity:0.7;border:2px solid #43a047"></div>Avant 21h</div>
@@ -287,6 +288,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="table-panel-sub" id="tp-sub">4 couverts • Libre</div>
   <div class="assign-list" id="tp-assign-list"></div>
   <button class="btn-unassign" id="tp-unassign" style="display:none;">Désaffecter cette table</button>
+  <button class="btn-unassign" id="tp-defuse" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;margin-top:8px;">⬌ Défusionner les tables</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
 <div id="table-panel-overlay" style="display:none;position:fixed;inset:0;z-index:599;"></div>
@@ -400,7 +402,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <!-- EDIT TABLE MODAL -->
 <div class="edit-table-modal" id="edit-table-modal">
   <div class="edit-table-box">
-    <div class="edit-table-title">✏️ Modifier la table</div>
+    <div class="edit-table-title" id="edit-table-modal-title">✏️ Modifier la table</div>
     <div class="field-group">
       <label class="field-label">Numéro</label>
       <input type="number" class="field-input" id="edit-table-num" placeholder="1" min="1" max="999">
@@ -408,6 +410,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="field-group">
       <label class="field-label">Capacité (couverts)</label>
       <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Forme</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="forme-btn active" data-forme="carre" style="flex:1;padding:10px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">⬛ Carré<br><span style="font-size:10px;opacity:.7;">2 pers.</span></button>
+        <button class="forme-btn" data-forme="rectangle" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-faint);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">▬ Rectangle<br><span style="font-size:10px;opacity:.7;">3–4 pers.</span></button>
+        <button class="forme-btn" data-forme="ronde" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-faint);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">⚫ Ronde<br><span style="font-size:10px;opacity:.7;">2–6 pers.</span></button>
+      </div>
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
@@ -822,27 +832,29 @@ async function initDefaultTables(){
   }catch(e){ showLoader(false); toast('Erreur init tables','ko'); }
 }
 
+function getTableDimensions(t){
+  const forme = t.forme || (t.capacite<=2 ? 'carre' : 'rectangle');
+  const isMerged = t.merged_with && t.merged_with.length > 0;
+  if(isMerged) return {w:190, h:110, radius:'14px'};
+  if(forme==='ronde') return {w:110, h:110, radius:'50%'};
+  if(forme==='carre') return {w:105, h:105, radius:'14px'};
+  return {w:145, h:105, radius:'10px 10px 10px 10px'}; // rectangle
+}
+
 function renderPlan(){
   const canvas = document.getElementById('plan-canvas');
   canvas.innerHTML = '';
-  // Show assign banner if a resa is pending
   const banner = document.getElementById('assign-banner');
-  if(pendingResaId){
-    banner.style.display='flex';
-  }else{
-    banner.style.display='none';
-  }
+  if(pendingResaId){ banner.style.display='flex'; }else{ banner.style.display='none'; }
+
   const visible = allTables.filter(t=>t.zone===planZone && (t.x_pos||0) >= 0);
 
   visible.forEach(t=>{
     const resa = tableResas[t.id];
     let status = 'libre';
-    if(resa){
-      status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
-    }
+    if(resa){ status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee'; }
     const isMerged = t.merged_with && t.merged_with.length > 0;
-    const w = isMerged ? 190 : 110;
-    const h = resa && resa.telephone ? 120 : 105;
+    const {w, h, radius} = getTableDimensions(t);
 
     const el = document.createElement('div');
     el.className = 'table-el';
@@ -850,21 +862,22 @@ function renderPlan(){
     el.style.cssText = 'left:'+(t.x_pos||80)+'px;top:'+(t.y_pos||80)+'px;width:'+w+'px;height:'+h+'px;';
 
     el.innerHTML =
-      '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;">'+
+      '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;border-radius:'+radius+';'+
+      (status==='libre'?'background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);box-shadow:0 0 14px rgba(67,160,71,0.12);':'')+
+      '">'+
       (isMerged ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
       '<div class="table-num">'+t.numero+'</div>'+
       '<div class="table-cap">'+t.capacite+'p</div>'+
       (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
       (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
       (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
-      (resa && resa.notes ? '<div class="table-resa-name" style="color:var(--accent2);font-size:9px;margin-top:1px;">📝 '+esc(resa.notes.length>20?resa.notes.slice(0,20)+'…':resa.notes)+'</div>' : '')+
+      (resa && resa.notes ? '<div class="table-resa-name" style="color:var(--accent2);font-size:9px;margin-top:1px;">📝 '+esc(resa.notes.length>18?resa.notes.slice(0,18)+'…':resa.notes)+'</div>' : '')+
       '</div>';
 
     setupTableInteractions(el, t, visible);
     canvas.appendChild(el);
   });
 
-  // Stats
   const total = allTables.filter(t=>t.zone===planZone && (t.x_pos||0)>=0).length;
   const occupied = Object.keys(tableResas).filter(id=>allTables.find(t=>t.id===id&&t.zone===planZone)).length;
   document.getElementById('stat-dispo').textContent = Math.max(0, total-occupied);
@@ -952,8 +965,15 @@ function setupTableInteractions(el, table, allVisible){
       if(confirm('Fusionner table '+table.numero+' avec table '+tgt.numero+' ?')){
         showLoader(true);
         try{
-          await updateTable(table.id,{capacite:(table.capacite||4)+(tgt.capacite||4),numero:Math.min(table.numero,tgt.numero),merged_with:String(tgt.numero),x_pos:tgt.x_pos,y_pos:tgt.y_pos});
-          await updateTable(tgt.id,{x_pos:-500,y_pos:-500});
+          const newCap = (table.capacite||4)+(tgt.capacite||4);
+          await updateTable(table.id,{
+            capacite: newCap,
+            numero: Math.min(table.numero,tgt.numero),
+            merged_with: String(tgt.numero),
+            capacite_origine: table.capacite||4,
+            x_pos: tgt.x_pos, y_pos: tgt.y_pos
+          });
+          await updateTable(tgt.id,{x_pos:-500, y_pos:-500, capacite_origine: tgt.capacite||4});
           showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
         }catch(e){showLoader(false);toast('Erreur','ko');}
       }else{
@@ -971,23 +991,61 @@ function setupTableInteractions(el, table, allVisible){
 }
 
 // Edit table modal
+let addTableMode = false;
+
+function setFormeActive(forme){
+  document.querySelectorAll('.forme-btn').forEach(b=>{
+    const active = b.dataset.forme === forme;
+    b.style.background = active ? 'rgba(255,107,0,0.12)' : 'none';
+    b.style.borderColor = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
+    b.style.color = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
+  });
+}
+document.querySelectorAll('.forme-btn').forEach(b=>{
+  b.onclick=()=>setFormeActive(b.dataset.forme);
+});
+
 function openEditTableModal(table){
+  addTableMode = false;
   editingTableId = table.id;
+  document.getElementById('edit-table-modal-title').textContent = '✏️ Modifier la table';
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
+  setFormeActive(table.forme || (table.capacite<=2?'carre':'rectangle'));
   document.getElementById('edit-table-modal').classList.add('open');
 }
+
+function openAddTableModal(){
+  addTableMode = true;
+  editingTableId = null;
+  document.getElementById('edit-table-modal-title').textContent = '＋ Nouvelle table';
+  // Suggest next numero
+  const maxNum = allTables.length ? Math.max(...allTables.map(t=>t.numero)) : 0;
+  document.getElementById('edit-table-num').value = maxNum + 1;
+  document.getElementById('edit-table-cap').value = 4;
+  setFormeActive('rectangle');
+  document.getElementById('edit-table-modal').classList.add('open');
+}
+
+document.getElementById('btn-add-table').onclick = openAddTableModal;
 document.getElementById('edit-table-cancel').onclick = () => document.getElementById('edit-table-modal').classList.remove('open');
 document.getElementById('edit-table-save').onclick = async function(){
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
+  const forme = document.querySelector('.forme-btn[style*="rgba(255,107,0,0.12)"]')?.dataset.forme || 'rectangle';
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
   showLoader(true);
   try{
-    await updateTable(editingTableId, {numero:num, capacite:cap});
+    if(addTableMode){
+      const newId = 't'+Date.now().toString(36);
+      await createTable({id:newId, numero:num, zone:planZone, capacite:cap, forme:forme, x_pos:80, y_pos:80});
+      toast('Table '+num+' ajoutée ✓','ok');
+    }else{
+      await updateTable(editingTableId, {numero:num, capacite:cap, forme:forme});
+      toast('Table modifiée ✓','ok');
+    }
     showLoader(false);
     document.getElementById('edit-table-modal').classList.remove('open');
-    toast('Table modifiée ✓','ok');
     loadPlan();
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
 };
@@ -1071,6 +1129,15 @@ async function openTablePanel(table, resa){
 
   document.getElementById('table-panel').classList.add('open');
   document.getElementById('table-panel-overlay').style.display = 'block';
+
+  // Bouton défusion : visible uniquement si la table est fusionnée
+  const defuseBtn = document.getElementById('tp-defuse');
+  if(table.merged_with){
+    defuseBtn.style.display = 'block';
+    defuseBtn.textContent = '⬌ Défusionner Tables '+table.numero+' & '+table.merged_with;
+  } else {
+    defuseBtn.style.display = 'none';
+  }
 }
 
 async function assignTable(resaId, tableId){
@@ -1094,6 +1161,54 @@ document.getElementById('tp-unassign').onclick = async function(){
     toast('Table désaffectée','ok');
     loadPlan();
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
+};
+
+// ── DÉFUSION ──────────────────────────────────────────────────
+document.getElementById('tp-defuse').onclick = async function(){
+  const table = allTables.find(t=>t.id===currentTableId);
+  if(!table || !table.merged_with) return;
+
+  if(!confirm('Défusionner les tables '+table.numero+' et '+table.merged_with+' ?')) return;
+
+  showLoader(true);
+  try{
+    // Retrouver la table cachée (x_pos=-500) dont le numero = merged_with
+    const partnerNumero = parseInt(table.merged_with);
+    const partner = allTables.find(t=>
+      t.numero === partnerNumero &&
+      t.id !== table.id &&
+      (t.x_pos <= -400)
+    );
+
+    // Capacité d'origine : mémorisée ou estimée à moitié
+    const origCap = table.capacite_origine || Math.ceil(table.capacite / 2);
+    const partnerCap = partner
+      ? (partner.capacite_origine || partner.capacite || Math.floor(table.capacite / 2))
+      : Math.floor(table.capacite / 2);
+
+    // Restaurer la table principale
+    await updateTable(table.id, {
+      capacite: origCap,
+      merged_with: null,
+      capacite_origine: null
+    });
+
+    // Repositionner la table partenaire juste à côté
+    if(partner){
+      await updateTable(partner.id, {
+        x_pos: (table.x_pos || 80) + 160,
+        y_pos: table.y_pos || 80,
+        capacite: partnerCap,
+        merged_with: null,
+        capacite_origine: null
+      });
+    }
+
+    showLoader(false);
+    closeTablePanel();
+    toast('Tables défusionnées ✓', 'ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur défusion','ko'); console.error(e); }
 };
 
 function closeTablePanel(){
