@@ -133,6 +133,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 
 /* TABLE ELEMENT */
 .table-el{position:absolute;cursor:pointer;user-select:none;}
+.table-edit-btn{position:absolute;top:-10px;right:-10px;width:26px;height:26px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,0.4);line-height:1;}
 .table-el.dragging{opacity:0.75;z-index:999;transform:scale(1.05);}
 .table-el.merge-target{animation:mergeGlow .5s ease infinite alternate;}
 @keyframes mergeGlow{from{filter:drop-shadow(0 0 6px var(--accent));}to{filter:drop-shadow(0 0 18px var(--accent3));}}
@@ -852,6 +853,17 @@ function renderPlan(){
       (showPhone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
       '</div>';
 
+    // Bouton ✏️ pour modifier la table (visible au tap long → remplacé par bouton direct)
+    const editBtn = document.createElement('button');
+    editBtn.className = 'table-edit-btn';
+    editBtn.innerHTML = '✏️';
+    editBtn.title = 'Modifier la table';
+    editBtn.onclick = function(e){
+      e.stopPropagation();
+      openEditTableModal(t);
+    };
+    el.appendChild(editBtn);
+
     setupTableInteractions(el, t, visible);
     canvas.appendChild(el);
   });
@@ -861,96 +873,53 @@ function renderPlan(){
   document.getElementById('stat-dispo').textContent = Math.max(0, total-occupied);
 }
 
-// ── TABLE INTERACTIONS (click / long-press / drag) ────────────
+// ── TABLE INTERACTIONS (tap / drag) ──────────────────────────
 let editingTableId = null;
 
 function setupTableInteractions(el, table, allVisible){
-  let t0=0, x0=0, y0=0, dragging=false, longTimer=null, longPressTriggered=false;
+  let x0=0, y0=0, dragging=false;
   let ox=table.x_pos||80, oy=table.y_pos||80;
 
   function start(cx,cy){
-    t0=Date.now(); x0=cx; y0=cy; dragging=false; longPressTriggered=false;
-    ox=table.x_pos||80; oy=table.y_pos||80;
-    // Long press = 600ms sans bouger : ouvre la modale d'édition de la table
-    longTimer=setTimeout(()=>{
-      if(!dragging){
-        longPressTriggered=true;
-        // Feedback visuel
-        el.querySelector('.table-shape').style.transform='scale(1.08)';
-        el.querySelector('.table-shape').style.transition='transform .15s';
-        setTimeout(()=>{ el.querySelector('.table-shape').style.transform=''; }, 300);
-        openEditTableModal(table);
-      }
-    }, 600);
+    x0=cx; y0=cy; dragging=false;
+    ox=parseInt(el.style.left)||table.x_pos||80;
+    oy=parseInt(el.style.top)||table.y_pos||80;
   }
-  el.addEventListener('mousedown', e=>{ start(e.clientX,e.clientY); e.stopPropagation(); });
-  el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); e.stopPropagation(); }, {passive:true});
-
-  el.addEventListener('mousemove', e=>{
-    if(!e.buttons) return;
-    const dx=e.clientX-x0, dy=e.clientY-y0;
-    if(!dragging && (Math.abs(dx)>8||Math.abs(dy)>8)){
-      dragging=true; clearTimeout(longTimer);
+  function move(cx,cy){
+    const dx=cx-x0, dy=cy-y0;
+    if(!dragging && (Math.abs(dx)>10||Math.abs(dy)>10)){
+      dragging=true;
       el.style.zIndex=999; el.style.opacity='0.8';
     }
     if(!dragging) return;
     const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
     el.style.left=nx+'px'; el.style.top=ny+'px';
     allVisible.forEach(t2=>{
-      if(t2.id===table.id)return;
-      if(t2.zone!==table.zone)return; // même zone uniquement
+      if(t2.id===table.id||t2.zone!==table.zone) return;
       const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
-      if(!e2)return;
-      e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
+      if(e2) e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
     });
-  });
-  el.addEventListener('touchmove', e=>{
-    const t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
-    // Annule le long press dès qu'on bouge de plus de 10px
-    if(Math.abs(dx)>10||Math.abs(dy)>10) clearTimeout(longTimer);
-    if(!dragging && (Math.abs(dx)>8||Math.abs(dy)>8)){
-      dragging=true; clearTimeout(longTimer);
-      el.style.zIndex=999; el.style.opacity='0.8';
-    }
-    if(!dragging)return;
-    const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
-    el.style.left=nx+'px'; el.style.top=ny+'px';
-    allVisible.forEach(t2=>{
-      if(t2.id===table.id)return;
-      if(t2.zone!==table.zone)return; // même zone uniquement
-      const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
-      if(!e2)return;
-      e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
-    });
-  },{passive:true});
-
-  async function end(){
-    clearTimeout(longTimer);
+  }
+  async function end(cx,cy){
     el.style.zIndex=''; el.style.opacity='';
     document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
-
     if(!dragging){
-      // Si c'est un long press qui vient de s'ouvrir, on ignore le touchend
-      if(longPressTriggered){ longPressTriggered=false; return; }
+      // Tap simple → ouvre le panel
       if(pendingResaId && !tableResas[table.id]){
         const rid=pendingResaId; pendingResaId=null;
         document.getElementById('assign-banner').style.display='none';
         assignTable(rid,table.id);
-      }else{
+      } else {
         openTablePanel(table, tableResas[table.id]);
       }
       return;
     }
-
     dragging=false;
+    const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
     const tgt=allVisible.find(t2=>{
-      if(t2.id===table.id)return false;
-      if(t2.zone!==table.zone)return false; // même zone uniquement
-      if((t2.x_pos||0)<0)return false;      // table masquée (fusionnée)
-      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+      if(t2.id===table.id||t2.zone!==table.zone||(t2.x_pos||0)<0) return false;
       return Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90;
     });
-
     if(tgt){
       if(confirm('Fusionner table '+table.numero+' avec table '+tgt.numero+' ?')){
         showLoader(true);
@@ -959,18 +928,24 @@ function setupTableInteractions(el, table, allVisible){
           await updateTable(tgt.id,{x_pos:-500,y_pos:-500});
           showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
         }catch(e){showLoader(false);toast('Erreur','ko');}
-      }else{
+      } else {
         el.style.left=ox+'px'; el.style.top=oy+'px';
       }
-    }else{
-      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+    } else {
       table.x_pos=nx; table.y_pos=ny;
       try{ await updateTable(table.id,{x_pos:nx,y_pos:ny}); }
       catch(e){ toast('Erreur sauvegarde','ko'); }
     }
   }
-  el.addEventListener('mouseup', end);
-  el.addEventListener('touchend', end, {passive:true});
+
+  // Mouse
+  el.addEventListener('mousedown', e=>{ start(e.clientX,e.clientY); e.stopPropagation(); });
+  el.addEventListener('mousemove', e=>{ if(e.buttons) move(e.clientX,e.clientY); });
+  el.addEventListener('mouseup',   e=>end(e.clientX,e.clientY));
+  // Touch
+  el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); e.stopPropagation(); },{passive:true});
+  el.addEventListener('touchmove',  e=>{ const t=e.touches[0]; move(t.clientX,t.clientY); },{passive:true});
+  el.addEventListener('touchend',   e=>{ const t=e.changedTouches[0]; end(t.clientX,t.clientY); },{passive:true});
 }
 
 let editingTable = null;
@@ -992,10 +967,6 @@ function openEditTableModal(table){
     updateShapeHint(parseInt(this.value)||0);
   };
   document.getElementById('edit-table-modal').classList.add('open');
-  // Désactive uniquement le plan en dessous
-  document.getElementById('plan-wrap').style.pointerEvents = 'none';
-  // Note le moment d'ouverture — les boutons ignorent les taps < 400ms
-  window._editModalOpenedAt = Date.now();
 }
 
 function updateShapeHint(cap){
@@ -1015,7 +986,6 @@ function updateShapeHint(cap){
 
 function closeEditTableModal(){
   document.getElementById('edit-table-modal').classList.remove('open');
-  document.getElementById('plan-wrap').style.pointerEvents = '';
   editingTable = null;
 }
 
@@ -1066,31 +1036,10 @@ async function saveEditTable(){
 }
 
 // ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
-// Garde temporelle : ignore les taps < 400ms après ouverture (ghost-click du long-press)
-// Flag touched : évite la double exécution touchend → click sur Android
-function _editModalOk(){
-  return !window._editModalOpenedAt || (Date.now() - window._editModalOpenedAt) > 400;
-}
-function _bindModalBtn(id, fn){
-  const el = document.getElementById(id);
-  let _touched = false;
-  el.addEventListener('touchend', function(e){
-    e.preventDefault(); e.stopPropagation();
-    if(!_editModalOk()) return;
-    _touched = true;
-    setTimeout(()=>{ _touched = false; }, 600);
-    fn();
-  });
-  el.addEventListener('click', function(e){
-    e.stopPropagation();
-    if(_touched) return; // déjà exécuté par touchend
-    if(!_editModalOk()) return;
-    fn();
-  });
-}
-_bindModalBtn('edit-table-save',   saveEditTable);
-_bindModalBtn('edit-table-cancel', closeEditTableModal);
-_bindModalBtn('btn-defusionner',   defusionnerTable);
+// Boutons ouverts via le bouton ✏️ (pas de long press) → onclick simple suffit
+document.getElementById('edit-table-save').onclick   = ()=>saveEditTable();
+document.getElementById('edit-table-cancel').onclick = ()=>closeEditTableModal();
+document.getElementById('btn-defusionner').onclick   = ()=>defusionnerTable();
 
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
