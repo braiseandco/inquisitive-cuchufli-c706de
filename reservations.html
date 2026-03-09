@@ -230,36 +230,33 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .status-pill.en-attente.active-status,.status-pill.en-attente:active{background:rgba(255,107,0,0.15);border-color:var(--accent);color:var(--accent);}
 .status-pill.annulee.active-status,.status-pill.annulee:active{background:rgba(229,57,53,0.15);border-color:rgba(229,57,53,0.5);color:#ef9a9a;}
 
-/* ── DETAIL MODAL ── */
+/* ── CALENDRIER POPUP ── */
+.cal-popup{position:fixed;z-index:2000;background:var(--bg2);border:1px solid var(--border2);border-radius:18px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.7);width:300px;display:none;}
+.cal-popup.open{display:block;}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.cal-month-label{font-family:'Cinzel',serif;font-size:15px;font-weight:700;color:var(--text);cursor:pointer;flex:1;text-align:center;}
+.cal-nav{width:32px;height:32px;border:1px solid var(--border2);border-radius:9px;background:rgba(255,107,0,0.06);color:var(--accent);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.cal-nav:active{background:rgba(255,107,0,0.15);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.cal-dow{text-align:center;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);padding:4px 0;font-weight:700;}
+.cal-day{text-align:center;padding:7px 2px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-dim);transition:all .15s;border:1px solid transparent;}
+.cal-day:hover{background:rgba(255,107,0,0.1);color:var(--accent);}
+.cal-day.today{border-color:rgba(255,107,0,0.4);color:var(--accent);}
+.cal-day.selected{background:linear-gradient(135deg,var(--red),var(--accent));color:#fff;font-weight:900;border-color:transparent;}
+.cal-day.other-month{color:var(--text-faint);opacity:0.4;}
+.cal-day.has-resa::after{content:'';display:block;width:4px;height:4px;background:var(--accent3);border-radius:50%;margin:2px auto 0;}
+.cal-overlay{display:none;position:fixed;inset:0;z-index:1999;}
+.cal-overlay.open{display:block;}
+.date-nav-label{cursor:pointer;user-select:none;}
+.date-nav-label:hover{color:var(--accent);}
+
 .detail-row{display:flex;align-items:flex-start;gap:14px;padding:13px 0;border-bottom:1px solid var(--border);}
 .detail-row:last-child{border-bottom:none;}
 .detail-ico{font-size:20px;width:30px;text-align:center;flex-shrink:0;padding-top:2px;}
 .detail-val{font-weight:700;font-size:15px;color:var(--text);}
 .detail-lbl{font-size:10px;color:var(--text-faint);margin-top:3px;letter-spacing:1.5px;text-transform:uppercase;}
 </style>
-<style>
-  .plan-fullscreen {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    background: var(--bg) !important;
-    border: none !important;
-  }
-  .plan-fullscreen .plan-wrap {
-    flex: 1 !important;
-    overflow: scroll !important;
-  }
-  /* Cacher tout le reste */
-  .plan-fullscreen-active .app > *:not(#screen-plan),
-  .plan-fullscreen-active .fab,
-  .plan-fullscreen-active .table-panel,
-  .plan-fullscreen-active #table-panel-overlay {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-</style></head>
+</head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
 <div class="toast" id="toast"></div>
@@ -272,6 +269,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
     <div class="topbar-date" id="topbar-date">lun. 9 mars</div>
+    <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
   </div>
 
   <!-- TABS -->
@@ -284,7 +282,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="screen active" id="screen-reservations">
     <div class="date-nav">
       <button class="date-nav-btn" id="prev-day">‹</button>
-      <div class="date-nav-label" id="date-label">Aujourd'hui</div>
+      <div class="date-nav-label" id="date-label">Aujourd'hui 📅</div>
       <button class="date-nav-btn today-btn" id="next-day">›</button>
       <button class="date-nav-today" id="btn-today">Aujourd'hui</button>
     </div>
@@ -294,12 +292,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="stab" data-service="soir">🌙 Soir</button>
     </div>
     <div class="stats-bar">
-      <div class="stat-item"><div class="stat-n" id="stat-resas">3</div><div class="stat-l">Réservations</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-couverts">10</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">3</div><div class="stat-l">Tables placées</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-dispo">—</div><div class="stat-l">Tables libres</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-resas">0</div><div class="stat-l">Réservations</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">0</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-dispo">0</div><div class="stat-l">Tables libres</div></div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmjgpb95064ys" data-table-id="t18"><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Alex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 18</span></div></div><div class="resa-card en-attente" data-id="mmibw8wehvc" data-table-id="t4"><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Bibaboum</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 4</span><span>📞 0660747821</span></div></div><div class="resa-card confirmee" data-id="mmjmu4e10nv4q" data-table-id="t11"><div class="resa-card-top"><div class="resa-heure">22:00</div><div class="resa-nom">Rx</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 11</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -318,7 +316,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="date-nav" style="padding:10px 16px;">
       <button class="date-nav-btn" id="plan-prev-day">‹</button>
-      <div class="date-nav-label" id="plan-date-label">Aujourd'hui</div>
+      <div class="date-nav-label" id="plan-date-label"></div>
       <button class="date-nav-btn" id="plan-next-day">›</button>
       <div class="service-tabs" style="padding:0;background:none;border:none;flex:0;gap:6px;">
         <button class="stab active" data-plan-service="midi" style="padding:6px 12px;font-size:10px;">Midi</button>
@@ -574,15 +572,122 @@ document.querySelectorAll('.tab').forEach(tab=>{
 // ── DATE NAV ─────────────────────────────────────────────────
 function updateDateLabel(){
   const label=document.getElementById('date-label');
-  if(currentDate===todayStr())label.textContent="Aujourd'hui";
-  else if(currentDate===addDays(todayStr(),1))label.textContent='Demain';
-  else if(currentDate===addDays(todayStr(),-1))label.textContent='Hier';
-  else label.textContent=fmtDate(currentDate);
+  if(currentDate===todayStr())label.textContent="Aujourd'hui 📅";
+  else if(currentDate===addDays(todayStr(),1))label.textContent='Demain 📅';
+  else if(currentDate===addDays(todayStr(),-1))label.textContent='Hier 📅';
+  else label.textContent=fmtDate(currentDate)+' 📅';
 }
 document.getElementById('prev-day').onclick=()=>{currentDate=addDays(currentDate,-1);updateDateLabel();loadResas();};
 document.getElementById('next-day').onclick=()=>{currentDate=addDays(currentDate,1);updateDateLabel();loadResas();};
 document.getElementById('btn-today').onclick=()=>{currentDate=todayStr();updateDateLabel();loadResas();};
 updateDateLabel();
+
+// ── CALENDRIER POPUP ─────────────────────────────────────────
+let calViewYear, calViewMonth;
+let calResaDates = new Set(); // jours avec réservations
+
+function openCalendar(){
+  const parts = currentDate.split('-');
+  calViewYear  = parseInt(parts[0]);
+  calViewMonth = parseInt(parts[1]) - 1;
+  // Charger les dates qui ont des réservations (toutes)
+  getAllResas().then(all=>{
+    calResaDates = new Set((all||[]).map(r=>r.date));
+    renderCalendar();
+  }).catch(()=>renderCalendar());
+
+  // Positionner le popup sous le label
+  const label = document.getElementById('date-label');
+  const rect  = label.getBoundingClientRect();
+  const popup = document.getElementById('cal-popup');
+  popup.style.top  = (rect.bottom + 8) + 'px';
+  popup.style.left = Math.max(8, Math.min(rect.left - 30, window.innerWidth - 316)) + 'px';
+  popup.classList.add('open');
+  document.getElementById('cal-overlay').classList.add('open');
+}
+
+function closeCalendar(){
+  document.getElementById('cal-popup').classList.remove('open');
+  document.getElementById('cal-overlay').classList.remove('open');
+}
+
+function renderCalendar(){
+  const JOURS = ['Lu','Ma','Me','Je','Ve','Sa','Di'];
+  const MOIS  = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                  'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  document.getElementById('cal-month-label').textContent =
+    MOIS[calViewMonth] + ' ' + calViewYear;
+
+  const grid = document.getElementById('cal-grid');
+  // En-têtes jours
+  let html = JOURS.map(j=>'<div class="cal-dow">'+j+'</div>').join('');
+
+  // Premier jour du mois (lundi=0)
+  const first = new Date(calViewYear, calViewMonth, 1);
+  const startDow = (first.getDay() + 6) % 7; // lundi=0
+
+  // Jours du mois précédent pour remplir
+  const prevMonth = new Date(calViewYear, calViewMonth, 0);
+  for(let i = startDow - 1; i >= 0; i--){
+    const d = prevMonth.getDate() - i;
+    html += '<div class="cal-day other-month">'+d+'</div>';
+  }
+
+  // Jours du mois
+  const daysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate();
+  const todayS = todayStr();
+  for(let d = 1; d <= daysInMonth; d++){
+    const ds = calViewYear+'-'+String(calViewMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    let cls = 'cal-day';
+    if(ds === currentDate) cls += ' selected';
+    else if(ds === todayS) cls += ' today';
+    if(calResaDates.has(ds)) cls += ' has-resa';
+    html += '<div class="'+cls+'" data-date="'+ds+'">'+d+'</div>';
+  }
+
+  // Jours mois suivant
+  const totalCells = startDow + daysInMonth;
+  const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for(let d = 1; d <= remaining; d++){
+    html += '<div class="cal-day other-month">'+d+'</div>';
+  }
+
+  grid.innerHTML = html;
+
+  // Clics sur les jours
+  grid.querySelectorAll('.cal-day:not(.other-month)').forEach(el=>{
+    el.onclick = ()=>{
+      currentDate = el.dataset.date;
+      updateDateLabel();
+      loadResas();
+      closeCalendar();
+    };
+  });
+}
+
+// Navigation mois dans le calendrier
+document.getElementById('cal-prev').onclick = ()=>{
+  calViewMonth--;
+  if(calViewMonth < 0){ calViewMonth=11; calViewYear--; }
+  renderCalendar();
+};
+document.getElementById('cal-next').onclick = ()=>{
+  calViewMonth++;
+  if(calViewMonth > 11){ calViewMonth=0; calViewYear++; }
+  renderCalendar();
+};
+document.getElementById('cal-month-label').onclick = ()=>{
+  // Revenir au mois de la date actuelle
+  const parts = currentDate.split('-');
+  calViewYear  = parseInt(parts[0]);
+  calViewMonth = parseInt(parts[1]) - 1;
+  renderCalendar();
+};
+
+// Ouvrir le calendrier au clic sur le label de date
+document.getElementById('date-label').onclick = openCalendar;
+document.getElementById('cal-overlay').onclick = closeCalendar;
 
 // ── SERVICE FILTER ────────────────────────────────────────────
 document.querySelectorAll('.stab[data-service]').forEach(b=>{
@@ -757,6 +862,7 @@ function resaCardHtml(r){
 // Clic sur une résa → si pas de table: aller sur le plan pour affecter
 //                  si table déjà affectée: ouvrir le détail
 let pendingResaId = null;
+let pendingTableId = null; // table pré-assignée quand on crée depuis le plan
 
 function clickResa(id, tableId){
   if(tableId){
@@ -852,18 +958,47 @@ document.getElementById('btn-detail-delete').onclick=async function(){
 document.getElementById('fab').onclick=()=>openNewForm();
 document.getElementById('btn-resa-cancel').onclick=()=>document.getElementById('modal-resa').classList.remove('open');
 
-function openNewForm(){
-  editMode=false;currentResaId=null;
-  document.getElementById('modal-resa-title').textContent='Nouvelle réservation';
+function openNewForm(tableId=null, tableNum=null){
+  editMode=false; currentResaId=null;
+  pendingTableId = tableId;
+
+  // Titre selon contexte
+  document.getElementById('modal-resa-title').textContent =
+    tableNum ? '＋ Réservation — Table '+tableNum : 'Nouvelle réservation';
+
   document.getElementById('r-nom').value='';
   document.getElementById('r-pax').value='';
   document.getElementById('r-tel').value='';
   document.getElementById('r-email').value='';
   document.getElementById('r-notes').value='';
-  document.getElementById('r-date').value=currentDate;
+  document.getElementById('r-date').value=planDate||currentDate;
   document.getElementById('r-heure').value='';
   document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
-  ['nom','pax','date','heure'].forEach(f=>{document.getElementById('err-'+f).classList.remove('show');document.getElementById('r-'+f).classList.remove('err');});
+  ['nom','pax','date','heure'].forEach(f=>{
+    document.getElementById('err-'+f).classList.remove('show');
+    document.getElementById('r-'+f).classList.remove('err');
+  });
+
+  // Afficher/masquer le badge de table pré-assignée
+  let badge = document.getElementById('preassigned-table-badge');
+  if(tableNum){
+    if(!badge){
+      badge = document.createElement('div');
+      badge.id = 'preassigned-table-badge';
+      badge.style.cssText = 'background:rgba(255,107,0,0.12);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:8px;';
+      badge.innerHTML = '🪑 <span>Table <strong>'+tableNum+'</strong> sera automatiquement assignée</span>';
+      document.getElementById('modal-resa').querySelector('.modal').insertBefore(
+        badge,
+        document.getElementById('modal-resa').querySelector('.form-row')
+      );
+    }else{
+      badge.style.display='flex';
+      badge.querySelector('span').innerHTML = 'Table <strong>'+tableNum+'</strong> sera automatiquement assignée';
+    }
+  }else if(badge){
+    badge.style.display='none';
+  }
+
   document.getElementById('modal-resa').classList.add('open');
   setTimeout(()=>document.getElementById('r-nom').focus(),300);
 }
@@ -912,30 +1047,49 @@ document.getElementById('btn-resa-save').onclick=async function(){
   if(!ok)return;
   showLoader(true);
   try{
-    const data={nom,personnes:pax,date,heure,telephone:document.getElementById('r-tel').value.trim(),email:document.getElementById('r-email').value.trim().toLowerCase(),notes:document.getElementById('r-notes').value.trim(),statut:'confirmee'};
-    if(editMode)await updateResa(currentResaId,data);
-    else await createResa({...data,id:genId()});
-    showLoader(false);
-    document.getElementById('modal-resa').classList.remove('open');
-    toast(editMode?'Réservation modifiée ✓':'Réservation créée — choisissez une table 🪑','ok');
-    currentDate=date;updateDateLabel();
-    if(!editMode){
-      // Switch to plan and highlight unassigned
-      planDate=date;
-      // Detect service
-      planService=heure<'14:00'?'midi':'soir';
-      document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
-      updatePlanDateLabel();
-      // Switch tab
-      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-      document.querySelector('.tab[data-screen="plan"]').classList.add('active');
-      document.getElementById('screen-plan').classList.add('active');
-      // Show tip toast after short delay
-      setTimeout(()=>toast('Cliquez sur une table pour placer la réservation 🗺','ok'),800);
-      loadPlan();
-    } else {
+    const data={nom,personnes:pax,date,heure,
+      telephone:document.getElementById('r-tel').value.trim(),
+      email:document.getElementById('r-email').value.trim().toLowerCase(),
+      notes:document.getElementById('r-notes').value.trim(),
+      statut:'confirmee'};
+
+    if(editMode){
+      await updateResa(currentResaId,data);
+      showLoader(false);
+      document.getElementById('modal-resa').classList.remove('open');
+      toast('Réservation modifiée ✓','ok');
       loadResas();
+    } else {
+      const newId = genId();
+      // Si on vient du plan avec une table pré-assignée
+      if(pendingTableId){
+        await createResa({...data, id:newId, table_id:pendingTableId});
+        showLoader(false);
+        document.getElementById('modal-resa').classList.remove('open');
+        toast('✓ '+nom+' — Table assignée !','ok');
+        pendingTableId=null;
+        planDate=date;
+        planService=heure<'14:00'?'midi':'soir';
+        document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
+        updatePlanDateLabel();
+        loadPlan();
+      } else {
+        await createResa({...data, id:newId});
+        showLoader(false);
+        document.getElementById('modal-resa').classList.remove('open');
+        toast('Réservation créée — choisissez une table 🪑','ok');
+        currentDate=date; updateDateLabel();
+        planDate=date;
+        planService=heure<'14:00'?'midi':'soir';
+        document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
+        updatePlanDateLabel();
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+        document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+        document.querySelector('.tab[data-screen="plan"]').classList.add('active');
+        document.getElementById('screen-plan').classList.add('active');
+        setTimeout(()=>toast('Cliquez sur une table pour placer la réservation 🗺','ok'),800);
+        loadPlan();
+      }
     }
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 };
@@ -1144,10 +1298,15 @@ function setupTableInteractions(el, table, allVisible){
     if(!dragging){
       // ── SIMPLE TAP ──
       if(pendingResaId && !tableResas[table.id]){
+        // Assignation d'une résa existante en attente
         const rid=pendingResaId; pendingResaId=null;
         document.getElementById('assign-banner').style.display='none';
         assignTable(rid,table.id);
-      }else{
+      } else if(!tableResas[table.id]){
+        // Table LIBRE → ouvrir formulaire nouvelle résa directement
+        openNewForm(table.id, table.numero);
+      } else {
+        // Table OCCUPÉE → voir le détail
         openTablePanel(table, tableResas[table.id]);
       }
       return;
@@ -1528,6 +1687,179 @@ document.getElementById('new-resa-badge').onclick = ()=>document.getElementById(
 // ── INIT ──────────────────────────────────────────────────────
 loadResas();
 initPolling();
+
+// ── IMPORT GMAIL ──────────────────────────────────────────────
+document.getElementById('btn-import-mail').onclick = ()=>{
+  const m = document.getElementById('modal-import');
+  m.style.display = 'flex';
+  document.getElementById('import-results').style.display = 'none';
+  document.getElementById('import-status').innerHTML = 'Prêt à scanner votre boîte Gmail';
+};
+
+document.getElementById('btn-do-import').onclick = doImportGmail;
+
+async function doImportGmail(){
+  const btn = document.getElementById('btn-do-import');
+  const statusEl = document.getElementById('import-status');
+  const resultsEl = document.getElementById('import-results');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scan en cours…';
+  statusEl.innerHTML = '<div style="color:var(--text-dim)">📡 Connexion à Gmail…</div>';
+  resultsEl.style.display = 'none';
+
+  try {
+    // 1. Récupérer les IDs déjà importés depuis Supabase
+    const imported = await sbFetch('email_imports?select=message_id');
+    const importedIds = new Set((imported||[]).map(x=>x.message_id));
+
+    // 2. Appel Anthropic API + Gmail MCP pour scanner les mails
+    statusEl.innerHTML = '<div style="color:var(--text-dim)">🔍 Recherche des formulaires de réservation…</div>';
+
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        mcp_servers: [{
+          type: 'url',
+          url: 'https://gmail.mcp.claude.com/mcp',
+          name: 'gmail-mcp'
+        }],
+        system: `Tu es un assistant qui scanne des emails de réservation de restaurant.
+Cherche dans Gmail les emails avec le sujet contenant "Formulaire de contact Braise" en utilisant gmail_search_messages.
+Pour chaque email trouvé, lis le contenu complet avec gmail_read_message.
+Extrait les informations suivantes de chaque mail: messageId, nom, date (format YYYY-MM-DD), heure (format HH:MM), personnes (nombre entier), telephone, email.
+Pour la date: le format du formulaire est DD-MM-YYYY, convertis en YYYY-MM-DD.
+Pour l'heure: "12h" → "12:00", "19h30" → "19:30", etc.
+Réponds UNIQUEMENT avec un JSON valide, sans backticks, sans texte autour:
+{"reservations": [{"messageId":"...","nom":"...","date":"YYYY-MM-DD","heure":"HH:MM","personnes":4,"telephone":"...","email":"..."}]}
+Si aucun mail trouvé: {"reservations": []}`,
+        messages: [{role:'user', content:'Scanne les emails de réservation du restaurant Braise And Co Biganos et retourne le JSON.'}]
+      })
+    });
+
+    if(!apiRes.ok) throw new Error('API error '+apiRes.status);
+    const apiData = await apiRes.json();
+
+    // Extraire le texte de la réponse
+    const rawText = (apiData.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    let parsed;
+    try {
+      const clean = rawText.replace(/```json|```/g,'').trim();
+      parsed = JSON.parse(clean);
+    } catch(e) {
+      throw new Error('Réponse inattendue de l\'API');
+    }
+
+    const resas = parsed.reservations || [];
+    const nouvelles = resas.filter(r => !importedIds.has(r.messageId));
+
+    statusEl.innerHTML = '';
+
+    if(nouvelles.length === 0 && resas.length === 0){
+      statusEl.innerHTML = '<div style="color:var(--text-dim);padding:16px 0;">📭 Aucun formulaire de réservation trouvé</div>';
+      btn.disabled = false; btn.textContent = '🔍 Scanner les mails';
+      return;
+    }
+
+    if(nouvelles.length === 0){
+      statusEl.innerHTML = '<div style="color:var(--accent3);padding:16px 0;">✅ Tout est déjà importé ('+resas.length+' mail'+(resas.length>1?'s':'')+' trouvé'+(resas.length>1?'s':'')+' )</div>';
+      btn.disabled = false; btn.textContent = '🔍 Scanner les mails';
+      return;
+    }
+
+    // 3. Insérer les nouvelles réservations
+    let html = '<div style="font-size:12px;color:var(--text-faint);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase;">'+nouvelles.length+' nouvelle'+(nouvelles.length>1?'s':'')+' réservation'+(nouvelles.length>1?'s':'')+' trouvée'+(nouvelles.length>1?'s':'')+' :</div>';
+    let importedCount = 0;
+
+    for(const r of nouvelles){
+      try {
+        const newId = 'email_'+Math.random().toString(36).slice(2,10);
+        await sbFetch('reservations', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Prefer':'return=minimal'},
+          body: JSON.stringify({
+            id: newId,
+            nom: r.nom,
+            personnes: r.personnes,
+            date: r.date,
+            heure: r.heure,
+            telephone: r.telephone||'',
+            email: r.email||'',
+            statut: 'en-attente',
+            notes: '📧 Via formulaire site web'
+          })
+        });
+        // Marquer comme importé
+        await sbFetch('email_imports', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Prefer':'return=minimal'},
+          body: JSON.stringify({ message_id: r.messageId, reservation_id: newId })
+        });
+        html += `<div style="background:rgba(67,160,71,0.1);border:1px solid rgba(67,160,71,0.3);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+          <div style="font-weight:800;color:var(--text);font-size:14px;">✅ ${esc(r.nom)}</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-top:4px;">📅 ${fmtDate(r.date)} à ${r.heure} — ${r.personnes} pers.</div>
+          ${r.telephone?'<div style="color:var(--text-dim);font-size:12px;">📞 '+esc(r.telephone)+'</div>':''}
+        </div>`;
+        importedCount++;
+      } catch(e) {
+        html += `<div style="background:rgba(229,57,53,0.1);border:1px solid rgba(229,57,53,0.3);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+          <div style="color:#ef9a9a;font-size:13px;">❌ Erreur pour ${esc(r.nom||'?')}</div>
+        </div>`;
+      }
+    }
+
+    resultsEl.innerHTML = html;
+    resultsEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '🔍 Scanner à nouveau';
+
+    if(importedCount > 0){
+      toast(importedCount+' réservation'+(importedCount>1?'s':'')+' importée'+(importedCount>1?'s':'')+' ✓','ok');
+      loadResas();
+    }
+
+  } catch(e) {
+    console.error(e);
+    statusEl.innerHTML = '<div style="color:#ef9a9a;padding:16px 0;">❌ Erreur : '+e.message+'</div>';
+    btn.disabled = false;
+    btn.textContent = '🔍 Réessayer';
+  }
+}
+
 </script>
+<!-- CALENDRIER POPUP -->
+<!-- ══ MODAL IMPORT MAIL ══ -->
+<div class="modal-overlay" id="modal-import" style="display:none;align-items:flex-end;">
+  <div class="modal" style="border-radius:24px 24px 0 0;max-height:80vh;overflow-y:auto;padding:24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div style="font-size:28px;">📧</div>
+      <div>
+        <div style="font-family:&#39;Cinzel&#39;,serif;font-size:16px;font-weight:900;color:var(--text);">Import Gmail</div>
+        <div style="font-size:11px;color:var(--text-faint);letter-spacing:1px;">Formulaires Braise &amp; Co</div>
+      </div>
+      <button onclick="document.getElementById(&#39;modal-import&#39;).style.display=&#39;none&#39;" style="margin-left:auto;background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="import-status" style="text-align:center;padding:20px 0;color:var(--text-dim);font-size:13px;">
+      Prêt à scanner votre boîte Gmail
+    </div>
+    <div id="import-results" style="display:none;"></div>
+    <button id="btn-do-import" style="width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,var(--red),var(--accent));color:#fff;font-family:&#39;Raleway&#39;,sans-serif;font-weight:900;font-size:14px;border:none;cursor:pointer;margin-top:16px;letter-spacing:1px;">
+      🔍 Scanner les mails
+    </button>
+  </div>
+</div>
+
+<div class="cal-overlay" id="cal-overlay"></div>
+<div class="cal-popup" id="cal-popup">
+  <div class="cal-header">
+    <button class="cal-nav" id="cal-prev">‹</button>
+    <div class="cal-month-label" id="cal-month-label"></div>
+    <button class="cal-nav" id="cal-next">›</button>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
+
 
 </body></html>
