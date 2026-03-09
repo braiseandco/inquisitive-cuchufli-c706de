@@ -1032,31 +1032,19 @@ async function saveEditTable(){
 }
 
 // ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
-// Approche la plus simple et fiable sur Android : onclick natif uniquement
+// On ignore les clics pendant 500ms après ouverture (clic fantôme du long press)
 function _modalReady(){ return !window._editModalOpenTime || (Date.now() - window._editModalOpenTime) > 500; }
 
-document.getElementById('edit-table-save').addEventListener('click', function(e){
-  e.stopPropagation();
-  if(!_modalReady()) return;
-  saveEditTable();
-});
-document.getElementById('edit-table-cancel').addEventListener('click', function(e){
-  e.stopPropagation();
-  if(!_modalReady()) return;
-  closeEditTableModal();
-});
-document.getElementById('btn-defusionner').addEventListener('click', function(e){
-  e.stopPropagation();
-  if(!_modalReady()) return;
-  defusionnerTable();
-});
+// Ferme si clic directement sur le fond (pas sur un bouton)
 document.getElementById('edit-table-modal').addEventListener('click', function(e){
   if(!_modalReady()) return;
-  if(e.target===this) closeEditTableModal();
+  if(e.target === this) closeEditTableModal();
 });
-document.getElementById('edit-table-box').addEventListener('click', function(e){
-  e.stopPropagation();
-});
+
+// Les boutons : onclick simple, sans stopPropagation sur le parent
+document.getElementById('edit-table-save').onclick   = function(){ if(_modalReady()) saveEditTable(); };
+document.getElementById('edit-table-cancel').onclick = function(){ if(_modalReady()) closeEditTableModal(); };
+document.getElementById('btn-defusionner').onclick   = function(){ if(_modalReady()) defusionnerTable(); };
 
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
