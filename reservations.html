@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_1.html -->
+<!-- saved from url=(0050)file:///C:/Users/brais/Downloads/reservations.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -135,16 +135,50 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .table-el.merge-target{animation:mergeGlow .5s ease infinite alternate;}
 @keyframes mergeGlow{from{filter:drop-shadow(0 0 6px var(--accent));}to{filter:drop-shadow(0 0 18px var(--accent3));}}
 
-.table-shape{border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;transition:border-color .2s,box-shadow .2s;border:2px solid transparent;position:relative;}
-.table-shape.libre{background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);box-shadow:0 0 14px rgba(67,160,71,0.12);}
-.table-shape.occupee{background:rgba(67,160,71,0.2);border-color:rgba(67,160,71,0.6);box-shadow:0 0 14px rgba(67,160,71,0.2);}
+/* BASE SHAPE */
+.table-shape{display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;transition:border-color .2s,box-shadow .2s;border:2px solid transparent;position:relative;}
+
+/* STATUTS */
+.table-shape.libre   {background:rgba(67,160,71,0.13);border-color:rgba(67,160,71,0.55);box-shadow:0 0 14px rgba(67,160,71,0.12);}
+.table-shape.occupee {background:rgba(255,107,0,0.18);border-color:rgba(255,107,0,0.6);box-shadow:0 0 14px rgba(255,107,0,0.2);}
 .table-shape.occupee-late{background:rgba(229,57,53,0.2);border-color:rgba(229,57,53,0.5);box-shadow:0 0 14px rgba(229,57,53,0.15);}
-.table-shape.fusionnee{border-radius:10px;}
+
+/* FORMES DISTINCTES */
+.table-shape.shape-carre    {border-radius:12px;}                         /* carré strict */
+.table-shape.shape-rectangle{border-radius:8px;}                          /* rectangle arrondi */
+.table-shape.shape-ronde    {border-radius:50%;}                          /* cercle parfait */
+.table-shape.shape-fusionnee{border-radius:8px;border-style:dashed;}      /* fusionnée = tirets */
+
+/* Indicateur de forme en bas */
+.table-forme-badge{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;opacity:0.55;font-family:'Raleway',sans-serif;font-weight:700;white-space:nowrap;}
 
 .table-num{font-size:18px;font-weight:900;color:var(--text);}
 .table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:2px;}
-.table-resa-name{font-size:9px;color:var(--accent2);margin-top:4px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;}
-.table-merge-badge{position:absolute;top:-8px;right:-8px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
+.table-resa-name{font-size:9px;color:var(--accent2);margin-top:3px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;}
+.table-merge-badge{position:absolute;top:-9px;right:-9px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
+
+/* PLEIN ÉCRAN */
+.fullscreen-btn{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text-faint);font-family:'Raleway',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;margin-left:auto;}
+.fullscreen-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+#screen-plan:-webkit-full-screen{background:var(--bg);}
+#screen-plan:-moz-full-screen   {background:var(--bg);}
+#screen-plan:fullscreen         {background:var(--bg);display:flex;flex-direction:column;height:100vh;}
+#screen-plan:fullscreen .plan-wrap{flex:1;}
+
+/* ── ÉLÉMENTS DE DÉCOR ─────────────────────────────────────── */
+.decor-el{position:absolute;cursor:grab;user-select:none;z-index:1;}
+.decor-el:active{cursor:grabbing;}
+
+/* BAR */
+.decor-bar{border-radius:14px;background:linear-gradient(160deg,#2a1a08,#3d260e);border:2px solid rgba(255,165,0,0.5);box-shadow:0 0 24px rgba(255,107,0,0.2),inset 0 1px 0 rgba(255,255,255,0.05);}
+.decor-bar-inner{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;}
+.decor-bar-icon{font-size:22px;line-height:1;}
+.decor-bar-label{font-family:'Cinzel',serif;font-size:13px;font-weight:900;color:var(--accent3);letter-spacing:2px;}
+.decor-bar-sub{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,165,0,0.5);}
+
+/* MURET */
+.decor-muret{border-radius:5px;background:linear-gradient(180deg,rgba(255,255,255,0.08) 0%,rgba(255,255,255,0.03) 100%);border:1.5px solid rgba(255,255,255,0.18);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;}
+.decor-muret-label{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.3);font-family:'Raleway',sans-serif;font-weight:700;}
 
 /* TABLE PANEL */
 .table-panel{position:fixed;bottom:0;left:0;right:0;z-index:600;background:var(--bg2);border-top:1px solid var(--border2);border-radius:22px 22px 0 0;padding:20px;transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.56,.64,1);max-height:75vh;overflow-y:auto;}
@@ -203,7 +237,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .detail-val{font-weight:700;font-size:15px;color:var(--text);}
 .detail-lbl{font-size:10px;color:var(--text-faint);margin-top:3px;letter-spacing:1.5px;text-transform:uppercase;}
 </style>
-</head>
+<style>
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style></head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
 <div class="toast" id="toast"></div>
@@ -252,10 +308,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="plan-zone-btn active" data-zone="interieur">🏠 Intérieur</button>
       <button class="plan-zone-btn" data-zone="terrasse">🌿 Terrasse</button>
       <button class="plan-zone-btn" id="btn-add-table" style="background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);">＋ Table</button>
+      <button class="fullscreen-btn" id="btn-fullscreen" title="Plein écran">⛶ Plein écran</button>
       <div class="plan-legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div>Libre</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#43a047;opacity:0.7;border:2px solid #43a047"></div>Avant 21h</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#e53935"></div>À partir de 21h</div>
+        <div class="legend-item"><div style="width:14px;height:14px;border-radius:3px;background:rgba(67,160,71,0.15);border:2px solid rgba(67,160,71,0.55);"></div>Libre</div>
+        <div class="legend-item"><div style="width:14px;height:14px;border-radius:3px;background:rgba(255,107,0,0.18);border:2px solid rgba(255,107,0,0.6);"></div>Occupée</div>
+        <div class="legend-item"><div style="width:14px;height:14px;border-radius:50%;background:rgba(67,160,71,0.15);border:2px solid rgba(67,160,71,0.55);"></div>Ronde</div>
+        <div class="legend-item"><div style="width:14px;height:14px;border-radius:3px;background:rgba(229,57,53,0.2);border:2px solid rgba(229,57,53,0.5);"></div>≥ 21h</div>
       </div>
     </div>
     <div class="date-nav" style="padding:10px 16px;">
@@ -440,11 +498,13 @@ async function sbFetch(path,opts={}){
 const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc');
 const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
+const getElements=()=>sbFetch('elements_salle?select=*');
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
 const updateResa=(id,d)=>sbFetch('reservations?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
 const deleteResa=id=>sbFetch('reservations?id=eq.'+id,{method:'DELETE'});
 const createTable=d=>sbFetch('tables_salle',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
 const updateTable=(id,d)=>sbFetch('tables_salle?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
+const updateElement=(id,d)=>sbFetch('elements_salle?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
 
 // ── Utils ─────────────────────────────────────────────────────
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
@@ -462,7 +522,7 @@ function showLoader(v){document.getElementById('loader').classList.toggle('show'
 let currentDate=todayStr(),currentService='all';
 let planDate=todayStr(),planService='midi',planZone='interieur';
 let currentResaId=null,editMode=false;
-let allTables=[],tableResas={};
+let allTables=[],tableResas={},allElements=[];
 
 // Update topbar date
 function updateTopbar(){
@@ -515,11 +575,70 @@ document.querySelectorAll('.stab[data-plan-service]').forEach(b=>{
 });
 document.querySelectorAll('.plan-zone-btn').forEach(b=>{
   b.onclick=function(){
-    document.querySelectorAll('.plan-zone-btn').forEach(x=>x.classList.remove('active'));
+    if(this.id==='btn-add-table') return; // handled separately
+    document.querySelectorAll('.plan-zone-btn').forEach(x=>{if(x.id!=='btn-add-table')x.classList.remove('active');});
     this.classList.add('active');
     planZone=this.dataset.zone;
     renderPlan();
   };
+});
+
+// ── PLEIN ÉCRAN (CSS overlay — fonctionne partout) ───────────
+let isFullscreen = false;
+const fsBtn = document.getElementById('btn-fullscreen');
+const planScreen = document.getElementById('screen-plan');
+
+// Style plein écran CSS injecté
+const fsStyle = document.createElement('style');
+fsStyle.textContent = `
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+`;
+document.head.appendChild(fsStyle);
+
+fsBtn.onclick = function(){
+  isFullscreen = !isFullscreen;
+  if(isFullscreen){
+    planScreen.classList.add('plan-fullscreen');
+    document.body.classList.add('plan-fullscreen-active');
+    fsBtn.textContent = '✕ Quitter';
+    fsBtn.title = 'Quitter le plein écran';
+    fsBtn.style.background = 'rgba(229,57,53,0.15)';
+    fsBtn.style.borderColor = 'rgba(229,57,53,0.5)';
+    fsBtn.style.color = '#ef9a9a';
+  } else {
+    planScreen.classList.remove('plan-fullscreen');
+    document.body.classList.remove('plan-fullscreen-active');
+    fsBtn.textContent = '⛶ Plein écran';
+    fsBtn.title = 'Plein écran';
+    fsBtn.style.background = '';
+    fsBtn.style.borderColor = '';
+    fsBtn.style.color = '';
+  }
+};
+
+// Touche Echap pour quitter
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && isFullscreen) fsBtn.click();
 });
 
 // Plan date nav
@@ -804,7 +923,9 @@ function setErr(f,m){const el=document.getElementById('err-'+f);el.textContent=m
 async function loadPlan(){
   showLoader(true);
   try{
-    allTables = await getTables() || [];
+    [allTables, allElements] = await Promise.all([getTables(), getElements()]);
+    allTables  = allTables  || [];
+    allElements= allElements|| [];
     const resas = await getResas(planDate) || [];
     showLoader(false);
     const filtered = planService==='midi' ? resas.filter(r=>r.heure<'14:00') : resas.filter(r=>r.heure>='14:00');
@@ -833,12 +954,12 @@ async function initDefaultTables(){
 }
 
 function getTableDimensions(t){
-  const forme = t.forme || (t.capacite<=2 ? 'carre' : 'rectangle');
+  const forme = t.forme || (t.capacite <= 2 ? 'carre' : 'rectangle');
   const isMerged = t.merged_with && t.merged_with.length > 0;
-  if(isMerged) return {w:190, h:110, radius:'14px'};
-  if(forme==='ronde') return {w:110, h:110, radius:'50%'};
-  if(forme==='carre') return {w:105, h:105, radius:'14px'};
-  return {w:145, h:105, radius:'10px 10px 10px 10px'}; // rectangle
+  if(isMerged)  return {w:200, h:90,  shapeClass:'shape-fusionnee', label:'Fusionnée'};
+  if(forme==='ronde')     return {w:105, h:105, shapeClass:'shape-ronde',     label:'⚫ Ronde'};
+  if(forme==='carre')     return {w:90,  h:90,  shapeClass:'shape-carre',     label:'⬛ Carré'};
+  /* rectangle */         return {w:160, h:90,  shapeClass:'shape-rectangle', label:'▬ Rect.'};
 }
 
 function renderPlan(){
@@ -853,8 +974,7 @@ function renderPlan(){
     const resa = tableResas[t.id];
     let status = 'libre';
     if(resa){ status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee'; }
-    const isMerged = t.merged_with && t.merged_with.length > 0;
-    const {w, h, radius} = getTableDimensions(t);
+    const {w, h, shapeClass, label} = getTableDimensions(t);
 
     const el = document.createElement('div');
     el.className = 'table-el';
@@ -862,19 +982,65 @@ function renderPlan(){
     el.style.cssText = 'left:'+(t.x_pos||80)+'px;top:'+(t.y_pos||80)+'px;width:'+w+'px;height:'+h+'px;';
 
     el.innerHTML =
-      '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;border-radius:'+radius+';'+
-      (status==='libre'?'background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);box-shadow:0 0 14px rgba(67,160,71,0.12);':'')+
-      '">'+
-      (isMerged ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
+      '<div class="table-shape '+status+' '+shapeClass+'" style="width:'+w+'px;height:'+h+'px;">'+
+      (t.merged_with ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
       '<div class="table-num">'+t.numero+'</div>'+
       '<div class="table-cap">'+t.capacite+'p</div>'+
       (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
       (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
-      (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
-      (resa && resa.notes ? '<div class="table-resa-name" style="color:var(--accent2);font-size:9px;margin-top:1px;">📝 '+esc(resa.notes.length>18?resa.notes.slice(0,18)+'…':resa.notes)+'</div>' : '')+
+      (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;">📞 '+esc(resa.telephone)+'</div>' : '')+
+      (resa && resa.notes ? '<div class="table-resa-name" style="color:var(--accent2);font-size:9px;">📝 '+esc(resa.notes.length>18?resa.notes.slice(0,18)+'…':resa.notes)+'</div>' : '')+
+      '<div class="table-forme-badge">'+label+'</div>'+
       '</div>';
 
     setupTableInteractions(el, t, visible);
+    canvas.appendChild(el);
+  });
+
+  // ── ÉLÉMENTS DE DÉCOR (bar, murets) ─────────────────────────
+  const visibleElements = allElements.filter(e => e.zone === planZone);
+  visibleElements.forEach(e => {
+    const el = document.createElement('div');
+    el.className = 'decor-el decor-'+e.type;
+    el.dataset.id = e.id;
+    el.style.cssText = 'left:'+(e.x_pos||0)+'px;top:'+(e.y_pos||0)+'px;width:'+e.largeur+'px;height:'+e.hauteur+'px;';
+
+    if(e.type === 'bar'){
+      el.innerHTML =
+        '<div class="decor-bar-inner">'+
+        '<div class="decor-bar-icon">🍸</div>'+
+        '<div class="decor-bar-label">'+(e.label||'Bar')+'</div>'+
+        '<div class="decor-bar-sub">Comptoir</div>'+
+        '</div>';
+    } else {
+      el.innerHTML = '<div class="decor-muret-label">'+(e.label||'Muret')+'</div>';
+    }
+
+    // Drag pour repositionner
+    let ox=e.x_pos||0, oy=e.y_pos||0, x0=0, y0=0, dragging=false;
+    function dStart(cx,cy){ x0=cx; y0=cy; ox=e.x_pos||0; oy=e.y_pos||0; dragging=false; }
+    function dMove(cx,cy){
+      const dx=cx-x0, dy=cy-y0;
+      if(!dragging&&(Math.abs(dx)>6||Math.abs(dy)>6)){ dragging=true; el.style.opacity='0.75'; el.style.zIndex=998; }
+      if(!dragging) return;
+      el.style.left=Math.max(0,ox+dx)+'px'; el.style.top=Math.max(0,oy+dy)+'px';
+    }
+    async function dEnd(){
+      el.style.opacity=''; el.style.zIndex='';
+      if(!dragging) return;
+      dragging=false;
+      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+      e.x_pos=nx; e.y_pos=ny;
+      try{ await updateElement(e.id,{x_pos:nx,y_pos:ny}); }
+      catch(err){ toast('Erreur sauvegarde','ko'); }
+    }
+    el.addEventListener('mousedown', ev=>{ dStart(ev.clientX,ev.clientY); ev.stopPropagation(); });
+    el.addEventListener('mousemove', ev=>{ if(ev.buttons) dMove(ev.clientX,ev.clientY); });
+    el.addEventListener('mouseup', dEnd);
+    el.addEventListener('touchstart', ev=>{ const t=ev.touches[0]; dStart(t.clientX,t.clientY); },{passive:true});
+    el.addEventListener('touchmove', ev=>{ const t=ev.touches[0]; dMove(t.clientX,t.clientY); },{passive:true});
+    el.addEventListener('touchend', dEnd,{passive:true});
+
     canvas.appendChild(el);
   });
 
@@ -992,13 +1158,15 @@ function setupTableInteractions(el, table, allVisible){
 
 // Edit table modal
 let addTableMode = false;
+let currentForme = 'rectangle'; // ← variable fiable pour stocker la forme active
 
 function setFormeActive(forme){
+  currentForme = forme; // ← toujours mis à jour ici
   document.querySelectorAll('.forme-btn').forEach(b=>{
     const active = b.dataset.forme === forme;
-    b.style.background = active ? 'rgba(255,107,0,0.12)' : 'none';
-    b.style.borderColor = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
-    b.style.color = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
+    b.style.background   = active ? 'rgba(255,107,0,0.12)' : 'none';
+    b.style.borderColor  = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
+    b.style.color        = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
   });
 }
 document.querySelectorAll('.forme-btn').forEach(b=>{
@@ -1027,12 +1195,21 @@ function openAddTableModal(){
   document.getElementById('edit-table-modal').classList.add('open');
 }
 
+// Auto-suggest forme when capacity changes
+document.getElementById('edit-table-cap').addEventListener('input', function(){
+  const cap = parseInt(this.value);
+  if(!cap) return;
+  if(cap <= 2) setFormeActive('carre');
+  else if(cap <= 6) setFormeActive('rectangle');
+  // ronde stays manual
+});
+
 document.getElementById('btn-add-table').onclick = openAddTableModal;
 document.getElementById('edit-table-cancel').onclick = () => document.getElementById('edit-table-modal').classList.remove('open');
 document.getElementById('edit-table-save').onclick = async function(){
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
-  const forme = document.querySelector('.forme-btn[style*="rgba(255,107,0,0.12)"]')?.dataset.forme || 'rectangle';
+  const forme = currentForme; // ← lecture fiable depuis la variable
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
   showLoader(true);
   try{
