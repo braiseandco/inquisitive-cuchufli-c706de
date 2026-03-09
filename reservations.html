@@ -1029,9 +1029,39 @@ async function saveEditTable(){
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
 }
 
-document.getElementById('edit-table-modal').addEventListener('click', function(e){
-  if(e.target === this) closeEditTableModal();
-});
+// ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
+// On utilise pointerup qui est fiable sur Android/iOS sans délai fantôme
+(function(){
+  const modal   = document.getElementById('edit-table-modal');
+  const box     = document.getElementById('edit-table-box');
+  const btnSave = document.getElementById('edit-table-save');
+  const btnCancel = document.getElementById('edit-table-cancel');
+  const btnDefuse = document.getElementById('btn-defusionner');
+
+  // Ferme si clic sur le fond (hors boîte)
+  modal.addEventListener('pointerup', function(e){
+    if(e.target === modal) closeEditTableModal();
+  });
+
+  // Empêche les clics sur la boîte de remonter au fond
+  box.addEventListener('pointerdown', e => e.stopPropagation());
+
+  btnCancel.addEventListener('pointerup', function(e){
+    e.stopPropagation();
+    closeEditTableModal();
+  });
+
+  btnSave.addEventListener('pointerup', function(e){
+    e.stopPropagation();
+    saveEditTable();
+  });
+
+  btnDefuse.addEventListener('pointerup', function(e){
+    e.stopPropagation();
+    defusionnerTable();
+  });
+})();
+
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
   document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
@@ -1315,7 +1345,7 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
 
 <!-- EDIT TABLE MODAL -->
 <div class="edit-table-modal" id="edit-table-modal">
-  <div class="edit-table-box" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+  <div class="edit-table-box" id="edit-table-box">
     <div class="edit-table-title">✏️ Modifier la table</div>
     <div class="field-group">
       <label class="field-label">Numéro</label>
@@ -1329,16 +1359,10 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
       </div>
     </div>
     <button id="btn-defusionner"
-      style="display:none;width:100%;padding:12px;margin-bottom:12px;background:rgba(142,36,170,0.12);border:1px solid rgba(142,36,170,0.4);border-radius:10px;color:#ce93d8;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center;"
-      onclick="defusionnerTable()"
-      ontouchend="event.preventDefault();event.stopPropagation();defusionnerTable();">⬌ Défusionner</button>
+      style="display:none;width:100%;padding:12px;margin-bottom:12px;background:rgba(142,36,170,0.12);border:1px solid rgba(142,36,170,0.4);border-radius:10px;color:#ce93d8;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center;">⬌ Défusionner</button>
     <div class="modal-btns">
-      <button class="btn-cancel" id="edit-table-cancel"
-        onclick="closeEditTableModal()"
-        ontouchend="event.preventDefault();event.stopPropagation();closeEditTableModal();">Annuler</button>
-      <button class="btn-primary" id="edit-table-save"
-        onclick="saveEditTable()"
-        ontouchend="event.preventDefault();event.stopPropagation();saveEditTable();">💾 Sauvegarder</button>
+      <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
+      <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
     </div>
   </div>
 </div>
