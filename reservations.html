@@ -803,10 +803,19 @@ function setupTableInteractions(el, table, allVisible){
   function start(cx,cy){
     t0=Date.now(); x0=cx; y0=cy; dragging=false;
     ox=table.x_pos||80; oy=table.y_pos||80;
-    longTimer=setTimeout(()=>{ if(!dragging) openEditTableModal(table); },700);
+    // Long press = 600ms sans bouger : ouvre la modale d'édition de la table
+    longTimer=setTimeout(()=>{
+      if(!dragging){
+        // Feedback visuel
+        el.querySelector('.table-shape').style.transform='scale(1.08)';
+        el.querySelector('.table-shape').style.transition='transform .15s';
+        setTimeout(()=>{ el.querySelector('.table-shape').style.transform=''; }, 300);
+        openEditTableModal(table);
+      }
+    }, 600);
   }
   el.addEventListener('mousedown', e=>{ start(e.clientX,e.clientY); e.stopPropagation(); });
-  el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); }, {passive:true});
+  el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); e.stopPropagation(); }, {passive:true});
 
   el.addEventListener('mousemove', e=>{
     if(!e.buttons) return;
@@ -827,6 +836,8 @@ function setupTableInteractions(el, table, allVisible){
   });
   el.addEventListener('touchmove', e=>{
     const t=e.touches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    // Annule le long press dès qu'on bouge de plus de 10px
+    if(Math.abs(dx)>10||Math.abs(dy)>10) clearTimeout(longTimer);
     if(!dragging && (Math.abs(dx)>8||Math.abs(dy)>8)){
       dragging=true; clearTimeout(longTimer);
       el.style.zIndex=999; el.style.opacity='0.8';
