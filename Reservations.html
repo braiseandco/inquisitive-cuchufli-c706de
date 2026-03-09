@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_1.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_2.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -237,7 +237,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .detail-val{font-weight:700;font-size:15px;color:var(--text);}
 .detail-lbl{font-size:10px;color:var(--text-faint);margin-top:3px;letter-spacing:1.5px;text-transform:uppercase;}
 </style>
-</head>
+<style>
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style></head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
 <div class="toast" id="toast"></div>
@@ -286,7 +308,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="plan-zone-btn active" data-zone="interieur">🏠 Intérieur</button>
       <button class="plan-zone-btn" data-zone="terrasse">🌿 Terrasse</button>
       <button class="plan-zone-btn" id="btn-add-table" style="background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);">＋ Table</button>
-      <button class="fullscreen-btn" id="btn-fullscreen" title="Plein écran">⛶</button>
+      <button class="fullscreen-btn" id="btn-fullscreen" title="Plein écran">⛶ Plein écran</button>
       <div class="plan-legend">
         <div class="legend-item"><div style="width:14px;height:14px;border-radius:3px;background:rgba(67,160,71,0.15);border:2px solid rgba(67,160,71,0.55);"></div>Libre</div>
         <div class="legend-item"><div style="width:14px;height:14px;border-radius:3px;background:rgba(255,107,0,0.18);border:2px solid rgba(255,107,0,0.6);"></div>Occupée</div>
@@ -561,22 +583,62 @@ document.querySelectorAll('.plan-zone-btn').forEach(b=>{
   };
 });
 
-// ── PLEIN ÉCRAN ───────────────────────────────────────────────
+// ── PLEIN ÉCRAN (CSS overlay — fonctionne partout) ───────────
+let isFullscreen = false;
 const fsBtn = document.getElementById('btn-fullscreen');
+const planScreen = document.getElementById('screen-plan');
+
+// Style plein écran CSS injecté
+const fsStyle = document.createElement('style');
+fsStyle.textContent = `
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+`;
+document.head.appendChild(fsStyle);
+
 fsBtn.onclick = function(){
-  const el = document.getElementById('screen-plan');
-  if(!document.fullscreenElement){
-    (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen).call(el);
+  isFullscreen = !isFullscreen;
+  if(isFullscreen){
+    planScreen.classList.add('plan-fullscreen');
+    document.body.classList.add('plan-fullscreen-active');
     fsBtn.textContent = '✕ Quitter';
     fsBtn.title = 'Quitter le plein écran';
+    fsBtn.style.background = 'rgba(229,57,53,0.15)';
+    fsBtn.style.borderColor = 'rgba(229,57,53,0.5)';
+    fsBtn.style.color = '#ef9a9a';
   } else {
-    (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen).call(document);
-    fsBtn.textContent = '⛶';
+    planScreen.classList.remove('plan-fullscreen');
+    document.body.classList.remove('plan-fullscreen-active');
+    fsBtn.textContent = '⛶ Plein écran';
     fsBtn.title = 'Plein écran';
+    fsBtn.style.background = '';
+    fsBtn.style.borderColor = '';
+    fsBtn.style.color = '';
   }
 };
-document.addEventListener('fullscreenchange', ()=>{
-  if(!document.fullscreenElement){ fsBtn.textContent='⛶'; fsBtn.title='Plein écran'; }
+
+// Touche Echap pour quitter
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && isFullscreen) fsBtn.click();
 });
 
 // Plan date nav
