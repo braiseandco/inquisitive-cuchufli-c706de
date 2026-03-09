@@ -185,6 +185,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .merge-bar-btn{padding:8px 16px;border-radius:8px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:none;}
 .merge-confirm-btn{background:#000;color:var(--accent3);}
 .merge-cancel-btn{background:rgba(0,0,0,0.2);color:#000;}
+
+/* ── LOADER ── */
+.loader{display:none;position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;background:linear-gradient(90deg,var(--accent),var(--accent3),var(--accent));background-size:200% 100%;animation:loaderSlide 1s linear infinite;}
+.loader.show{display:block;}
+@keyframes loaderSlide{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+/* ── TOAST ── */
+.toast{display:none;position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:9998;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:12px 20px;font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+.toast.show{display:block;animation:toastIn .3s cubic-bezier(.34,1.56,.64,1);}
+.toast.ok{border-color:rgba(67,160,71,0.5);color:#81c784;}
+.toast.ko{border-color:rgba(229,57,53,0.5);color:#ef9a9a;}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+
+/* ── STATUS PILLS ── */
+.status-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.status-pill{flex:1;padding:10px 8px;border-radius:10px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:rgba(255,255,255,0.04);color:var(--text-dim);transition:all .2s;letter-spacing:.5px;}
+.status-pill.confirmee{border-color:rgba(67,160,71,0.4);}
+.status-pill.en-attente{border-color:rgba(255,107,0,0.4);}
+.status-pill.annulee{border-color:rgba(229,57,53,0.4);}
+.status-pill.active-status.confirmee{background:rgba(67,160,71,0.15);color:#81c784;}
+.status-pill.active-status.en-attente{background:rgba(255,107,0,0.15);color:var(--accent);}
+.status-pill.active-status.annulee{background:rgba(229,57,53,0.15);color:#ef9a9a;}
+
+/* ── DETAIL ROWS ── */
+.detail-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);}
+.detail-row:last-child{border-bottom:none;}
+.detail-ico{font-size:20px;flex-shrink:0;margin-top:2px;}
+.detail-val{font-weight:600;font-size:14px;color:var(--text);}
+.detail-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-top:3px;}
 </style>
 </head>
 <body>
@@ -469,6 +498,8 @@ updatePlanDateLabel();
 async function loadResas(){
   showLoader(true);
   try{
+    // Charger les tables si pas encore en mémoire (pour afficher le numéro de table)
+    if(!allTables.length) allTables = await getTables() || [];
     let resas=await getResas(currentDate);
     showLoader(false);
     // filter service
@@ -653,8 +684,9 @@ function openNewForm(){
 async function openEditForm(id){
   showLoader(true);
   try{
-    const resas=await getResas(currentDate);
-    const r=resas.find(x=>x.id===id);
+    // Chercher la résa par son id directement, pas seulement dans currentDate
+    const allR = await sbFetch('reservations?id=eq.'+id+'&select=*');
+    const r = allR && allR[0];
     showLoader(false);
     if(!r)return;
     editMode=true;currentResaId=id;
@@ -948,7 +980,6 @@ function openEditTableModal(table){
   editingTable = table;
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
-  // Affiche le bouton défusionner seulement si la table est fusionnée
   const btnDefuse = document.getElementById('btn-defusionner');
   if(table.merged_with && table.merged_with.length > 0){
     btnDefuse.style.display = 'block';
@@ -960,17 +991,11 @@ function openEditTableModal(table){
   document.getElementById('edit-table-cap').oninput = function(){
     updateShapeHint(parseInt(this.value)||0);
   };
-  const modal = document.getElementById('edit-table-modal');
-  modal.classList.add('open');
-  // Désactive les touch sur le plan
+  document.getElementById('edit-table-modal').classList.add('open');
+  // Désactive uniquement le plan en dessous
   document.getElementById('plan-wrap').style.pointerEvents = 'none';
-  // Bloque le FOND de la modale (pas la boîte) pendant 600ms pour absorber
-  // le ghost-click généré par le touchend du long press
-  modal.style.pointerEvents = 'none';
-  setTimeout(()=>{
-    modal.style.pointerEvents = '';
-    document.getElementById('edit-table-cap').focus();
-  }, 600);
+  // Note le moment d'ouverture — les boutons ignorent les taps < 400ms
+  window._editModalOpenedAt = Date.now();
 }
 
 function updateShapeHint(cap){
@@ -1041,9 +1066,31 @@ async function saveEditTable(){
 }
 
 // ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
-document.getElementById('edit-table-save').onclick   = function(){ saveEditTable(); };
-document.getElementById('edit-table-cancel').onclick = function(){ closeEditTableModal(); };
-document.getElementById('btn-defusionner').onclick   = function(){ defusionnerTable(); };
+// Garde temporelle : ignore les taps < 400ms après ouverture (ghost-click du long-press)
+// Flag touched : évite la double exécution touchend → click sur Android
+function _editModalOk(){
+  return !window._editModalOpenedAt || (Date.now() - window._editModalOpenedAt) > 400;
+}
+function _bindModalBtn(id, fn){
+  const el = document.getElementById(id);
+  let _touched = false;
+  el.addEventListener('touchend', function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(!_editModalOk()) return;
+    _touched = true;
+    setTimeout(()=>{ _touched = false; }, 600);
+    fn();
+  });
+  el.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(_touched) return; // déjà exécuté par touchend
+    if(!_editModalOk()) return;
+    fn();
+  });
+}
+_bindModalBtn('edit-table-save',   saveEditTable);
+_bindModalBtn('edit-table-cancel', closeEditTableModal);
+_bindModalBtn('btn-defusionner',   defusionnerTable);
 
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
@@ -1273,10 +1320,10 @@ async function createTableOfType(capacite, shape){
   showLoader(true);
   try{
     await createTable(newTable);
-    allTables.push(newTable);
     showLoader(false);
     toast('Table ' + nextNum + ' ajoutée ✓ — appui long pour modifier', 'ok');
-    renderPlan();
+    // loadPlan recharge tout depuis Supabase pour être sûr d'avoir toutes les tables
+    await loadPlan();
   }catch(e){ showLoader(false); toast('Erreur création table','ko'); console.error(e); }
 }
 
@@ -1285,14 +1332,19 @@ function toggleFullscreen(){
   const el = document.getElementById('screen-plan');
   const btn = document.getElementById('btn-fullscreen');
   const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+  const isManual = btn.getAttribute('data-manual') === '1';
+  if(isManual){
+    // Quitter le mode plein écran manuel
+    onFsChange(); return;
+  }
   if(!isFs){
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if(req){ req.call(el); }
     else {
-      // Fallback si l'API fullscreen n'est pas dispo (certains iOS)
+      // Fallback si l'API fullscreen n'est pas dispo (certains iOS/Android)
       el.style.position='fixed';
       el.style.inset='0';
-      el.style.zIndex='9999';
+      el.style.zIndex='8000';
       el.style.background='var(--bg)';
       btn.textContent='✕';
       btn.title='Quitter le plein écran';
