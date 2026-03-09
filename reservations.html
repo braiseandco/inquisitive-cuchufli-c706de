@@ -137,11 +137,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .table-el.merge-target{animation:mergeGlow .5s ease infinite alternate;}
 @keyframes mergeGlow{from{filter:drop-shadow(0 0 6px var(--accent));}to{filter:drop-shadow(0 0 18px var(--accent3));}}
 
-.table-shape{border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;transition:border-color .2s,box-shadow .2s;border:2px solid transparent;position:relative;}
+.table-shape{display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;transition:border-color .2s,box-shadow .2s;border:2px solid transparent;position:relative;}
+/* Carré (2p) */
+.table-shape.shape-square{border-radius:10px;}
+/* Rectangle (4p+) */
+.table-shape.shape-rect{border-radius:10px;}
+/* Ronde */
+.table-shape.shape-round{border-radius:50%;}
+/* Fusionnée */
+.table-shape.fusionnee{border-radius:8px;}
 .table-shape.libre{background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);box-shadow:0 0 14px rgba(67,160,71,0.12);}
 .table-shape.occupee{background:rgba(67,160,71,0.2);border-color:rgba(67,160,71,0.6);box-shadow:0 0 14px rgba(67,160,71,0.2);}
 .table-shape.occupee-late{background:rgba(229,57,53,0.2);border-color:rgba(229,57,53,0.5);box-shadow:0 0 14px rgba(229,57,53,0.15);}
-.table-shape.fusionnee{border-radius:10px;}
 
 .table-num{font-size:18px;font-weight:900;color:var(--text);}
 .table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:2px;}
@@ -740,8 +747,12 @@ async function initDefaultTables(){
     const col=(i-1)%5, row=Math.floor((i-1)/5);
     tables.push({id:'t'+i, numero:i, zone:'interieur', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
   }
-  for(let i=21;i<=35;i++){
-    const col=(i-21)%5, row=Math.floor((i-21)/5);
+  // 3 tables rondes dans la salle (intérieur) - capacité 6 (ronde = 5 ou 6p)
+  tables.push({id:'tr1', numero:21, zone:'interieur', capacite:6, shape:'round', x_pos:80,  y_pos:820});
+  tables.push({id:'tr2', numero:22, zone:'interieur', capacite:6, shape:'round', x_pos:260, y_pos:820});
+  tables.push({id:'tr3', numero:23, zone:'interieur', capacite:6, shape:'round', x_pos:440, y_pos:820});
+  for(let i=24;i<=38;i++){
+    const col=(i-24)%5, row=Math.floor((i-24)/5);
     tables.push({id:'t'+i, numero:i, zone:'terrasse', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
   }
   try{
@@ -764,26 +775,43 @@ function renderPlan(){
   visible.forEach(t=>{
     const resa = tableResas[t.id];
     let status = 'libre';
-    if(resa){
-      status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
-    }
+    if(resa) status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
+
     const isMerged = t.merged_with && t.merged_with.length > 0;
-    const w = isMerged ? 190 : 110;
-    const h = resa && resa.telephone ? 120 : 105;
+    const isRound = t.shape === 'round';
+    const cap = t.capacite || 4;
+
+    // Dimensions selon la forme
+    // Règle : carré=2p, ronde=5-6p, rectangle=tout le reste
+    let w, h, shapeClass;
+    if(isMerged){
+      w = 200; h = 100; shapeClass = 'fusionnee';
+    } else if(isRound || cap === 5 || cap === 6){
+      w = 115; h = 115; shapeClass = 'shape-round';
+    } else if(cap === 2){
+      w = 90; h = 90; shapeClass = 'shape-square';
+    } else {
+      w = 130; h = 90; shapeClass = 'shape-rect';
+    }
+
+    // Hauteur extra si téléphone
+    if(!isRound && !isMerged && resa && resa.telephone) h += 14;
 
     const el = document.createElement('div');
     el.className = 'table-el';
     el.dataset.id = t.id;
     el.style.cssText = 'left:'+(t.x_pos||80)+'px;top:'+(t.y_pos||80)+'px;width:'+w+'px;height:'+h+'px;';
 
+    // Pour les tables rondes, on limite le texte affiché
+    const showPhone = resa && resa.telephone && !isRound;
     el.innerHTML =
-      '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;">'+
+      '<div class="table-shape '+shapeClass+' '+status+'" style="width:'+w+'px;height:'+h+'px;">'+
       (isMerged ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
-      '<div class="table-num">'+t.numero+'</div>'+
-      '<div class="table-cap">'+t.capacite+'p</div>'+
-      (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
-      (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
-      (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
+      '<div class="table-num" style="font-size:'+(isRound?'15px':'18px')+';">'+t.numero+'</div>'+
+      '<div class="table-cap">'+cap+'p</div>'+
+      (resa ? '<div class="table-resa-name" style="font-size:'+(isRound?'8px':'9px')+';">'+esc(resa.nom)+'</div>' : '')+
+      (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:'+(isRound?'8px':'10px')+';margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
+      (showPhone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
       '</div>';
 
     setupTableInteractions(el, t, visible);
@@ -907,25 +935,93 @@ function setupTableInteractions(el, table, allVisible){
   el.addEventListener('touchend', end, {passive:true});
 }
 
+let editingTable = null;
+
 function openEditTableModal(table){
   editingTableId = table.id;
+  editingTable = table;
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
+  // Affiche le bouton défusionner seulement si la table est fusionnée
+  const btnDefuse = document.getElementById('btn-defusionner');
+  if(table.merged_with && table.merged_with.length > 0){
+    btnDefuse.style.display = 'block';
+    btnDefuse.textContent = '⬌ Défusionner (Table ' + table.merged_with + ')';
+  } else {
+    btnDefuse.style.display = 'none';
+  }
+  updateShapeHint(table.capacite);
+  document.getElementById('edit-table-cap').oninput = function(){
+    updateShapeHint(parseInt(this.value)||0);
+  };
   document.getElementById('edit-table-modal').classList.add('open');
   setTimeout(()=>{ document.getElementById('edit-table-cap').focus(); }, 100);
 }
 
+function updateShapeHint(cap){
+  const icon = document.getElementById('shape-hint-icon');
+  const text = document.getElementById('shape-hint-text');
+  if(!icon || !text) return;
+  if(cap === 2){
+    icon.textContent = '⬛'; text.textContent = 'Forme carrée';
+  } else if(cap === 5 || cap === 6){
+    icon.textContent = '⭕'; text.textContent = 'Forme ronde';
+  } else if(cap >= 1){
+    icon.textContent = '▬'; text.textContent = 'Forme rectangle';
+  } else {
+    icon.textContent = ''; text.textContent = '';
+  }
+}
+
 function closeEditTableModal(){
   document.getElementById('edit-table-modal').classList.remove('open');
+  editingTable = null;
+}
+
+async function defusionnerTable(){
+  if(!editingTable) return;
+  closeEditTableModal();
+  showLoader(true);
+  try{
+    // Récupère la capacité originale (moitié de la capacité fusionnée, par défaut 4)
+    const capOriginale = Math.round((editingTable.capacite || 8) / 2);
+    // Remet la table fusionnée à sa capacité d'origine et efface merged_with
+    await updateTable(editingTable.id, {
+      capacite: capOriginale,
+      merged_with: null
+    });
+    // Retrouve la table cachée (x_pos=-500) qui correspond au numéro merged_with
+    const mergedNum = parseInt(editingTable.merged_with);
+    const hiddenTable = allTables.find(t => t.numero === mergedNum && (t.x_pos || 0) < 0);
+    if(hiddenTable){
+      // Replace la table cachée à côté de la table principale
+      const nx = (editingTable.x_pos || 80) + 130;
+      const ny = editingTable.y_pos || 80;
+      await updateTable(hiddenTable.id, {
+        x_pos: nx,
+        y_pos: ny,
+        capacite: capOriginale
+      });
+    }
+    showLoader(false);
+    toast('Tables défusionnées ✓', 'ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur défusion','ko'); console.error(e); }
 }
 
 async function saveEditTable(){
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
+  // Forme déduite automatiquement de la capacité :
+  // 2p = carré, 5-6p = ronde, tout le reste = rectangle
+  let newShape;
+  if(cap === 2) newShape = 'square';
+  else if(cap === 5 || cap === 6) newShape = 'round';
+  else newShape = 'rect';
   showLoader(true);
   try{
-    await updateTable(editingTableId, {numero:num, capacite:cap});
+    await updateTable(editingTableId, {numero:num, capacite:cap, shape:newShape});
     showLoader(false);
     closeEditTableModal();
     toast('Table modifiée ✓','ok');
@@ -1137,8 +1233,9 @@ async function addNewTable(){
     numero: nextNum,
     zone: planZone,
     capacite: 4,
-    x_pos: Math.max(20, cx - 55),
-    y_pos: Math.max(20, cy - 52)
+    shape: 'rect', // 4p par défaut = rectangle
+    x_pos: Math.max(20, cx - 65),
+    y_pos: Math.max(20, cy - 45)
   };
 
   showLoader(true);
@@ -1227,7 +1324,14 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
     <div class="field-group">
       <label class="field-label">Capacité (couverts)</label>
       <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50" inputmode="numeric">
+      <div id="shape-hint" style="margin-top:6px;font-size:11px;color:var(--text-faint);display:flex;align-items:center;gap:6px;">
+        <span id="shape-hint-icon"></span><span id="shape-hint-text"></span>
+      </div>
     </div>
+    <button id="btn-defusionner"
+      style="display:none;width:100%;padding:12px;margin-bottom:12px;background:rgba(142,36,170,0.12);border:1px solid rgba(142,36,170,0.4);border-radius:10px;color:#ce93d8;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center;"
+      onclick="defusionnerTable()"
+      ontouchend="event.preventDefault();event.stopPropagation();defusionnerTable();">⬌ Défusionner</button>
     <div class="modal-btns">
       <button class="btn-cancel" id="edit-table-cancel"
         onclick="closeEditTableModal()"
