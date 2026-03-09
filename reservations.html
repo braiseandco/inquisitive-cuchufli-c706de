@@ -954,8 +954,13 @@ function openEditTableModal(table){
   document.getElementById('edit-table-cap').oninput = function(){
     updateShapeHint(parseInt(this.value)||0);
   };
-  document.getElementById('edit-table-modal').classList.add('open');
-  setTimeout(()=>{ document.getElementById('edit-table-cap').focus(); }, 100);
+  // Bloquer le clic fantôme généré par le touchend du long press
+  // On intercepte le prochain click sur toute la modale et on l'annule
+  const modal = document.getElementById('edit-table-modal');
+  modal.classList.add('open');
+  const eatClick = function(e){ e.stopPropagation(); e.preventDefault(); modal.removeEventListener('click', eatClick, true); };
+  modal.addEventListener('click', eatClick, true);   // capture = avant tous les handlers
+  setTimeout(()=>{ document.getElementById('edit-table-cap').focus(); }, 150);
 }
 
 function updateShapeHint(cap){
@@ -1030,37 +1035,12 @@ async function saveEditTable(){
 }
 
 // ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
-// On utilise pointerup qui est fiable sur Android/iOS sans délai fantôme
-(function(){
-  const modal   = document.getElementById('edit-table-modal');
-  const box     = document.getElementById('edit-table-box');
-  const btnSave = document.getElementById('edit-table-save');
-  const btnCancel = document.getElementById('edit-table-cancel');
-  const btnDefuse = document.getElementById('btn-defusionner');
-
-  // Ferme si clic sur le fond (hors boîte)
-  modal.addEventListener('pointerup', function(e){
-    if(e.target === modal) closeEditTableModal();
-  });
-
-  // Empêche les clics sur la boîte de remonter au fond
-  box.addEventListener('pointerdown', e => e.stopPropagation());
-
-  btnCancel.addEventListener('pointerup', function(e){
-    e.stopPropagation();
-    closeEditTableModal();
-  });
-
-  btnSave.addEventListener('pointerup', function(e){
-    e.stopPropagation();
-    saveEditTable();
-  });
-
-  btnDefuse.addEventListener('pointerup', function(e){
-    e.stopPropagation();
-    defusionnerTable();
-  });
-})();
+// Approche la plus simple et fiable sur Android : onclick natif uniquement
+document.getElementById('edit-table-save').onclick   = function(){ saveEditTable(); };
+document.getElementById('edit-table-cancel').onclick = function(){ closeEditTableModal(); };
+document.getElementById('btn-defusionner').onclick   = function(){ defusionnerTable(); };
+document.getElementById('edit-table-modal').onclick  = function(e){ if(e.target===this) closeEditTableModal(); };
+document.getElementById('edit-table-box').onclick    = function(e){ e.stopPropagation(); };
 
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
