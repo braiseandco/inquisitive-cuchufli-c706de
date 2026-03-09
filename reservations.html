@@ -173,7 +173,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .btn-panel-action:active{background:rgba(255,107,0,0.15);color:var(--accent);}
 
 /* LONG PRESS EDIT MODAL */
-.edit-table-modal{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:28px;}
+.edit-table-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:28px;touch-action:auto;}
 .edit-table-modal.open{display:flex;}
 .edit-table-box{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:24px;width:100%;max-width:320px;}
 .edit-table-title{font-family:'Cinzel',serif;font-size:18px;color:var(--accent);margin-bottom:16px;}
@@ -239,7 +239,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <div class="legend-item"><div class="legend-dot" style="background:#43a047;opacity:0.7;border:2px solid #43a047"></div>Avant 21h</div>
         <div class="legend-item"><div class="legend-dot" style="background:#e53935"></div>À partir de 21h</div>
       </div>
-      <button id="btn-add-table" onclick="addNewTable()" style="margin-left:4px;width:36px;height:36px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.06);color:var(--accent);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Ajouter une table">＋</button>
+      <button id="btn-add-table" onclick="openAddTableModal()" style="margin-left:4px;width:36px;height:36px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.06);color:var(--accent);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Ajouter une table">＋</button>
       <button id="btn-fullscreen" onclick="toggleFullscreen()" style="margin-left:4px;width:36px;height:36px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.06);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Plein écran">⛶</button>
     </div>
     <div class="date-nav" style="padding:10px 16px;">
@@ -519,8 +519,14 @@ function renderResas(resas){
 
 function resaCardHtml(r){
   const heure=r.heure?r.heure.slice(0,5):'';
+  // Chercher le numéro de table correspondant au table_id
+  let tableNum = '';
+  if(r.table_id){
+    const t = allTables.find(x=>x.id===r.table_id);
+    tableNum = t ? t.numero : (r.table_id.replace(/^t/,'') || '?');
+  }
   const tableBadge=r.table_id
-    ?'<span class="resa-table-badge">🪑 Table '+esc(r.table_id.replace('t',''))+'</span>'
+    ?'<span class="resa-table-badge">🪑 Table '+esc(String(tableNum))+'</span>'
     :'<span class="resa-table-badge none">Non placée</span>';
   return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
@@ -571,7 +577,7 @@ async function openDetail(id){
       '<div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">'+fmtDate(r.date)+' à '+r.heure.slice(0,5)+'</div><div class="detail-lbl">Date & heure</div></div></div>'+
       (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
       (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
-      '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?'Table '+r.table_id.replace('t',''):'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>';
+      '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?(()=>{ const t=allTables.find(x=>x.id===r.table_id); return 'Table '+(t?t.numero:r.table_id.replace(/^t/,'')); })():'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>';
 
     document.querySelectorAll('.status-pill').forEach(p=>{
       p.classList.toggle('active-status',p.dataset.status===r.statut);
@@ -745,7 +751,7 @@ async function initDefaultTables(){
   const tables = [];
   for(let i=1;i<=20;i++){
     const col=(i-1)%5, row=Math.floor((i-1)/5);
-    tables.push({id:'t'+i, numero:i, zone:'interieur', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
+    tables.push({id:'t'+i, numero:i, zone:'interieur', capacite:4, shape:'rect', x_pos:80+col*180, y_pos:80+row*180});
   }
   // 3 tables rondes dans la salle (intérieur) - capacité 6 (ronde = 5 ou 6p)
   tables.push({id:'tr1', numero:21, zone:'interieur', capacite:6, shape:'round', x_pos:80,  y_pos:820});
@@ -753,7 +759,7 @@ async function initDefaultTables(){
   tables.push({id:'tr3', numero:23, zone:'interieur', capacite:6, shape:'round', x_pos:440, y_pos:820});
   for(let i=24;i<=38;i++){
     const col=(i-24)%5, row=Math.floor((i-24)/5);
-    tables.push({id:'t'+i, numero:i, zone:'terrasse', capacite:4, x_pos:80+col*180, y_pos:80+row*180});
+    tables.push({id:'t'+i, numero:i, zone:'terrasse', capacite:4, shape:'rect', x_pos:80+col*180, y_pos:80+row*180});
   }
   try{
     for(const t of tables) await createTable(t);
@@ -954,10 +960,17 @@ function openEditTableModal(table){
   document.getElementById('edit-table-cap').oninput = function(){
     updateShapeHint(parseInt(this.value)||0);
   };
-  document.getElementById('edit-table-modal').classList.add('open');
-  // On note le timestamp d'ouverture pour ignorer les clics pendant 500ms
-  window._editModalOpenTime = Date.now();
-  setTimeout(()=>{ document.getElementById('edit-table-cap').focus(); }, 150);
+  const modal = document.getElementById('edit-table-modal');
+  modal.classList.add('open');
+  // Désactive les touch sur le plan
+  document.getElementById('plan-wrap').style.pointerEvents = 'none';
+  // Bloque le FOND de la modale (pas la boîte) pendant 600ms pour absorber
+  // le ghost-click généré par le touchend du long press
+  modal.style.pointerEvents = 'none';
+  setTimeout(()=>{
+    modal.style.pointerEvents = '';
+    document.getElementById('edit-table-cap').focus();
+  }, 600);
 }
 
 function updateShapeHint(cap){
@@ -977,31 +990,26 @@ function updateShapeHint(cap){
 
 function closeEditTableModal(){
   document.getElementById('edit-table-modal').classList.remove('open');
+  document.getElementById('plan-wrap').style.pointerEvents = '';
   editingTable = null;
 }
 
 async function defusionnerTable(){
   if(!editingTable) return;
+  // Sauvegarder les données AVANT de fermer (closeEditTableModal met editingTable à null)
+  const table = editingTable;
   closeEditTableModal();
   showLoader(true);
   try{
-    // Récupère la capacité originale (moitié de la capacité fusionnée, par défaut 4)
-    const capOriginale = Math.round((editingTable.capacite || 8) / 2);
-    // Remet la table fusionnée à sa capacité d'origine et efface merged_with
-    await updateTable(editingTable.id, {
-      capacite: capOriginale,
-      merged_with: null
-    });
-    // Retrouve la table cachée (x_pos=-500) qui correspond au numéro merged_with
-    const mergedNum = parseInt(editingTable.merged_with);
+    const capOriginale = Math.round((table.capacite || 8) / 2);
+    await updateTable(table.id, { capacite: capOriginale, merged_with: null });
+    // Retrouve la table cachée (x_pos=-500) par son numéro
+    const mergedNum = parseInt(table.merged_with);
     const hiddenTable = allTables.find(t => t.numero === mergedNum && (t.x_pos || 0) < 0);
     if(hiddenTable){
-      // Replace la table cachée à côté de la table principale
-      const nx = (editingTable.x_pos || 80) + 130;
-      const ny = editingTable.y_pos || 80;
       await updateTable(hiddenTable.id, {
-        x_pos: nx,
-        y_pos: ny,
+        x_pos: (table.x_pos || 80) + 150,
+        y_pos: table.y_pos || 80,
         capacite: capOriginale
       });
     }
@@ -1012,18 +1020,19 @@ async function defusionnerTable(){
 }
 
 async function saveEditTable(){
+  if(!editingTable) return;
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
-  // Forme déduite automatiquement de la capacité :
-  // 2p = carré, 5-6p = ronde, tout le reste = rectangle
   let newShape;
   if(cap === 2) newShape = 'square';
   else if(cap === 5 || cap === 6) newShape = 'round';
   else newShape = 'rect';
+  // Sauvegarder l'id AVANT de fermer
+  const tableId = editingTable.id;
   showLoader(true);
   try{
-    await updateTable(editingTableId, {numero:num, capacite:cap, shape:newShape});
+    await updateTable(tableId, {numero:num, capacite:cap, shape:newShape});
     showLoader(false);
     closeEditTableModal();
     toast('Table modifiée ✓','ok');
@@ -1032,19 +1041,9 @@ async function saveEditTable(){
 }
 
 // ── GESTION MODALE ÉDITION TABLE ─────────────────────────────
-// On ignore les clics pendant 500ms après ouverture (clic fantôme du long press)
-function _modalReady(){ return !window._editModalOpenTime || (Date.now() - window._editModalOpenTime) > 500; }
-
-// Ferme si clic directement sur le fond (pas sur un bouton)
-document.getElementById('edit-table-modal').addEventListener('click', function(e){
-  if(!_modalReady()) return;
-  if(e.target === this) closeEditTableModal();
-});
-
-// Les boutons : onclick simple, sans stopPropagation sur le parent
-document.getElementById('edit-table-save').onclick   = function(){ if(_modalReady()) saveEditTable(); };
-document.getElementById('edit-table-cancel').onclick = function(){ if(_modalReady()) closeEditTableModal(); };
-document.getElementById('btn-defusionner').onclick   = function(){ if(_modalReady()) defusionnerTable(); };
+document.getElementById('edit-table-save').onclick   = function(){ saveEditTable(); };
+document.getElementById('edit-table-cancel').onclick = function(){ closeEditTableModal(); };
+document.getElementById('btn-defusionner').onclick   = function(){ defusionnerTable(); };
 
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
@@ -1062,6 +1061,14 @@ async function openTablePanel(table, resa){
   document.getElementById('tp-sub').textContent = table.capacite+' couverts • '+(resa?'Occupée':'Libre');
   const list = document.getElementById('tp-assign-list');
   const unassign = document.getElementById('tp-unassign');
+
+  // Si une réservation est en attente d'affectation mais la table est occupée,
+  // on annule le pendingResaId et on affiche juste le détail de la table
+  if(pendingResaId && resa){
+    pendingResaId = null;
+    document.getElementById('assign-banner').style.display = 'none';
+    toast('Cette table est déjà occupée','ko');
+  }
 
   if(resa){
     const statusHtml = resa.statut==='confirmee'?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
@@ -1231,7 +1238,18 @@ loadResas();
 initPolling();
 
 // ── AJOUTER UNE TABLE ────────────────────────────────────────
-async function addNewTable(){
+function openAddTableModal(){
+  const modal = document.getElementById('add-table-modal');
+  modal.classList.add('open');
+  // Pas de ghost-click ici car ouvert via onclick normal (pas long-press)
+}
+
+function closeAddTableModal(){
+  document.getElementById('add-table-modal').classList.remove('open');
+}
+
+async function createTableOfType(capacite, shape){
+  closeAddTableModal();
   // Numéro suivant disponible
   const existingNums = allTables.map(t=>t.numero);
   let nextNum = 1;
@@ -1246,10 +1264,10 @@ async function addNewTable(){
     id: 't' + genId(),
     numero: nextNum,
     zone: planZone,
-    capacite: 4,
-    shape: 'rect', // 4p par défaut = rectangle
+    capacite: capacite,
+    shape: shape,
     x_pos: Math.max(20, cx - 65),
-    y_pos: Math.max(20, cy - 45)
+    y_pos: Math.max(20, cy - 52)
   };
 
   showLoader(true);
@@ -1348,6 +1366,34 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
       <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
       <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
     </div>
+  </div>
+</div>
+<!-- ADD TABLE MODAL -->
+<div class="edit-table-modal" id="add-table-modal" style="z-index:9999;">
+  <div class="edit-table-box" id="add-table-box" style="max-width:340px;">
+    <div class="edit-table-title">＋ Ajouter une table</div>
+    <div style="font-size:11px;color:var(--text-faint);margin-bottom:16px;letter-spacing:1px;">Choisissez le type de table à créer</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="createTableOfType(2,'square')"
+        style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,107,0,0.06);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">
+        <span style="font-size:28px;">⬛</span>
+        <div><div>Table carrée</div><div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">2 personnes</div></div>
+      </button>
+      <button onclick="createTableOfType(4,'rect')"
+        style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,107,0,0.06);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">
+        <span style="font-size:28px;">▬</span>
+        <div><div>Table rectangle</div><div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">4 personnes (modifiable)</div></div>
+      </button>
+      <button onclick="createTableOfType(6,'round')"
+        style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,107,0,0.06);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:left;">
+        <span style="font-size:28px;">⭕</span>
+        <div><div>Table ronde</div><div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">5 ou 6 personnes (modifiable)</div></div>
+      </button>
+    </div>
+    <button onclick="closeAddTableModal()"
+      style="width:100%;margin-top:14px;padding:13px;background:rgba(255,107,0,0.05);border:1px solid var(--border2);border-radius:12px;color:var(--text-dim);font-family:'Raleway',sans-serif;font-size:14px;cursor:pointer;">
+      Annuler
+    </button>
   </div>
 </div>
 </body></html>
