@@ -799,15 +799,16 @@ function renderPlan(){
 let editingTableId = null;
 
 function setupTableInteractions(el, table, allVisible){
-  let t0=0, x0=0, y0=0, dragging=false, longTimer=null;
+  let t0=0, x0=0, y0=0, dragging=false, longTimer=null, longPressTriggered=false;
   let ox=table.x_pos||80, oy=table.y_pos||80;
 
   function start(cx,cy){
-    t0=Date.now(); x0=cx; y0=cy; dragging=false;
+    t0=Date.now(); x0=cx; y0=cy; dragging=false; longPressTriggered=false;
     ox=table.x_pos||80; oy=table.y_pos||80;
     // Long press = 600ms sans bouger : ouvre la modale d'édition de la table
     longTimer=setTimeout(()=>{
       if(!dragging){
+        longPressTriggered=true;
         // Feedback visuel
         el.querySelector('.table-shape').style.transform='scale(1.08)';
         el.querySelector('.table-shape').style.transition='transform .15s';
@@ -863,6 +864,8 @@ function setupTableInteractions(el, table, allVisible){
     document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
 
     if(!dragging){
+      // Si c'est un long press qui vient de s'ouvrir, on ignore le touchend
+      if(longPressTriggered){ longPressTriggered=false; return; }
       if(pendingResaId && !tableResas[table.id]){
         const rid=pendingResaId; pendingResaId=null;
         document.getElementById('assign-banner').style.display='none';
@@ -904,38 +907,19 @@ function setupTableInteractions(el, table, allVisible){
   el.addEventListener('touchend', end, {passive:true});
 }
 
-// Délai anti-clic-fantôme : après un long press, le touchend génère un faux clic
-// On bloque les interactions sur la modale pendant 350ms après son ouverture
-let editModalReady = false;
-
 function openEditTableModal(table){
   editingTableId = table.id;
-  editModalReady = false;
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
   document.getElementById('edit-table-modal').classList.add('open');
-  // Focus sur le champ capacité après le délai de sécurité
-  setTimeout(()=>{
-    editModalReady = true;
-    document.getElementById('edit-table-cap').focus();
-  }, 350);
+  setTimeout(()=>{ document.getElementById('edit-table-cap').focus(); }, 100);
 }
 
-// Clic sur le fond = ferme (seulement si prêt)
-document.getElementById('edit-table-modal').addEventListener('click', function(e){
-  if(!editModalReady) return;
-  if(e.target === this) this.classList.remove('open');
-});
-
-document.getElementById('edit-table-cancel').onclick = function(e){
-  e.stopPropagation();
-  if(!editModalReady) return;
+function closeEditTableModal(){
   document.getElementById('edit-table-modal').classList.remove('open');
-};
+}
 
-document.getElementById('edit-table-save').onclick = async function(e){
-  e.stopPropagation();
-  if(!editModalReady) return;
+async function saveEditTable(){
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
@@ -943,11 +927,15 @@ document.getElementById('edit-table-save').onclick = async function(e){
   try{
     await updateTable(editingTableId, {numero:num, capacite:cap});
     showLoader(false);
-    document.getElementById('edit-table-modal').classList.remove('open');
+    closeEditTableModal();
     toast('Table modifiée ✓','ok');
     loadPlan();
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
-};
+}
+
+document.getElementById('edit-table-modal').addEventListener('click', function(e){
+  if(e.target === this) closeEditTableModal();
+});
 document.getElementById('merge-cancel-btn').onclick = () => {
   document.getElementById('merge-bar').classList.remove('show');
   document.querySelectorAll('.merge-target').forEach(x=>x.classList.remove('merge-target'));
@@ -1230,7 +1218,7 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
 
 <!-- EDIT TABLE MODAL -->
 <div class="edit-table-modal" id="edit-table-modal">
-  <div class="edit-table-box" onclick="event.stopPropagation()">
+  <div class="edit-table-box" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
     <div class="edit-table-title">✏️ Modifier la table</div>
     <div class="field-group">
       <label class="field-label">Numéro</label>
@@ -1241,8 +1229,12 @@ document.addEventListener('webkitfullscreenchange', onFsChange);
       <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50" inputmode="numeric">
     </div>
     <div class="modal-btns">
-      <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
-      <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
+      <button class="btn-cancel" id="edit-table-cancel"
+        onclick="closeEditTableModal()"
+        ontouchend="event.preventDefault();event.stopPropagation();closeEditTableModal();">Annuler</button>
+      <button class="btn-primary" id="edit-table-save"
+        onclick="saveEditTable()"
+        ontouchend="event.preventDefault();event.stopPropagation();saveEditTable();">💾 Sauvegarder</button>
     </div>
   </div>
 </div>
