@@ -295,11 +295,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="stats-bar">
       <div class="stat-item"><div class="stat-n" id="stat-resas">3</div><div class="stat-l">Réservations</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-couverts">8</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">1</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">10</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">3</div><div class="stat-l">Tables placées</div></div>
       <div class="stat-item"><div class="stat-n" id="stat-dispo">—</div><div class="stat-l">Tables libres</div></div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmi5qxp3gge8s" data-table-id=""><div class="resa-card-top"><div class="resa-heure">12:00</div><div class="resa-nom">alex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span><span>📞 0660747821</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmjgpb95064ys" data-table-id=""><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Alex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span></div></div><div class="resa-card en-attente" data-id="mmibw8wehvc" data-table-id="t4"><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Bibaboum</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 4</span><span>📞 0660747821</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmjgpb95064ys" data-table-id="t18"><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Alex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 18</span></div></div><div class="resa-card en-attente" data-id="mmibw8wehvc" data-table-id="t4"><div class="resa-card-top"><div class="resa-heure">19:30</div><div class="resa-nom">Bibaboum</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 4</span><span>📞 0660747821</span></div></div><div class="resa-card confirmee" data-id="mmjmu4e10nv4q" data-table-id="t11"><div class="resa-card-top"><div class="resa-heure">22:00</div><div class="resa-nom">Rx</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 11</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -392,19 +392,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="field-group">
       <label class="field-label">Horaires rapides</label>
-      <div class="time-pills" id="time-pills">
-        <button class="time-pill" data-time="12:00">12h00</button>
-        <button class="time-pill" data-time="12:15">12h15</button>
-        <button class="time-pill" data-time="12:30">12h30</button>
-        <button class="time-pill" data-time="12:45">12h45</button>
-        <button class="time-pill" data-time="13:00">13h00</button>
-        <button class="time-pill" data-time="13:15">13h15</button>
-        <button class="time-pill separator" data-time="19:00">19h00</button>
-        <button class="time-pill" data-time="19:30">19h30</button>
-        <button class="time-pill" data-time="20:00">20h00</button>
-        <button class="time-pill" data-time="20:30">20h30</button>
-        <button class="time-pill" data-time="21:00">21h00</button>
-        <button class="time-pill" data-time="21:30">21h30</button>
+      <div style="margin-bottom:6px;">
+        <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:6px;">🌞 Midi</div>
+        <div class="time-pills" id="time-pills">
+          <button class="time-pill" data-time="12:00">12h00</button>
+          <button class="time-pill" data-time="12:15">12h15</button>
+          <button class="time-pill" data-time="12:30">12h30</button>
+          <button class="time-pill" data-time="12:45">12h45</button>
+          <button class="time-pill" data-time="13:00">13h00</button>
+          <button class="time-pill" data-time="13:15">13h15</button>
+          <button class="time-pill" data-time="13:30">13h30</button>
+          <button class="time-pill" data-time="13:45">13h45</button>
+          <button class="time-pill" data-time="14:00">14h00</button>
+          <button class="time-pill" data-time="14:15">14h15</button>
+          <button class="time-pill" data-time="14:30">14h30</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:6px;">🌙 Soir</div>
+        <div class="time-pills">
+          <button class="time-pill" data-time="19:00">19h00</button>
+          <button class="time-pill" data-time="19:15">19h15</button>
+          <button class="time-pill" data-time="19:30">19h30</button>
+          <button class="time-pill" data-time="19:45">19h45</button>
+          <button class="time-pill" data-time="20:00">20h00</button>
+          <button class="time-pill" data-time="20:15">20h15</button>
+          <button class="time-pill" data-time="20:30">20h30</button>
+          <button class="time-pill" data-time="20:45">20h45</button>
+          <button class="time-pill" data-time="21:00">21h00</button>
+          <button class="time-pill" data-time="21:15">21h15</button>
+          <button class="time-pill" data-time="21:30">21h30</button>
+          <button class="time-pill" data-time="21:45">21h45</button>
+          <button class="time-pill" data-time="22:00">22h00</button>
+        </div>
       </div>
     </div>
     <div class="field-group">
@@ -475,6 +495,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <button class="forme-btn active" data-forme="carre" style="flex:1;padding:10px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">⬛ Carré<br><span style="font-size:10px;opacity:.7;">2 pers.</span></button>
         <button class="forme-btn" data-forme="rectangle" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-faint);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">▬ Rectangle<br><span style="font-size:10px;opacity:.7;">3–4 pers.</span></button>
         <button class="forme-btn" data-forme="ronde" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-faint);font-family:&#39;Raleway&#39;,sans-serif;font-size:12px;font-weight:700;cursor:pointer;">⚫ Ronde<br><span style="font-size:10px;opacity:.7;">2–6 pers.</span></button>
+      </div>
+    </div>
+    <!-- Rotation : visible seulement pour rectangle -->
+    <div class="field-group" id="rotation-group" style="display:none;">
+      <label class="field-label">Orientation</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="rot-btn active" data-rot="0" style="flex:1;padding:10px;border:1px solid var(--border2);border-radius:10px;background:rgba(255,107,0,0.12);border-color:var(--accent);color:var(--accent);font-family:&#39;Raleway&#39;,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">▬ Horizontal</button>
+        <button class="rot-btn" data-rot="90" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:10px;background:none;color:var(--text-faint);font-family:&#39;Raleway&#39;,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">▮ Vertical</button>
       </div>
     </div>
     <div class="modal-btns">
@@ -861,14 +889,14 @@ async function openEditForm(id){
   }catch(e){showLoader(false);toast('Erreur','ko');}
 }
 
-// Time pills
-document.getElementById('time-pills').onclick=function(e){
-  const pill=e.target.closest('.time-pill');
-  if(!pill)return;
-  document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
-  pill.classList.add('active');
-  document.getElementById('r-heure').value=pill.dataset.time;
-};
+// Time pills (les deux lignes midi + soir)
+document.querySelectorAll('.time-pill').forEach(pill=>{
+  pill.addEventListener('click', function(){
+    document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('r-heure').value = this.dataset.time;
+  });
+});
 
 document.getElementById('btn-resa-save').onclick=async function(){
   const nom=document.getElementById('r-nom').value.trim();
@@ -956,10 +984,16 @@ async function initDefaultTables(){
 function getTableDimensions(t){
   const forme = t.forme || (t.capacite <= 2 ? 'carre' : 'rectangle');
   const isMerged = t.merged_with && t.merged_with.length > 0;
-  if(isMerged)  return {w:200, h:90,  shapeClass:'shape-fusionnee', label:'Fusionnée'};
-  if(forme==='ronde')     return {w:105, h:105, shapeClass:'shape-ronde',     label:'⚫ Ronde'};
-  if(forme==='carre')     return {w:90,  h:90,  shapeClass:'shape-carre',     label:'⬛ Carré'};
-  /* rectangle */         return {w:160, h:90,  shapeClass:'shape-rectangle', label:'▬ Rect.'};
+  const vertical = (t.rotation === 90);
+
+  if(isMerged)          return {w:200, h:90,  shapeClass:'shape-fusionnee', label:'Fusionnée'};
+  if(forme==='ronde')   return {w:105, h:105, shapeClass:'shape-ronde',     label:'⚫ Ronde'};
+  if(forme==='carre')   return {w:90,  h:90,  shapeClass:'shape-carre',     label:'⬛ Carré'};
+  // rectangle : on inverse w et h si vertical
+  const w = vertical ? 68  : 120;
+  const h = vertical ? 120 : 68;
+  const label = vertical ? '▮ Vert.' : '▬ Rect.';
+  return {w, h, shapeClass:'shape-rectangle', label};
 }
 
 function renderPlan(){
@@ -1158,19 +1192,37 @@ function setupTableInteractions(el, table, allVisible){
 
 // Edit table modal
 let addTableMode = false;
-let currentForme = 'rectangle'; // ← variable fiable pour stocker la forme active
+let currentForme = 'rectangle'; // variable fiable pour stocker la forme active
+let currentRotation = 0;        // 0 = horizontal, 90 = vertical
 
 function setFormeActive(forme){
-  currentForme = forme; // ← toujours mis à jour ici
+  currentForme = forme;
   document.querySelectorAll('.forme-btn').forEach(b=>{
     const active = b.dataset.forme === forme;
-    b.style.background   = active ? 'rgba(255,107,0,0.12)' : 'none';
-    b.style.borderColor  = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
-    b.style.color        = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
+    b.style.background  = active ? 'rgba(255,107,0,0.12)' : 'none';
+    b.style.borderColor = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
+    b.style.color       = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
+  });
+  // Afficher l'orientation seulement pour rectangle
+  document.getElementById('rotation-group').style.display = forme === 'rectangle' ? '' : 'none';
+  if(forme !== 'rectangle') currentRotation = 0;
+}
+
+function setRotationActive(rot){
+  currentRotation = rot;
+  document.querySelectorAll('.rot-btn').forEach(b=>{
+    const active = parseInt(b.dataset.rot) === rot;
+    b.style.background  = active ? 'rgba(255,107,0,0.12)' : 'none';
+    b.style.borderColor = active ? 'var(--accent)' : 'rgba(255,107,0,0.15)';
+    b.style.color       = active ? 'var(--accent)' : 'rgba(240,237,232,0.5)';
   });
 }
+
 document.querySelectorAll('.forme-btn').forEach(b=>{
   b.onclick=()=>setFormeActive(b.dataset.forme);
+});
+document.querySelectorAll('.rot-btn').forEach(b=>{
+  b.onclick=()=>setRotationActive(parseInt(b.dataset.rot));
 });
 
 function openEditTableModal(table){
@@ -1180,6 +1232,7 @@ function openEditTableModal(table){
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
   setFormeActive(table.forme || (table.capacite<=2?'carre':'rectangle'));
+  setRotationActive(table.rotation || 0);
   document.getElementById('edit-table-modal').classList.add('open');
 }
 
@@ -1187,11 +1240,11 @@ function openAddTableModal(){
   addTableMode = true;
   editingTableId = null;
   document.getElementById('edit-table-modal-title').textContent = '＋ Nouvelle table';
-  // Suggest next numero
   const maxNum = allTables.length ? Math.max(...allTables.map(t=>t.numero)) : 0;
   document.getElementById('edit-table-num').value = maxNum + 1;
   document.getElementById('edit-table-cap').value = 4;
   setFormeActive('rectangle');
+  setRotationActive(0);
   document.getElementById('edit-table-modal').classList.add('open');
 }
 
@@ -1215,10 +1268,10 @@ document.getElementById('edit-table-save').onclick = async function(){
   try{
     if(addTableMode){
       const newId = 't'+Date.now().toString(36);
-      await createTable({id:newId, numero:num, zone:planZone, capacite:cap, forme:forme, x_pos:80, y_pos:80});
+      await createTable({id:newId, numero:num, zone:planZone, capacite:cap, forme:forme, rotation:currentRotation, x_pos:80, y_pos:80});
       toast('Table '+num+' ajoutée ✓','ok');
     }else{
-      await updateTable(editingTableId, {numero:num, capacite:cap, forme:forme});
+      await updateTable(editingTableId, {numero:num, capacite:cap, forme:forme, rotation:currentRotation});
       toast('Table modifiée ✓','ok');
     }
     showLoader(false);
