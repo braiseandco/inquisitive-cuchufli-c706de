@@ -831,6 +831,7 @@ function setupTableInteractions(el, table, allVisible){
     el.style.left=nx+'px'; el.style.top=ny+'px';
     allVisible.forEach(t2=>{
       if(t2.id===table.id)return;
+      if(t2.zone!==table.zone)return; // même zone uniquement
       const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
       if(!e2)return;
       e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
@@ -849,6 +850,7 @@ function setupTableInteractions(el, table, allVisible){
     el.style.left=nx+'px'; el.style.top=ny+'px';
     allVisible.forEach(t2=>{
       if(t2.id===table.id)return;
+      if(t2.zone!==table.zone)return; // même zone uniquement
       const e2=document.querySelector('.table-el[data-id="'+t2.id+'"]');
       if(!e2)return;
       e2.classList.toggle('merge-target',Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90);
@@ -874,6 +876,8 @@ function setupTableInteractions(el, table, allVisible){
     dragging=false;
     const tgt=allVisible.find(t2=>{
       if(t2.id===table.id)return false;
+      if(t2.zone!==table.zone)return false; // même zone uniquement
+      if((t2.x_pos||0)<0)return false;      // table masquée (fusionnée)
       const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
       return Math.hypot(nx-(t2.x_pos||80),ny-(t2.y_pos||80))<90;
     });
@@ -900,22 +904,38 @@ function setupTableInteractions(el, table, allVisible){
   el.addEventListener('touchend', end, {passive:true});
 }
 
+// Délai anti-clic-fantôme : après un long press, le touchend génère un faux clic
+// On bloque les interactions sur la modale pendant 350ms après son ouverture
+let editModalReady = false;
+
 function openEditTableModal(table){
   editingTableId = table.id;
+  editModalReady = false;
   document.getElementById('edit-table-num').value = table.numero;
   document.getElementById('edit-table-cap').value = table.capacite;
   document.getElementById('edit-table-modal').classList.add('open');
+  // Focus sur le champ capacité après le délai de sécurité
+  setTimeout(()=>{
+    editModalReady = true;
+    document.getElementById('edit-table-cap').focus();
+  }, 350);
 }
-// Clic sur le fond de la modale = ferme, clic sur la boîte = ne remonte pas
+
+// Clic sur le fond = ferme (seulement si prêt)
 document.getElementById('edit-table-modal').addEventListener('click', function(e){
+  if(!editModalReady) return;
   if(e.target === this) this.classList.remove('open');
 });
+
 document.getElementById('edit-table-cancel').onclick = function(e){
   e.stopPropagation();
+  if(!editModalReady) return;
   document.getElementById('edit-table-modal').classList.remove('open');
 };
+
 document.getElementById('edit-table-save').onclick = async function(e){
   e.stopPropagation();
+  if(!editModalReady) return;
   const num = parseInt(document.getElementById('edit-table-num').value);
   const cap = parseInt(document.getElementById('edit-table-cap').value);
   if(!num||!cap){ toast('Remplissez les champs','ko'); return; }
