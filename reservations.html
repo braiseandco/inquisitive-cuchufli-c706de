@@ -338,10 +338,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="stats-bar">
       <div class="stat-item"><div class="stat-n" id="stat-resas">3</div><div class="stat-l">Réservations</div></div>
       <div class="stat-item"><div class="stat-n" id="stat-couverts">7</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">2</div><div class="stat-l">Tables placées</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-dispo">—</div><div class="stat-l">Tables libres</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">3</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item" style="cursor:pointer;position:relative;" id="stat-dispo-item" title="Détail tables libres">
+        <div class="stat-n" id="stat-dispo">—</div>
+        <div class="stat-l">Tables libres</div>
+        <div id="stat-dispo-detail" style="display:none;position:absolute;bottom:calc(100% + 8px);right:0;z-index:500;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5);font-size:11px;min-width:140px;">
+          <div id="dispo-detail-inner"><div style="color:var(--text-faint);text-align:center;padding:4px 0;">Choisir Midi ou Soir</div></div>
+        </div>
+      </div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmkdjysk4zzvb" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">12:45</div><div class="resa-nom">Ex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 3</span></div></div><div class="resa-card en-attente" data-id="mmkhlnxot03" data-table-id=""><div class="resa-card-top"><div class="resa-heure">12:30</div><div class="resa-nom">Vivi</div><div class="resa-pax">1p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span><span>📞 0631305454</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmkdgcdfvhrgd" data-table-id="t17"><div class="resa-card-top"><div class="resa-heure">14:30</div><div class="resa-nom">Vaness</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 17</span><span>📞 0669852110</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmkdjysk4zzvb" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">12:45</div><div class="resa-nom">Ex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 10</span></div></div><div class="resa-card en-attente" data-id="mmkhlnxot03" data-table-id="t8"><div class="resa-card-top"><div class="resa-heure">12:30</div><div class="resa-nom">Vivi</div><div class="resa-pax">1p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 7</span><span>📞 0631305454</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmkdgcdfvhrgd" data-table-id="t17"><div class="resa-card-top"><div class="resa-heure">14:30</div><div class="resa-nom">Vaness</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 16</span><span>📞 0669852110</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -873,6 +879,50 @@ async function loadResas(){
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
 
+function updateDispoStats(resas){
+  // Si "tout le jour" : pas de décompte pertinent
+  if(currentService === 'all'){
+    document.getElementById('stat-dispo').textContent = '—';
+    document.getElementById('dispo-detail-inner').innerHTML =
+      '<div style="color:var(--text-faint);text-align:center;padding:4px 0;">Choisir Midi ou Soir</div>';
+    return;
+  }
+
+  // Tables occupées ce service = celles qui ont un table_id dans les resas filtrées
+  const occupiedIds = new Set(resas.filter(r=>r.table_id).map(r=>r.table_id));
+
+  // On compte uniquement les tables visibles (x_pos >= 0, pas cachées)
+  const tables = allTables.filter(t=>(t.x_pos||0)>=0);
+
+  const total   = tables.length;
+  const occupied = tables.filter(t=>occupiedIds.has(t.id)).length;
+  const free    = Math.max(0, total - occupied);
+
+  document.getElementById('stat-dispo').textContent = free;
+
+  // Icône colorée identique pour les 3 types
+  const ico = (shape) => '<span style="display:inline-block;width:12px;height:12px;border-radius:'
+    +(shape==='ronde'?'50%':shape==='carre'?'3px':'4px')
+    +';background:rgba(67,160,71,0.25);border:1.5px solid rgba(67,160,71,0.6);vertical-align:middle;margin-right:6px;"></span>';
+
+  // Détail par type — parmi les tables LIBRES
+  const freeTables = tables.filter(t=>!occupiedIds.has(t.id));
+  const fRect = freeTables.filter(t=>!t.merged_with && (t.forme||'rectangle')==='rectangle').length;
+  const fCarre= freeTables.filter(t=>!t.merged_with && (t.forme||'')==='carre').length;
+  const fRond = freeTables.filter(t=>!t.merged_with && (t.forme||'')==='ronde').length;
+  const fFus  = freeTables.filter(t=> t.merged_with).length;
+
+  const serviceLabel = currentService === 'midi' ? '🌞 Midi' : '🌙 Soir';
+  let lines = ['<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;font-weight:700;">'+serviceLabel+'</div>'];
+  if(fRect) lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('rectangle')+'<span style="color:var(--text-faint);flex:1;">Rectangle</span><span style="font-weight:700;color:var(--text);">'+fRect+'</span></div>');
+  if(fCarre)lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('carre')+'<span style="color:var(--text-faint);flex:1;">Carré</span><span style="font-weight:700;color:var(--text);">'+fCarre+'</span></div>');
+  if(fRond) lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('ronde')+'<span style="color:var(--text-faint);flex:1;">Ronde</span><span style="font-weight:700;color:var(--text);">'+fRond+'</span></div>');
+  if(fFus)  lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;"><span style="color:var(--text-faint);flex:1;">⬌ Fusionnée</span><span style="font-weight:700;color:var(--text);">'+fFus+'</span></div>');
+  if(lines.length===1) lines.push('<div style="color:var(--text-faint);text-align:center;padding:4px 0;">Aucune table libre</div>');
+
+  document.getElementById('dispo-detail-inner').innerHTML = lines.join('');
+}
+
 function renderResas(resas){
   const container=document.getElementById('resa-list');
   const total=resas.length;
@@ -883,8 +933,8 @@ function renderResas(resas){
   document.getElementById('stat-couverts').textContent=couverts;
   document.getElementById('stat-tables').textContent=placed;
 
-  // Tables libres = total tables - tables occupées aujourd'hui
-  document.getElementById('stat-dispo').textContent='—';
+  // Tables libres — calculé depuis allTables et les resas placées
+  updateDispoStats(resas);
 
   if(!total){
     container.innerHTML='<div class="empty-day"><div class="empty-day-ico">📅</div><div style="font-family:Cinzel,serif;font-size:18px;color:var(--text-faint);margin-bottom:8px;">Aucune réservation</div><div style="font-size:13px;color:var(--text-faint);">Appuyez sur + pour en créer une</div></div>';
@@ -914,8 +964,10 @@ function renderResas(resas){
 
 function resaCardHtml(r){
   const heure=r.heure?r.heure.slice(0,5):'';
+  const _tbl = r.table_id ? allTables.find(t=>t.id===r.table_id) : null;
+  const _tblNum = _tbl ? _tbl.numero : (r.table_id ? r.table_id.replace('t','') : '');
   const tableBadge=r.table_id
-    ?'<span class="resa-table-badge">🪑 Table '+esc(r.table_id.replace('t',''))+'</span>'
+    ?'<span class="resa-table-badge">🪑 Table '+esc(_tblNum)+'</span>'
     :'<span class="resa-table-badge none">Non placée</span>';
   return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
@@ -971,7 +1023,7 @@ async function openDetail(id){
       '<div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">'+fmtDate(r.date)+' à '+r.heure.slice(0,5)+'</div><div class="detail-lbl">Date & heure</div></div></div>'+
       (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
       (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
-      '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?'Table '+r.table_id.replace('t',''):'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>'+
+      '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?(()=>{const _t=allTables.find(t=>t.id===r.table_id);return 'Table '+(_t?_t.numero:r.table_id.replace('t',''));})():'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>'+
       (r.notes?'<div class="detail-row"><div class="detail-ico">📝</div><div><div class="detail-val">'+esc(r.notes)+'</div><div class="detail-lbl">Notes</div></div></div>':'');
 
     // Status pills
@@ -1750,8 +1802,20 @@ document.getElementById('notif-close').onclick = ()=>{
 document.getElementById('new-resa-badge').onclick = ()=>document.getElementById('notif-close').click();
 
 // ── INIT ──────────────────────────────────────────────────────
+getTables().then(t=>{ allTables=t||[]; }).catch(()=>{});
 loadResas();
 initPolling();
+
+// Toggle tables libres detail panel
+document.getElementById('stat-dispo-item').addEventListener('click', function(){
+  const d = document.getElementById('stat-dispo-detail');
+  d.style.display = d.style.display==='none' ? 'block' : 'none';
+});
+document.addEventListener('click', function(e){
+  if(!document.getElementById('stat-dispo-item').contains(e.target)){
+    document.getElementById('stat-dispo-detail').style.display='none';
+  }
+});
 
 
 // ── IMPORT GMAIL ──────────────────────────────────────────────
