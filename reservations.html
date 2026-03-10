@@ -319,7 +319,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
       <div class="stat-item"><div class="stat-n" id="stat-dispo">—</div><div class="stat-l">Tables libres</div></div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card en-attente" data-id="test_alarme_001" data-table-id=""><div class="resa-card-top"><div class="resa-heure">19:00</div><div class="resa-nom">TEST Alarme</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span><span>📞 0600000000</span><span>✉ <a href="file:///C:/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c8bcadbbbc88bcadbbbce6aeba">[email&nbsp;protected]</a></span><span style="color:var(--accent2);">📝 Test notification</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card en-attente" data-id="test_alarme_001" data-table-id=""><div class="resa-card-top"><div class="resa-heure">19:00</div><div class="resa-nom">TEST Alarme</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span><span>📞 0600000000</span><span>✉ <a href="file:///C:/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e99d8c9a9da99d8c9a9dc78f9b">[email&nbsp;protected]</a></span><span style="color:var(--accent2);">📝 Test notification</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -1116,14 +1116,9 @@ document.getElementById('btn-resa-save').onclick=async function(){
         document.getElementById('modal-resa').classList.remove('open');
         toast('✓ '+nom+' — Table assignée !','ok');
         pendingTableId=null;
-        // Mettre à jour le SERVICE pour que la nouvelle résa soit visible sur le plan
-        // NE PAS toucher planDate → les autres réservations du plan restent affichées
-        planService = heure < '14:00' ? 'midi' : 'soir';
+        planService=heure<'14:00'?'midi':'soir';
+        currentDate=date; updateDateLabel();
         document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
-        // Synchroniser currentDate avec la date de la résa
-        // → l'onglet Réservations affichera le bon jour
-        currentDate = date;
-        updateDateLabel();
         loadPlan();
       } else {
         await createResa({...data, id:newId});
