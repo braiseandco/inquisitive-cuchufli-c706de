@@ -347,7 +347,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         </div>
       </div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmkdjysk4zzvb" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">12:45</div><div class="resa-nom">Ex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 10</span></div></div><div class="resa-card en-attente" data-id="mmkhlnxot03" data-table-id="t8"><div class="resa-card-top"><div class="resa-heure">12:30</div><div class="resa-nom">Vivi</div><div class="resa-pax">1p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 7</span><span>📞 0631305454</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmkdgcdfvhrgd" data-table-id="t17"><div class="resa-card-top"><div class="resa-heure">14:30</div><div class="resa-nom">Vaness</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 16</span><span>📞 0669852110</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmkdjysk4zzvb" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">12:45</div><div class="resa-nom">Ex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 3</span></div></div><div class="resa-card en-attente" data-id="mmkhlnxot03" data-table-id="t8"><div class="resa-card-top"><div class="resa-heure">12:30</div><div class="resa-nom">Vivi</div><div class="resa-pax">1p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 8</span><span>📞 0631305454</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmkdgcdfvhrgd" data-table-id="t17"><div class="resa-card-top"><div class="resa-heure">14:30</div><div class="resa-nom">Vaness</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 17</span><span>📞 0669852110</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -888,39 +888,43 @@ function updateDispoStats(resas){
     return;
   }
 
-  // Tables occupées ce service = celles qui ont un table_id dans les resas filtrées
   const occupiedIds = new Set(resas.filter(r=>r.table_id).map(r=>r.table_id));
-
-  // On compte uniquement les tables visibles (x_pos >= 0, pas cachées)
   const tables = allTables.filter(t=>(t.x_pos||0)>=0);
-
-  const total   = tables.length;
-  const occupied = tables.filter(t=>occupiedIds.has(t.id)).length;
-  const free    = Math.max(0, total - occupied);
-
+  const free = Math.max(0, tables.length - tables.filter(t=>occupiedIds.has(t.id)).length);
   document.getElementById('stat-dispo').textContent = free;
 
-  // Icône colorée identique pour les 3 types
   const ico = (shape) => '<span style="display:inline-block;width:12px;height:12px;border-radius:'
     +(shape==='ronde'?'50%':shape==='carre'?'3px':'4px')
     +';background:rgba(67,160,71,0.25);border:1.5px solid rgba(67,160,71,0.6);vertical-align:middle;margin-right:6px;"></span>';
 
-  // Détail par type — parmi les tables LIBRES
-  const freeTables = tables.filter(t=>!occupiedIds.has(t.id));
-  const fRect = freeTables.filter(t=>!t.merged_with && (t.forme||'rectangle')==='rectangle').length;
-  const fCarre= freeTables.filter(t=>!t.merged_with && (t.forme||'')==='carre').length;
-  const fRond = freeTables.filter(t=>!t.merged_with && (t.forme||'')==='ronde').length;
-  const fFus  = freeTables.filter(t=> t.merged_with).length;
+  function zoneLines(zone, label, emoji){
+    const zoneTables = tables.filter(t=>t.zone===zone);
+    const freeZone   = zoneTables.filter(t=>!occupiedIds.has(t.id));
+    if(!freeZone.length) return ['<div style="display:flex;justify-content:space-between;gap:16px;padding:2px 0;"><span style="color:var(--text-faint);flex:1;font-style:italic;">Complet</span><span style="font-weight:700;color:var(--red);">0</span></div>'];
+    const fRect = freeZone.filter(t=>!t.merged_with && (t.forme||'rectangle')==='rectangle').length;
+    const fCarre= freeZone.filter(t=>!t.merged_with && (t.forme||'')==='carre').length;
+    const fRond = freeZone.filter(t=>!t.merged_with && (t.forme||'')==='ronde').length;
+    const fFus  = freeZone.filter(t=> t.merged_with).length;
+    const rows = [];
+    if(fRect)  rows.push('<div style="display:flex;align-items:center;gap:0;padding:2px 0;">'+ico('rectangle')+'<span style="color:var(--text-faint);flex:1;">Rectangle</span><span style="font-weight:700;color:var(--text);">'+fRect+'</span></div>');
+    if(fCarre) rows.push('<div style="display:flex;align-items:center;gap:0;padding:2px 0;">'+ico('carre')+'<span style="color:var(--text-faint);flex:1;">Carré</span><span style="font-weight:700;color:var(--text);">'+fCarre+'</span></div>');
+    if(fRond)  rows.push('<div style="display:flex;align-items:center;gap:0;padding:2px 0;">'+ico('ronde')+'<span style="color:var(--text-faint);flex:1;">Ronde</span><span style="font-weight:700;color:var(--text);">'+fRond+'</span></div>');
+    if(fFus)   rows.push('<div style="display:flex;align-items:center;gap:0;padding:2px 0;"><span style="width:18px;display:inline-block;text-align:center;margin-right:0px;font-size:10px;">⬌</span><span style="color:var(--text-faint);flex:1;">Fusionnée</span><span style="font-weight:700;color:var(--text);">'+fFus+'</span></div>');
+    return rows;
+  }
 
   const serviceLabel = currentService === 'midi' ? '🌞 Midi' : '🌙 Soir';
-  let lines = ['<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;font-weight:700;">'+serviceLabel+'</div>'];
-  if(fRect) lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('rectangle')+'<span style="color:var(--text-faint);flex:1;">Rectangle</span><span style="font-weight:700;color:var(--text);">'+fRect+'</span></div>');
-  if(fCarre)lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('carre')+'<span style="color:var(--text-faint);flex:1;">Carré</span><span style="font-weight:700;color:var(--text);">'+fCarre+'</span></div>');
-  if(fRond) lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;">'+ico('ronde')+'<span style="color:var(--text-faint);flex:1;">Ronde</span><span style="font-weight:700;color:var(--text);">'+fRond+'</span></div>');
-  if(fFus)  lines.push('<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0;"><span style="color:var(--text-faint);flex:1;">⬌ Fusionnée</span><span style="font-weight:700;color:var(--text);">'+fFus+'</span></div>');
-  if(lines.length===1) lines.push('<div style="color:var(--text-faint);text-align:center;padding:4px 0;">Aucune table libre</div>');
+  const intLines = zoneLines('interieur','Intérieur','🏠');
+  const terLines = zoneLines('terrasse','Terrasse','🌿');
 
-  document.getElementById('dispo-detail-inner').innerHTML = lines.join('');
+  let html = '<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;font-weight:700;">'+serviceLabel+'</div>';
+  html += '<div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px;font-weight:700;">🏠 Salle</div>';
+  html += intLines.join('');
+  html += '<div style="border-top:1px solid var(--border);margin:8px 0;"></div>';
+  html += '<div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px;font-weight:700;">🌿 Terrasse</div>';
+  html += terLines.join('');
+
+  document.getElementById('dispo-detail-inner').innerHTML = html;
 }
 
 function renderResas(resas){
