@@ -598,6 +598,7 @@ let currentDate=todayStr(),currentService='all';
 let planDate=todayStr(),planService='midi',planZone='interieur';
 let currentResaId=null,editMode=false;
 let allTables=[],tableResas={},allElements=[];
+let pendingResaId=null,pendingTableId=null;
 
 // Update topbar date
 function updateTopbar(){
@@ -910,8 +911,6 @@ function resaCardHtml(r){
 // ── DETAIL ────────────────────────────────────────────────────
 // Clic sur une résa → si pas de table: aller sur le plan pour affecter
 //                  si table déjà affectée: ouvrir le détail
-let pendingResaId = null;
-let pendingTableId = null; // table pré-assignée quand on crée depuis le plan
 
 function clickResa(id, tableId){
   if(tableId){
@@ -1708,7 +1707,7 @@ function showNotification(newResas){
   }catch(e){}
 
   // Auto-hide after 8s
-  setTimeout(()=>document.getElementById('notif-banner').classList.remove('show'), 8000);
+  setTimeout(()=>document.getElementById('notif-banner').classList.remove('show'), 15000);
 
   // Refresh list if on reservations tab
   if(document.getElementById('screen-reservations').classList.contains('active')){
