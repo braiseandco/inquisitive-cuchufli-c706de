@@ -157,6 +157,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .table-resa-name{font-size:11px;color:var(--text);margin-top:4px;font-family:'Raleway',sans-serif;font-weight:800;text-align:center;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;line-height:1.3;}
 .table-resa-tel{font-size:10px;color:#fff;margin-top:2px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;background:rgba(255,107,0,0.25);border-radius:4px;}
 .table-merge-badge{position:absolute;top:-9px;right:-9px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
+.table-late-badge{position:absolute;top:-9px;left:-9px;background:var(--red);color:#fff;font-size:11px;font-weight:900;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Raleway',sans-serif;animation:latePulse 1.2s ease-in-out infinite;box-shadow:0 0 8px rgba(229,57,53,0.7);z-index:10;}
+@keyframes latePulse{0%,100%{transform:scale(1);box-shadow:0 0 8px rgba(229,57,53,0.7);}50%{transform:scale(1.18);box-shadow:0 0 16px rgba(229,57,53,0.95);}}
 
 /* PLEIN ÉCRAN */
 .fullscreen-btn{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:none;color:var(--text-faint);font-family:'Raleway',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;margin-left:auto;}
@@ -282,28 +284,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     visibility: hidden !important;
     pointer-events: none !important;
   }
-</style><style>
-  .plan-fullscreen {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    background: var(--bg) !important;
-    border: none !important;
-  }
-  .plan-fullscreen .plan-wrap {
-    flex: 1 !important;
-    overflow: scroll !important;
-  }
-  /* Cacher tout le reste */
-  .plan-fullscreen-active .app > *:not(#screen-plan),
-  .plan-fullscreen-active .fab,
-  .plan-fullscreen-active .table-panel,
-  .plan-fullscreen-active #table-panel-overlay {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
 </style></head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
@@ -318,6 +298,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="topbar-date" id="topbar-date">mar. 10 mars</div>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
+    <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
   </div>
 
   <!-- TABS -->
@@ -340,18 +321,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="stab" data-service="soir">🌙 Soir</button>
     </div>
     <div class="stats-bar">
-      <div class="stat-item"><div class="stat-n" id="stat-resas">3</div><div class="stat-l">Réservations</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-couverts">7</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">3</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-resas">1</div><div class="stat-l">Réservations</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">2</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
       <div class="stat-item" style="cursor:pointer;position:relative;" id="stat-dispo-item" title="Détail tables libres">
         <div class="stat-n" id="stat-dispo">—</div>
         <div class="stat-l">Tables libres</div>
         <div id="stat-dispo-detail" style="display:none;position:absolute;bottom:calc(100% + 8px);right:0;z-index:500;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5);font-size:11px;min-width:140px;">
-          <div id="dispo-detail-inner"><div style="color:var(--text-faint);text-align:center;padding:4px 0;">Choisir Midi ou Soir</div></div>
+          <div id="dispo-detail-inner"></div>
         </div>
       </div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee" data-id="mmkdjysk4zzvb" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">12:45</div><div class="resa-nom">Ex</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 3</span></div></div><div class="resa-card en-attente" data-id="mmkhlnxot03" data-table-id="t8"><div class="resa-card-top"><div class="resa-heure">12:30</div><div class="resa-nom">Vivi</div><div class="resa-pax">1p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 8</span><span>📞 0631305454</span></div></div><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card confirmee" data-id="mmkdgcdfvhrgd" data-table-id="t17"><div class="resa-card-top"><div class="resa-heure">14:30</div><div class="resa-nom">Vaness</div><div class="resa-pax">4p</div></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 17</span><span>📞 0669852110</span></div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌙 Service du soir</div><div class="resa-card en-attente" data-id="test_alarme_001" data-table-id=""><div class="resa-card-top"><div class="resa-heure">19:00</div><div class="resa-nom">TEST Alarme</div><div class="resa-pax">2p</div></div><div class="resa-meta"><span class="resa-table-badge none">Non placée</span><span>📞 0600000000</span><span>✉ <a href="file:///C:/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="dda9b8aea99da9b8aea9f3bbaf">[email&nbsp;protected]</a></span><span style="color:var(--accent2);">📝 Test notification</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -397,7 +378,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="table-panel-title" id="tp-title">Table 1</div>
   <div class="table-panel-sub" id="tp-sub">4 couverts • Libre</div>
   <div class="assign-list" id="tp-assign-list"></div>
-  <button class="btn-unassign" id="tp-unassign" style="display:none;">Désaffecter cette table</button>
+  <button class="btn-unassign" id="tp-absent" style="display:none;background:rgba(229,57,53,0.15);border-color:rgba(229,57,53,0.5);">⚠️ Client absent — libérer la table</button>
+  <button class="btn-unassign" id="tp-unassign" style="display:none;background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.12);color:var(--text-faint);font-size:12px;margin-top:4px;">Désaffecter sans marquer absent</button>
   <button class="btn-unassign" id="tp-defuse" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;margin-top:8px;">⬌ Défusionner les tables</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
@@ -494,11 +476,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <div class="overlay" id="modal-detail">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="detail-nom">Vivi — 1 pers.</div>
-    <div id="detail-body"><div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">mardi 10 mars à 12:30</div><div class="detail-lbl">Date &amp; heure</div></div></div><div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">0631305454</div><div class="detail-lbl">Téléphone</div></div></div><div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">Table 7</div><div class="detail-lbl">Table</div></div></div></div>
+    <div class="modal-title" id="detail-nom"></div>
+    <div id="detail-body"></div>
     <div class="status-pills">
       <button class="status-pill confirmee" data-status="confirmee">✓ Confirmée</button>
-      <button class="status-pill en-attente active-status" data-status="en-attente">⏳ En attente</button>
+      <button class="status-pill en-attente" data-status="en-attente">⏳ En attente</button>
       <button class="status-pill annulee" data-status="annulee">✕ Annulée</button>
     </div>
     <div class="modal-btns" style="margin-top:16px;">
@@ -1327,7 +1309,18 @@ function renderPlan(){
   visible.forEach(t=>{
     const resa = tableResas[t.id];
     let status = 'libre';
-    if(resa){ status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee'; }
+    let isLate = false;
+    if(resa){
+      status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
+      // Badge retard : seulement aujourd'hui, heure dépassée de 5+ min
+      if(planDate === todayStr()){
+        const now = new Date();
+        const [rh, rm] = resa.heure.split(':').map(Number);
+        const resaMin = rh * 60 + rm;
+        const nowMin  = now.getHours() * 60 + now.getMinutes();
+        if(nowMin >= resaMin + 5) isLate = true;
+      }
+    }
     const {w, h, shapeClass, label} = getTableDimensions(t);
 
     const el = document.createElement('div');
@@ -1337,6 +1330,7 @@ function renderPlan(){
 
     el.innerHTML =
       '<div class="table-shape '+status+' '+shapeClass+'" style="width:'+w+'px;height:'+h+'px;">'+
+      (isLate ? '<div class="table-late-badge">!</div>' : '')+
       (t.merged_with ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
       '<div class="table-num">'+t.numero+'</div>'+
       '<div class="table-cap">'+t.capacite+'p</div>'+
@@ -1637,6 +1631,7 @@ async function openTablePanel(table, resa){
         '</div>'+
       '</div>';
     unassign.style.display = 'block';
+    document.getElementById('tp-absent').style.display = 'block';
   }else{
     // Show unassigned reservations to assign
     showLoader(true);
@@ -1676,6 +1671,7 @@ async function openTablePanel(table, resa){
         });
       }
       unassign.style.display = 'none';
+      document.getElementById('tp-absent').style.display = 'none';
     }catch(e){ showLoader(false); toast('Erreur','ko'); }
   }
 
@@ -1702,6 +1698,19 @@ async function assignTable(resaId, tableId){
     loadPlan();
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
 }
+
+document.getElementById('tp-absent').onclick = async function(){
+  if(!currentTableResa) return;
+  if(!confirm('Marquer '+currentTableResa.nom+' comme absent et libérer la table ?')) return;
+  showLoader(true);
+  try{
+    await updateResa(currentTableResa.id, {table_id:null, statut:'no-show'});
+    showLoader(false);
+    closeTablePanel();
+    toast('Client absent — table libérée','ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); }
+};
 
 document.getElementById('tp-unassign').onclick = async function(){
   if(!currentTableResa) return;
@@ -1932,6 +1941,81 @@ async function openImportModal(){
     }
   } catch(e) {}
 }
+
+// ── EXPORT EXCEL MENSUEL ──────────────────────────────────────
+document.getElementById('btn-export-excel').addEventListener('click', exportMonthExcel);
+
+async function exportMonthExcel(){
+  // Mois courant basé sur currentDate
+  const [y, m] = currentDate.split('-').map(Number);
+  const monthStart = y+'-'+String(m).padStart(2,'0')+'-01';
+  const lastDay    = new Date(y, m, 0).getDate();
+  const monthEnd   = y+'-'+String(m).padStart(2,'0')+'-'+String(lastDay).padStart(2,'0');
+
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const label = MOIS[m-1]+' '+y;
+
+  showLoader(true);
+  try{
+    // Récupérer toutes les réservations du mois
+    const resas = await sbFetch(
+      'reservations?date=gte.'+monthStart+'&date=lte.'+monthEnd+'&order=date.asc,heure.asc&select=*'
+    );
+    showLoader(false);
+
+    // Exclure no-show et annulées
+    const filtered = (resas||[]).filter(r => r.statut !== 'annulee' && r.statut !== 'no-show');
+
+    if(!filtered.length){
+      toast('Aucune réservation à exporter pour '+label, 'ko');
+      return;
+    }
+
+    // Construire le CSV (compatible Excel FR avec ; comme séparateur)
+    const JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    const header = ['Date','Jour','Heure','Nom','Couverts','Téléphone','Email','Statut','Notes'];
+    const rows = filtered.map(r => {
+      const d = new Date(r.date+'T12:00:00');
+      const dateFr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+      const jour   = JOURS[d.getDay()];
+      const statut = r.statut==='confirmee'?'Confirmée':r.statut==='en-attente'?'En attente':r.statut||'';
+      return [
+        dateFr,
+        jour,
+        (r.heure||'').slice(0,5),
+        r.nom||'',
+        r.personnes||'',
+        r.telephone||'',
+        r.email||'',
+        statut,
+        (r.notes||'').replace(/
+/g,' ')
+      ].map(v => '"'+String(v).replace(/"/g,'""')+'"').join(';');
+    });
+
+    const bom = '﻿'; // BOM UTF-8 pour Excel FR
+    const csv = bom + header.map(h=>'"'+h+'"').join(';') + '
+' + rows.join('
+');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'Reservations_BraiseCo_'+MOIS[m-1]+'_'+y+'.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast(filtered.length+' réservations exportées — '+label, 'ok');
+  } catch(e){
+    showLoader(false);
+    toast('Erreur export','ko');
+    console.error(e);
+  }
+}
+
 </script>
 
 </body></html>
