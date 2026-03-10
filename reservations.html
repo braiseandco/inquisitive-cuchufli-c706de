@@ -153,8 +153,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .table-forme-badge{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;opacity:0.55;font-family:'Raleway',sans-serif;font-weight:700;white-space:nowrap;}
 
 .table-num{font-size:18px;font-weight:900;color:var(--text);}
-.table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:2px;}
-.table-resa-name{font-size:9px;color:var(--accent2);margin-top:3px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;}
+.table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:1px;}
+.table-resa-name{font-size:11px;color:var(--text);margin-top:4px;font-family:'Raleway',sans-serif;font-weight:800;text-align:center;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;line-height:1.3;}
+.table-resa-tel{font-size:10px;color:#fff;margin-top:2px;font-family:'Raleway',sans-serif;font-weight:700;text-align:center;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;background:rgba(255,107,0,0.25);border-radius:4px;}
 .table-merge-badge{position:absolute;top:-9px;right:-9px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
 
 /* PLEIN ÉCRAN */
@@ -245,6 +246,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .cal-day.selected{background:linear-gradient(135deg,var(--red),var(--accent));color:#fff;font-weight:900;border-color:transparent;}
 .cal-day.other-month{color:var(--text-faint);opacity:0.4;}
 .cal-day.has-resa::after{content:'';display:block;width:4px;height:4px;background:var(--accent3);border-radius:50%;margin:2px auto 0;}
+.cal-day.has-new-resa{position:relative;}
+.cal-day.has-new-resa::before{content:'★';position:absolute;top:-4px;right:0px;font-size:9px;color:#ffd600;line-height:1;animation:starPulse 1s ease-in-out infinite alternate;}
+@keyframes starPulse{from{opacity:.6;transform:scale(.9);}to{opacity:1;transform:scale(1.2);}}
 .cal-overlay{display:none;position:fixed;inset:0;z-index:1999;}
 .cal-overlay.open{display:block;}
 .date-nav-label{cursor:pointer;user-select:none;}
@@ -490,11 +494,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <div class="overlay" id="modal-detail">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="detail-nom"></div>
-    <div id="detail-body"></div>
+    <div class="modal-title" id="detail-nom">Vivi — 1 pers.</div>
+    <div id="detail-body"><div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">mardi 10 mars à 12:30</div><div class="detail-lbl">Date &amp; heure</div></div></div><div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">0631305454</div><div class="detail-lbl">Téléphone</div></div></div><div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">Table 7</div><div class="detail-lbl">Table</div></div></div></div>
     <div class="status-pills">
       <button class="status-pill confirmee" data-status="confirmee">✓ Confirmée</button>
-      <button class="status-pill en-attente" data-status="en-attente">⏳ En attente</button>
+      <button class="status-pill en-attente active-status" data-status="en-attente">⏳ En attente</button>
       <button class="status-pill annulee" data-status="annulee">✕ Annulée</button>
     </div>
     <div class="modal-btns" style="margin-top:16px;">
@@ -642,8 +646,19 @@ document.querySelectorAll('.tab').forEach(tab=>{
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     this.classList.add('active');
     document.getElementById('screen-'+this.dataset.screen).classList.add('active');
-    if(this.dataset.screen==='plan')loadPlan();
-    else loadResas();
+    if(this.dataset.screen==='plan'){
+      // Synchroniser la date du plan avec l'onglet Réservations
+      planDate = currentDate;
+      updatePlanDateLabel();
+      // Synchroniser le service (midi/soir) si un filtre est actif
+      if(currentService === 'midi' || currentService === 'soir'){
+        planService = currentService;
+        document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
+      }
+      loadPlan();
+    } else {
+      loadResas();
+    }
   };
 });
 
@@ -663,6 +678,8 @@ updateDateLabel();
 // ── CALENDRIER POPUP ─────────────────────────────────────────
 let calViewYear, calViewMonth;
 let calResaDates = new Set(); // jours avec réservations
+let pendingNotifResas = []; // réservations reçues non encore consultées
+let pendingNotifDates = new Set(); // dates avec nouvelles réservations non vues
 
 function openCalendar(){
   const parts = currentDate.split('-');
@@ -721,6 +738,7 @@ function renderCalendar(){
     if(ds === currentDate) cls += ' selected';
     else if(ds === todayS) cls += ' today';
     if(calResaDates.has(ds)) cls += ' has-resa';
+    if(pendingNotifDates.has(ds)) cls += ' has-new-resa';
     html += '<div class="'+cls+'" data-date="'+ds+'">'+d+'</div>';
   }
 
@@ -736,9 +754,16 @@ function renderCalendar(){
   // Clics sur les jours
   grid.querySelectorAll('.cal-day:not(.other-month)').forEach(el=>{
     el.onclick = ()=>{
-      currentDate = el.dataset.date;
+      const ds = el.dataset.date;
+      currentDate = ds;
       updateDateLabel();
-      loadResas();
+      // Effacer l'étoile si c'est une date avec nouvelle résa
+      if(pendingNotifDates.has(ds)){
+        pendingNotifDates.delete(ds);
+        // Garder seulement les resas d'autres dates en pending
+        pendingNotifResas = pendingNotifResas.filter(r=>r.date !== ds);
+      }
+      loadResas(ds); // passe la date pour pouvoir surligner
       closeCalendar();
     };
   });
@@ -863,7 +888,7 @@ document.getElementById('plan-next-day').onclick=()=>{planDate=addDays(planDate,
 updatePlanDateLabel();
 
 // ── LOAD RESERVATIONS ─────────────────────────────────────────
-async function loadResas(){
+async function loadResas(highlightId){
   showLoader(true);
   try{
     let resas=await getResas(currentDate);
@@ -876,6 +901,22 @@ async function loadResas(){
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
+    // Surligner + scroller vers la nouvelle résa
+    if(highlightId){
+      setTimeout(()=>{
+        const card = document.querySelector('.resa-card[data-id="'+highlightId+'"]');
+        if(card){
+          card.scrollIntoView({behavior:'smooth', block:'center'});
+          card.style.transition='box-shadow .3s, border-color .3s';
+          card.style.boxShadow='0 0 0 2px #ffd600, 0 0 20px rgba(255,214,0,0.4)';
+          card.style.borderColor='#ffd600';
+          setTimeout(()=>{
+            card.style.boxShadow='';
+            card.style.borderColor='';
+          }, 3500);
+        }
+      }, 120);
+    }
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
 
@@ -1300,10 +1341,7 @@ function renderPlan(){
       '<div class="table-num">'+t.numero+'</div>'+
       '<div class="table-cap">'+t.capacite+'p</div>'+
       (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
-      (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
-      (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;">📞 '+esc(resa.telephone)+'</div>' : '')+
-      (resa && resa.notes ? '<div class="table-resa-name" style="color:var(--accent2);font-size:9px;">📝 '+esc(resa.notes.length>18?resa.notes.slice(0,18)+'…':resa.notes)+'</div>' : '')+
-      '<div class="table-forme-badge">'+label+'</div>'+
+      (resa && resa.telephone ? '<div class="table-resa-tel">'+esc(resa.telephone)+'</div>' : '')+
       '</div>';
 
     setupTableInteractions(el, t, visible);
@@ -1762,6 +1800,15 @@ function showNotification(newResas){
   const title = newResas.length > 1 ? newResas.length+' nouvelles réservations !' : 'Nouvelle réservation en ligne !';
   const sub = r.nom+' — '+r.personnes+'p — '+dateStr+' à '+r.heure.slice(0,5);
 
+  // Mémoriser les nouvelles resas pour navigation ultérieure
+  newResas.forEach(r2=>{
+    if(!pendingNotifResas.find(x=>x.id===r2.id)) pendingNotifResas.push(r2);
+    pendingNotifDates.add(r2.date);
+    calResaDates.add(r2.date);
+  });
+  // Rafraîchir l'étoile dans le calendrier si ouvert
+  if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
+
   document.getElementById('notif-title').textContent = title;
   document.getElementById('notif-sub').textContent = sub;
   document.getElementById('notif-banner').classList.add('show');
@@ -1786,11 +1833,13 @@ function showNotification(newResas){
   // Auto-hide after 15s
   setTimeout(()=>document.getElementById('notif-banner').classList.remove('show'), 15000);
 
-  // Refresh list if on reservations tab
+  // Si déjà sur l'onglet réservations : naviguer direct sur la date
   if(document.getElementById('screen-reservations').classList.contains('active')){
     currentDate = r.date;
     updateDateLabel();
-    loadResas();
+    pendingNotifDates.delete(r.date);
+    pendingNotifResas = pendingNotifResas.filter(x=>x.date !== r.date);
+    loadResas(r.id);
   }
 }
 
@@ -1801,7 +1850,17 @@ document.getElementById('notif-close').onclick = ()=>{
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelector('.tab[data-screen="reservations"]').classList.add('active');
   document.getElementById('screen-reservations').classList.add('active');
-  loadResas();
+  // Naviguer vers la date + surligner la résa si on a un pending
+  if(pendingNotifResas.length > 0){
+    const r = pendingNotifResas[0];
+    currentDate = r.date;
+    updateDateLabel();
+    pendingNotifDates.delete(r.date);
+    pendingNotifResas = pendingNotifResas.filter(x=>x.date !== r.date);
+    loadResas(r.id);
+  } else {
+    loadResas();
+  }
 };
 document.getElementById('new-resa-badge').onclick = ()=>document.getElementById('notif-close').click();
 
