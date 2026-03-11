@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_17.html -->
+<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_18.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -1055,6 +1055,20 @@ function resaCardHtml(r){
   const tableBadge=r.table_id
     ?'<span class="resa-table-badge">🪑 Table '+esc(_tblNum)+'</span>'
     :'<span class="resa-table-badge none">Non placée</span>';
+  // Extraire info enfants depuis les notes
+  var enfantsInfo = '';
+  if(r.notes){
+    var mEnf = r.notes.match(/[Aa]ge\s+des\s+enfants?\s*[:\-]?\s*([^\n(]{2,40})/i)||
+               r.notes.match(/enfants?\s*[:\-]\s*([^\n(]{2,40})/i);
+    if(mEnf && mEnf[1] && mEnf[1].trim() && mEnf[1].trim().toLowerCase()!='non'){
+      enfantsInfo = mEnf[1].trim().slice(0,30);
+    }
+  }
+  var notesAffich = '';
+  if(r.notes){
+    var n = r.notes.replace(/\(via formulaire site web\)/,'').replace(/Age des enfants[^.;\n]*/i,'').replace(/\(via formulaire site web\)/,'').trim();
+    if(n.length>2) notesAffich = n.length>50?n.slice(0,50)+'\u2026':n;
+  }
   return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
     '<div class="resa-heure">'+heure+'</div>'+
@@ -1063,9 +1077,10 @@ function resaCardHtml(r){
     '<button class="btn-delete-resa" data-id="'+r.id+'" title="Supprimer" onclick="event.stopPropagation();supprimerResa(\''+r.id+'\')" style="margin-left:auto;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button>'+
     '</div>'+
     '<div class="resa-meta">'+tableBadge+
-    (r.telephone?'<span>📞 '+esc(r.telephone)+'</span>':'')+
+    (r.telephone?'<span style="color:#fff;font-weight:600;font-size:13px;">📞 '+esc(r.telephone)+'</span>':'')+
+    (enfantsInfo?'<span style="color:var(--accent2);font-weight:600;">👶 '+esc(enfantsInfo)+'</span>':'')+
     (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
-    (r.notes?'<span style="color:var(--accent2);">📝 '+esc(r.notes.length>40?r.notes.slice(0,40)+'…':r.notes)+'</span>':'')+
+    (notesAffich?'<span style="color:var(--text-dim);">📝 '+esc(notesAffich)+'</span>':'')+
     '</div></div>';
 }
 
