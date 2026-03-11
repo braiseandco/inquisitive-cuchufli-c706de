@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<!-- saved from url=(0044)file:///C:/Users/brais/Downloads/caisse.html -->
+<html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Caisse – Braise &amp; Co</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+  :root{--bg:#0f0e0c;--surface:#1a1814;--card:#221f1a;--border:#2e2a24;--gold:#c8a96e;--gold-light:#e4c98a;--gold-dim:#7a6540;--text:#f0ebe0;--text-dim:#8a8070;--green:#5a9e6f;--red:#c05858;--blue:#4a7cc0;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:120px;}
+
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px 0;position:sticky;top:0;z-index:100;}
+  .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .logo{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);}
+  .logo span{color:var(--text-dim);font-size:12px;font-family:'DM Sans',sans-serif;font-weight:300;display:block;}
+  .header-date{font-size:12px;color:var(--text-dim);text-align:right;line-height:1.6;}
+  .tabs{display:flex;gap:4px;}
+  .tab{flex:1;padding:10px 4px;text-align:center;font-size:12px;font-weight:500;color:var(--text-dim);border-bottom:2px solid transparent;cursor:pointer;transition:all .2s;}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+  .page{display:none;padding:20px;}
+  .page.active{display:block;}
+
+  /* DATE */
+  .date-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;}
+  .date-bar input[type="date"]{flex:1;background:none;border:none;color:var(--text);font-size:16px;font-family:'DM Sans',sans-serif;font-weight:500;outline:none;color-scheme:dark;}
+  .day-badge{background:var(--gold);color:var(--bg);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}
+
+  /* SECTION */
+  .section-title{font-size:11px;font-weight:600;color:var(--gold-dim);text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  /* FIELD */
+  .field{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;transition:border-color .2s;}
+  .field:focus-within{border-color:var(--gold-dim);}
+  .field-icon{font-size:20px;width:32px;text-align:center;flex-shrink:0;}
+  .field-label{flex:1;min-width:0;}
+  .field-label span{display:block;font-size:11px;color:var(--text-dim);font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+  .field input{width:100%;background:none;border:none;outline:none;color:var(--text);font-size:18px;font-family:'DM Sans',sans-serif;font-weight:500;}
+  .field input::placeholder{color:var(--border);}
+  .field-suffix{color:var(--text-dim);font-size:16px;flex-shrink:0;}
+
+  /* TOTAL BOX */
+  .total-box{background:linear-gradient(135deg,#2a2418,#1a1510);border:1px solid var(--gold-dim);border-radius:16px;padding:20px;margin:20px 0;text-align:center;position:relative;overflow:hidden;}
+  .total-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);}
+  .total-label{font-size:11px;font-weight:600;color:var(--gold-dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+  .total-value{font-family:'Playfair Display',serif;font-size:38px;color:var(--gold-light);}
+  .total-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px;}
+  .total-mini{background:rgba(0,0,0,.2);border-radius:8px;padding:8px;}
+  .total-mini .lbl{font-size:10px;color:var(--text-dim);}
+  .total-mini .val{font-size:14px;font-weight:600;color:var(--text);margin-top:2px;}
+
+  /* DENOMINATION GRID */
+  .denom-grid{display:grid;gap:8px;margin-bottom:8px;}
+  .denom-grid.cols4{grid-template-columns:repeat(4,1fr);}
+  .denom-grid.cols7{grid-template-columns:repeat(4,1fr);}
+  .denom-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;transition:border-color .2s;}
+  .denom-item:focus-within{border-color:var(--gold-dim);}
+  .denom-item .denom-label{font-size:11px;font-weight:700;margin-bottom:6px;}
+  .denom-item input{width:100%;background:none;border:none;outline:none;color:var(--text);font-size:20px;font-weight:600;text-align:center;font-family:'DM Sans',sans-serif;}
+  .denom-item .denom-sub{font-size:10px;color:var(--text-dim);margin-top:3px;}
+
+  /* CV green tones */
+  .denom-cv .denom-label{color:#6fb87a;}
+  .denom-cv{border-color:#2a3d2e;}
+  /* TR blue tones */
+  .denom-tr .denom-label{color:#6a9fd8;}
+  .denom-tr{border-color:#2a303d;}
+
+  .denom-total-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:8px;}
+  .denom-total-bar .dtb-label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;}
+  .denom-total-bar .dtb-value{font-size:16px;font-weight:700;}
+  .dtb-cv .dtb-value{color:#6fb87a;}
+  .dtb-tr .dtb-value{color:#6a9fd8;}
+
+  /* MONTHLY TRACKER */
+  .tracker-box{border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid;}
+  .tracker-cv{background:linear-gradient(135deg,#131e15,#0f150f);border-color:#2a3d2e;}
+  .tracker-tr{background:linear-gradient(135deg,#13161e,#0f1015);border-color:#2a303d;}
+  .tracker-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .tracker-header h3{font-family:'Playfair Display',serif;font-size:16px;}
+  .tracker-cv h3{color:#6fb87a;}
+  .tracker-tr h3{color:#6a9fd8;}
+  .tracker-total{font-family:'Playfair Display',serif;font-size:26px;}
+  .tracker-cv .tracker-total{color:#8dd494;}
+  .tracker-tr .tracker-total{color:#8ab8e8;}
+  .tracker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;}
+  .tracker-denom-item{background:rgba(0,0,0,.2);border-radius:8px;padding:8px;text-align:center;}
+  .tracker-denom-item .lbl{font-size:10px;color:var(--text-dim);}
+  .tracker-denom-item .count{font-size:15px;font-weight:700;color:var(--text);}
+  .tracker-denom-item .val{font-size:11px;color:var(--text-dim);margin-top:1px;}
+
+  /* HISTORY */
+  .history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .history-header h2{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);}
+  .btn-export{background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;}
+  .filter-row{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;}
+  .filter-chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--text-dim);transition:all .2s;font-family:'DM Sans',sans-serif;}
+  .filter-chip.active{background:var(--gold-dim);border-color:var(--gold);color:var(--gold-light);}
+
+  .month-summary{background:linear-gradient(135deg,#1e1a14,#161310);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;}
+  .month-summary h3{font-family:'Playfair Display',serif;font-size:16px;color:var(--gold);margin-bottom:12px;}
+  .ms-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .ms-item .lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;}
+  .ms-item .val{font-size:17px;font-weight:600;color:var(--text);}
+
+  .history-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s;}
+  .history-item:active{border-color:var(--gold-dim);}
+  .hi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .hi-date{font-weight:600;font-size:15px;}
+  .hi-day{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .hi-total{font-family:'Playfair Display',serif;font-size:22px;color:var(--gold-light);}
+  .hi-details{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:8px;}
+  .hi-chip{background:rgba(255,255,255,.04);border-radius:6px;padding:4px;text-align:center;}
+  .hi-chip .lbl{font-size:9px;color:var(--text-dim);text-transform:uppercase;}
+  .hi-chip .val{font-size:12px;font-weight:600;color:var(--text);}
+  .hi-pills{display:flex;gap:6px;flex-wrap:wrap;}
+  .hi-pill{font-size:11px;padding:3px 8px;border-radius:10px;font-weight:500;}
+  .hi-pill-cv{background:rgba(111,184,122,.15);color:#6fb87a;border:1px solid rgba(111,184,122,.2);}
+  .hi-pill-tr{background:rgba(106,159,216,.15);color:#6a9fd8;border:1px solid rgba(106,159,216,.2);}
+
+  /* BTN */
+  .btn-save{width:100%;background:var(--gold);color:var(--bg);border:none;border-radius:14px;padding:18px;font-size:16px;font-weight:700;font-family:'DM Sans',sans-serif;letter-spacing:.5px;cursor:pointer;margin-top:8px;transition:all .2s;text-transform:uppercase;}
+  .btn-save:active{opacity:.85;transform:scale(.99);}
+  .btn-save:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);color:white;padding:12px 24px;border-radius:30px;font-weight:600;font-size:14px;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--red);}
+
+  .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:8px 0 24px;z-index:100;}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px;cursor:pointer;color:var(--text-dim);font-size:10px;font-weight:500;gap:4px;transition:color .2s;}
+  .nav-item .icon{font-size:22px;}
+  .nav-item.active{color:var(--gold);}
+
+  .loading{text-align:center;color:var(--text-dim);padding:40px;}
+  .empty-state{text-align:center;color:var(--text-dim);padding:60px 20px;}
+  .empty-state .emoji{font-size:48px;margin-bottom:12px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">Braise &amp; Co <span>Gestion de Caisse</span></div>
+    <div class="header-date" id="headerDate">Mercredi<br>11 mars 2026</div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showPage(&#39;saisie&#39;,this)">✏️ Saisie</div>
+    <div class="tab" onclick="showPage(&#39;historique&#39;,this)">📅 Historique</div>
+  </div>
+</div>
+
+<!-- ═══════════════ PAGE SAISIE ═══════════════ -->
+<div id="page-saisie" class="page active">
+
+  <div class="date-bar">
+    <input type="date" id="dateInput" onchange="onDateChange()">
+    <div class="day-badge" id="dayBadge">Mercredi</div>
+  </div>
+
+  <!-- ENCAISSEMENTS -->
+  <div class="section-title">Encaissements</div>
+  <div class="field"><div class="field-icon">💳</div><div class="field-label"><span>Carte Bleue (CB)</span><input type="number" id="cb" placeholder="0.00" step="0.01" min="0" oninput="calcTotal()"></div><div class="field-suffix">€</div></div>
+  <div class="field"><div class="field-icon">📄</div><div class="field-label"><span>Chèques</span><input type="number" id="cheque" placeholder="0.00" step="0.01" min="0" oninput="calcTotal()"></div><div class="field-suffix">€</div></div>
+
+  <!-- TR DENOMINATIONS -->
+  <div class="section-title">🎫 Tickets Restaurant</div>
+  <div class="denom-grid cols7" id="trGrid">
+    <div class="denom-item denom-tr"><div class="denom-label">7 €</div><input type="number" id="tr7" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr7">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">8 €</div><input type="number" id="tr8" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr8">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">9 €</div><input type="number" id="tr9" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr9">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">10 €</div><input type="number" id="tr10" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr10">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">11 €</div><input type="number" id="tr11" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr11">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">12 €</div><input type="number" id="tr12" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr12">—</div></div>
+    <div class="denom-item denom-tr"><div class="denom-label">15 €</div><input type="number" id="tr15" placeholder="0" min="0" step="1" oninput="calcTR()"><div class="denom-sub" id="sub_tr15">—</div></div>
+  </div>
+  <div class="denom-total-bar dtb-tr">
+    <span class="dtb-label">Total TR calculé</span>
+    <span class="dtb-value" id="trCalcTotal">0,00 €</span>
+  </div>
+
+  <!-- CV DENOMINATIONS -->
+  <div class="section-title">🏖️ Chèques Vacances</div>
+  <div class="denom-grid cols4">
+    <div class="denom-item denom-cv"><div class="denom-label">10 €</div><input type="number" id="cv10" placeholder="0" min="0" step="1" oninput="calcCV()"><div class="denom-sub" id="sub_cv10">—</div></div>
+    <div class="denom-item denom-cv"><div class="denom-label">20 €</div><input type="number" id="cv20" placeholder="0" min="0" step="1" oninput="calcCV()"><div class="denom-sub" id="sub_cv20">—</div></div>
+    <div class="denom-item denom-cv"><div class="denom-label">25 €</div><input type="number" id="cv25" placeholder="0" min="0" step="1" oninput="calcCV()"><div class="denom-sub" id="sub_cv25">—</div></div>
+    <div class="denom-item denom-cv"><div class="denom-label">50 €</div><input type="number" id="cv50" placeholder="0" min="0" step="1" oninput="calcCV()"><div class="denom-sub" id="sub_cv50">—</div></div>
+  </div>
+  <div class="denom-total-bar dtb-cv">
+    <span class="dtb-label">Total CV calculé</span>
+    <span class="dtb-value" id="cvCalcTotal">0,00 €</span>
+  </div>
+
+  <!-- ESPECES -->
+  <div class="section-title">Autres encaissements</div>
+  <div class="field"><div class="field-icon">💶</div><div class="field-label"><span>Espèces (Cash)</span><input type="number" id="esp" placeholder="0.00" step="0.01" min="0" oninput="calcTotal()"></div><div class="field-suffix">€</div></div>
+
+  <!-- TOTAL -->
+  <div class="total-box">
+    <div class="total-label">Total Général</div>
+    <div class="total-value" id="totalDisplay">0,00 €</div>
+    <div class="total-grid">
+      <div class="total-mini"><div class="lbl">Fond caisse</div><div class="val" id="fondDisplay">—</div></div>
+      <div class="total-mini"><div class="lbl">Couverts</div><div class="val" id="couvertsDisplay">—</div></div>
+      <div class="total-mini"><div class="lbl">Ticket moyen</div><div class="val" id="tmDisplay">—</div></div>
+    </div>
+  </div>
+
+  <!-- CUMUL MOIS EN COURS -->
+  <div id="monthTrackers"></div>
+
+  <!-- DETAIL CAISSE -->
+  <div class="section-title">Détail Caisse</div>
+  <div class="field"><div class="field-icon">🏦</div><div class="field-label"><span>Fond de Caisse</span><input type="number" id="fondCaisse" placeholder="0.00" step="0.01" min="0" oninput="updateDisplays()"></div><div class="field-suffix">€</div></div>
+  <div class="field"><div class="field-icon">🍽️</div><div class="field-label"><span>Nombre de Couverts</span><input type="number" id="couverts" placeholder="0" step="1" min="0" oninput="updateDisplays()"></div><div class="field-suffix">cvts</div></div>
+  <div class="field"><div class="field-icon">🎁</div><div class="field-label"><span>Offerts</span><input type="number" id="offerts" placeholder="0.00" step="0.01" min="0"></div><div class="field-suffix">€</div></div>
+  <div class="field"><div class="field-icon">⭐</div><div class="field-label"><span>Carte Fidélité</span><input type="number" id="carteFidelite" placeholder="0.00" step="0.01" min="0"></div><div class="field-suffix">€</div></div>
+  <div class="field"><div class="field-icon">📝</div><div class="field-label"><span>Divers</span><input type="number" id="divers" placeholder="0.00" step="0.01" min="0"></div><div class="field-suffix">€</div></div>
+  <div class="field"><div class="field-icon">💬</div><div class="field-label"><span>Notes</span><input type="text" id="notes" placeholder="Observations..."></div></div>
+
+  <button class="btn-save" onclick="saveCaisse()" id="btnSave">💾 Enregistrer la caisse</button>
+</div>
+
+<!-- ═══════════════ PAGE HISTORIQUE ═══════════════ -->
+<div id="page-historique" class="page">
+  <div class="history-header">
+    <h2>Historique</h2>
+    <button class="btn-export" onclick="exportCSV()">⬇️ CSV</button>
+  </div>
+  <div class="filter-row" id="monthFilters"></div>
+  <div id="histMonthTrackers"></div>
+  <div id="monthSummary"></div>
+  <div id="historyList"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item active" id="nav-saisie" onclick="showPage(&#39;saisie&#39;,null,true)"><div class="icon">✏️</div><div>Saisie</div></div>
+  <div class="nav-item" id="nav-historique" onclick="showPage(&#39;historique&#39;,null,true)"><div class="icon">📅</div><div>Historique</div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://ugyrrnqpapeagpuocwob.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+
+const JOURS=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const MOIS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MOIS_S=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+
+const TR_DENOMS=[7,8,9,10,11,12,15];
+const CV_DENOMS=[10,20,25,50];
+
+let allRecords=[];
+let selectedMonth=null;
+
+/* ── INIT ── */
+function init(){
+  const now=new Date();
+  document.getElementById('headerDate').innerHTML=JOURS[now.getDay()]+'<br>'+now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('dateInput').value=now.toISOString().split('T')[0];
+  onDateChange();
+  loadMonthTrackers();
+}
+
+function onDateChange(){
+  const v=document.getElementById('dateInput').value;
+  if(!v) return;
+  document.getElementById('dayBadge').textContent=JOURS[new Date(v+'T12:00:00').getDay()];
+}
+
+/* ── CALC TR ── */
+function calcTR(){
+  let total=0;
+  TR_DENOMS.forEach(d=>{
+    const n=parseInt(document.getElementById('tr'+d).value)||0;
+    const val=n*d;
+    total+=val;
+    document.getElementById('sub_tr'+d).textContent=n>0?fmtEur(val):'—';
+  });
+  document.getElementById('trCalcTotal').textContent=fmtEur(total);
+  // Auto-sync TR field (hidden, computed)
+  calcTotal();
+}
+
+/* ── CALC CV ── */
+function calcCV(){
+  let total=0;
+  CV_DENOMS.forEach(d=>{
+    const n=parseInt(document.getElementById('cv'+d).value)||0;
+    const val=n*d;
+    total+=val;
+    document.getElementById('sub_cv'+d).textContent=n>0?fmtEur(val):'—';
+  });
+  document.getElementById('cvCalcTotal').textContent=fmtEur(total);
+  calcTotal();
+}
+
+function getTRTotal(){
+  return TR_DENOMS.reduce((s,d)=>s+(parseInt(document.getElementById('tr'+d).value)||0)*d, 0);
+}
+function getCVTotal(){
+  return CV_DENOMS.reduce((s,d)=>s+(parseInt(document.getElementById('cv'+d).value)||0)*d, 0);
+}
+
+/* ── CALC TOTAL ── */
+function getNum(id){return parseFloat(document.getElementById(id).value)||0;}
+
+function calcTotal(){
+  const tr=getTRTotal();
+  const cv=getCVTotal();
+  const t=getNum('cb')+getNum('cheque')+tr+cv+getNum('esp');
+  document.getElementById('totalDisplay').textContent=fmtEur(t);
+  updateDisplays();
+}
+
+function updateDisplays(){
+  const fond=getNum('fondCaisse');
+  const cvts=parseInt(document.getElementById('couverts').value)||0;
+  const tr=getTRTotal(), cv=getCVTotal();
+  const t=getNum('cb')+getNum('cheque')+tr+cv+getNum('esp');
+  const tm=cvts>0?t/cvts:0;
+  document.getElementById('fondDisplay').textContent=fond>0?fmtEur(fond):'—';
+  document.getElementById('couvertsDisplay').textContent=cvts>0?cvts:'—';
+  document.getElementById('tmDisplay').textContent=tm>0?fmtEur(tm):'—';
+}
+
+/* ── MONTH TRACKERS (saisie page) ── */
+async function loadMonthTrackers(){
+  const now=new Date().toISOString().substring(0,7);
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/caisse_journaliere?date=gte.'+now+'-01&order=date.asc',{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    const records=await res.json();
+    renderMonthTrackers(records,'monthTrackers');
+  }catch(e){}
+}
+
+function renderMonthTrackers(records, containerId){
+  if(!records||records.length===0){
+    document.getElementById(containerId).innerHTML='';
+    return;
+  }
+  // Compute cumuls
+  const totCV={10:0,20:0,25:0,50:0};
+  const totTR={7:0,8:0,9:0,10:0,11:0,12:0,15:0};
+  records.forEach(r=>{
+    CV_DENOMS.forEach(d=>{ totCV[d]+=(r['cv_'+d]||0); });
+    TR_DENOMS.forEach(d=>{ totTR[d]+=(r['tr_'+d]||0); });
+  });
+  const totalCV=CV_DENOMS.reduce((s,d)=>s+totCV[d]*d,0);
+  const totalTR=TR_DENOMS.reduce((s,d)=>s+totTR[d]*d,0);
+  const totalCVtickets=CV_DENOMS.reduce((s,d)=>s+totCV[d],0);
+  const totalTRtickets=TR_DENOMS.reduce((s,d)=>s+totTR[d],0);
+
+  const moisLabel=MOIS[new Date().getMonth()];
+
+  const cvDenomHTML=CV_DENOMS.map(d=>`
+    <div class="tracker-denom-item">
+      <div class="lbl">${d} €</div>
+      <div class="count">${totCV[d]}</div>
+      <div class="val">${fmtEur(totCV[d]*d)}</div>
+    </div>`).join('');
+
+  const trDenomHTML=TR_DENOMS.map(d=>`
+    <div class="tracker-denom-item">
+      <div class="lbl">${d} €</div>
+      <div class="count">${totTR[d]}</div>
+      <div class="val">${fmtEur(totTR[d]*d)}</div>
+    </div>`).join('');
+
+  document.getElementById(containerId).innerHTML=`
+    <div style="font-size:11px;font-weight:600;color:var(--gold-dim);text-transform:uppercase;letter-spacing:1.5px;margin:20px 0 12px;display:flex;align-items:center;gap:8px;">
+      Cumul ${moisLabel} <span style="flex:1;height:1px;background:var(--border);display:block;"></span>
+    </div>
+
+    <div class="tracker-box tracker-cv">
+      <div class="tracker-header">
+        <h3>🏖️ Chèques Vacances</h3>
+        <div>
+          <div class="tracker-total">${fmtEur(totalCV)}</div>
+          <div style="font-size:11px;color:var(--text-dim);text-align:right;">${totalCVtickets} ticket${totalCVtickets>1?'s':''}</div>
+        </div>
+      </div>
+      <div class="tracker-grid">${cvDenomHTML}</div>
+    </div>
+
+    <div class="tracker-box tracker-tr">
+      <div class="tracker-header">
+        <h3>🎫 Tickets Restaurant</h3>
+        <div>
+          <div class="tracker-total">${fmtEur(totalTR)}</div>
+          <div style="font-size:11px;color:var(--text-dim);text-align:right;">${totalTRtickets} ticket${totalTRtickets>1?'s':''}</div>
+        </div>
+      </div>
+      <div class="tracker-grid">${trDenomHTML}</div>
+    </div>`;
+}
+
+/* ── SAVE ── */
+async function saveCaisse(){
+  const dateVal=document.getElementById('dateInput').value;
+  if(!dateVal){showToast('Sélectionne une date',true);return;}
+
+  const tr=getTRTotal(), cv=getCVTotal();
+  const body={
+    date:dateVal,
+    jour_semaine:JOURS[new Date(dateVal+'T12:00:00').getDay()],
+    cb:getNum('cb'), cheque:getNum('cheque'),
+    tr:tr, cv:cv, esp:getNum('esp'),
+    fond_caisse:getNum('fondCaisse'),
+    offerts:getNum('offerts'),
+    couverts:parseInt(document.getElementById('couverts').value)||0,
+    carte_fidelite:getNum('carteFidelite'),
+    divers:getNum('divers'),
+    notes:document.getElementById('notes').value||null,
+    updated_at:new Date().toISOString()
+  };
+  TR_DENOMS.forEach(d=>{ body['tr_'+d]=parseInt(document.getElementById('tr'+d).value)||0; });
+  CV_DENOMS.forEach(d=>{ body['cv_'+d]=parseInt(document.getElementById('cv'+d).value)||0; });
+
+  const btn=document.getElementById('btnSave');
+  btn.disabled=true; btn.textContent='⏳ Enregistrement...';
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/caisse_journaliere',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=representation'},
+      body:JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error(await res.text());
+    showToast('✅ Caisse enregistrée !');
+    resetForm();
+    loadMonthTrackers(); // refresh cumul
+  }catch(e){
+    showToast('Erreur : '+e.message,true);
+  }finally{
+    btn.disabled=false; btn.textContent='💾 Enregistrer la caisse';
+  }
+}
+
+function resetForm(){
+  ['cb','cheque','esp','fondCaisse','offerts','couverts','carteFidelite','divers','notes'].forEach(id=>{document.getElementById(id).value='';});
+  TR_DENOMS.forEach(d=>{ document.getElementById('tr'+d).value=''; document.getElementById('sub_tr'+d).textContent='—'; });
+  CV_DENOMS.forEach(d=>{ document.getElementById('cv'+d).value=''; document.getElementById('sub_cv'+d).textContent='—'; });
+  document.getElementById('trCalcTotal').textContent='0,00 €';
+  document.getElementById('cvCalcTotal').textContent='0,00 €';
+  calcTotal();
+  document.getElementById('dateInput').value=new Date().toISOString().split('T')[0];
+  onDateChange();
+}
+
+/* ── HISTORY ── */
+async function loadHistory(){
+  document.getElementById('historyList').innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/caisse_journaliere?order=date.desc&limit=400',{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    allRecords=await res.json();
+    buildMonthFilters();
+    renderHistory();
+  }catch(e){
+    document.getElementById('historyList').innerHTML='<div class="empty-state"><div class="emoji">⚠️</div><p>Erreur de chargement</p></div>';
+  }
+}
+
+function buildMonthFilters(){
+  const months=[...new Set(allRecords.map(r=>r.date.substring(0,7)))].sort().reverse();
+  const c=document.getElementById('monthFilters');
+  c.innerHTML='<div class="filter-chip" onclick="filterMonth(null,this)">Tout</div>';
+  months.forEach(m=>{
+    const[y,mo]=m.split('-');
+    c.innerHTML+=`<div class="filter-chip" onclick="filterMonth('${m}',this)">${MOIS_S[parseInt(mo)-1]} ${y}</div>`;
+  });
+  const now=new Date().toISOString().substring(0,7);
+  const idx=months.indexOf(now);
+  if(idx>=0){selectedMonth=now;c.children[idx+1].classList.add('active');}
+  else{selectedMonth=null;c.children[0].classList.add('active');}
+}
+
+function filterMonth(m,el){
+  selectedMonth=m;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory(){
+  const filtered=selectedMonth?allRecords.filter(r=>r.date.startsWith(selectedMonth)):allRecords;
+
+  // Month trackers for history page
+  renderMonthTrackers(filtered,'histMonthTrackers');
+
+  if(filtered.length>0){
+    const totGEN=filtered.reduce((s,r)=>s+(r.total_general||0),0);
+    const totCB=filtered.reduce((s,r)=>s+(r.cb||0),0);
+    const totTR=filtered.reduce((s,r)=>s+(r.tr||0),0);
+    const totCV=filtered.reduce((s,r)=>s+(r.cv||0),0);
+    const totESP=filtered.reduce((s,r)=>s+(r.esp||0),0);
+    const totCvts=filtered.reduce((s,r)=>s+(r.couverts||0),0);
+    const tm=totCvts>0?totGEN/totCvts:0;
+    const jours=filtered.length;
+    const label=selectedMonth?MOIS[parseInt(selectedMonth.split('-')[1])-1]+' '+selectedMonth.split('-')[0]:'Toute la période';
+    document.getElementById('monthSummary').innerHTML=`
+      <div class="month-summary">
+        <h3>${label} — ${jours} jour${jours>1?'s':''}</h3>
+        <div class="ms-grid">
+          <div class="ms-item"><div class="lbl">Total Général</div><div class="val" style="color:var(--gold-light)">${fmtEur(totGEN)}</div></div>
+          <div class="ms-item"><div class="lbl">Moy / jour</div><div class="val">${fmtEur(totGEN/jours)}</div></div>
+          <div class="ms-item"><div class="lbl">CB</div><div class="val">${fmtEur(totCB)}</div></div>
+          <div class="ms-item"><div class="lbl">TR + CV</div><div class="val">${fmtEur(totTR+totCV)}</div></div>
+          <div class="ms-item"><div class="lbl">Espèces</div><div class="val">${fmtEur(totESP)}</div></div>
+          <div class="ms-item"><div class="lbl">Ticket moyen</div><div class="val">${fmtEur(tm)}</div></div>
+        </div>
+      </div>`;
+  } else {
+    document.getElementById('monthSummary').innerHTML='';
+  }
+
+  if(filtered.length===0){
+    document.getElementById('historyList').innerHTML='<div class="empty-state"><div class="emoji">📭</div><p>Aucune donnée pour cette période</p></div>';
+    return;
+  }
+
+  document.getElementById('historyList').innerHTML=filtered.map(r=>{
+    const d=new Date(r.date+'T12:00:00');
+    // Build pills for CV and TR denominations
+    const cvPills=CV_DENOMS.filter(den=>(r['cv_'+den]||0)>0).map(den=>`<span class="hi-pill hi-pill-cv">${r['cv_'+den]}×${den}€</span>`).join('');
+    const trPills=TR_DENOMS.filter(den=>(r['tr_'+den]||0)>0).map(den=>`<span class="hi-pill hi-pill-tr">${r['tr_'+den]}×${den}€</span>`).join('');
+    return `<div class="history-item" onclick="loadRecord('${r.id}')">
+      <div class="hi-top">
+        <div><div class="hi-date">${d.toLocaleDateString('fr-FR',{day:'2-digit',month:'long'})}</div><div class="hi-day">${r.jour_semaine||''}</div></div>
+        <div class="hi-total">${fmtEur(r.total_general||0)}</div>
+      </div>
+      <div class="hi-details">
+        <div class="hi-chip"><div class="lbl">CB</div><div class="val">${fmtK(r.cb)}</div></div>
+        <div class="hi-chip"><div class="lbl">TR</div><div class="val">${fmtK(r.tr)}</div></div>
+        <div class="hi-chip"><div class="lbl">CV</div><div class="val">${fmtK(r.cv)}</div></div>
+        <div class="hi-chip"><div class="lbl">ESP</div><div class="val">${fmtK(r.esp)}</div></div>
+        <div class="hi-chip"><div class="lbl">Cvts</div><div class="val">${r.couverts||0}</div></div>
+      </div>
+      ${trPills||cvPills?`<div class="hi-pills">${trPills}${cvPills}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function loadRecord(id){
+  const r=allRecords.find(x=>x.id===id);
+  if(!r) return;
+  showPage('saisie',null,true);
+  setTimeout(()=>{
+    document.getElementById('dateInput').value=r.date; onDateChange();
+    ['cb','cheque','esp'].forEach(f=>document.getElementById(f).value=r[f]||'');
+    document.getElementById('fondCaisse').value=r.fond_caisse||'';
+    document.getElementById('couverts').value=r.couverts||'';
+    document.getElementById('offerts').value=r.offerts||'';
+    document.getElementById('carteFidelite').value=r.carte_fidelite||'';
+    document.getElementById('divers').value=r.divers||'';
+    document.getElementById('notes').value=r.notes||'';
+    TR_DENOMS.forEach(d=>{ document.getElementById('tr'+d).value=r['tr_'+d]||''; });
+    CV_DENOMS.forEach(d=>{ document.getElementById('cv'+d).value=r['cv_'+d]||''; });
+    calcTR(); calcCV(); calcTotal();
+    showToast('📋 Fiche du '+new Date(r.date+'T12:00:00').toLocaleDateString('fr-FR'));
+  },100);
+}
+
+/* ── EXPORT CSV ── */
+function exportCSV(){
+  const records=selectedMonth?allRecords.filter(r=>r.date.startsWith(selectedMonth)):allRecords;
+  if(!records.length){showToast('Aucune donnée',true);return;}
+  const hdrs=['Date','Jour','CB','Chèques','TR','CV','Espèces','Total Général','Fond Caisse','Couverts','Ticket Moyen','Offerts','Carte Fidélité','Divers',
+    'TR 7€','TR 8€','TR 9€','TR 10€','TR 11€','TR 12€','TR 15€',
+    'CV 10€','CV 20€','CV 25€','CV 50€','Notes'];
+  const rows=records.map(r=>[
+    r.date,r.jour_semaine||'',
+    (r.cb||0).toFixed(2),(r.cheque||0).toFixed(2),(r.tr||0).toFixed(2),
+    (r.cv||0).toFixed(2),(r.esp||0).toFixed(2),(r.total_general||0).toFixed(2),
+    (r.fond_caisse||0).toFixed(2),r.couverts||0,
+    (r.couverts>0?(r.total_general/r.couverts):0).toFixed(2),
+    (r.offerts||0).toFixed(2),(r.carte_fidelite||0).toFixed(2),(r.divers||0).toFixed(2),
+    ...TR_DENOMS.map(d=>r['tr_'+d]||0),
+    ...CV_DENOMS.map(d=>r['cv_'+d]||0),
+    r.notes||''
+  ]);
+  const csv='\uFEFF'+[hdrs,...rows].map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=(selectedMonth?'caisse_'+selectedMonth:'caisse_'+new Date().getFullYear())+'.csv';
+  a.click();
+  showToast('✅ Export téléchargé !');
+}
+
+/* ── NAV ── */
+function showPage(name,tabEl,fromNav){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('nav-'+name).classList.add('active');
+  if(tabEl) tabEl.classList.add('active');
+  else document.querySelectorAll('.tab')[name==='saisie'?0:1].classList.add('active');
+  if(name==='historique') loadHistory();
+}
+
+/* ── UTILS ── */
+function fmtEur(n){return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function fmtK(n){if(!n||n===0)return '—';return n>=1000?(n/1000).toFixed(1)+'k':Math.round(n).toString();}
+let toastTimer;
+function showToast(msg,isError){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(isError?' error':'')+' show';
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+init();
+</script>
+
+
+</body></html>
