@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_11.html -->
+<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_13.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -324,7 +324,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="topbar-date" id="topbar-date">mar. 10 mars</div>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
-    <button id="btn-clean" title="Supprimer les réservations passées" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(229,57,53,0.4);background:rgba(229,57,53,0.08);color:#ef9a9a;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">🗑️</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
   </div>
 
@@ -1856,10 +1855,17 @@ async function initPolling(){
   if(pollingStarted) return; // Ne jamais démarrer deux fois
   pollingStarted = true;
   lastPollTime = new Date().toISOString();
-  // Pré-remplir les IDs existants pour ne pas notifier des resas déjà en base
+  // Pré-remplir uniquement les IDs d'aujourd'hui et demain
   try{
-    const existing = await sbFetch('reservations?select=id');
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
+    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow);
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
+  }catch(e){}
+  // Nettoyage auto des réservations de plus de 30 jours
+  try{
+    const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+    await sbFetch('reservations?date=lt.'+cutoff, {method:'DELETE'});
   }catch(e){}
   setInterval(checkNewResas, 30000);
 }
@@ -1976,17 +1982,74 @@ document.getElementById('modal-import').addEventListener('click', function(e){
   if(e.target === this) this.classList.remove('open');
 });
 
-// Vérifie les mails non importés et met à jour le badge sur le bouton
-async function checkPendingEmails(){
-  try {
-    const imports = await sbFetch('email_imports?select=message_id');
-    const importedIds = new Set((imports||[]).map(x=>x.message_id));
-    // On stocke les IDs importés pour que le modal puisse les utiliser
-    window._importedEmailIds = importedIds;
-    // Le badge sera mis à jour par openImportModal si on a des infos
-  } catch(e) {}
-}
 
+// ── BOUTON 📧 : Statut des imports Gmail ─────────────────────
+async function openImportModal(){
+  document.getElementById('modal-import').classList.add('open');
+  const status = document.getElementById('import-status');
+  const results = document.getElementById('import-results');
+  status.textContent = 'Chargement…';
+  results.innerHTML = '';
+  try {
+    // Récupérer les 20 derniers imports
+    const imports = await sbFetch('email_imports?select=*&order=imported_at.desc&limit=20');
+    if(!imports || imports.length === 0){
+      status.textContent = 'Aucun email importé pour le moment.';
+      return;
+    }
+    status.textContent = imports.length + ' dernier(s) email(s) traité(s) :';
+    results.innerHTML = imports.map(imp => {
+      const date = new Date(imp.imported_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const resaId = imp.reservation_id || '—';
+      const color = imp.reservation_id ? '#81c784' : '#ef9a9a';
+      const icon = imp.reservation_id ? '✅' : '⚠️';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px;">'
+        + '<span style="color:var(--text-dim);">' + date + '</span>'
+        + '<span style="color:'+color+';font-size:11px;">' + icon + ' ' + resaId + '</span>'
+        + '</div>';
+    }).join('');
+  } catch(e){
+    status.textContent = 'Erreur de chargement.';
+    console.error(e);
+  }
+}
 document.getElementById('btn-import-mail').onclick = openImportModal;
+
+// ── BOUTON 📊 : Export CSV du mois ───────────────────────────
+document.getElementById('btn-export-excel').onclick = async function(){
+  try {
+    showLoader(true);
+    // Mois en cours
+    const now = new Date();
+    const debut = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const fin   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
+    const resas = await sbFetch('reservations?date=gte.'+debut+'&date=lte.'+fin+'&order=date.asc,heure.asc&select=*');
+    showLoader(false);
+    if(!resas || resas.length === 0){
+      toast('Aucune réservation ce mois-ci','ko'); return;
+    }
+    // Construire le CSV
+    const cols = ['Date','Heure','Nom','Couverts','Téléphone','Email','Table','Statut','Notes'];
+    const rows = resas.map(r => [
+      r.date ? new Date(r.date+'T12:00:00').toLocaleDateString('fr-FR') : '',
+      r.heure ? r.heure.slice(0,5) : '',
+      r.nom || '',
+      r.personnes || '',
+      r.telephone || '',
+      r.email || '',
+      r.table_id ? 'Table '+r.table_id.replace('t','') : 'Non placée',
+      r.statut || '',
+      (r.notes || '').replace(/[\r\n]+/g,' ').replace(/"/g,'""')
+    ]);
+    const csv = [cols, ...rows].map(r => r.map(v => '"'+v+'"').join(';')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const mois = now.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+    a.href = url; a.download = 'reservations_'+mois+'.csv';
+    a.click(); URL.revokeObjectURL(url);
+    toast('Export téléchargé ✓ ('+resas.length+' réservations)','ok');
+  } catch(e){ showLoader(false); toast('Erreur export','ko'); console.error(e); }
+};
 
 async </script></body></html>
