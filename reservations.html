@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_10.html -->
+<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_11.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -640,6 +640,17 @@ const getElements=()=>sbFetch('elements_salle?select=*');
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
 const updateResa=(id,d)=>sbFetch('reservations?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
 const deleteResa=id=>sbFetch('reservations?id=eq.'+id,{method:'DELETE'});
+async function supprimerResa(id){
+  if(!confirm('Supprimer définitivement cette réservation ?'))return;
+  showLoader(true);
+  try{
+    await updateResa(id,{table_id:null});
+    await deleteResa(id);
+    showLoader(false);
+    toast('Réservation supprimée ✓','ok');
+    loadResas();
+  }catch(e){showLoader(false);toast('Erreur suppression','ko');console.error(e);}
+}
 const createTable=d=>sbFetch('tables_salle',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
 const updateTable=(id,d)=>sbFetch('tables_salle?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
 const updateElement=(id,d)=>sbFetch('elements_salle?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
