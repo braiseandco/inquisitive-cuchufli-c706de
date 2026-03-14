@@ -599,11 +599,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="cal-grid" id="cal-grid"></div>
 </div>
 
-<script data-cfasync="false" src="file:///C:/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-const SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",SB_KEY="sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X";
+<script>
+const SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go";
 
 // ── Confirmation email ──────────────────────────────────────
-const SCRIPT_EMAIL_URL = "https://script.google.com/macros/s/AKfycbzBi3IREX0GY4NQ8zbdepi9X-cRMKf63JsaJxx6VGy_kC6wp3kdg5fdd9SnrFPagxWw/exec";
+const SCRIPT_EMAIL_URL = "https://script.google.com/macros/s/AKfycbzMGXF1BCEHAn9bz91wiRB-RblC2RRmpVW2TSJ1Jaja1fSeJV30QYE5c9aQye5hMfKf/exec";
 
 async function envoyerConfirmationEmail(resa) {
   if (!resa.email) return;
@@ -938,7 +938,7 @@ async function loadResas(highlightId){
     if(currentService==='midi')resas=resas.filter(r=>r.heure<'14:00');
     else if(currentService==='soir')resas=resas.filter(r=>r.heure>='14:00');
     // Filter out cancelled
-    resas=resas.filter(r=>r.statut!=='annulee');
+    resas=resas.filter(r=>r.statut!=='annulee'&&r.statut!=='annulé');
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
@@ -1278,7 +1278,7 @@ document.getElementById('btn-resa-save').onclick=async function(){
   if(!ok)return;
   showLoader(true);
   try{
-    const data={nom,personnes:pax,date,heure,
+    const data={nom,personnes:pax,pax:pax,date,heure,
       telephone:document.getElementById('r-tel').value.trim(),
       email:document.getElementById('r-email').value.trim().toLowerCase(),
       notes:document.getElementById('r-notes').value.trim(),
@@ -1693,7 +1693,7 @@ async function openTablePanel(table, resa){
   const unassign = document.getElementById('tp-unassign');
 
   if(resa){
-    const statusHtml = resa.statut==='confirmee'?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
+    const statusHtml = (resa.statut==='confirmee'||resa.statut==='confirmé')?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
     list.innerHTML =
       '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;">Réservation affectée</div>'+
       '<div style="background:rgba(229,57,53,0.08);border:1px solid rgba(229,57,53,0.25);border-radius:14px;padding:16px;">'+
@@ -1719,7 +1719,7 @@ async function openTablePanel(table, resa){
       const allResas = await getResas(planDate);
       showLoader(false);
       const filtered = planService==='midi' ? allResas.filter(r=>r.heure<'14:00') : allResas.filter(r=>r.heure>='14:00');
-      const unassigned = filtered.filter(r=>!r.table_id && r.statut!=='annulee');
+      const unassigned = filtered.filter(r=>!r.table_id && r.statut!=='annulee' && r.statut!=='annulé');
       unassigned.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 
       // If coming from a resa click, assign directly without panel
