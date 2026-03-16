@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_3.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_4.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -1105,6 +1105,7 @@ function resaCardHtml(r){
     '<div class="resa-meta">'+tableBadge+
     (enfantsInfo?'<span style="color:var(--accent2);font-weight:600;">👶 '+esc(enfantsInfo)+'</span>':'')+
     (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
+    (r.mail_confirmation_envoye?'<span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span>':'')+
     (notesAffich?'<span style="color:var(--text-dim);">📝 '+esc(notesAffich)+'</span>':'')+
     '</div></div>';
 }
@@ -1175,6 +1176,8 @@ async function openDetail(id){
         await updateResa(id,{statut:p.dataset.status});
         if(p.dataset.status==='confirmee' && r.email){
           envoyerConfirmationEmail(r);
+          // Marquer le mail comme envoyé dans Supabase
+          await updateResa(id,{mail_confirmation_envoye:true});
           showLoader(false);
           document.getElementById('modal-detail').classList.remove('open');
           toast('✅ Confirmée — email envoyé à '+r.email,'ok');
