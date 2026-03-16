@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_1.html -->
+<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_3.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -561,17 +561,17 @@ async function saveCaisse() {
   btn.disabled = true; btn.textContent = '⏳ Enregistrement...';
 
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere', {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?on_conflict=date', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_KEY,
         'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Prefer': 'resolution=merge-duplicates'
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
       },
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error('Erreur Supabase : ' + await res.text());
+    if (!res.ok) { const err = await res.text(); console.error('Supabase:', res.status, err); showToast('Erreur ' + res.status + ' : ' + err.slice(0,80), true); throw new Error(err); }
 
     // Envoi email XLS
     if (SCRIPT_CAISSE_URL && !SCRIPT_CAISSE_URL.includes('COLLER')) {
