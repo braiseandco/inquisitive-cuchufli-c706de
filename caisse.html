@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_4.html -->
+<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_5.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -562,7 +562,7 @@ async function saveCaisse() {
 
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?on_conflict=date', {
-      method: 'POST',
+      
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_KEY,
@@ -578,7 +578,8 @@ async function saveCaisse() {
       try {
         await fetch(SCRIPT_CAISSE_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify(Object.assign({}, body, { total_general: totalGen }))
         });
       } catch(e) { console.warn('Email non envoyé :', e); }
