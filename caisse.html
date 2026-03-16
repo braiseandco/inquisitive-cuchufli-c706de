@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_3.html -->
+<!-- saved from url=(0046)file:///C:/Users/brais/Downloads/caisse_4.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -542,7 +542,7 @@ async function saveCaisse() {
     tr:           trTotal,
     cv:           cvTotal,
     esp:          getNum('esp'),
-    total_general: totalGen,
+
     ttc10:        getNum('ttc10'),
     ttc20:        getNum('ttc20'),
     fond_caisse:  getNum('fondCaisse'),
@@ -579,7 +579,7 @@ async function saveCaisse() {
         await fetch(SCRIPT_CAISSE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+          body: JSON.stringify(Object.assign({}, body, { total_general: totalGen }))
         });
       } catch(e) { console.warn('Email non envoyé :', e); }
     }
