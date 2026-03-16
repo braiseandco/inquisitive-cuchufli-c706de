@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_4.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_6.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -1174,13 +1174,18 @@ async function openDetail(id){
         }
         showLoader(true);
         await updateResa(id,{statut:p.dataset.status});
-        if(p.dataset.status==='confirmee' && r.email){
-          envoyerConfirmationEmail(r);
-          // Marquer le mail comme envoyé dans Supabase
-          await updateResa(id,{mail_confirmation_envoye:true});
+        if(p.dataset.status==='confirmee'){
+          if(r.email){
+            envoyerConfirmationEmail(r);
+            await updateResa(id,{mail_confirmation_envoye:true});
+          }
           showLoader(false);
           document.getElementById('modal-detail').classList.remove('open');
-          toast('✅ Confirmée — email envoyé à '+r.email,'ok');
+          // Alerte SMS
+          if(r.telephone){
+            alert('📱 Envoyer SMS au : ' + r.telephone);
+          }
+          toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
         } else {
           showLoader(false);
           document.getElementById('modal-detail').classList.remove('open');
