@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_1.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_3.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -1077,13 +1077,14 @@ function resaCardHtml(r){
   const tableBadge=r.table_id
     ?'<span class="resa-table-badge">🪑 Table '+esc(_tblNum)+'</span>'
     :'<span class="resa-table-badge none">Non placée</span>';
-  // Extraire info enfants depuis les notes
+  // Info enfants : colonne dédiée en priorité, sinon extraction depuis notes
   var enfantsInfo = '';
-  if(r.notes){
-    var mEnf = r.notes.match(/[Aa]ge\s+des\s+enfants?\s*[:\-]?\s*([^\n(]{2,40})/i)||
-               r.notes.match(/enfants?\s*[:\-]\s*([^\n(]{2,40})/i);
+  if(r.enfants && r.enfants.trim() && r.enfants.trim().toLowerCase()!='non'){
+    enfantsInfo = r.enfants.trim().slice(0,40);
+  } else if(r.notes){
+    var mEnf = r.notes.match(/[Aa]ge des enfants[^:]*:\s*([^\n(]{2,40})/i);
     if(mEnf && mEnf[1] && mEnf[1].trim() && mEnf[1].trim().toLowerCase()!='non'){
-      enfantsInfo = mEnf[1].trim().slice(0,30);
+      enfantsInfo = mEnf[1].trim().slice(0,40);
     }
   }
   var notesAffich = '';
@@ -1150,6 +1151,7 @@ async function openDetail(id){
       (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
       (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
       '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?(()=>{const _t=allTables.find(t=>t.id===r.table_id);return 'Table '+(_t?_t.numero:r.table_id.replace('t',''));})():'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>'+
+      (r.enfants?'<div class="detail-row"><div class="detail-ico">👶</div><div><div class="detail-val">'+esc(r.enfants)+'</div><div class="detail-lbl">Âge des enfants</div></div></div>':'')+
       (r.notes?'<div class="detail-row"><div class="detail-ico">📝</div><div><div class="detail-val">'+esc(r.notes)+'</div><div class="detail-lbl">Notes</div></div></div>':'');
 
     // Status pills
