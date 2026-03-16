@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_6.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_7.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -625,7 +625,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 const SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go";
 
 // ── Confirmation email ──────────────────────────────────────
-const SCRIPT_EMAIL_URL = "https://script.google.com/macros/s/AKfycbzMGXF1BCEHAn9bz91wiRB-RblC2RRmpVW2TSJ1Jaja1fSeJV30QYE5c9aQye5hMfKf/exec";
+const SCRIPT_EMAIL_URL = "https://script.google.com/macros/s/AKfycbwqlFIa_sq05UVv4OzgtbZBhCo5nH5SwAaffaxg3VYHRVvu04gGUcA38LQjaHu9pzTF/exec";
 
 async function envoyerConfirmationEmail(resa) {
   if (!resa.email) return;
@@ -633,13 +633,14 @@ async function envoyerConfirmationEmail(resa) {
   try {
     await fetch(SCRIPT_EMAIL_URL, {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      mode: "no-cors",
+      headers: {"Content-Type":"text/plain"},
       body: JSON.stringify({
         nom:   resa.nom,
         email: resa.email,
         date:  resa.date,
         heure: resa.heure,
-        pax:   resa.pax,
+        pax:   resa.personnes || resa.pax,
         notes: resa.notes || ""
       })
     });
