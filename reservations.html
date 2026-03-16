@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0053)file:///C:/Users/brais/Downloads/reservations_18.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_1.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -310,6 +310,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     visibility: hidden !important;
     pointer-events: none !important;
   }
+</style><style>
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 </style></head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
@@ -322,7 +344,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-logo">Braise &amp; Co</div>
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
-    <div class="topbar-date" id="topbar-date">mar. 10 mars</div>
+    <div class="topbar-date" id="topbar-date">lun. 16 mars</div>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
   </div>
@@ -347,9 +369,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="stab" data-service="soir">🌙 Soir</button>
     </div>
     <div class="stats-bar">
-      <div class="stat-item"><div class="stat-n" id="stat-resas">53</div><div class="stat-l">Réservations</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-couverts">209</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">3</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-resas">0</div><div class="stat-l">Réservations</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">0</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
       <div class="stat-item" style="cursor:pointer;position:relative;" id="stat-dispo-item" title="Détail tables libres">
         <div class="stat-n" id="stat-dispo">—</div>
         <div class="stat-l">Tables libres</div>
@@ -358,7 +380,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         </div>
       </div>
     </div>
-    <div class="scroll-zone" id="resa-list"></div>
+    <div class="scroll-zone" id="resa-list"><div class="empty-day"><div class="empty-day-ico">📅</div><div style="font-family:Cinzel,serif;font-size:18px;color:var(--text-faint);margin-bottom:8px;">Aucune réservation</div><div style="font-size:13px;color:var(--text-faint);">Appuyez sur + pour en créer une</div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -2070,4 +2092,4 @@ document.getElementById('btn-export-excel').onclick = async function(){
   } catch(e){ showLoader(false); toast('Erreur export','ko'); console.error(e); }
 };
 
-async </script></body></html>
+</script></body></html>
