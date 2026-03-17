@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_7.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_8.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -427,6 +427,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="table-panel-sub" id="tp-sub">4 couverts • Libre</div>
   <div class="assign-list" id="tp-assign-list"></div>
   <button class="btn-unassign" id="tp-unassign" style="display:none;background:rgba(255,107,0,0.15);border-color:var(--accent);color:var(--accent);font-weight:700;margin-top:16px;padding:14px;">🪑 Libérer la table (Désaffecter)</button>
+  <button class="btn-unassign" id="tp-change-table" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;font-weight:700;margin-top:8px;padding:14px;">↔ Changer de table</button>
   <button class="btn-unassign" id="tp-absent" style="display:none;background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef9a9a;font-size:12px;margin-top:8px;">⚠️ Client absent (No-show)</button>
   <button class="btn-unassign" id="tp-defuse" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;margin-top:8px;">⬌ Défusionner les tables</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
@@ -454,6 +455,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="field-group">
         <label class="field-label">Téléphone</label>
         <input type="tel" class="field-input" id="r-tel" placeholder="06 12 34 56 78" autocomplete="off">
+        <div class="field-err" id="err-tel">Téléphone requis</div>
       </div>
       <div class="field-group">
         <label class="field-label">Email</label>
@@ -533,6 +535,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="modal-btns" style="margin-top:16px;">
       <button class="btn-cancel" id="btn-detail-close">Fermer</button>
+      <button class="btn-primary" id="btn-detail-plan" style="display:none;">🗺 Placer</button>
       <button class="btn-primary" id="btn-detail-edit">✏️ Modifier</button>
       <button class="btn-primary" style="background:linear-gradient(135deg,#c62828,#e53935);flex:0;padding:15px 18px;" id="btn-detail-delete">🗑</button>
     </div>
@@ -1116,27 +1119,8 @@ function resaCardHtml(r){
 //                  si table déjà affectée: ouvrir le détail
 
 function clickResa(id, tableId){
-  if(tableId){
-    openDetail(id);
-  }else{
-    // Store the resa to assign
-    pendingResaId = id;
-    // Get heure from card to set correct service
-    const card = document.querySelector('.resa-card[data-id="'+id+'"]');
-    const heureMeta = card ? card.querySelector('.resa-heure') : null;
-    const heure = heureMeta ? heureMeta.textContent : '12:00';
-    planDate = currentDate;
-    planService = heure < '14:00' ? 'midi' : 'soir';
-    document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active', b.dataset.planService===planService));
-    // Switch tab
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-    document.querySelector('.tab[data-screen="plan"]').classList.add('active');
-    document.getElementById('screen-plan').classList.add('active');
-    updatePlanDateLabel();
-    loadPlan();
-    setTimeout(()=>toast('🪑 Tapez sur une table libre pour affecter la réservation','ok'), 600);
-  }
+  openDetail(id);
+}
 }
 
 async function openDetail(id){
@@ -1195,6 +1179,24 @@ async function openDetail(id){
         loadResas();
       };
     });
+
+    // Bouton Placer : visible seulement si pas de table affectée
+    const btnPlan = document.getElementById('btn-detail-plan');
+    btnPlan.style.display = r.table_id ? 'none' : '';
+    btnPlan.onclick = () => {
+      document.getElementById('modal-detail').classList.remove('open');
+      pendingResaId = id;
+      planDate = r.date;
+      planService = r.heure < '14:00' ? 'midi' : 'soir';
+      document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active', b.dataset.planService===planService));
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      document.querySelector('.tab[data-screen="plan"]').classList.add('active');
+      document.getElementById('screen-plan').classList.add('active');
+      updatePlanDateLabel();
+      loadPlan();
+      setTimeout(()=>toast('🪑 Tapez sur une table libre pour affecter la réservation','ok'), 600);
+    };
 
     document.getElementById('modal-detail').classList.add('open');
   }catch(e){showLoader(false);toast('Erreur','ko');}
@@ -1304,19 +1306,23 @@ document.getElementById('btn-resa-save').onclick=async function(){
   const pax=parseInt(document.getElementById('r-pax').value);
   const date=document.getElementById('r-date').value;
   const heure=document.getElementById('r-heure').value;
+  const telVal=document.getElementById('r-tel').value.trim();
+  const emailVal=document.getElementById('r-email').value.trim().toLowerCase();
+  const notesVal=document.getElementById('r-notes').value.trim();
   let ok=true;
-  ['nom','pax','date','heure'].forEach(f=>{document.getElementById('err-'+f).classList.remove('show');document.getElementById('r-'+f).classList.remove('err');});
+  ['nom','pax','date','heure','tel'].forEach(f=>{document.getElementById('err-'+f).classList.remove('show');document.getElementById('r-'+f).classList.remove('err');});
   if(!nom){setErr('nom','Nom requis');ok=false;}
   if(!pax||pax<1){setErr('pax','Nombre requis');ok=false;}
+  if(!telVal){setErr('tel','Téléphone requis');ok=false;}
   if(!date){setErr('date','Date requise');ok=false;}
   if(!heure){setErr('heure','Heure requise');ok=false;}
   if(!ok)return;
   showLoader(true);
   try{
     const data={nom,personnes:pax,pax:pax,date,heure,
-      telephone:document.getElementById('r-tel').value.trim(),
-      email:document.getElementById('r-email').value.trim().toLowerCase(),
-      notes:document.getElementById('r-notes').value.trim(),
+      telephone:telVal||null,
+      email:emailVal||null,
+      notes:notesVal||null,
       statut:'confirmee'};
 
     if(editMode){
@@ -1340,21 +1346,29 @@ document.getElementById('btn-resa-save').onclick=async function(){
         await createResa({...data, id:newId});
         showLoader(false);
         document.getElementById('modal-resa').classList.remove('open');
-        toast('Réservation créée — choisissez une table 🪑','ok');
         currentDate=date; updateDateLabel();
-        planDate=date;
-        planService=heure<'14:00'?'midi':'soir';
-        document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
-        updatePlanDateLabel();
-        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-        document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-        document.querySelector('.tab[data-screen="plan"]').classList.add('active');
-        document.getElementById('screen-plan').classList.add('active');
-        setTimeout(()=>toast('Cliquez sur une table pour placer la réservation 🗺','ok'),800);
-        loadPlan();
+        loadResas();
+        // Toast avec bouton optionnel pour aller placer sur le plan
+        const t=document.createElement('div');
+        t.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e1e2e;border:1px solid rgba(255,107,0,0.4);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-width:320px;width:90%;';
+        t.innerHTML='<span style="font-size:13px;color:#e0e0e0;flex:1;">✅ '+esc(nom)+' confirmé(e)</span><button style="background:rgba(255,107,0,0.15);border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🗺 Placer</button>';
+        document.body.appendChild(t);
+        t.querySelector('button').onclick=()=>{
+          document.body.removeChild(t);
+          planDate=date;
+          planService=heure<'14:00'?'midi':'soir';
+          document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
+          updatePlanDateLabel();
+          document.querySelectorAll('.tab').forEach(tab=>tab.classList.remove('active'));
+          document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+          document.querySelector('.tab[data-screen="plan"]').classList.add('active');
+          document.getElementById('screen-plan').classList.add('active');
+          loadPlan();
+        };
+        setTimeout(()=>{if(document.body.contains(t))document.body.removeChild(t);},5000);
       }
     }
-  }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
+  }catch(e){showLoader(false);toast("Erreur","ko");console.error("Erreur création résa:",e);}
 };
 
 function setErr(f,m){const el=document.getElementById('err-'+f);el.textContent=m;el.classList.add('show');document.getElementById('r-'+f).classList.add('err');}
@@ -1747,8 +1761,10 @@ async function openTablePanel(table, resa){
         '</div>'+
       '</div>';
     unassign.style.display = 'block';
+    document.getElementById('tp-change-table').style.display = 'block';
     document.getElementById('tp-absent').style.display = 'block';
   }else{
+    document.getElementById('tp-change-table').style.display = 'none';
     // Show unassigned reservations to assign
     showLoader(true);
     try{
@@ -1838,6 +1854,14 @@ document.getElementById('tp-unassign').onclick = async function(){
     toast('Table désaffectée','ok');
     loadPlan();
   }catch(e){ showLoader(false); toast('Erreur','ko'); }
+};
+
+document.getElementById('tp-change-table').onclick = function(){
+  if(!currentTableResa) return;
+  pendingResaId = currentTableResa.id;
+  closeTablePanel();
+  document.getElementById('assign-banner').style.display = 'flex';
+  toast('↔ Tapez sur une table libre pour déplacer '+currentTableResa.nom,'ok');
 };
 
 // ── DÉFUSION ──────────────────────────────────────────────────
