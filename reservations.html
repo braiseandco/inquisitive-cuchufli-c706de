@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_8.html -->
+<!-- saved from url=(0052)file:///C:/Users/brais/Downloads/reservations_9.html -->
 <html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
@@ -332,6 +332,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     visibility: hidden !important;
     pointer-events: none !important;
   }
+</style><style>
+  .plan-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    border: none !important;
+  }
+  .plan-fullscreen .plan-wrap {
+    flex: 1 !important;
+    overflow: scroll !important;
+  }
+  /* Cacher tout le reste */
+  .plan-fullscreen-active .app > *:not(#screen-plan),
+  .plan-fullscreen-active .fab,
+  .plan-fullscreen-active .table-panel,
+  .plan-fullscreen-active #table-panel-overlay {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 </style></head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
@@ -344,7 +366,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-logo">Braise &amp; Co</div>
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
-    <div class="topbar-date" id="topbar-date">lun. 16 mars</div>
+    <div class="topbar-date" id="topbar-date">mar. 17 mars</div>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
   </div>
@@ -369,9 +391,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="stab" data-service="soir">🌙 Soir</button>
     </div>
     <div class="stats-bar">
-      <div class="stat-item"><div class="stat-n" id="stat-resas">0</div><div class="stat-l">Réservations</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-couverts">0</div><div class="stat-l">Couverts</div></div>
-      <div class="stat-item"><div class="stat-n" id="stat-tables">0</div><div class="stat-l">Tables placées</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-resas">2</div><div class="stat-l">Réservations</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-couverts">5</div><div class="stat-l">Couverts</div></div>
+      <div class="stat-item"><div class="stat-n" id="stat-tables">2</div><div class="stat-l">Tables placées</div></div>
       <div class="stat-item" style="cursor:pointer;position:relative;" id="stat-dispo-item" title="Détail tables libres">
         <div class="stat-n" id="stat-dispo">—</div>
         <div class="stat-l">Tables libres</div>
@@ -380,7 +402,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         </div>
       </div>
     </div>
-    <div class="scroll-zone" id="resa-list"><div class="empty-day"><div class="empty-day-ico">📅</div><div style="font-family:Cinzel,serif;font-size:18px;color:var(--text-faint);margin-bottom:8px;">Aucune réservation</div><div style="font-size:13px;color:var(--text-faint);">Appuyez sur + pour en créer une</div></div></div>
+    <div class="scroll-zone" id="resa-list"><div class="resa-group-title">🌞 Service du midi</div><div class="resa-card confirmee " data-id="email_6edf56dc02" data-table-id="t8"><div class="resa-card-top"><div class="resa-heure">13:00</div><div style="flex:1;"><div class="resa-nom">Alain</div><div style="font-size:13px;color:#ffa726;font-weight:800;margin-top:2px;letter-spacing:0.5px;">📞 0612180237</div></div><div class="resa-pax">3p</div><button class="btn-delete-resa" data-id="email_6edf56dc02" title="Supprimer" onclick="event.stopPropagation();supprimerResa(&#39;email_6edf56dc02&#39;)" style="margin-left:auto;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 15</span><span>✉ alainpassaret@gmail.com</span><span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span><span style="color:var(--text-dim);">📝 Téléphone (nous vous confirmerons la réservation p…</span></div></div><div class="resa-card confirmee " data-id="email_e8fcb38a5b" data-table-id="t3"><div class="resa-card-top"><div class="resa-heure">13:15</div><div style="flex:1;"><div class="resa-nom">Déprez</div><div style="font-size:13px;color:#ffa726;font-weight:800;margin-top:2px;letter-spacing:0.5px;">📞 0770593830</div></div><div class="resa-pax">2p</div><button class="btn-delete-resa" data-id="email_e8fcb38a5b" title="Supprimer" onclick="event.stopPropagation();supprimerResa(&#39;email_e8fcb38a5b&#39;)" style="margin-left:auto;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button></div><div class="resa-meta"><span class="resa-table-badge">🪑 Table 10</span><span style="color:var(--accent2);font-weight:600;">👶 Message: Téléphone</span><span>✉ deprezvalentin74000@gmail.com</span><span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span><span style="color:var(--text-dim);">📝 Téléphone (nous vous confirmerons la réservation p…</span></div></div></div>
   </div>
 
   <!-- ══ SCREEN: PLAN ══ -->
@@ -1120,7 +1142,6 @@ function resaCardHtml(r){
 
 function clickResa(id, tableId){
   openDetail(id);
-}
 }
 
 async function openDetail(id){
