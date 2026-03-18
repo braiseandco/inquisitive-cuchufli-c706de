@@ -90,7 +90,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .fab:active{transform:scale(0.93);}
 
 /* ── MODAL ── */
-.overlay{display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;padding:0;}
+.overlay{display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.85);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;padding:0;}
 .overlay#modal-resa{align-items:stretch;}
 .overlay.open{display:flex;}
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:22px 22px 0 0;padding:24px;width:100%;max-width:600px;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
@@ -1016,9 +1016,13 @@ function renderResas(resas){
   }
   container.innerHTML=html;
 
-  // Bind clicks
+  // Bind clicks (onclick + touchend pour Android/tablette)
   container.querySelectorAll('.resa-card').forEach(card=>{
     card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
+    card.addEventListener('touchend',function(e){
+      if(e.cancelable)e.preventDefault();
+      clickResa(this.dataset.id, this.dataset.tableId);
+    },{passive:false});
   });
 }
 
@@ -1044,7 +1048,7 @@ function resaCardHtml(r){
     var n = r.notes.replace(/\(via formulaire site web\)/,'').replace(/Age des enfants[^.;\n]*/i,'').replace(/\(via formulaire site web\)/,'').trim();
     if(n.length>2) notesAffich = n.length>50?n.slice(0,50)+'\u2026':n;
   }
-  return '<div class="resa-card '+(r.statut||'')+' "data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
+  return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
     '<div class="resa-heure">'+heure+'</div>'+
     '<div style="flex:1;">'+
@@ -1073,9 +1077,9 @@ function clickResa(id, tableId){
 async function openDetail(id){
   showLoader(true);
   try{
-    const resas=await getResas(currentDate);
+    const resas=(await getResas(currentDate))||[];
     showLoader(false);
-    const r=resas.find(x=>x.id===id);
+    const r=resas.find(x=>String(x.id)===String(id));
     if(!r){toast('Introuvable','ko');return;}
     currentResaId=id;
     document.getElementById('detail-nom').textContent=r.nom+' — '+r.personnes+' pers.';
@@ -1171,6 +1175,7 @@ document.getElementById('btn-detail-delete').onclick=async function(){
 
 // ── FORM ──────────────────────────────────────────────────────
 document.getElementById('fab').onclick=()=>openNewForm();
+document.getElementById('fab').addEventListener('touchend',function(e){e.preventDefault();openNewForm();},{passive:false});
 document.getElementById('btn-resa-cancel').onclick=()=>document.getElementById('modal-resa').classList.remove('open');
 
 function openNewForm(tableId=null, tableNum=null){
@@ -1190,7 +1195,7 @@ function openNewForm(tableId=null, tableNum=null){
   document.getElementById('r-date').value = activePlan ? planDate : currentDate;
   document.getElementById('r-heure').value='';
   document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
-  ['nom','pax','date','heure'].forEach(f=>{
+  ['nom','pax','date','heure','tel'].forEach(f=>{
     document.getElementById('err-'+f).classList.remove('show');
     document.getElementById('r-'+f).classList.remove('err');
   });
