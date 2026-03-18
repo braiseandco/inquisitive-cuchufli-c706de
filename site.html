@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Braise & Co — Restaurant Grillades Feu de Bois à Biganos</title>
+<meta name="description" content="Braise & Co à Biganos — Grillades au feu de bois à volonté. 16,90€ le midi, 24,90€ le soir et week-end. Réservez votre table en ligne.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --fire1:#1a0800;
+  --fire2:#FF4D00;
+  --fire3:#FF8C00;
+  --fire4:#FFB347;
+  --dark:#0d0d0d;
+  --dark2:#161616;
+  --dark3:#1f1f1f;
+  --text:#f0e8d8;
+  --text-dim:#b8a898;
+  --white:#fff;
+}
+html{scroll-behavior:smooth;}
+body{background:var(--dark);color:var(--text);font-family:'Raleway',sans-serif;overflow-x:hidden;}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5%;display:flex;align-items:center;justify-content:space-between;height:70px;background:rgba(13,13,13,0.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,140,0,0.15);}
+.nav-logo img{height:52px;filter:drop-shadow(0 0 8px rgba(255,140,0,0.3));}
+.nav-links{display:flex;gap:32px;list-style:none;}
+.nav-links a{color:var(--text-dim);text-decoration:none;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:600;transition:color .2s;}
+.nav-links a:hover{color:var(--fire3);}
+.nav-cta{background:linear-gradient(135deg,var(--fire2),var(--fire3));color:#000;padding:10px 22px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;transition:opacity .2s;white-space:nowrap;}
+.nav-cta:hover{opacity:0.85;}
+.nav-burger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px;}
+.nav-burger span{display:block;width:24px;height:2px;background:var(--fire3);border-radius:2px;transition:all .3s;}
+
+/* ── HERO ── */
+#hero{height:100vh;min-height:600px;display:flex;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden;background:#1a0800;}
+.hero-bg{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=1600&q=80') center/cover no-repeat;opacity:0.45;}
+.hero-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(13,13,13,0.3) 0%,rgba(13,13,13,0.6) 60%,rgba(13,13,13,0.95) 100%);}
+.hero-content{position:relative;z-index:1;padding:0 20px;}
+.hero-logo{height:110px;margin-bottom:28px;filter:drop-shadow(0 0 20px rgba(255,140,0,0.5));}
+.hero-title{font-family:'Cinzel',serif;font-size:clamp(28px,6vw,64px);font-weight:900;line-height:1.1;margin-bottom:10px;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-sub{font-size:clamp(16px,3vw,22px);color:var(--fire4);letter-spacing:4px;text-transform:uppercase;margin-bottom:36px;font-weight:600;}
+.hero-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;}
+.btn-fire{display:inline-block;padding:16px 34px;background:linear-gradient(135deg,var(--fire2),var(--fire3));color:#000;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;box-shadow:0 0 30px rgba(255,80,0,0.4);transition:all .2s;}
+.btn-fire:hover{transform:translateY(-2px);box-shadow:0 0 40px rgba(255,80,0,0.6);}
+.btn-outline{display:inline-block;padding:16px 34px;border:2px solid var(--fire3);color:var(--fire3);border-radius:10px;font-weight:700;font-size:15px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;transition:all .2s;}
+.btn-outline:hover{background:rgba(255,140,0,0.1);}
+
+/* ── SECTIONS COMMUNES ── */
+section{padding:80px 5%;}
+.section-title{font-family:'Cinzel',serif;font-size:clamp(24px,4vw,40px);font-weight:900;text-align:center;margin-bottom:14px;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.section-sub{text-align:center;color:var(--text-dim);font-size:15px;margin-bottom:56px;max-width:600px;margin-left:auto;margin-right:auto;line-height:1.7;}
+.separator{width:60px;height:3px;background:linear-gradient(90deg,var(--fire2),var(--fire3));border-radius:3px;margin:0 auto 20px;}
+
+/* ── FORMULE ── */
+#formule{background:var(--dark2);}
+.formule-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:900px;margin:0 auto;}
+.formule-card{background:var(--dark3);border:1px solid rgba(255,140,0,0.2);border-radius:18px;padding:40px 32px;text-align:center;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;}
+.formule-card:hover{transform:translateY(-4px);box-shadow:0 8px 40px rgba(255,80,0,0.2);}
+.formule-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--fire2),var(--fire3));}
+.formule-badge{display:inline-block;background:rgba(255,140,0,0.12);border:1px solid rgba(255,140,0,0.3);color:var(--fire3);font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:20px;font-weight:700;}
+.formule-price{font-family:'Cinzel',serif;font-size:52px;font-weight:900;color:var(--fire4);line-height:1;}
+.formule-price span{font-size:22px;vertical-align:top;margin-top:10px;display:inline-block;}
+.formule-label{color:var(--text-dim);font-size:14px;margin-top:8px;margin-bottom:20px;letter-spacing:1px;}
+.formule-desc{font-size:13px;color:var(--text-dim);line-height:1.8;}
+.formule-feature{display:flex;align-items:center;gap:8px;margin-top:8px;justify-content:center;}
+.formule-feature::before{content:'🔥';font-size:12px;}
+
+/* ── GALERIE ── */
+#galerie{background:var(--dark);}
+.galerie-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:auto;gap:12px;max-width:1100px;margin:0 auto;}
+.galerie-item{border-radius:12px;overflow:hidden;aspect-ratio:4/3;background:var(--dark3);display:flex;align-items:center;justify-content:center;}
+.galerie-item img{width:100%;height:100%;object-fit:cover;transition:transform .4s;}
+.galerie-item:hover img{transform:scale(1.05);}
+.galerie-item.large{grid-column:span 2;aspect-ratio:16/9;}
+.galerie-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,80,0,0.08),rgba(255,140,0,0.04));border:1px dashed rgba(255,140,0,0.2);border-radius:12px;color:var(--text-dim);gap:8px;font-size:13px;aspect-ratio:4/3;}
+.galerie-placeholder.large{aspect-ratio:16/9;}
+
+/* ── AVANTAGES ── */
+#avantages{background:var(--dark2);}
+.avantages-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:28px;max-width:1000px;margin:0 auto;}
+.avantage-card{text-align:center;padding:32px 20px;}
+.avantage-icon{font-size:42px;margin-bottom:16px;}
+.avantage-title{font-family:'Cinzel',serif;font-size:16px;color:var(--fire3);margin-bottom:10px;font-weight:700;}
+.avantage-desc{font-size:13px;color:var(--text-dim);line-height:1.7;}
+
+/* ── RÉSERVATION ── */
+#reservation{background:linear-gradient(135deg,rgba(255,80,0,0.08),rgba(255,140,0,0.04));border-top:1px solid rgba(255,140,0,0.1);border-bottom:1px solid rgba(255,140,0,0.1);}
+.resa-inner{max-width:700px;margin:0 auto;text-align:center;}
+.resa-inner p{color:var(--text-dim);font-size:15px;line-height:1.8;margin-bottom:36px;}
+
+/* ── FIDÉLITÉ ── */
+#fidelite{background:var(--dark);}
+.fidelite-inner{max-width:800px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;}
+.fidelite-text h2{font-family:'Cinzel',serif;font-size:clamp(22px,3vw,34px);font-weight:900;margin-bottom:16px;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.fidelite-text p{color:var(--text-dim);font-size:14px;line-height:1.8;margin-bottom:12px;}
+.fidelite-steps{list-style:none;margin-bottom:28px;}
+.fidelite-steps li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,140,0,0.1);font-size:14px;color:var(--text-dim);}
+.fidelite-steps li:last-child{border:none;}
+.fidelite-visual{background:var(--dark3);border:1px solid rgba(255,140,0,0.2);border-radius:18px;padding:32px;text-align:center;}
+.fidelite-visual .stamp-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0;}
+.stamp{width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,140,0,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text-dim);}
+.stamp.on{background:rgba(255,140,0,0.15);border-color:var(--fire3);color:var(--fire3);}
+.stamp-label{font-size:12px;color:var(--text-dim);margin-top:4px;}
+.stamp-milestone{font-size:11px;letter-spacing:1px;color:var(--fire4);margin-top:8px;}
+
+/* ── HORAIRES & CONTACT ── */
+#contact{background:var(--dark2);}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;max-width:1000px;margin:0 auto;}
+.contact-block h3{font-family:'Cinzel',serif;font-size:18px;color:var(--fire3);margin-bottom:24px;font-weight:700;}
+.horaires-table{width:100%;border-collapse:collapse;}
+.horaires-table tr{border-bottom:1px solid rgba(255,140,0,0.08);}
+.horaires-table tr:last-child{border:none;}
+.horaires-table td{padding:10px 0;font-size:14px;}
+.horaires-table td:first-child{color:var(--text-dim);text-transform:capitalize;font-weight:600;width:120px;}
+.horaires-table td:last-child{color:var(--text);}
+.horaires-table .ferme{color:#ff6b6b;}
+.horaires-table .today{background:rgba(255,140,0,0.06);border-radius:6px;}
+.contact-info{display:flex;flex-direction:column;gap:20px;}
+.contact-item{display:flex;gap:14px;align-items:flex-start;}
+.contact-icon{font-size:22px;flex-shrink:0;margin-top:2px;}
+.contact-item-text{font-size:14px;color:var(--text-dim);line-height:1.7;}
+.contact-item-text strong{color:var(--text);display:block;margin-bottom:2px;}
+.contact-item-text a{color:var(--fire3);text-decoration:none;}
+.contact-item-text a:hover{text-decoration:underline;}
+.map-embed{margin-top:24px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,140,0,0.15);}
+
+/* ── PAIEMENTS ── */
+#paiements{background:var(--dark);padding:48px 5%;}
+.paiements-inner{max-width:900px;margin:0 auto;text-align:center;}
+.paiements-title{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin-bottom:28px;}
+.paiements-logos{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:24px;}
+.paiements-logos img{height:52px;object-fit:contain;opacity:0.75;filter:grayscale(20%);transition:opacity .2s;}
+.paiements-logos img:hover{opacity:1;}
+
+/* ── FOOTER ── */
+footer{background:var(--dark);border-top:1px solid rgba(255,140,0,0.1);padding:32px 5%;text-align:center;}
+.footer-logo img{height:48px;margin-bottom:16px;opacity:0.7;}
+.footer-links{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;}
+.footer-links a{color:var(--text-dim);text-decoration:none;font-size:13px;transition:color .2s;}
+.footer-links a:hover{color:var(--fire3);}
+.footer-bottom{font-size:12px;color:rgba(184,168,152,0.4);}
+
+/* ── MODAL RÉSERVATION ── */
+.resa-overlay{display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);align-items:flex-end;justify-content:center;}
+.resa-overlay.open{display:flex;}
+.resa-modal{background:linear-gradient(160deg,#0f0300,#1a0800);border:1px solid rgba(255,107,0,0.25);border-radius:22px 22px 0 0;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
+.resa-handle{width:36px;height:4px;background:rgba(255,107,0,0.3);border-radius:4px;margin:0 auto 18px;}
+.resa-title{font-family:'Cinzel',serif;font-size:19px;font-weight:700;color:#FF6B00;margin-bottom:16px;text-align:center;}
+.resa-field{margin-bottom:13px;}
+.resa-label{display:block;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#FF8C00;font-weight:700;margin-bottom:6px;}
+.resa-input{width:100%;padding:13px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,107,0,0.2);border-radius:12px;color:#F0EDE8;font-family:'Raleway',sans-serif;font-size:16px;outline:none;-webkit-appearance:none;}
+.resa-input:focus{border-color:#FF6B00;background:rgba(255,107,0,0.07);}
+.resa-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:13px;}
+.resa-time-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
+.resa-time-pill{padding:8px 12px;border:1px solid rgba(255,107,0,0.2);border-radius:9px;font-size:12px;font-weight:600;color:rgba(240,237,232,0.4);cursor:pointer;background:none;font-family:'Raleway',sans-serif;transition:all .15s;}
+.resa-time-pill.active{background:rgba(255,107,0,0.15);border-color:#FF6B00;color:#FF6B00;}
+.resa-pax{display:flex;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,107,0,0.2);border-radius:12px;overflow:hidden;}
+.resa-pax-btn{width:46px;height:46px;background:none;border:none;color:#FF6B00;font-size:22px;cursor:pointer;font-family:'Raleway',sans-serif;}
+.resa-pax-val{flex:1;text-align:center;font-family:'Cinzel',serif;font-size:20px;font-weight:700;color:#F0EDE8;}
+.resa-submit{width:100%;padding:15px;margin-top:18px;background:linear-gradient(135deg,#c62828,#FF6B00);border:none;border-radius:12px;color:#fff;font-family:'Cinzel',serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px;box-shadow:0 0 20px rgba(255,107,0,0.3);}
+.resa-submit:disabled{opacity:0.6;}
+.resa-success{display:none;text-align:center;padding:20px 0;}
+.resa-success.show{display:block;}
+.resa-err{font-size:12px;color:#ef9a9a;margin-top:6px;display:none;}
+.resa-err.show{display:block;}
+.btn-ghost{display:block;width:100%;padding:13px;background:none;border:1px solid rgba(255,107,0,0.2);border-radius:12px;color:rgba(240,237,232,0.5);font-family:'Raleway',sans-serif;font-size:13px;cursor:pointer;margin-top:8px;}
+
+/* ── MOBILE ── */
+@media(max-width:768px){
+  .nav-links,.nav-cta{display:none;}
+  .nav-burger{display:flex;}
+  nav.open .nav-links{display:flex;flex-direction:column;position:absolute;top:70px;left:0;right:0;background:rgba(13,13,13,0.98);padding:20px;gap:16px;border-bottom:1px solid rgba(255,140,0,0.15);}
+  nav.open .nav-cta{display:block;text-align:center;margin:0 0 10px;}
+  .galerie-grid{grid-template-columns:1fr 1fr;}
+  .galerie-item.large{grid-column:span 2;}
+  .contact-grid{grid-template-columns:1fr;}
+  .fidelite-inner{grid-template-columns:1fr;}
+}
+@media(max-width:480px){
+  .galerie-grid{grid-template-columns:1fr;}
+  .galerie-item.large{grid-column:span 1;}
+  section{padding:60px 4%;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <div class="nav-logo">
+    <img src="images/logo-blanc.png" alt="Braise & Co">
+  </div>
+  <ul class="nav-links">
+    <li><a href="#formule">Notre Formule</a></li>
+    <li><a href="#galerie">Photos</a></li>
+    <li><a href="#fidelite">Fidélité</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <a href="#" class="nav-cta" onclick="openResaModal();return false;">📅 Réserver</a>
+  <div class="nav-burger" onclick="document.getElementById('navbar').classList.toggle('open')">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <img class="hero-logo" src="images/logo-blanc.png" alt="Braise & Co">
+    <div class="hero-title">Grillades Au Feu de Bois</div>
+    <div class="hero-sub">À Volonté — Biganos</div>
+    <div class="hero-btns">
+      <a href="#" class="btn-fire" onclick="openResaModal();return false;">📅 Réserver une table</a>
+      <a href="#formule" class="btn-outline">Notre formule</a>
+    </div>
+  </div>
+</section>
+
+<!-- FORMULE -->
+<section id="formule">
+  <div class="separator"></div>
+  <h2 class="section-title">Notre Formule</h2>
+  <p class="section-sub">Tout ce que vous aimez, à volonté. Grillades, accompagnements, desserts — venez vivre l'expérience Braise & Co.</p>
+  <div class="formule-cards">
+    <div class="formule-card">
+      <div class="formule-badge">🌞 Service du midi</div>
+      <div class="formule-price"><span>€</span>16<sup style="font-size:28px">,90</sup></div>
+      <div class="formule-label">Du mardi au dimanche</div>
+      <div class="formule-desc">
+        <div class="formule-feature">Grillades à volonté au feu de bois</div>
+        <div class="formule-feature">Accompagnements maison</div>
+        <div class="formule-feature">Desserts inclus</div>
+      </div>
+    </div>
+    <div class="formule-card">
+      <div class="formule-badge">🌙 Soir & Week-end</div>
+      <div class="formule-price"><span>€</span>24<sup style="font-size:28px">,90</sup></div>
+      <div class="formule-label">Vendredi, Samedi soir</div>
+      <div class="formule-desc">
+        <div class="formule-feature">Grillades à volonté au feu de bois</div>
+        <div class="formule-feature">Accompagnements maison</div>
+        <div class="formule-feature">Desserts inclus</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GALERIE -->
+<section id="galerie">
+  <div class="separator"></div>
+  <h2 class="section-title">Notre Cuisine</h2>
+  <p class="section-sub">La cuisson à la braise, des produits frais et une ambiance chaleureuse à l'entrée du Bassin d'Arcachon.</p>
+  <div class="galerie-grid">
+    <div class="galerie-item large">
+      <div class="galerie-placeholder large">📸 Photo principale</div>
+    </div>
+    <div class="galerie-item">
+      <div class="galerie-placeholder">📸 Photo 2</div>
+    </div>
+    <div class="galerie-item">
+      <div class="galerie-placeholder">📸 Photo 3</div>
+    </div>
+    <div class="galerie-item">
+      <div class="galerie-placeholder">📸 Photo 4</div>
+    </div>
+    <div class="galerie-item">
+      <div class="galerie-placeholder">📸 Photo 5</div>
+    </div>
+  </div>
+  <p style="text-align:center;margin-top:24px;font-size:13px;color:var(--text-dim);">📸 Envoie-moi tes photos pour remplir la galerie !</p>
+</section>
+
+<!-- AVANTAGES -->
+<section id="avantages">
+  <div class="avantages-grid">
+    <div class="avantage-card">
+      <div class="avantage-icon">🔥</div>
+      <div class="avantage-title">Feu de bois</div>
+      <div class="avantage-desc">Une cuisson unique à la braise pour des grillades savoureuses et authentiques.</div>
+    </div>
+    <div class="avantage-card">
+      <div class="avantage-icon">♾️</div>
+      <div class="avantage-title">À volonté</div>
+      <div class="avantage-desc">Resservez autant de fois que vous le souhaitez. Viandes, accompagnements, desserts.</div>
+    </div>
+    <div class="avantage-card">
+      <div class="avantage-icon">👨‍👩‍👧‍👦</div>
+      <div class="avantage-title">En famille</div>
+      <div class="avantage-desc">Une ambiance conviviale et chaleureuse pour tous vos repas en famille ou entre amis.</div>
+    </div>
+    <div class="avantage-card">
+      <div class="avantage-icon">📍</div>
+      <div class="avantage-title">Bassin d'Arcachon</div>
+      <div class="avantage-desc">Situés à Biganos, à l'entrée du Bassin d'Arcachon. Facile d'accès, parking disponible.</div>
+    </div>
+  </div>
+</section>
+
+<!-- RÉSERVATION -->
+<section id="reservation">
+  <div class="resa-inner">
+    <div class="separator"></div>
+    <h2 class="section-title">Réserver une Table</h2>
+    <p>Réservez en ligne en quelques secondes. Choisissez votre date, heure et nombre de convives — nous vous confirmons rapidement.</p>
+    <a href="#" class="btn-fire" style="font-size:16px;padding:18px 40px;" onclick="openResaModal();return false;">📅 Réserver maintenant</a>
+    <p style="margin-top:20px;font-size:13px;color:var(--text-dim);">Ou par téléphone : <a href="tel:0986129714" style="color:var(--fire3);">09 86 12 97 14</a></p>
+  </div>
+</section>
+
+<!-- FIDÉLITÉ -->
+<section id="fidelite">
+  <div class="fidelite-inner">
+    <div class="fidelite-text">
+      <div class="separator" style="margin:0 0 20px;"></div>
+      <h2>Carte Fidélité<br>Braise & Co</h2>
+      <p>Collectez des tampons à chaque passage et profitez de récompenses exclusives !</p>
+      <ul class="fidelite-steps">
+        <li>🍹 <strong style="color:var(--text);">5 passages</strong> — Apéro offert</li>
+        <li>🍽️ <strong style="color:var(--text);">10 passages</strong> — Repas offert</li>
+        <li>📱 <strong style="color:var(--text);">Zéro papier</strong> — Tout sur votre téléphone</li>
+      </ul>
+      <a href="carte-fidelite.html" class="btn-fire">🔥 Rejoindre le programme</a>
+    </div>
+    <div class="fidelite-visual">
+      <div style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire3);margin-bottom:16px;letter-spacing:1px;">VOTRE CARTE</div>
+      <div class="stamp-row">
+        <div class="stamp on">🔥</div>
+        <div class="stamp on">🔥</div>
+        <div class="stamp on">🔥</div>
+        <div class="stamp on">🔥</div>
+        <div class="stamp on">🔥</div>
+        <div class="stamp" style="border-color:rgba(255,150,50,0.5);">🍹</div>
+        <div class="stamp">○</div>
+        <div class="stamp">○</div>
+        <div class="stamp">○</div>
+        <div class="stamp" style="border-color:rgba(255,150,50,0.5);">🍽️</div>
+      </div>
+      <div class="stamp-label">5 / 10 passages</div>
+      <div class="stamp-milestone">🍹 Apéro offert au 5ème &nbsp;|&nbsp; 🍽️ Repas offert au 10ème</div>
+    </div>
+  </div>
+</section>
+
+<!-- HORAIRES & CONTACT -->
+<section id="contact">
+  <div class="separator"></div>
+  <h2 class="section-title">Horaires & Contact</h2>
+  <p class="section-sub">Nous sommes ouverts toute la semaine sauf le lundi. Venez nous rendre visite !</p>
+  <div class="contact-grid">
+    <div class="contact-block">
+      <h3>🕐 Horaires d'ouverture</h3>
+      <table class="horaires-table">
+        <tr><td>Lundi</td><td class="ferme">Fermé</td></tr>
+        <tr><td>Mardi</td><td>12h00 – 14h30</td></tr>
+        <tr><td>Mercredi</td><td>12h00 – 14h30</td></tr>
+        <tr><td>Jeudi</td><td>12h00 – 14h30</td></tr>
+        <tr><td>Vendredi</td><td>12h00 – 14h30<br>19h30 – 22h30</td></tr>
+        <tr><td>Samedi</td><td>12h00 – 14h30<br>19h30 – 22h30</td></tr>
+        <tr><td>Dimanche</td><td>12h00 – 14h30</td></tr>
+      </table>
+    </div>
+    <div class="contact-block">
+      <h3>📍 Nous trouver</h3>
+      <div class="contact-info">
+        <div class="contact-item">
+          <div class="contact-icon">📍</div>
+          <div class="contact-item-text">
+            <strong>Adresse</strong>
+            174 bis Av. de la Côte d'Argent<br>33380 Biganos
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📞</div>
+          <div class="contact-item-text">
+            <strong>Téléphone</strong>
+            <a href="tel:0986129714">09 86 12 97 14</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📧</div>
+          <div class="contact-item-text">
+            <strong>Email</strong>
+            <a href="mailto:braiseandcobiganos@gmail.com">braiseandcobiganos@gmail.com</a>
+          </div>
+        </div>
+      </div>
+      <div class="map-embed">
+        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2840.5!2d-0.9580!3d44.6380!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDTCsDM4JzE2LjgiTiAwwrA1NyczMC4wIlc!5e0!3m2!1sfr!2sfr!4v1" width="100%" height="200" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MOYENS DE PAIEMENT -->
+<section id="paiements">
+  <div class="paiements-inner">
+    <div class="paiements-title">Moyens de paiement acceptés</div>
+    <div class="paiements-logos">
+      <img src="images/img4.png" alt="CB Visa MasterCard" title="CB, Visa, MasterCard, sans contact">
+      <img src="images/img5.png" alt="Tickets restaurant" title="Ticket Restaurant, Chèque Déjeuner">
+      <img src="images/img3.png" alt="ANCV Chèques Vacances" title="ANCV Chèques Vacances">
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <img src="images/logo-blanc.png" alt="Braise & Co">
+  </div>
+  <div class="footer-links">
+    <a href="#formule">Notre Formule</a>
+    <a href="tel:0986129714">Réservations</a>
+    <a href="carte-fidelite.html">Carte Fidélité</a>
+    <a href="#contact">Contact</a>
+    <a href="https://www.braiseandco-biganos.fr" target="_blank">Ancien site</a>
+  </div>
+  <div class="footer-bottom">© 2025 Braise & Co — 174 bis Av. de la Côte d'Argent, 33380 Biganos</div>
+</footer>
+
+<!-- MODAL RÉSERVATION -->
+<div class="resa-overlay" id="resa-overlay">
+  <div class="resa-modal">
+    <div class="resa-handle"></div>
+    <div id="resa-form-wrap">
+      <div class="resa-title">🔥 Réserver une table</div>
+      <div id="resa-err-main" class="resa-err"></div>
+      <div class="resa-row">
+        <div class="resa-field">
+          <label class="resa-label">Nom *</label>
+          <input class="resa-input" id="rn-nom" type="text" placeholder="Dupont">
+        </div>
+        <div class="resa-field">
+          <label class="resa-label">Téléphone *</label>
+          <input class="resa-input" id="rn-tel" type="tel" placeholder="06 12 34 56 78">
+        </div>
+      </div>
+      <div class="resa-row">
+        <div class="resa-field">
+          <label class="resa-label">Date *</label>
+          <input class="resa-input" id="rn-date" type="date">
+        </div>
+        <div class="resa-field">
+          <label class="resa-label">Heure *</label>
+          <input class="resa-input" id="rn-heure" type="time">
+        </div>
+      </div>
+      <div class="resa-field">
+        <label class="resa-label">Nombre de personnes *</label>
+        <div class="resa-pax">
+          <button class="resa-pax-btn" id="rn-minus">−</button>
+          <div class="resa-pax-val" id="rn-pax">2</div>
+          <button class="resa-pax-btn" id="rn-plus">＋</button>
+        </div>
+      </div>
+      <div class="resa-field">
+        <label class="resa-label">Horaires rapides</label>
+        <div class="resa-time-pills">
+          <button class="resa-time-pill" data-t="12:00">12h00</button>
+          <button class="resa-time-pill" data-t="12:30">12h30</button>
+          <button class="resa-time-pill" data-t="13:00">13h00</button>
+          <button class="resa-time-pill" data-t="19:30">19h30</button>
+          <button class="resa-time-pill" data-t="20:00">20h00</button>
+          <button class="resa-time-pill" data-t="20:30">20h30</button>
+          <button class="resa-time-pill" data-t="21:00">21h00</button>
+        </div>
+      </div>
+      <div class="resa-field">
+        <label class="resa-label">Message (optionnel)</label>
+        <input class="resa-input" id="rn-notes" type="text" placeholder="Anniversaire, allergie, demande spéciale...">
+      </div>
+      <button class="resa-submit" id="rn-submit">🔥 Envoyer ma réservation</button>
+      <button class="btn-ghost" id="rn-cancel">Annuler</button>
+    </div>
+    <div class="resa-success" id="resa-success">
+      <div style="font-size:52px;margin-bottom:12px;">🔥</div>
+      <div style="font-family:'Cinzel',serif;font-size:20px;font-weight:700;background:linear-gradient(135deg,#FF6B00,#FFD700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;">Demande envoyée !</div>
+      <div style="font-size:14px;color:rgba(240,237,232,0.6);line-height:1.7;" id="resa-success-detail"></div>
+      <button class="resa-submit" style="margin-top:20px;" id="rn-close-success">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Highlight today in schedule
+const days=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const today=days[new Date().getDay()];
+document.querySelectorAll('.horaires-table tr').forEach(tr=>{
+  if(tr.cells[0]&&tr.cells[0].textContent.toLowerCase().trim()===today){
+    tr.classList.add('today');
+  }
+});
+// Close burger menu on link click
+document.querySelectorAll('.nav-links a,nav .nav-cta').forEach(a=>a.addEventListener('click',()=>document.getElementById('navbar').classList.remove('open')));
+
+// ── RÉSERVATION ──
+const RESA_URL="https://ugyrrnqpapeagpuocwob.supabase.co",RESA_KEY="sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X";
+let rnPax=2;
+
+function openResaModal(){
+  const today=new Date();
+  const yyyy=today.getFullYear(),mm=String(today.getMonth()+1).padStart(2,'0'),dd=String(today.getDate()).padStart(2,'0');
+  document.getElementById('rn-date').min=yyyy+'-'+mm+'-'+dd;
+  document.getElementById('rn-nom').value='';
+  document.getElementById('rn-tel').value='';
+  document.getElementById('rn-date').value='';
+  document.getElementById('rn-heure').value='';
+  document.getElementById('rn-notes').value='';
+  rnPax=2;document.getElementById('rn-pax').textContent='2';
+  document.querySelectorAll('.resa-time-pill').forEach(p=>p.classList.remove('active'));
+  document.getElementById('resa-form-wrap').style.display='block';
+  document.getElementById('resa-success').classList.remove('show');
+  document.getElementById('resa-err-main').classList.remove('show');
+  document.getElementById('resa-overlay').classList.add('open');
+}
+function closeResaModal(){document.getElementById('resa-overlay').classList.remove('open');}
+
+document.getElementById('rn-cancel').addEventListener('click',closeResaModal);
+document.getElementById('rn-close-success').addEventListener('click',closeResaModal);
+document.getElementById('resa-overlay').addEventListener('click',function(e){if(e.target===this)closeResaModal();});
+document.getElementById('rn-minus').addEventListener('click',()=>{if(rnPax>1){rnPax--;document.getElementById('rn-pax').textContent=rnPax;}});
+document.getElementById('rn-plus').addEventListener('click',()=>{if(rnPax<20){rnPax++;document.getElementById('rn-pax').textContent=rnPax;}});
+document.querySelectorAll('.resa-time-pill').forEach(p=>{
+  p.addEventListener('click',function(){
+    document.querySelectorAll('.resa-time-pill').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('rn-heure').value=this.dataset.t;
+  });
+});
+document.getElementById('rn-submit').addEventListener('click',async function(){
+  this.disabled=true;
+  const nom=document.getElementById('rn-nom').value.trim();
+  const tel=document.getElementById('rn-tel').value.trim();
+  const date=document.getElementById('rn-date').value;
+  const heure=document.getElementById('rn-heure').value;
+  const notes=document.getElementById('rn-notes').value.trim();
+  const errEl=document.getElementById('resa-err-main');
+  if(!nom||!tel||!date||!heure){
+    errEl.textContent='Veuillez remplir tous les champs obligatoires.';
+    errEl.classList.add('show');this.disabled=false;return;
+  }
+  errEl.classList.remove('show');
+  try{
+    const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    const res=await fetch(RESA_URL+'/rest/v1/reservations',{
+      method:'POST',
+      headers:{'apikey':RESA_KEY,'Authorization':'Bearer '+RESA_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+      body:JSON.stringify({id,nom,telephone:tel,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',created_at:new Date().toISOString()})
+    });
+    if(!res.ok)throw new Error();
+    const dateStr=new Date(date+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+    document.getElementById('resa-success-detail').innerHTML=
+      '<strong style="color:#FF8C00;">'+nom+'</strong><br>'+
+      dateStr+' à '+heure.replace(':','h')+'<br>'+
+      rnPax+' personne'+(rnPax>1?'s':'')+'<br><br>'+
+      '<span style="color:rgba(240,237,232,0.5);font-size:12px;">Notre équipe vous contactera pour confirmer votre table.</span>';
+    document.getElementById('resa-form-wrap').style.display='none';
+    document.getElementById('resa-success').classList.add('show');
+  }catch(e){
+    errEl.textContent='Erreur de connexion. Veuillez réessayer ou appeler le 09 86 12 97 14.';
+    errEl.classList.add('show');
+  }
+  this.disabled=false;
+});
+</script>
+</body>
+</html>
