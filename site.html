@@ -195,12 +195,15 @@ section{padding:80px 5%;}
 
 /* ── PRODUITS ── */
 #produits{background:var(--dark2);}
-.produits-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;max-width:1100px;margin:0 auto;}
-.produit-card{background:var(--dark3);border:1px solid rgba(255,140,0,0.12);border-radius:16px;padding:28px 20px;text-align:center;transition:transform .2s,box-shadow .2s,border-color .2s;}
-.produit-card:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(255,80,0,0.15);border-color:rgba(255,140,0,0.35);}
-.produit-icon{font-size:38px;margin-bottom:14px;}
-.produit-title{font-family:'Cinzel',serif;font-size:15px;color:var(--fire3);margin-bottom:8px;font-weight:700;}
-.produit-desc{font-size:12px;color:var(--text-dim);line-height:1.7;}
+.produits-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;max-width:1100px;margin:0 auto;}
+.produit-card{border-radius:16px;overflow:hidden;position:relative;aspect-ratio:4/3;cursor:default;transition:transform .3s,box-shadow .3s;}
+.produit-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(255,80,0,0.25);}
+.produit-card img{width:100%;height:100%;object-fit:cover;transition:transform .4s;}
+.produit-card:hover img{transform:scale(1.06);}
+.produit-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.85) 0%,rgba(0,0,0,0.2) 50%,transparent 100%);}
+.produit-info{position:absolute;bottom:0;left:0;right:0;padding:20px;}
+.produit-title{font-family:'Cinzel',serif;font-size:16px;color:#fff;margin-bottom:5px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.5);}
+.produit-desc{font-size:12px;color:rgba(255,220,180,0.85);line-height:1.6;}
 
 /* ── AVANTAGES ── */
 #avantages{background:var(--dark2);}
@@ -379,34 +382,52 @@ footer{background:var(--dark);border-top:1px solid rgba(255,140,0,0.1);padding:3
   <p class="section-sub">Un buffet généreux et varié, renouvelé en permanence. De la qualité à chaque assiette.</p>
   <div class="produits-grid">
     <div class="produit-card">
-      <div class="produit-icon">🔥</div>
-      <div class="produit-title">Grillades au Feu de Bois</div>
-      <div class="produit-desc">Entrecôtes, côtes d'agneau, poulet, merguez... grillés devant vous sur braises de bois.</div>
+      <img src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80" alt="Grillades au feu de bois" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🔥 Grillades au Feu de Bois</div>
+        <div class="produit-desc">Entrecôtes, côtes d'agneau, poulet, merguez... grillés devant vous sur braises.</div>
+      </div>
     </div>
     <div class="produit-card">
-      <div class="produit-icon">🥩</div>
-      <div class="produit-title">Charcuteries Espagnoles</div>
-      <div class="produit-desc">Jamón serrano, chorizo, lomo... une sélection de charcuteries ibériques d'exception.</div>
+      <img src="https://images.unsplash.com/photo-1558030006-450675393462?w=600&q=80" alt="Charcuteries espagnoles" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🥩 Charcuteries Espagnoles</div>
+        <div class="produit-desc">Jamón serrano, chorizo, lomo... une sélection de charcuteries ibériques d'exception.</div>
+      </div>
     </div>
     <div class="produit-card">
-      <div class="produit-icon">🥗</div>
-      <div class="produit-title">Bar à Salades</div>
-      <div class="produit-desc">Compositions fraîches et variées, renouvelées chaque jour avec des produits de saison.</div>
+      <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80" alt="Bar à salades" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🥗 Bar à Salades</div>
+        <div class="produit-desc">Compositions fraîches et variées, renouvelées chaque jour avec des produits de saison.</div>
+      </div>
     </div>
     <div class="produit-card">
-      <div class="produit-icon">🦐</div>
-      <div class="produit-title">Banc de Fruits de Mer</div>
-      <div class="produit-desc">Crevettes, moules, palourdes... les saveurs de l'océan à deux pas du Bassin d'Arcachon.</div>
+      <img src="https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&q=80" alt="Fruits de mer" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🦐 Banc de Fruits de Mer</div>
+        <div class="produit-desc">Crevettes, moules, palourdes... les saveurs de l'océan à deux pas du Bassin d'Arcachon.</div>
+      </div>
     </div>
     <div class="produit-card">
-      <div class="produit-icon">🍲</div>
-      <div class="produit-title">Plats Cuisinés</div>
-      <div class="produit-desc">Mijotés maison, recettes du chef, préparés chaque jour avec des produits frais.</div>
+      <img src="https://images.unsplash.com/photo-1574484284002-952d92456975?w=600&q=80" alt="Plats cuisinés" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🍲 Plats Cuisinés</div>
+        <div class="produit-desc">Mijotés maison, recettes du chef, préparés chaque jour avec des produits frais.</div>
+      </div>
     </div>
     <div class="produit-card">
-      <div class="produit-icon">🍟</div>
-      <div class="produit-title">Accompagnements</div>
-      <div class="produit-desc">Frites maison, poêlée de légumes frais, gratin, riz... pour compléter votre assiette.</div>
+      <img src="https://images.unsplash.com/photo-1576107232684-1279f390859f?w=600&q=80" alt="Accompagnements" loading="lazy">
+      <div class="produit-overlay"></div>
+      <div class="produit-info">
+        <div class="produit-title">🍟 Accompagnements</div>
+        <div class="produit-desc">Frites maison, poêlée de légumes frais, gratin, riz... pour compléter votre assiette.</div>
+      </div>
     </div>
   </div>
 </section>
