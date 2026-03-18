@@ -1,5 +1,7 @@
-// Service Worker — Braise & Co Réservations
-// Version network-first : toujours charger depuis le réseau, pas de cache agressif
+// Service Worker — Braise & Co
+// Network-first : toujours charger depuis le réseau, cache en fallback offline
+
+const CACHE = 'braise-v2';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();
@@ -7,15 +9,28 @@ self.addEventListener('install', function(e) {
 
 self.addEventListener('activate', function(e) {
   e.waitUntil(
-    // Supprimer tous les anciens caches au cas où
     caches.keys().then(function(keys) {
-      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+      return Promise.all(keys.filter(function(k) { return k !== CACHE; }).map(function(k) { return caches.delete(k); }));
     })
   );
   self.clients.claim();
 });
 
-// NETWORK FIRST : bypass total du cache HTTP pour toujours avoir la dernière version
 self.addEventListener('fetch', function(e) {
-  e.respondWith(fetch(e.request, {cache: 'no-store'}));
+  var url = e.request.url;
+  // Pas de cache pour supabase, fonts externes, CDN
+  if (url.includes('supabase') || url.includes('fonts.googleapis') || url.includes('cdnjs') || url.includes('qrserver')) {
+    e.respondWith(fetch(e.request, {cache: 'no-store'}));
+    return;
+  }
+  // Network-first avec fallback cache (offline)
+  e.respondWith(
+    fetch(e.request, {cache: 'no-store'}).then(function(response) {
+      var clone = response.clone();
+      caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
+      return response;
+    }).catch(function() {
+      return caches.match(e.request);
+    })
+  );
 });
