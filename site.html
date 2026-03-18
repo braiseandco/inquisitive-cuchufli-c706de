@@ -150,9 +150,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 5%;display:flex;al
 
 /* ── HERO ── */
 #hero{height:100vh;min-height:600px;display:flex;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden;background:#1a0800;}
+#ember-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
 .hero-bg{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1558030006-450675393462?w=1600&q=80') center/cover no-repeat;opacity:0.55;}
 .hero-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(13,13,13,0.3) 0%,rgba(13,13,13,0.6) 60%,rgba(13,13,13,0.95) 100%);}
-.hero-content{position:relative;z-index:1;padding:0 20px;}
+.hero-content{position:relative;z-index:2;padding:0 20px;}
 .hero-logo{height:110px;margin-bottom:28px;filter:drop-shadow(0 0 20px rgba(255,140,0,0.5));}
 .hero-title{font-family:'Cinzel',serif;font-size:clamp(28px,6vw,64px);font-weight:900;line-height:1.1;margin-bottom:10px;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .hero-sub{font-size:clamp(16px,3vw,22px);color:var(--fire4);letter-spacing:4px;text-transform:uppercase;margin-bottom:36px;font-weight:600;}
@@ -323,6 +324,7 @@ footer{background:var(--dark);border-top:1px solid rgba(255,140,0,0.1);padding:3
 <section id="hero">
   <div class="hero-bg"></div>
   <div class="hero-overlay"></div>
+  <canvas id="ember-canvas"></canvas>
   <div class="hero-content">
     <img class="hero-logo" src="images/logo-blanc.png" alt="Braise & Co">
     <div class="hero-title">Grillades Au Feu de Bois</div>
@@ -598,6 +600,79 @@ footer{background:var(--dark);border-top:1px solid rgba(255,140,0,0.1);padding:3
 </div>
 
 <script>
+// ── ANIMATION BRAISES ──
+(function(){
+  const canvas = document.getElementById('ember-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, embers = [];
+
+  function resize(){
+    W = canvas.width = canvas.offsetWidth;
+    H = canvas.height = canvas.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  function createEmber(){
+    return {
+      x: rand(0, W),
+      y: rand(H * 0.5, H),
+      vx: rand(-0.5, 0.5),
+      vy: rand(-1.2, -0.4),
+      size: rand(1.2, 3.2),
+      alpha: rand(0.6, 1),
+      decay: rand(0.003, 0.008),
+      color: Math.random() < 0.6
+        ? `rgba(255,${Math.floor(rand(80,160))},0,`
+        : `rgba(255,${Math.floor(rand(180,240))},${Math.floor(rand(0,60))},`
+    };
+  }
+
+  for(let i = 0; i < 80; i++){
+    const e = createEmber();
+    e.y = rand(0, H);
+    e.alpha = rand(0.1, 0.9);
+    embers.push(e);
+  }
+
+  function animate(){
+    ctx.clearRect(0, 0, W, H);
+    // Ajoute de nouvelles braises
+    if(embers.length < 120) embers.push(createEmber());
+
+    embers.forEach((e, i) => {
+      e.x += e.vx + Math.sin(Date.now() * 0.001 + i) * 0.3;
+      e.y += e.vy;
+      e.alpha -= e.decay;
+
+      if(e.alpha <= 0 || e.y < -10){
+        embers[i] = createEmber();
+        return;
+      }
+
+      // Halo lumineux
+      const grd = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.size * 3);
+      grd.addColorStop(0, e.color + e.alpha + ')');
+      grd.addColorStop(1, e.color + '0)');
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.size * 3, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Point central
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+      ctx.fillStyle = e.color + Math.min(e.alpha * 1.5, 1) + ')';
+      ctx.fill();
+    });
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
 // Highlight today in schedule
 const days=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 const today=days[new Date().getDay()];
