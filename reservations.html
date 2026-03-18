@@ -266,51 +266,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .detail-val{font-weight:700;font-size:15px;color:var(--text);}
 .detail-lbl{font-size:10px;color:var(--text-faint);margin-top:3px;letter-spacing:1.5px;text-transform:uppercase;}
 </style>
-<style>
-  .plan-fullscreen {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    background: var(--bg) !important;
-    border: none !important;
-  }
-  .plan-fullscreen .plan-wrap {
-    flex: 1 !important;
-    overflow: scroll !important;
-  }
-  /* Cacher tout le reste */
-  .plan-fullscreen-active .app > *:not(#screen-plan),
-  .plan-fullscreen-active .fab,
-  .plan-fullscreen-active .table-panel,
-  .plan-fullscreen-active #table-panel-overlay {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-</style><style>
-  .plan-fullscreen {
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    background: var(--bg) !important;
-    border: none !important;
-  }
-  .plan-fullscreen .plan-wrap {
-    flex: 1 !important;
-    overflow: scroll !important;
-  }
-  /* Cacher tout le reste */
-  .plan-fullscreen-active .app > *:not(#screen-plan),
-  .plan-fullscreen-active .fab,
-  .plan-fullscreen-active .table-panel,
-  .plan-fullscreen-active #table-panel-overlay {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-</style></head>
+</head>
 <body>
 <div class="loader" id="loader"><div class="spinner"></div></div>
 <div class="toast" id="toast"></div>
@@ -804,7 +760,7 @@ function renderCalendar(){
         // Garder seulement les resas d'autres dates en pending
         pendingNotifResas = pendingNotifResas.filter(r=>r.date !== ds);
       }
-      loadResas(ds); // passe la date pour pouvoir surligner
+      loadResas();
       closeCalendar();
     };
   });
@@ -938,7 +894,7 @@ async function loadResas(highlightId){
     if(currentService==='midi')resas=resas.filter(r=>r.heure<'14:00');
     else if(currentService==='soir')resas=resas.filter(r=>r.heure>='14:00');
     // Filter out cancelled
-    resas=resas.filter(r=>r.statut!=='annulee'&&r.statut!=='annulé');
+    resas=resas.filter(r=>r.statut!=='annulee'&&r.statut!=='annulé'&&r.statut!=='no-show');
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
@@ -1239,10 +1195,10 @@ function openNewForm(tableId=null, tableNum=null){
 async function openEditForm(id){
   showLoader(true);
   try{
-    const resas=await getResas(currentDate);
-    const r=resas.find(x=>x.id===id);
+    const resas=await sbFetch('reservations?id=eq.'+id+'&select=*');
     showLoader(false);
-    if(!r)return;
+    if(!resas||!resas.length)return;
+    const r=resas[0];
     editMode=true;currentResaId=id;
     document.getElementById('modal-resa-title').textContent='Modifier la réservation';
     document.getElementById('r-nom').value=r.nom||'';
@@ -1722,7 +1678,7 @@ async function openTablePanel(table, resa){
       const allResas = await getResas(planDate);
       showLoader(false);
       const filtered = planService==='midi' ? allResas.filter(r=>r.heure<'14:00') : allResas.filter(r=>r.heure>='14:00');
-      const unassigned = filtered.filter(r=>!r.table_id && r.statut!=='annulee' && r.statut!=='annulé');
+      const unassigned = filtered.filter(r=>!r.table_id && r.statut!=='annulee' && r.statut!=='annulé' && r.statut!=='no-show');
       unassigned.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 
       // If coming from a resa click, assign directly without panel
@@ -1879,11 +1835,6 @@ async function initPolling(){
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
     const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow);
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
-  }catch(e){}
-  // Nettoyage auto des réservations de plus de 30 jours
-  try{
-    const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
-    await sbFetch('reservations?date=lt.'+cutoff, {method:'DELETE'});
   }catch(e){}
   setInterval(checkNewResas, 30000);
 }
@@ -2055,7 +2006,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
       r.personnes || '',
       r.telephone || '',
       r.email || '',
-      r.table_id ? 'Table '+r.table_id.replace('t','') : 'Non placée',
+      r.table_id ? (()=>{const _t=allTables.find(t=>t.id===r.table_id);return 'Table '+(_t?_t.numero:r.table_id);})() : 'Non placée',
       r.statut || '',
       (r.notes || '').replace(/[\r\n]+/g,' ').replace(/"/g,'""')
     ]);
