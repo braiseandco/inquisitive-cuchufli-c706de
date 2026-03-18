@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /reservations.html
+Disallow: /index.html
+Disallow: /caisse.html
+
+Sitemap: https://braiseandco.fr/sitemap.xml
