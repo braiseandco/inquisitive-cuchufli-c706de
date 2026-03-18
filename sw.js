@@ -15,8 +15,7 @@ self.addEventListener('activate', function(e) {
   self.clients.claim();
 });
 
-// NETWORK FIRST : toujours essayer le réseau, jamais servir depuis le cache
-// Cela évite le problème de version bloquée
+// NETWORK FIRST : bypass total du cache HTTP pour toujours avoir la dernière version
 self.addEventListener('fetch', function(e) {
-  e.respondWith(fetch(e.request));
+  e.respondWith(fetch(e.request, {cache: 'no-store'}));
 });
