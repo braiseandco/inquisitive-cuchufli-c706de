@@ -917,8 +917,23 @@ function updatePlanDateLabel(){
   if(planDate===todayStr())label.textContent="Aujourd'hui";
   else label.textContent=fmtDate(planDate);
 }
-document.getElementById('plan-prev-day').onclick=()=>{planDate=addDays(planDate,-1);updatePlanDateLabel();loadPlan();};
-document.getElementById('plan-next-day').onclick=()=>{planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
+async function autoDefuseTables(){
+  const merged = allTables.filter(t=>t.merged_with);
+  for(const table of merged){
+    const partnerNumero = parseInt(table.merged_with);
+    const partner = allTables.find(t=>t.numero===partnerNumero && t.id!==table.id && t.x_pos<=-400);
+    const origCap = table.capacite_origine || Math.ceil(table.capacite/2);
+    const partnerCap = partner ? (partner.capacite_origine||partner.capacite||Math.floor(table.capacite/2)) : Math.floor(table.capacite/2);
+    try{
+      await updateTable(table.id,{capacite:origCap,merged_with:null,capacite_origine:null});
+      if(partner) await updateTable(partner.id,{x_pos:(table.x_pos||80)+160,y_pos:table.y_pos||80,capacite:partnerCap,merged_with:null,capacite_origine:null});
+    }catch(e){ console.error('autoDefuse error',e); }
+  }
+  if(merged.length) await getTables().then(t=>{allTables=t||[];});
+}
+
+document.getElementById('plan-prev-day').onclick=async()=>{await autoDefuseTables();planDate=addDays(planDate,-1);updatePlanDateLabel();loadPlan();};
+document.getElementById('plan-next-day').onclick=async()=>{await autoDefuseTables();planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
 updatePlanDateLabel();
 
 // ── LOAD RESERVATIONS ─────────────────────────────────────────
