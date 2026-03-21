@@ -176,6 +176,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .merge-bar-btn{padding:8px 16px;border-radius:8px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:none;}
 .merge-confirm-btn{background:#000;color:var(--accent3);}
 .merge-cancel-btn{background:rgba(0,0,0,0.2);color:#000;}
+/* ── MINI CALENDRIER ── */
+.mini-cal-popup{position:fixed;z-index:700;background:var(--bg2);border:1px solid var(--border2);border-radius:18px;padding:16px 14px 18px;box-shadow:0 8px 40px rgba(0,0,0,0.6);width:296px;left:50%;transform:translateX(-50%);top:108px;display:none;}
+.mini-cal-popup.open{display:block;}
+.mini-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.mini-cal-month-lbl{font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:var(--text);}
+.mini-cal-nav{background:none;border:none;color:var(--accent);font-size:20px;cursor:pointer;padding:2px 8px;line-height:1;}
+.mini-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.mini-cal-dow{text-align:center;font-size:9px;color:var(--text-faint);font-weight:700;letter-spacing:.5px;padding-bottom:5px;text-transform:uppercase;}
+.mini-cal-day{text-align:center;padding:7px 0 4px;font-size:13px;border-radius:9px;cursor:pointer;position:relative;transition:background .12s;color:var(--text);}
+.mini-cal-day:active{background:rgba(255,107,0,0.2);}
+.mini-cal-day.today{color:var(--accent);font-weight:900;}
+.mini-cal-day.sel{background:var(--accent);color:#000;font-weight:900;}
+.mini-cal-day.other{color:var(--text-faint);opacity:0.35;}
+.mini-cal-day.empty{cursor:default;}
+.mini-cal-dot{width:5px;height:5px;border-radius:50%;background:var(--accent3);position:absolute;bottom:2px;left:50%;transform:translateX(-50%);}
+.mini-cal-day.sel .mini-cal-dot{background:rgba(0,0,0,0.6);}
+.date-nav-label{cursor:pointer;user-select:none;}
+.date-nav-label:active{opacity:0.7;}
 /* ── MODAL FUSION ── */
 .modal-fusion{position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.75);display:none;align-items:flex-end;justify-content:center;}
 .modal-fusion.open{display:flex;}
@@ -217,7 +235,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="screen active" id="screen-reservations">
     <div class="date-nav">
       <button class="date-nav-btn" id="prev-day">‹</button>
-      <div class="date-nav-label" id="date-label">Aujourd'hui</div>
+      <div class="date-nav-label" id="date-label" onclick="openMiniCal('reservations')">Aujourd'hui</div>
       <button class="date-nav-btn today-btn" id="next-day">›</button>
       <button class="date-nav-today" id="btn-today">Aujourd'hui</button>
     </div>
@@ -248,7 +266,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div class="date-nav" style="padding:10px 16px;">
       <button class="date-nav-btn" id="plan-prev-day">‹</button>
-      <div class="date-nav-label" id="plan-date-label"></div>
+      <div class="date-nav-label" id="plan-date-label" onclick="openMiniCal('plan')"></div>
       <button class="date-nav-btn" id="plan-next-day">›</button>
       <div class="service-tabs" style="padding:0;background:none;border:none;flex:0;gap:6px;">
         <button class="stab active" data-plan-service="midi" style="padding:6px 12px;font-size:10px;">Midi</button>
@@ -471,6 +489,92 @@ document.getElementById('plan-prev-day').onclick=()=>{planDate=addDays(planDate,
 document.getElementById('plan-next-day').onclick=()=>{planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
 updatePlanDateLabel();
 
+// ── MINI CALENDRIER ──────────────────────────────────────────
+let calDisplayMonth = todayStr().slice(0,7); // YYYY-MM
+let calTarget = 'reservations';
+let resaDatesSet = new Set();
+
+async function loadResaDates(){
+  try{
+    const all = await getAllResas();
+    resaDatesSet = new Set((all||[]).map(r=>r.date).filter(Boolean));
+  }catch(e){ console.warn('loadResaDates',e); }
+}
+
+function openMiniCal(target){
+  calTarget = target;
+  const activeDate = target==='plan' ? planDate : currentDate;
+  calDisplayMonth = activeDate.slice(0,7);
+  renderMiniCal(activeDate);
+  document.getElementById('mini-cal-popup').classList.add('open');
+  document.getElementById('mini-cal-overlay').style.display = 'block';
+}
+
+function closeMiniCal(){
+  document.getElementById('mini-cal-popup').classList.remove('open');
+  document.getElementById('mini-cal-overlay').style.display = 'none';
+}
+
+function renderMiniCal(selectedDate){
+  const [y,m] = calDisplayMonth.split('-').map(Number);
+  const mois = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  document.getElementById('cal-month-lbl').textContent = mois[m-1] + ' ' + y;
+  const today = todayStr();
+  const firstDow = new Date(y,m-1,1).getDay(); // 0=dim
+  const startOffset = firstDow===0 ? 6 : firstDow-1; // lundi=0
+  const daysInMonth = new Date(y,m,0).getDate();
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML='';
+  ['Lu','Ma','Me','Je','Ve','Sa','Di'].forEach(d=>{
+    const el=document.createElement('div');
+    el.className='mini-cal-dow';
+    el.textContent=d;
+    grid.appendChild(el);
+  });
+  for(let i=0;i<startOffset;i++){
+    const el=document.createElement('div');
+    el.className='mini-cal-day other empty';
+    grid.appendChild(el);
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    const ds = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const el=document.createElement('div');
+    el.className='mini-cal-day';
+    if(ds===today) el.classList.add('today');
+    if(ds===selectedDate) el.classList.add('sel');
+    el.textContent=d;
+    if(resaDatesSet.has(ds)){
+      const dot=document.createElement('div');
+      dot.className='mini-cal-dot';
+      el.appendChild(dot);
+    }
+    el.onclick=()=>selectCalDay(ds);
+    grid.appendChild(el);
+  }
+}
+
+function selectCalDay(dateStr){
+  closeMiniCal();
+  if(calTarget==='plan'){
+    planDate=dateStr; updatePlanDateLabel(); loadPlan();
+  }else{
+    currentDate=dateStr; updateDateLabel(); loadResas();
+  }
+}
+
+document.getElementById('cal-prev-month').onclick=()=>{
+  const [y,m]=calDisplayMonth.split('-').map(Number);
+  const p=new Date(y,m-2,1);
+  calDisplayMonth=p.getFullYear()+'-'+String(p.getMonth()+1).padStart(2,'0');
+  renderMiniCal(calTarget==='plan'?planDate:currentDate);
+};
+document.getElementById('cal-next-month').onclick=()=>{
+  const [y,m]=calDisplayMonth.split('-').map(Number);
+  const n=new Date(y,m,1);
+  calDisplayMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+  renderMiniCal(calTarget==='plan'?planDate:currentDate);
+};
+
 // ── LOAD RESERVATIONS ─────────────────────────────────────────
 async function loadResas(){
   showLoader(true);
@@ -634,6 +738,7 @@ document.getElementById('btn-detail-delete').onclick=async function(){
     document.getElementById('modal-detail').classList.remove('open');
     toast('Réservation supprimée ✓','ok');
     currentDate = currentDate; // keep same date
+    loadResaDates();
     loadResas();
   }catch(e){showLoader(false);toast('Erreur suppression','ko');console.error(e);}
 };
@@ -704,6 +809,7 @@ document.getElementById('btn-resa-save').onclick=async function(){
     if(editMode)await updateResa(currentResaId,data);
     else await createResa({...data,id:genId()});
     showLoader(false);
+    loadResaDates(); // màj des points sur le calendrier
     document.getElementById('modal-resa').classList.remove('open');
     toast(editMode?'Réservation modifiée ✓':'Réservation créée — choisissez une table 🪑','ok');
     currentDate=date;updateDateLabel();
@@ -1352,6 +1458,7 @@ document.getElementById('fusion-confirm').onclick = async function () {
 
 // ── INIT ──────────────────────────────────────────────────────
 loadResas();
+loadResaDates();
 initPolling();
 </script>
 
@@ -1375,6 +1482,17 @@ initPolling();
 <div class="merge-bar" id="merge-bar">
   <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
   <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
+</div>
+
+<!-- MINI CALENDRIER -->
+<div id="mini-cal-overlay" style="display:none;position:fixed;inset:0;z-index:699;" onclick="closeMiniCal()"></div>
+<div class="mini-cal-popup" id="mini-cal-popup">
+  <div class="mini-cal-header">
+    <button class="mini-cal-nav" id="cal-prev-month">‹</button>
+    <div class="mini-cal-month-lbl" id="cal-month-lbl"></div>
+    <button class="mini-cal-nav" id="cal-next-month">›</button>
+  </div>
+  <div class="mini-cal-grid" id="cal-grid"></div>
 </div>
 
 <!-- MODAL RÉAFFECTATION TABLE -->
