@@ -388,6 +388,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
   </div>
 </div>
+
+<!-- MINI CALENDRIER -->
+<div id="mini-cal-overlay" style="display:none;position:fixed;inset:0;z-index:699;" onclick="closeMiniCal()"></div>
+<div class="mini-cal-popup" id="mini-cal-popup">
+  <div class="mini-cal-header">
+    <button class="mini-cal-nav" id="cal-prev-month">‹</button>
+    <div class="mini-cal-month-lbl" id="cal-month-lbl"></div>
+    <button class="mini-cal-nav" id="cal-next-month">›</button>
+  </div>
+  <div class="mini-cal-grid" id="cal-grid"></div>
+</div>
+
 <script>
 const SB_URL="https://ugyrrnqpapeagpuocwob.supabase.co",SB_KEY="sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X";
 
@@ -1465,19 +1477,18 @@ document.getElementById('fusion-confirm').onclick = async function () {
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-03-21.3';
-const UPDATE_URL = 'https://raw.githubusercontent.com/braiseandco/inquisitive-cuchufli-c706de/main/index.html';
+const APP_VERSION = '2026-03-21.4';
+const VERSION_URL = '/version.json';
 
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.classList.add('spin');
   btn.style.pointerEvents = 'none';
   try{
-    const res = await fetch(UPDATE_URL + '?_v=' + Date.now(), {cache:'no-store'});
+    const res = await fetch(VERSION_URL + '?_v=' + Date.now(), {cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const html = await res.text();
-    const m = html.match(/APP_VERSION\s*=\s*'([^']+)'/);
-    const remoteVer = m ? m[1] : null;
+    const data = await res.json();
+    const remoteVer = data && data.version ? data.version : null;
     btn.classList.remove('spin');
     btn.style.pointerEvents = '';
     if(!remoteVer || remoteVer === APP_VERSION){
@@ -1532,17 +1543,6 @@ initPolling();
 <div class="merge-bar" id="merge-bar">
   <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
   <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
-</div>
-
-<!-- MINI CALENDRIER -->
-<div id="mini-cal-overlay" style="display:none;position:fixed;inset:0;z-index:699;" onclick="closeMiniCal()"></div>
-<div class="mini-cal-popup" id="mini-cal-popup">
-  <div class="mini-cal-header">
-    <button class="mini-cal-nav" id="cal-prev-month">‹</button>
-    <div class="mini-cal-month-lbl" id="cal-month-lbl"></div>
-    <button class="mini-cal-nav" id="cal-next-month">›</button>
-  </div>
-  <div class="mini-cal-grid" id="cal-grid"></div>
 </div>
 
 <!-- MODAL RÉAFFECTATION TABLE -->
