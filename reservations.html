@@ -75,6 +75,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .resa-card.en-attente::before{background:var(--accent);}
 .resa-card.annulee::before{background:var(--red);opacity:0.5;}
 .resa-card:active{transform:scale(0.99);background:var(--bg3);}
+.resa-card.web-resa{background:rgba(180,30,30,0.18);border-color:rgba(220,60,60,0.45);}
+.resa-card.web-resa::before{background:#e53935;width:4px;}
+.resa-card.web-resa:active{background:rgba(180,30,30,0.28);}
+.resa-web-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.2);border:1px solid rgba(229,57,53,0.5);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#ef9a9a;}
+/* ── ARRIVÉE ── */
+.resa-card.arrivee{background:rgba(30,80,30,0.28);border-color:rgba(67,160,71,0.55);}
+.resa-card.arrivee::before{background:var(--green);width:5px;}
+.resa-card.arrivee:active{background:rgba(30,80,30,0.38);}
+.resa-arrivee-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(67,160,71,0.2);border:1px solid rgba(67,160,71,0.5);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:800;color:#a5d6a7;letter-spacing:.5px;}
+/* ── EN RETARD (heure dépassée, pas encore arrivé) ── */
+.resa-card.en-retard{border-color:rgba(229,57,53,0.6);animation:retardPulse 2.5s ease-in-out infinite;}
+@keyframes retardPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,0);}50%{box-shadow:0 0 0 4px rgba(229,57,53,0.18);border-color:rgba(229,57,53,0.75);}}
+.resa-retard-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.45);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#ef9a9a;animation:retardBadgePulse 1.5s ease-in-out infinite;}
+@keyframes retardBadgePulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+/* ── BOUTON ARRIVÉE ── */
+.btn-arrivee{flex-shrink:0;width:34px;height:34px;border-radius:50%;background:rgba(67,160,71,0.13);border:2px solid rgba(67,160,71,0.45);color:#81c784;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;margin-left:6px;}
+.btn-arrivee:active{background:rgba(67,160,71,0.35);transform:scale(0.9);}
+.en-retard .btn-arrivee{border-color:rgba(229,57,53,0.6);color:#ef9a9a;background:rgba(229,57,53,0.12);}
 .resa-card-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
 .resa-heure{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--accent);min-width:52px;}
 .resa-nom{font-weight:700;font-size:15px;flex:1;}
@@ -247,6 +265,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .status-pill{flex:1;padding:11px 8px;border-radius:10px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:rgba(255,255,255,0.03);color:var(--text-dim);transition:all .2s;letter-spacing:.5px;}
 .status-pill.confirmee.active-status,.status-pill.confirmee:active{background:rgba(67,160,71,0.15);border-color:rgba(67,160,71,0.5);color:#a5d6a7;}
 .status-pill.en-attente.active-status,.status-pill.en-attente:active{background:rgba(255,107,0,0.15);border-color:var(--accent);color:var(--accent);}
+.status-pill.arrivee.active-status,.status-pill.arrivee:active{background:rgba(30,120,50,0.25);border-color:rgba(67,160,71,0.7);color:#69f0ae;}
 .status-pill.annulee.active-status,.status-pill.annulee:active{background:rgba(229,57,53,0.15);border-color:rgba(229,57,53,0.5);color:#ef9a9a;}
 
 /* ── CALENDRIER POPUP ── */
@@ -479,6 +498,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="status-pills">
       <button class="status-pill confirmee" data-status="confirmee">✓ Confirmée</button>
       <button class="status-pill en-attente" data-status="en-attente">⏳ En attente</button>
+      <button class="status-pill arrivee" data-status="arrivee">🟢 Arrivé(e)</button>
       <button class="status-pill annulee" data-status="annulee">✕ Annulée</button>
     </div>
     <div class="modal-btns" style="margin-top:16px;">
@@ -1024,6 +1044,14 @@ function renderResas(resas){
       clickResa(this.dataset.id, this.dataset.tableId);
     },{passive:false});
   });
+  // Bouton arrivée : stopper la propagation du touchend pour ne pas ouvrir le détail
+  container.querySelectorAll('.btn-arrivee').forEach(btn=>{
+    btn.addEventListener('touchend',function(e){
+      e.stopPropagation();
+      if(e.cancelable)e.preventDefault();
+      marquerArrive(this.dataset.id);
+    },{passive:false});
+  });
 }
 
 function resaCardHtml(r){
@@ -1048,7 +1076,20 @@ function resaCardHtml(r){
     var n = r.notes.replace(/\(via formulaire site web\)/,'').replace(/Age des enfants[^.;\n]*/i,'').replace(/\(via formulaire site web\)/,'').trim();
     if(n.length>2) notesAffich = n.length>50?n.slice(0,50)+'\u2026':n;
   }
-  return '<div class="resa-card '+(r.statut||'')+'" data-id="'+r.id+'" data-table-id="'+(r.table_id||'')+'">'+
+  const isWeb = r.notes && r.notes.includes('(via formulaire site web)');
+  const isArrivee = r.statut === 'arrivee';
+  // Retard : heure dépassée, pas encore arrivé, c'est aujourd'hui
+  const nowStr = new Date().toISOString().split('T')[0];
+  const nowMins = new Date().getHours()*60 + new Date().getMinutes();
+  const resaMins = heure ? (parseInt(heure.slice(0,2))*60 + parseInt(heure.slice(3,5))) : 9999;
+  const isEnRetard = !isArrivee && r.date === nowStr && nowMins > resaMins + 15;
+  // Heure arrivée mémorisée en session
+  const heureArrivee = arrivedTimes[r.id] || '';
+  let cardClasses = 'resa-card';
+  if(isArrivee) cardClasses += ' arrivee';
+  else if(isEnRetard) cardClasses += ' en-retard';
+  if(isWeb) cardClasses += ' web-resa';
+  return '<div class="'+cardClasses+'" data-id="'+r.id+'" data-heure="'+heure+'" data-date="'+(r.date||'')+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
     '<div class="resa-heure">'+heure+'</div>'+
     '<div style="flex:1;">'+
@@ -1056,9 +1097,13 @@ function resaCardHtml(r){
       (r.telephone?'<div style="font-size:13px;color:#ffa726;font-weight:800;margin-top:2px;letter-spacing:0.5px;">📞 '+esc(r.telephone)+'</div>':'')+
     '</div>'+
     '<div class="resa-pax">'+r.personnes+'p</div>'+
-    '<button class="btn-delete-resa" data-id="'+r.id+'" title="Supprimer" onclick="event.stopPropagation();supprimerResa(\''+r.id+'\')" style="margin-left:auto;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button>'+
+    (!isArrivee?'<button class="btn-arrivee" data-id="'+r.id+'" title="Marquer arrivé" onclick="event.stopPropagation();marquerArrive(\''+r.id+'\')">✓</button>':'')+
+    '<button class="btn-delete-resa" data-id="'+r.id+'" title="Supprimer" onclick="event.stopPropagation();supprimerResa(\''+r.id+'\')" style="margin-left:6px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button>'+
     '</div>'+
     '<div class="resa-meta">'+tableBadge+
+    (isArrivee?'<span class="resa-arrivee-badge">✓ ARRIVÉ'+(heureArrivee?' '+heureArrivee:'')+'</span>':'')+
+    (isEnRetard?'<span class="resa-retard-badge">⚠ Pas arrivé</span>':'')+
+    (isWeb?'<span class="resa-web-badge">🌐 En ligne</span>':'')+
     (enfantsInfo?'<span style="color:var(--accent2);font-weight:600;">👶 '+esc(enfantsInfo)+'</span>':'')+
     (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
     (r.mail_confirmation_envoye?'<span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span>':'')+
@@ -1696,7 +1741,7 @@ async function openTablePanel(table, resa){
   const unassign = document.getElementById('tp-unassign');
 
   if(resa){
-    const statusHtml = (resa.statut==='confirmee'||resa.statut==='confirmé')?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
+    const statusHtml = (resa.statut==='confirmee'||resa.statut==='confirmé')?'<span style="color:#81c784;">✓ Confirmée</span>':resa.statut==='arrivee'?'<span style="color:#69f0ae;">🟢 Arrivé(e)</span>':resa.statut==='en-attente'?'<span style="color:var(--accent);">⏳ En attente</span>':'<span style="color:#ef9a9a;">✕ Annulée</span>';
     list.innerHTML =
       '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;">Réservation affectée</div>'+
       '<div style="background:rgba(229,57,53,0.08);border:1px solid rgba(229,57,53,0.25);border-radius:14px;padding:16px;">'+
@@ -1874,6 +1919,36 @@ document.getElementById('table-panel-overlay').onclick = closeTablePanel;
 
 // ── NOTIFICATIONS TEMPS RÉEL ──────────────────────────────────
 let lastPollTime = new Date().toISOString();
+// ── ARRIVÉE DES CLIENTS ───────────────────────────────────────
+const arrivedTimes = {}; // id → 'HH:MM' (session uniquement)
+
+async function marquerArrive(id){
+  try{
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    await updateResa(id, {statut:'arrivee'});
+    arrivedTimes[id] = hh+':'+mm;
+    loadResas();
+    toast('✓ Client arrivé !','ok');
+  }catch(e){ toast('Erreur','ko'); console.error(e); }
+}
+
+// Recalcule les classes "en-retard" toutes les 60s sans recharger les données
+function refreshRetardClasses(){
+  const nowStr = new Date().toISOString().split('T')[0];
+  const nowMins = new Date().getHours()*60 + new Date().getMinutes();
+  document.querySelectorAll('.resa-card:not(.arrivee)').forEach(card=>{
+    const d = card.dataset.date;
+    const h = card.dataset.heure;
+    if(!d || !h || d !== nowStr) return;
+    const resaMins = parseInt(h.slice(0,2))*60 + parseInt(h.slice(3,5));
+    if(nowMins > resaMins + 15) card.classList.add('en-retard');
+    else card.classList.remove('en-retard');
+  });
+}
+setInterval(refreshRetardClasses, 60000);
+
 let pollingActive = true;
 
 let pollingStarted = false;
