@@ -1040,16 +1040,10 @@ function renderResas(resas){
   container.querySelectorAll('.resa-card').forEach(card=>{
     card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
     card.addEventListener('touchend',function(e){
+      // Si le tap est sur le bouton arrivée, laisser son onclick gérer
+      if(e.target.closest('.btn-arrivee,.btn-delete-resa')) return;
       if(e.cancelable)e.preventDefault();
       clickResa(this.dataset.id, this.dataset.tableId);
-    },{passive:false});
-  });
-  // Bouton arrivée : stopper la propagation du touchend pour ne pas ouvrir le détail
-  container.querySelectorAll('.btn-arrivee').forEach(btn=>{
-    btn.addEventListener('touchend',function(e){
-      e.stopPropagation();
-      if(e.cancelable)e.preventDefault();
-      marquerArrive(this.dataset.id);
     },{passive:false});
   });
 }
