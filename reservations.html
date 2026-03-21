@@ -1098,6 +1098,7 @@ function resaCardHtml(r){
     (enfantsInfo?'<span style="color:var(--accent2);font-weight:600;">👶 '+esc(enfantsInfo)+'</span>':'')+
     (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
     (r.mail_confirmation_envoye?'<span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span>':'')+
+    (r.sms_envoye?'<span style="background:rgba(30,136,229,0.15);color:#64b5f6;border:1px solid rgba(30,136,229,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">📱 SMS envoyé</span>':'')+
     (notesAffich?'<span style="color:var(--text-dim);">📝 '+esc(notesAffich)+'</span>':'')+
     '</div></div>';
 }
@@ -1155,7 +1156,11 @@ async function openDetail(id){
           document.getElementById('modal-detail').classList.remove('open');
           // Alerte SMS
           if(r.telephone){
-            alert('📱 Envoyer SMS au : ' + r.telephone);
+            const smsSent = confirm('📱 Envoyer SMS au : ' + r.telephone + '\n\nSMS envoyé ?');
+            if(smsSent){
+              await updateResa(id,{sms_envoye:true});
+              loadResas();
+            }
           }
           toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
         } else {
