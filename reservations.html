@@ -90,8 +90,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .resa-retard-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.18);border:1px solid rgba(229,57,53,0.45);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#ef9a9a;animation:retardBadgePulse 1.5s ease-in-out infinite;}
 @keyframes retardBadgePulse{0%,100%{opacity:1;}50%{opacity:.55;}}
 /* ── BOUTON ARRIVÉE ── */
-.btn-arrivee{flex-shrink:0;width:34px;height:34px;border-radius:50%;background:rgba(67,160,71,0.13);border:2px solid rgba(67,160,71,0.45);color:#81c784;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;margin-left:6px;}
-.btn-arrivee:active{background:rgba(67,160,71,0.35);transform:scale(0.9);}
+.btn-arrivee{flex-shrink:0;height:34px;padding:0 10px;border-radius:20px;background:rgba(67,160,71,0.15);border:2px solid rgba(67,160,71,0.55);color:#81c784;font-size:13px;font-weight:800;font-family:'Raleway',sans-serif;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;margin-left:6px;letter-spacing:.5px;}
+.btn-arrivee:active{background:rgba(67,160,71,0.35);transform:scale(0.95);}
 .en-retard .btn-arrivee{border-color:rgba(229,57,53,0.6);color:#ef9a9a;background:rgba(229,57,53,0.12);}
 .resa-card-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
 .resa-heure{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--accent);min-width:52px;}
@@ -1097,7 +1097,7 @@ function resaCardHtml(r){
       (r.telephone?'<div style="font-size:13px;color:#ffa726;font-weight:800;margin-top:2px;letter-spacing:0.5px;">📞 '+esc(r.telephone)+'</div>':'')+
     '</div>'+
     '<div class="resa-pax">'+r.personnes+'p</div>'+
-    (!isArrivee?'<button class="btn-arrivee" data-id="'+r.id+'" title="Marquer arrivé" onclick="event.stopPropagation();marquerArrive(\''+r.id+'\')">✓</button>':'')+
+    (!isArrivee?'<button class="btn-arrivee" data-id="'+r.id+'" title="Marquer arrivé" onclick="event.stopPropagation();marquerArrive(\''+r.id+'\')">✓ Arrivé</button>':'')+
     '<button class="btn-delete-resa" data-id="'+r.id+'" title="Supprimer" onclick="event.stopPropagation();supprimerResa(\''+r.id+'\')" style="margin-left:6px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button>'+
     '</div>'+
     '<div class="resa-meta">'+tableBadge+
@@ -1176,9 +1176,10 @@ async function openDetail(id){
       };
     });
 
-    // Bouton Placer : visible seulement si pas de table affectée
+    // Bouton Placer : toujours visible, libellé change selon si table déjà assignée
     const btnPlan = document.getElementById('btn-detail-plan');
-    btnPlan.style.display = r.table_id ? 'none' : '';
+    btnPlan.style.display = '';
+    btnPlan.textContent = r.table_id ? '↔ Changer de table' : '🗺 Placer';
     btnPlan.onclick = () => {
       document.getElementById('modal-detail').classList.remove('open');
       pendingResaId = id;
@@ -2141,8 +2142,8 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── INIT ──────────────────────────────────────────────────────
-getTables().then(t=>{ allTables=t||[]; }).catch(()=>{});
-loadResas();
+loadResas(); // affichage rapide (sans noms de tables)
+getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // rechargement avec noms corrects
 initPolling();
 
 // Toggle tables libres detail panel
