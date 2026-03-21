@@ -209,6 +209,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .fusion-chip-cap{font-size:10px;color:var(--text-faint);margin-top:2px;}
 .fusion-total{font-size:13px;color:var(--text-dim);text-align:center;padding:11px 14px;background:var(--bg3);border-radius:10px;margin-bottom:18px;min-height:42px;}
 .fusion-total b{color:var(--accent);}
+/* ── BOUTON MAJ ── */
+.btn-update{background:none;border:1px solid var(--border2);border-radius:10px;color:var(--text-faint);font-size:17px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.btn-update:active{background:rgba(255,107,0,0.15);color:var(--accent);}
+.btn-update.spin{animation:spinIcon .7s linear infinite;}
+@keyframes spinIcon{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -222,7 +227,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-logo">Braise &amp; Co</div>
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
-    <div class="topbar-date" id="topbar-date"></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="topbar-date" id="topbar-date"></div>
+      <button class="btn-update" id="btn-update" title="Vérifier les mises à jour" onclick="checkAndUpdate()">🔄</button>
+    </div>
   </div>
 
   <!-- TABS -->
@@ -1455,6 +1463,48 @@ document.getElementById('fusion-confirm').onclick = async function () {
     toast('Erreur lors de la fusion', 'ko');
   }
 };
+
+// ── MISE À JOUR ───────────────────────────────────────────────
+const APP_VERSION = '2026-03-21.3';
+const UPDATE_URL = 'https://raw.githubusercontent.com/braiseandco/inquisitive-cuchufli-c706de/main/index.html';
+
+async function checkAndUpdate(){
+  const btn = document.getElementById('btn-update');
+  btn.classList.add('spin');
+  btn.style.pointerEvents = 'none';
+  try{
+    const res = await fetch(UPDATE_URL + '?_v=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const html = await res.text();
+    const m = html.match(/APP_VERSION\s*=\s*'([^']+)'/);
+    const remoteVer = m ? m[1] : null;
+    btn.classList.remove('spin');
+    btn.style.pointerEvents = '';
+    if(!remoteVer || remoteVer === APP_VERSION){
+      toast("L'application est déjà à jour ✓",'ok');
+      return;
+    }
+    // Nouvelle version disponible
+    if(confirm('🆕 Nouvelle version disponible !\n\nVersion actuelle : '+APP_VERSION+'\nNouvelle version : '+remoteVer+'\n\nMettre à jour maintenant ?')){
+      // Vider les caches Service Worker
+      if('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r=>r.unregister()));
+      }
+      if('caches' in window){
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k=>caches.delete(k)));
+      }
+      // Rechargement forcé depuis le serveur
+      location.reload(true);
+    }
+  }catch(e){
+    btn.classList.remove('spin');
+    btn.style.pointerEvents='';
+    console.error('checkAndUpdate',e);
+    toast('Impossible de vérifier la mise à jour','ko');
+  }
+}
 
 // ── INIT ──────────────────────────────────────────────────────
 loadResas();
