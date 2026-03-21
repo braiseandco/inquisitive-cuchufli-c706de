@@ -176,6 +176,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .merge-bar-btn{padding:8px 16px;border-radius:8px;font-family:'Raleway',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:none;}
 .merge-confirm-btn{background:#000;color:var(--accent3);}
 .merge-cancel-btn{background:rgba(0,0,0,0.2);color:#000;}
+/* ── MODAL FUSION ── */
+.modal-fusion{position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.75);display:none;align-items:flex-end;justify-content:center;}
+.modal-fusion.open{display:flex;}
+.modal-fusion-box{background:var(--bg2);border-radius:22px 22px 0 0;padding:24px 20px 32px;width:100%;max-height:82vh;overflow-y:auto;}
+.modal-fusion-title{font-family:'Cinzel',serif;font-size:17px;font-weight:700;color:var(--accent);margin-bottom:4px;}
+.modal-fusion-sub{font-size:12px;color:var(--text-faint);margin-bottom:20px;}
+.fusion-chip-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+.fusion-chip{width:78px;height:68px;border-radius:14px;border:2px solid var(--border);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;-webkit-tap-highlight-color:transparent;}
+.fusion-chip:active{transform:scale(0.93);}
+.fusion-chip.sel{border-color:var(--accent);background:rgba(255,107,0,0.18);box-shadow:0 0 12px rgba(255,107,0,0.25);}
+.fusion-chip-num{font-family:'Cinzel',serif;font-size:21px;font-weight:700;color:var(--text);}
+.fusion-chip.sel .fusion-chip-num{color:var(--accent);}
+.fusion-chip-cap{font-size:10px;color:var(--text-faint);margin-top:2px;}
+.fusion-total{font-size:13px;color:var(--text-dim);text-align:center;padding:11px 14px;background:var(--bg3);border-radius:10px;margin-bottom:18px;min-height:42px;}
+.fusion-total b{color:var(--accent);}
 </style>
 </head>
 <body>
@@ -260,6 +275,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="table-panel-title" id="tp-title">Table 1</div>
   <div class="table-panel-sub" id="tp-sub">4 couverts • Libre</div>
   <div class="assign-list" id="tp-assign-list"></div>
+  <button class="btn-primary" id="tp-reassign" style="display:none;width:100%;margin-top:10px;background:rgba(255,107,0,0.12);border:1px solid rgba(255,107,0,0.4);color:var(--accent);font-size:13px;">🔄 Changer de table</button>
   <button class="btn-unassign" id="tp-unassign" style="display:none;">Désaffecter cette table</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
@@ -360,6 +376,9 @@ async function sbFetch(path,opts={}){
 const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc');
 const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
+const getFusions=date=>sbFetch('fusions_plan?date=eq.'+date+'&select=*');
+const createFusion=d=>sbFetch('fusions_plan',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
+const deleteFusion=id=>sbFetch('fusions_plan?id=eq.'+id,{method:'DELETE'});
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
 const updateResa=(id,d)=>sbFetch('reservations?id=eq.'+id,{method:'PATCH',prefer:'return=representation',body:JSON.stringify(d)});
 const deleteResa=id=>sbFetch('reservations?id=eq.'+id,{method:'DELETE'});
@@ -717,11 +736,14 @@ function setErr(f,m){const el=document.getElementById('err-'+f);el.textContent=m
 });
 
 // ── PLAN DE SALLE ─────────────────────────────────────────────
+let planFusions = []; // fusions actives pour la date chargée
+
 async function loadPlan(){
   showLoader(true);
   try{
     allTables = await getTables() || [];
     const resas = await getResas(planDate) || [];
+    planFusions = await getFusions(planDate) || [];
     showLoader(false);
     const filtered = planService==='midi' ? resas.filter(r=>r.heure<'14:00') : resas.filter(r=>r.heure>='14:00');
     tableResas = {};
@@ -758,7 +780,24 @@ function renderPlan(){
   }else{
     banner.style.display='none';
   }
-  const visible = allTables.filter(t=>t.zone===planZone && (t.x_pos||0) >= 0);
+
+  // Construire la vue virtuelle : tables de base + fusions du jour
+  // Les tables masquées par une fusion du jour ne s'affichent pas
+  const fusionsZone = planFusions.filter(f=>f.zone===planZone);
+  const maskedIds = new Set(
+    fusionsZone.flatMap(f=>f.merged_ids.split(',').map(s=>s.trim()).filter(Boolean)
+      .map(num=>{ const t=allTables.find(x=>x.numero===parseInt(num)); return t?t.id:null; })
+      .filter(Boolean))
+  );
+
+  // Tables visibles = tables de la zone, positions valides, non masquées par fusion du jour
+  const visible = allTables.filter(t=>t.zone===planZone && (t.x_pos||0) >= 0 && !maskedIds.has(t.id));
+
+  // Données de fusion par table source pour ce jour
+  const fusionBySourceId = {};
+  fusionsZone.forEach(f=>{ fusionBySourceId[f.source_id]=f; });
+
+  const allVisible = visible; // référence pour setupTableInteractions
 
   visible.forEach(t=>{
     const resa = tableResas[t.id];
@@ -766,7 +805,11 @@ function renderPlan(){
     if(resa){
       status = resa.heure >= '21:00' ? 'occupee-late' : 'occupee';
     }
-    const isMerged = t.merged_with && t.merged_with.length > 0;
+    // Fusion du jour (éphémère) ou fusion permanente ancienne
+    const fusion = fusionBySourceId[t.id];
+    const isMerged = !!fusion;
+    const displayCap = fusion ? fusion.capacite_totale : t.capacite;
+    const mergedLabel = fusion ? fusion.merged_ids : (t.merged_with||'');
     const w = isMerged ? 190 : 110;
     const h = resa && resa.telephone ? 120 : 105;
 
@@ -777,15 +820,15 @@ function renderPlan(){
 
     el.innerHTML =
       '<div class="table-shape '+status+(isMerged?' fusionnee':'')+'" style="width:'+w+'px;height:'+h+'px;">'+
-      (isMerged ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
+      (isMerged ? '<div class="table-merge-badge">⬌ '+mergedLabel+'</div>' : '')+
       '<div class="table-num">'+t.numero+'</div>'+
-      '<div class="table-cap">'+t.capacite+'p</div>'+
+      '<div class="table-cap">'+displayCap+'p</div>'+
       (resa ? '<div class="table-resa-name">'+esc(resa.nom)+'</div>' : '')+
       (resa ? '<div class="table-resa-name" style="color:var(--accent3);font-size:10px;margin-top:1px;">'+resa.heure.slice(0,5)+'</div>' : '')+
       (resa && resa.telephone ? '<div class="table-resa-name" style="color:rgba(240,237,232,0.5);font-size:9px;margin-top:1px;">📞 '+esc(resa.telephone)+'</div>' : '')+
       '</div>';
 
-    setupTableInteractions(el, t, visible);
+    setupTableInteractions(el, t, allVisible);
     canvas.appendChild(el);
   });
 
@@ -952,7 +995,10 @@ async function openTablePanel(table, resa){
         '</div>'+
       '</div>';
     unassign.style.display = 'block';
+    document.getElementById('tp-reassign').style.display = 'block';
   }else{
+    document.getElementById('tp-reassign').style.display = 'none';
+    list.innerHTML = ''; // Nettoyer le contenu précédent
     // Show unassigned reservations to assign
     showLoader(true);
     try{
@@ -972,10 +1018,41 @@ async function openTablePanel(table, resa){
         }
         pendingResaId = null;
       }
+      // Bouton fusion / défusion selon l'état du jour
+      const activeFusion = planFusions.find(f => f.source_id === table.id);
+      const actionBtn = document.createElement('button');
+      actionBtn.className = 'btn-primary';
+      actionBtn.style.cssText = 'width:100%;margin-bottom:14px;font-size:13px;';
+      if (activeFusion) {
+        actionBtn.style.cssText += 'background:rgba(229,57,53,0.1);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;';
+        actionBtn.textContent = '✂️ Défusionner (tables ' + activeFusion.merged_ids + ')';
+        actionBtn.onclick = async () => {
+          closeTablePanel();
+          showLoader(true);
+          try {
+            await deleteFusion(activeFusion.id);
+            showLoader(false);
+            toast('Fusion annulée ✓', 'ok');
+            loadPlan();
+          } catch(e) { showLoader(false); toast('Erreur','ko'); }
+        };
+      } else {
+        actionBtn.style.cssText += 'background:rgba(255,107,0,0.1);border:1px solid rgba(255,107,0,0.35);color:var(--accent);';
+        actionBtn.textContent = '🔗 Fusionner avec d\'autres tables';
+        actionBtn.onclick = () => { closeTablePanel(); openFusionModal(table); };
+      }
+      list.appendChild(actionBtn);
+
       if(!unassigned.length){
-        list.innerHTML = '<div style="text-align:center;padding:20px 0;"><div style="font-size:32px;margin-bottom:8px;">✅</div><div style="color:var(--text-faint);font-size:13px;">Toutes les réservations sont placées !</div></div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.style.cssText = 'text-align:center;padding:20px 0;';
+        emptyDiv.innerHTML = '<div style="font-size:32px;margin-bottom:8px;">✅</div><div style="color:var(--text-faint);font-size:13px;">Toutes les réservations sont placées !</div>';
+        list.appendChild(emptyDiv);
       }else{
-        list.innerHTML = '<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">Appuyez pour affecter à cette table</div>';
+        const assignHeader = document.createElement('div');
+        assignHeader.style.cssText = 'font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;';
+        assignHeader.textContent = 'Appuyez pour affecter à cette table';
+        list.appendChild(assignHeader);
         unassigned.forEach((r,i)=>{
           const item = document.createElement('div');
           item.className = 'assign-item';
@@ -1024,6 +1101,8 @@ document.getElementById('tp-unassign').onclick = async function(){
 function closeTablePanel(){
   document.getElementById('table-panel').classList.remove('open');
   document.getElementById('table-panel-overlay').style.display = 'none';
+  document.getElementById('tp-reassign').style.display = 'none';
+  document.getElementById('tp-unassign').style.display = 'none';
 }
 document.getElementById('tp-close').onclick = closeTablePanel;
 document.getElementById('table-panel-overlay').onclick = closeTablePanel;
@@ -1105,6 +1184,172 @@ document.getElementById('notif-close').onclick = ()=>{
 };
 document.getElementById('new-resa-badge').onclick = ()=>document.getElementById('notif-close').click();
 
+// ── RÉAFFECTATION DE TABLE ────────────────────────────────────
+document.getElementById('tp-reassign').onclick = () => {
+  if (!currentTableResa) return;
+  closeTablePanel();
+  openReassignModal(currentTableResa);
+};
+
+function openReassignModal(resa) {
+  document.getElementById('reassign-title').textContent = '🔄 Déplacer ' + resa.nom;
+  document.getElementById('reassign-sub').textContent = resa.heure.slice(0,5) + ' • ' + resa.personnes + ' pers. — Choisissez la nouvelle table';
+
+  // Tables libres de la zone courante (non occupées sur ce service)
+  const freeTables = allTables
+    .filter(t => t.zone === planZone && (t.x_pos || 0) >= 0 && !tableResas[t.id])
+    .sort((a, b) => a.numero - b.numero);
+
+  const grid = document.getElementById('reassign-chip-grid');
+  if (!freeTables.length) {
+    grid.innerHTML = '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:20px 0;width:100%;">Aucune table libre disponible.</div>';
+  } else {
+    grid.innerHTML = freeTables.map(t => {
+      const fusion = planFusions.find(f => f.source_id === t.id);
+      const cap = fusion ? fusion.capacite_totale : (t.capacite || 4);
+      const label = fusion ? t.numero + '<span style="font-size:8px;display:block;color:var(--accent);">+' + fusion.merged_ids + '</span>' : t.numero;
+      return '<div class="fusion-chip" onclick="doReassign(\'' + resa.id + '\',\'' + t.id + '\',this)" data-num="' + t.numero + '">' +
+        '<div class="fusion-chip-num">' + label + '</div>' +
+        '<div class="fusion-chip-cap">' + cap + ' cvts</div>' +
+        '</div>';
+    }).join('');
+  }
+  document.getElementById('modal-reassign').classList.add('open');
+}
+
+async function doReassign(resaId, tableId, chip) {
+  // Feedback visuel immédiat
+  document.querySelectorAll('#reassign-chip-grid .fusion-chip').forEach(c => c.classList.remove('sel'));
+  chip.classList.add('sel');
+  showLoader(true);
+  try {
+    await updateResa(resaId, { table_id: tableId });
+    showLoader(false);
+    document.getElementById('modal-reassign').classList.remove('open');
+    const tableNum = chip.dataset.num;
+    toast('Réservation déplacée → Table ' + tableNum + ' ✓', 'ok');
+    loadPlan();
+  } catch(e) {
+    showLoader(false);
+    toast('Erreur lors du déplacement', 'ko');
+  }
+}
+
+document.getElementById('reassign-cancel').onclick = () => {
+  document.getElementById('modal-reassign').classList.remove('open');
+};
+
+// ── MODAL FUSION ─────────────────────────────────────────────
+let fusionSourceTable = null;
+let fusionSelected = new Set();
+
+function openFusionModal(table) {
+  fusionSourceTable = table;
+  fusionSelected = new Set();
+  document.getElementById('fusion-title').textContent = '🔗 Fusionner la Table ' + table.numero;
+
+  // Tables déjà impliquées dans une fusion du jour (comme source ou comme fusionnée)
+  const alreadyFusedIds = new Set(
+    planFusions.filter(f => f.zone === planZone).flatMap(f => {
+      const ids = [f.source_id];
+      f.merged_ids.split(',').forEach(num => {
+        const t2 = allTables.find(x => x.numero === parseInt(num.trim()));
+        if (t2) ids.push(t2.id);
+      });
+      return ids;
+    })
+  );
+
+  // Tables libres de la même zone (hors source, hors cachées, hors déjà fusionnées)
+  const freeTables = allTables
+    .filter(t => t.id !== table.id && t.zone === planZone && (t.x_pos || 0) >= 0 && !tableResas[t.id] && !alreadyFusedIds.has(t.id))
+    .sort((a, b) => a.numero - b.numero);
+
+  const grid = document.getElementById('fusion-chip-grid');
+  if (!freeTables.length) {
+    grid.innerHTML = '<div style="color:var(--text-faint);font-size:13px;text-align:center;padding:16px 0;width:100%;">Aucune autre table libre dans cette zone.</div>';
+  } else {
+    grid.innerHTML = freeTables.map(t =>
+      '<div class="fusion-chip" data-id="' + t.id + '" data-cap="' + (t.capacite || 4) + '" data-num="' + t.numero + '" onclick="toggleFusionChip(this)">' +
+        '<div class="fusion-chip-num">' + t.numero + '</div>' +
+        '<div class="fusion-chip-cap">' + (t.capacite || 4) + ' cvts</div>' +
+      '</div>'
+    ).join('');
+  }
+  updateFusionTotal();
+  document.getElementById('modal-fusion').classList.add('open');
+}
+
+function toggleFusionChip(chip) {
+  const id = chip.dataset.id;
+  if (fusionSelected.has(id)) {
+    fusionSelected.delete(id);
+    chip.classList.remove('sel');
+  } else {
+    fusionSelected.add(id);
+    chip.classList.add('sel');
+  }
+  updateFusionTotal();
+}
+
+function updateFusionTotal() {
+  const btn = document.getElementById('fusion-confirm');
+  const info = document.getElementById('fusion-total');
+  if (!fusionSelected.size) {
+    info.innerHTML = 'Sélectionnez au moins une table';
+    btn.disabled = true;
+    return;
+  }
+  let total = fusionSourceTable ? (fusionSourceTable.capacite || 4) : 0;
+  fusionSelected.forEach(id => {
+    const t = allTables.find(x => x.id === id);
+    if (t) total += (t.capacite || 4);
+  });
+  const count = fusionSelected.size + 1;
+  info.innerHTML = '<b>' + total + ' couverts</b> au total (' + count + ' tables fusionnées)';
+  btn.disabled = false;
+}
+
+document.getElementById('fusion-cancel').onclick = () => {
+  document.getElementById('modal-fusion').classList.remove('open');
+  fusionSourceTable = null;
+  fusionSelected = new Set();
+};
+
+document.getElementById('fusion-confirm').onclick = async function () {
+  if (!fusionSourceTable || !fusionSelected.size) return;
+  showLoader(true);
+  try {
+    const selTables = Array.from(fusionSelected).map(id => allTables.find(t => t.id === id)).filter(Boolean);
+    const totalCap = (fusionSourceTable.capacite || 4) + selTables.reduce((s, t) => s + (t.capacite || 4), 0);
+    const mergedIds = selTables.map(t => t.numero).join(',');
+    const allNums = [fusionSourceTable.numero, ...selTables.map(t => t.numero)].sort((a, b) => a - b);
+
+    // Supprimer une éventuelle fusion existante pour cette source+date
+    const existing = planFusions.find(f => f.source_id === fusionSourceTable.id && f.date === planDate);
+    if (existing) await deleteFusion(existing.id);
+
+    // Créer la fusion pour ce jour seulement — tables_salle n'est PAS modifié
+    await createFusion({
+      date: planDate,
+      zone: planZone,
+      source_id: fusionSourceTable.id,
+      merged_ids: mergedIds,
+      capacite_totale: totalCap
+    });
+
+    showLoader(false);
+    document.getElementById('modal-fusion').classList.remove('open');
+    fusionSourceTable = null;
+    fusionSelected = new Set();
+    toast('Tables ' + allNums.join(' + ') + ' fusionnées pour ce jour ✓', 'ok');
+    loadPlan();
+  } catch (e) {
+    showLoader(false);
+    toast('Erreur lors de la fusion', 'ko');
+  }
+};
+
 // ── INIT ──────────────────────────────────────────────────────
 loadResas();
 initPolling();
@@ -1130,6 +1375,32 @@ initPolling();
 <div class="merge-bar" id="merge-bar">
   <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
   <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
+</div>
+
+<!-- MODAL RÉAFFECTATION TABLE -->
+<div class="modal-fusion" id="modal-reassign">
+  <div class="modal-fusion-box">
+    <div class="modal-fusion-title" id="reassign-title">🔄 Déplacer vers une autre table</div>
+    <div class="modal-fusion-sub" id="reassign-sub">Touchez la table cible</div>
+    <div class="fusion-chip-grid" id="reassign-chip-grid"></div>
+    <div class="modal-btns" style="margin-top:4px;">
+      <button class="btn-cancel" id="reassign-cancel">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FUSION TABLES -->
+<div class="modal-fusion" id="modal-fusion">
+  <div class="modal-fusion-box">
+    <div class="modal-fusion-title" id="fusion-title">🔗 Fusionner la Table X</div>
+    <div class="modal-fusion-sub">Touchez les tables à joindre, puis confirmez</div>
+    <div class="fusion-chip-grid" id="fusion-chip-grid"></div>
+    <div class="fusion-total" id="fusion-total">Sélectionnez au moins une table</div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="fusion-cancel">Annuler</button>
+      <button class="btn-primary" id="fusion-confirm" disabled>🔗 Fusionner</button>
+    </div>
+  </div>
 </div>
 
 <!-- EDIT TABLE MODAL -->
