@@ -1674,6 +1674,10 @@ function openEditTableModal(table){
   document.getElementById('edit-table-cap').value = table.capacite;
   setFormeActive(table.forme || (table.capacite<=2?'carre':'rectangle'));
   setRotationActive(table.rotation || 0);
+  // Table fusionnée : toujours montrer l'option d'orientation (elle est toujours rectangulaire)
+  if(table.merged_with){
+    document.getElementById('rotation-group').style.display = '';
+  }
   document.getElementById('edit-table-modal').classList.add('open');
 }
 
