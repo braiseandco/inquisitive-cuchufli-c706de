@@ -390,6 +390,73 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
+<!-- NOTIFICATION BANNER -->
+<div class="notif-banner" id="notif-banner">
+  <div class="notif-inner">
+    <div class="notif-icon">🔔</div>
+    <div class="notif-text">
+      <div class="notif-title" id="notif-title">Nouvelle réservation !</div>
+      <div class="notif-sub" id="notif-sub"></div>
+    </div>
+    <button class="notif-close" id="notif-close">Voir</button>
+  </div>
+</div>
+<div class="new-resa-badge" id="new-resa-badge" title="Nouvelle réservation">
+  <div class="pulse-ring"></div>
+  🔔
+</div>
+
+<!-- MERGE BAR -->
+<div class="merge-bar" id="merge-bar">
+  <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
+  <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
+</div>
+
+<!-- MODAL RÉAFFECTATION TABLE -->
+<div class="modal-fusion" id="modal-reassign">
+  <div class="modal-fusion-box">
+    <div class="modal-fusion-title" id="reassign-title">🔄 Déplacer vers une autre table</div>
+    <div class="modal-fusion-sub" id="reassign-sub">Touchez la table cible</div>
+    <div class="fusion-chip-grid" id="reassign-chip-grid"></div>
+    <div class="modal-btns" style="margin-top:4px;">
+      <button class="btn-cancel" id="reassign-cancel">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FUSION TABLES -->
+<div class="modal-fusion" id="modal-fusion">
+  <div class="modal-fusion-box">
+    <div class="modal-fusion-title" id="fusion-title">🔗 Fusionner la Table X</div>
+    <div class="modal-fusion-sub">Touchez les tables à joindre, puis confirmez</div>
+    <div class="fusion-chip-grid" id="fusion-chip-grid"></div>
+    <div class="fusion-total" id="fusion-total">Sélectionnez au moins une table</div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="fusion-cancel">Annuler</button>
+      <button class="btn-primary" id="fusion-confirm" disabled>🔗 Fusionner</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TABLE MODAL -->
+<div class="edit-table-modal" id="edit-table-modal">
+  <div class="edit-table-box">
+    <div class="edit-table-title">✏️ Modifier la table</div>
+    <div class="field-group">
+      <label class="field-label">Numéro</label>
+      <input type="number" class="field-input" id="edit-table-num" placeholder="1" min="1" max="999">
+    </div>
+    <div class="field-group">
+      <label class="field-label">Capacité (couverts)</label>
+      <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
+      <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
 <!-- MINI CALENDRIER -->
 <div id="mini-cal-overlay" style="display:none;position:fixed;inset:0;z-index:699;" onclick="closeMiniCal()"></div>
 <div class="mini-cal-popup" id="mini-cal-popup">
@@ -976,7 +1043,7 @@ function setupTableInteractions(el, table, allVisible){
   function start(cx,cy){
     t0=Date.now(); x0=cx; y0=cy; dragging=false;
     ox=table.x_pos||80; oy=table.y_pos||80;
-    longTimer=setTimeout(()=>{ if(!dragging) openEditTableModal(table); },700);
+    longTimer=setTimeout(()=>{ if(!dragging) openEditTableModal(table); },1500);
   }
   el.addEventListener('mousedown', e=>{ start(e.clientX,e.clientY); e.stopPropagation(); });
   el.addEventListener('touchstart', e=>{ const t=e.touches[0]; start(t.clientX,t.clientY); }, {passive:true});
@@ -1478,7 +1545,7 @@ document.getElementById('fusion-confirm').onclick = async function () {
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-03-21.4';
+const APP_VERSION = '2026-03-21.5';
 const VERSION_URL = '/version.json';
 
 async function checkAndUpdate(){
@@ -1526,71 +1593,4 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW:',e));
 }
 </script>
-
-
-<!-- NOTIFICATION BANNER -->
-<div class="notif-banner" id="notif-banner">
-  <div class="notif-inner">
-    <div class="notif-icon">🔔</div>
-    <div class="notif-text">
-      <div class="notif-title" id="notif-title">Nouvelle réservation !</div>
-      <div class="notif-sub" id="notif-sub"></div>
-    </div>
-    <button class="notif-close" id="notif-close">Voir</button>
-  </div>
-</div>
-<div class="new-resa-badge" id="new-resa-badge" title="Nouvelle réservation">
-  <div class="pulse-ring"></div>
-  🔔
-</div>
-<!-- MERGE BAR -->
-<div class="merge-bar" id="merge-bar">
-  <div class="merge-bar-text" id="merge-bar-text">Déposez sur une table pour fusionner</div>
-  <button class="merge-bar-btn merge-cancel-btn" id="merge-cancel-btn">Annuler</button>
-</div>
-
-<!-- MODAL RÉAFFECTATION TABLE -->
-<div class="modal-fusion" id="modal-reassign">
-  <div class="modal-fusion-box">
-    <div class="modal-fusion-title" id="reassign-title">🔄 Déplacer vers une autre table</div>
-    <div class="modal-fusion-sub" id="reassign-sub">Touchez la table cible</div>
-    <div class="fusion-chip-grid" id="reassign-chip-grid"></div>
-    <div class="modal-btns" style="margin-top:4px;">
-      <button class="btn-cancel" id="reassign-cancel">Annuler</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL FUSION TABLES -->
-<div class="modal-fusion" id="modal-fusion">
-  <div class="modal-fusion-box">
-    <div class="modal-fusion-title" id="fusion-title">🔗 Fusionner la Table X</div>
-    <div class="modal-fusion-sub">Touchez les tables à joindre, puis confirmez</div>
-    <div class="fusion-chip-grid" id="fusion-chip-grid"></div>
-    <div class="fusion-total" id="fusion-total">Sélectionnez au moins une table</div>
-    <div class="modal-btns">
-      <button class="btn-cancel" id="fusion-cancel">Annuler</button>
-      <button class="btn-primary" id="fusion-confirm" disabled>🔗 Fusionner</button>
-    </div>
-  </div>
-</div>
-
-<!-- EDIT TABLE MODAL -->
-<div class="edit-table-modal" id="edit-table-modal">
-  <div class="edit-table-box">
-    <div class="edit-table-title">✏️ Modifier la table</div>
-    <div class="field-group">
-      <label class="field-label">Numéro</label>
-      <input type="number" class="field-input" id="edit-table-num" placeholder="1" min="1" max="999">
-    </div>
-    <div class="field-group">
-      <label class="field-label">Capacité (couverts)</label>
-      <input type="number" class="field-input" id="edit-table-cap" placeholder="4" min="1" max="50">
-    </div>
-    <div class="modal-btns">
-      <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
-      <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
-    </div>
-  </div>
-</div>
 </body></html>
