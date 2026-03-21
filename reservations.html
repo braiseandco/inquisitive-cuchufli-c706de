@@ -392,6 +392,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <button class="btn-unassign" id="tp-change-table" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;font-weight:700;margin-top:8px;padding:14px;">↔ Changer de table</button>
   <button class="btn-unassign" id="tp-absent" style="display:none;background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef9a9a;font-size:12px;margin-top:8px;">⚠️ Client absent (No-show)</button>
   <button class="btn-unassign" id="tp-defuse" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;margin-top:8px;">⬌ Défusionner les tables</button>
+  <button class="btn-unassign" id="tp-merge" style="display:none;background:rgba(255,107,0,0.1);border-color:rgba(255,107,0,0.4);color:var(--accent);font-weight:700;margin-top:8px;">⬌ Fusionner avec une autre table</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
 <div id="table-panel-overlay" style="display:none;position:fixed;inset:0;z-index:599;"></div>
@@ -663,6 +664,7 @@ let planDate=todayStr(),planService='midi',planZone='interieur';
 let currentResaId=null,editMode=false;
 let allTables=[],tableResas={},allElements=[];
 let pendingResaId=null,pendingTableId=null; // pour assigner une table depuis le plan
+let pendingMergeId=null; // pour fusionner deux tables depuis le panel
 
 // Update topbar date
 function updateTopbar(){
@@ -1579,7 +1581,22 @@ function setupTableInteractions(el, table, allVisible){
 
     if(!dragging){
       // ── SIMPLE TAP ──
-      if(pendingResaId && !tableResas[table.id]){
+      if(pendingMergeId && pendingMergeId !== table.id){
+        // Fusion depuis le bouton panel
+        const srcId = pendingMergeId; pendingMergeId = null;
+        document.getElementById('merge-bar').classList.remove('show');
+        const src = allTables.find(t=>t.id===srcId);
+        if(src && confirm('Fusionner Table '+src.numero+' avec Table '+table.numero+' ?')){
+          showLoader(true);
+          try{
+            const newCap = (src.capacite||4)+(table.capacite||4);
+            await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), merged_with:String(table.numero), capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos});
+            await updateTable(table.id,{x_pos:-500, y_pos:-500, capacite_origine:table.capacite||4});
+            showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
+          }catch(e){showLoader(false);toast('Erreur','ko');}
+        }
+        return;
+      } else if(pendingResaId && !tableResas[table.id]){
         // Assignation d'une résa existante en attente
         const rid=pendingResaId; pendingResaId=null;
         document.getElementById('assign-banner').style.display='none';
@@ -1811,13 +1828,23 @@ async function openTablePanel(table, resa){
 
   // Bouton défusion : visible uniquement si la table est fusionnée
   const defuseBtn = document.getElementById('tp-defuse');
+  const mergeBtn  = document.getElementById('tp-merge');
   if(table.merged_with){
     defuseBtn.style.display = 'block';
     defuseBtn.textContent = '⬌ Défusionner Tables '+table.numero+' & '+table.merged_with;
+    mergeBtn.style.display = 'none';
   } else {
     defuseBtn.style.display = 'none';
+    mergeBtn.style.display = 'block';
   }
 }
+
+document.getElementById('tp-merge').onclick = function(){
+  closeTablePanel();
+  pendingMergeId = currentTableId;
+  document.getElementById('merge-bar').classList.add('show');
+  document.getElementById('merge-bar-text').textContent = '⬌ Tapez sur une autre table pour fusionner';
+};
 
 async function assignTable(resaId, tableId){
   showLoader(true);
