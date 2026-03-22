@@ -13,7 +13,22 @@
 <script>
   if('serviceWorker' in navigator){
     window.addEventListener('load', function(){
-      navigator.serviceWorker.register('sw.js').catch(function(){});
+      navigator.serviceWorker.register('sw.js').then(function(reg){
+        // Dès qu'un nouveau SW est trouvé, on attend qu'il soit actif puis on recharge
+        reg.addEventListener('updatefound', function(){
+          var newSW = reg.installing;
+          newSW.addEventListener('statechange', function(){
+            if(newSW.state === 'activated'){
+              window.location.reload();
+            }
+          });
+        });
+      }).catch(function(){});
+      // Rechargement auto si le SW change de controller (ex: après skipWaiting)
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if(!refreshing){ refreshing = true; window.location.reload(); }
+      });
     });
   }
 </script>
