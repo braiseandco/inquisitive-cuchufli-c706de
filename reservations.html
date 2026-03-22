@@ -1163,29 +1163,31 @@ async function openDetail(id){
           return;
         }
         showLoader(true);
-        await updateResa(id,{statut:p.dataset.status});
-        if(p.dataset.status==='confirmee'){
-          if(r.email){
-            envoyerConfirmationEmail(r);
-            await updateResa(id,{mail_confirmation_envoye:true});
-          }
-          showLoader(false);
-          document.getElementById('modal-detail').classList.remove('open');
-          // Alerte SMS
-          if(r.telephone){
-            const smsSent = confirm('📱 Envoyer SMS au : ' + r.telephone + '\n\nSMS envoyé ?');
-            if(smsSent){
-              await updateResa(id,{sms_envoye:true});
-              loadResas();
+        try{
+          await updateResa(id,{statut:p.dataset.status});
+          if(p.dataset.status==='confirmee'){
+            if(r.email){
+              envoyerConfirmationEmail(r);
+              await updateResa(id,{mail_confirmation_envoye:true});
             }
+            showLoader(false);
+            document.getElementById('modal-detail').classList.remove('open');
+            // Alerte SMS
+            if(r.telephone){
+              const smsSent = confirm('📱 Envoyer SMS au : ' + r.telephone + '\n\nSMS envoyé ?');
+              if(smsSent){
+                await updateResa(id,{sms_envoye:true});
+                loadResas();
+              }
+            }
+            toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
+          } else {
+            showLoader(false);
+            document.getElementById('modal-detail').classList.remove('open');
+            toast('Statut mis à jour ✓','ok');
           }
-          toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
-        } else {
-          showLoader(false);
-          document.getElementById('modal-detail').classList.remove('open');
-          toast('Statut mis à jour ✓','ok');
-        }
-        loadResas();
+          loadResas();
+        }catch(e){showLoader(false);toast('Erreur mise à jour statut','ko');console.error(e);}
       };
     });
 
