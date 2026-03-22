@@ -393,6 +393,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <button class="btn-unassign" id="tp-absent" style="display:none;background:rgba(229,57,53,0.12);border-color:rgba(229,57,53,0.3);color:#ef9a9a;font-size:12px;margin-top:8px;">⚠️ Client absent (No-show)</button>
   <button class="btn-unassign" id="tp-defuse" style="display:none;background:rgba(30,136,229,0.1);border-color:rgba(30,136,229,0.4);color:#64b5f6;margin-top:8px;">⬌ Défusionner les tables</button>
   <button class="btn-unassign" id="tp-merge" style="display:none;background:rgba(255,107,0,0.1);border-color:rgba(255,107,0,0.4);color:var(--accent);font-weight:700;margin-top:8px;">⬌ Fusionner avec une autre table</button>
+  <button class="btn-unassign" id="tp-new-resa" style="display:none;background:rgba(67,160,71,0.1);border-color:rgba(67,160,71,0.4);color:#a5d6a7;font-weight:700;margin-top:8px;">➕ Nouvelle réservation</button>
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
 <div id="table-panel-overlay" style="display:none;position:fixed;inset:0;z-index:599;"></div>
@@ -1624,8 +1625,8 @@ function setupTableInteractions(el, table, allVisible){
         document.getElementById('assign-banner').style.display='none';
         assignTable(rid,table.id);
       } else if(!tableResas[table.id]){
-        // Table LIBRE → ouvrir formulaire nouvelle résa directement
-        openNewForm(table.id, table.numero);
+        // Table LIBRE → panel (permet Fusionner + Nouvelle résa)
+        openTablePanel(table, null);
       } else {
         // Table OCCUPÉE → voir le détail
         openTablePanel(table, tableResas[table.id]);
@@ -1848,9 +1849,10 @@ async function openTablePanel(table, resa){
   document.getElementById('table-panel').classList.add('open');
   document.getElementById('table-panel-overlay').style.display = 'block';
 
-  // Bouton défusion : visible uniquement si la table est fusionnée
+  // Bouton défusion / fusion
   const defuseBtn = document.getElementById('tp-defuse');
   const mergeBtn  = document.getElementById('tp-merge');
+  const newResaBtn = document.getElementById('tp-new-resa');
   if(table.merged_with){
     defuseBtn.style.display = 'block';
     defuseBtn.textContent = '⬌ Défusionner Tables '+table.numero+' & '+table.merged_with;
@@ -1858,6 +1860,13 @@ async function openTablePanel(table, resa){
   } else {
     defuseBtn.style.display = 'none';
     mergeBtn.style.display = 'block';
+  }
+  // Bouton nouvelle résa : seulement pour table libre
+  if(!resa){
+    newResaBtn.style.display = 'block';
+    newResaBtn.onclick = ()=>{ closeTablePanel(); openNewForm(table.id, table.numero); };
+  } else {
+    newResaBtn.style.display = 'none';
   }
 }
 
