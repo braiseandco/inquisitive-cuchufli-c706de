@@ -309,6 +309,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="topbar-date" id="topbar-date">mar. 17 mars</div>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
+    <button id="btn-update" title="Vérifier les mises à jour" onclick="checkAndUpdate()" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:none;color:var(--text-faint);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">🔄</button>
   </div>
 
   <!-- TABS -->
@@ -2198,6 +2199,26 @@ document.getElementById('btn-export-excel').onclick = async function(){
     console.error(e);
   }
 };
+
+// ── MISE À JOUR ───────────────────────────────────────────────
+const APP_VERSION = '2026-03-22.1';
+async function checkAndUpdate(){
+  const btn = document.getElementById('btn-update');
+  btn.style.animation='spin .7s linear infinite';
+  btn.style.pointerEvents='none';
+  try{
+    const res = await fetch('/version.json?_v='+Date.now(),{cache:'no-store'});
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    btn.style.animation=''; btn.style.pointerEvents='';
+    if(!data.version || data.version===APP_VERSION){ toast("Déjà à jour ✓",'ok'); return; }
+    if(confirm('🆕 Nouvelle version disponible !\n\nMettre à jour maintenant ?')){
+      if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
+      if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
+      location.reload(true);
+    }
+  }catch(e){ btn.style.animation=''; btn.style.pointerEvents=''; toast('Erreur vérification','ko'); }
+}
 
 // ── INIT ──────────────────────────────────────────────────────
 loadResas(); // affichage rapide (sans noms de tables)
