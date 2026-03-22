@@ -1564,6 +1564,9 @@ function renderPlan(){
 // ── TABLE INTERACTIONS (click / long-press / drag) ────────────
 let editingTableId = null;
 
+const GRID=20;
+function snap(v){ return Math.round(v/GRID)*GRID; }
+
 function setupTableInteractions(el, table, allVisible){
   let t0=0, x0=0, y0=0, dragging=false, longTimer=null;
   let ox=table.x_pos||80, oy=table.y_pos||80;
@@ -1586,7 +1589,7 @@ function setupTableInteractions(el, table, allVisible){
       el.style.zIndex=999; el.style.opacity='0.8';
     }
     if(!dragging) return;
-    const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
+    const nx=snap(Math.max(0,ox+dx)), ny=snap(Math.max(0,oy+dy));
     el.style.left=nx+'px'; el.style.top=ny+'px';
     // merge highlight
     allVisible.forEach(t2=>{
@@ -1603,7 +1606,7 @@ function setupTableInteractions(el, table, allVisible){
       el.style.zIndex=999; el.style.opacity='0.8';
     }
     if(!dragging)return;
-    const nx=Math.max(10,ox+dx), ny=Math.max(10,oy+dy);
+    const nx=snap(Math.max(0,ox+dx)), ny=snap(Math.max(0,oy+dy));
     el.style.left=nx+'px'; el.style.top=ny+'px';
     allVisible.forEach(t2=>{
       if(t2.id===table.id)return;
@@ -1678,7 +1681,8 @@ function setupTableInteractions(el, table, allVisible){
         el.style.left=ox+'px'; el.style.top=oy+'px';
       }
     }else{
-      const nx=parseInt(el.style.left), ny=parseInt(el.style.top);
+      const nx=snap(parseInt(el.style.left)), ny=snap(parseInt(el.style.top));
+      el.style.left=nx+'px'; el.style.top=ny+'px';
       table.x_pos=nx; table.y_pos=ny;
       try{ await updateTable(table.id,{x_pos:nx,y_pos:ny}); }
       catch(e){ toast('Erreur sauvegarde','ko'); }
