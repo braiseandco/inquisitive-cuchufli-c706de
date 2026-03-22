@@ -1054,11 +1054,17 @@ function renderResas(resas){
   container.querySelectorAll('.resa-card').forEach(card=>{
     card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
     card.addEventListener('touchend',function(e){
-      // Si le tap est sur le bouton arrivée, laisser son onclick gérer
       if(e.target.closest('.btn-arrivee,.btn-delete-resa')) return;
       if(e.cancelable)e.preventDefault();
       clickResa(this.dataset.id, this.dataset.tableId);
     },{passive:false});
+    // Bouton arrivée : bind explicite pour tablette Android (plus fiable qu'inline onclick)
+    const btnArr = card.querySelector('.btn-arrivee');
+    if(btnArr){
+      const rid = btnArr.dataset.id;
+      btnArr.addEventListener('click',function(e){ e.stopPropagation(); marquerArrive(rid); });
+      btnArr.addEventListener('touchend',function(e){ e.stopPropagation(); if(e.cancelable)e.preventDefault(); marquerArrive(rid); },{passive:false});
+    }
   });
 }
 
@@ -1105,7 +1111,7 @@ function resaCardHtml(r){
       (r.telephone?'<div style="font-size:13px;color:#ffa726;font-weight:800;margin-top:2px;letter-spacing:0.5px;">📞 '+esc(r.telephone)+'</div>':'')+
     '</div>'+
     '<div class="resa-pax">'+r.personnes+'p</div>'+
-    (!isArrivee?'<button class="btn-arrivee" data-id="'+r.id+'" title="Marquer arrivé" onclick="event.stopPropagation();marquerArrive(\''+r.id+'\')">→ Arrivée ?</button>':'')+
+    (!isArrivee?'<button class="btn-arrivee" data-id="'+r.id+'" title="Marquer arrivé">→ Arrivée ?</button>':'')+
     '<button class="btn-delete-resa" data-id="'+r.id+'" title="Supprimer" onclick="event.stopPropagation();supprimerResa(\''+r.id+'\')" style="margin-left:6px;background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑</button>'+
     '</div>'+
     '<div class="resa-meta">'+tableBadge+
@@ -1972,9 +1978,9 @@ async function marquerArrive(id){
     const mm = String(now.getMinutes()).padStart(2,'0');
     await updateResa(id, {statut:'arrivee'});
     arrivedTimes[id] = hh+':'+mm;
-    loadResas();
     toast('✓ Client arrivé !','ok');
-  }catch(e){ toast('Erreur','ko'); console.error(e); }
+    loadResas(null, true); // silent : pas de spinner pour ce rechargement
+  }catch(e){ toast('Erreur arrivée','ko'); console.error(e); }
 }
 
 // Recalcule les classes "en-retard" toutes les 60s sans recharger les données
