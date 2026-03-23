@@ -927,7 +927,7 @@ async function saveSchedule() {
             evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
   try {
-    await sb('schedules', {method:'POST', body: JSON.stringify(rows),
+    await sb('schedules?on_conflict=employee_id,day_of_week', {method:'POST', body: JSON.stringify(rows),
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
     closeModal('modalSchedule');
     toast('Horaires enregistrés');
