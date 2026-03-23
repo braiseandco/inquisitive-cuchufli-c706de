@@ -382,11 +382,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 
   <!-- Réglages -->
   <div class="tab-content" id="tab-settings">
-    <div class="setting-row">
-      <div class="section-title">Email du rapport (dimanche 19h)</div>
-      <input class="form-input" type="email" id="settingEmail" placeholder="manager@email.com">
-      <button class="btn-save-setting" onclick="saveSetting('manager_email', document.getElementById('settingEmail').value)">Enregistrer</button>
+    <div class="section-head" style="margin-bottom:16px">
+      <div class="section-title">Rapports PDF</div>
     </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Génère un PDF avec le planning et les signatures pour n'importe quelle semaine.</p>
+    <div class="form-group">
+      <label class="form-label">Semaine (choisir un jour de la semaine)</label>
+      <input class="form-input" type="date" id="reportWeekDate">
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printPlanningReportForDate()">🖨️ Générer le PDF</button>
+    <div id="recentWeeksList" style="margin-top:24px"></div>
   </div>
 </div>
 
@@ -850,7 +855,7 @@ function switchTab(id, btn) {
   if (id==='tab-employees') loadEmpCards();
   if (id==='tab-planning') loadPlanningTab();
   if (id==='tab-signatures') loadSigTab();
-  if (id==='tab-settings') loadSettings();
+  if (id==='tab-settings') loadSettingsTab();
 }
 
 async function loadMgrDash() {
@@ -1300,10 +1305,37 @@ async function loadPlanningTab() {
   document.getElementById('planningBlocks').innerHTML = html;
 }
 
-async function printPlanningReport() {
+function printPlanningReportForDate() {
+  const val = document.getElementById('reportWeekDate').value;
+  if (!val) { toast('Choisissez une date'); return; }
+  printPlanningReport(getMonday(new Date(val + 'T12:00')));
+}
+
+async function loadSettingsTab() {
+  const today = new Date();
+  document.getElementById('reportWeekDate').value = dateStr(getMonday(today));
+  // Afficher les 8 dernières semaines
+  const list = document.getElementById('recentWeeksList');
+  let html = '<div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Semaines récentes</div>';
+  for (let i = 0; i < 8; i++) {
+    const mon = getMonday(new Date(today));
+    mon.setDate(mon.getDate() - i * 7);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const label = `${mon.getDate()}/${mon.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}/${sun.getFullYear()}`;
+    const monCopy = dateStr(mon);
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
+      <span style="font-size:13px">${i === 0 ? '📅 Cette semaine' : label}</span>
+      <button class="btn-add" style="font-size:11px;padding:7px 12px" onclick="printPlanningReport(getMonday(new Date('${monCopy}T12:00')))">🖨️ PDF</button>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function printPlanningReport(week) {
+  if (!week) week = planningWeek;
   if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
-  const dates = weekDates(planningWeek);
-  const weekStart = dateStr(planningWeek);
+  const dates = weekDates(week);
+  const weekStart = dateStr(week);
   const weekEnd   = dateStr(dates[6]);
 
   const [allScheds, allOv, allSigs] = await Promise.all([
