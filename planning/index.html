@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#e53935">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Planning">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="../planning-icon-192.png">
+<title>Braise &amp; Co — Planning</title>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;
+  --accent:#e53935;--accent2:#ff7043;--accent3:#ffcc02;
+  --green:#43a047;--blue:#1e88e5;--orange:#FF6B00;
+  --text:#F0EDE8;--text-dim:rgba(240,237,232,0.5);--text-faint:rgba(240,237,232,0.22);
+  --border:rgba(229,57,53,0.18);--border2:rgba(229,57,53,0.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway',sans-serif;color:var(--text);}
+
+.screen{display:none;flex-direction:column;height:100%;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.topbar-logo{font-family:'Cinzel',serif;font-size:15px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.topbar-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-faint);}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.topbar-date{font-size:12px;color:var(--text-dim);letter-spacing:1px;}
+.btn-mgr{background:none;border:1px solid var(--border2);color:var(--text-dim);font-size:10px;letter-spacing:1px;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:'Raleway',sans-serif;}
+.btn-mgr:active{background:rgba(229,57,53,0.1);}
+
+/* HOME — liste employés */
+#home .content{flex:1;overflow-y:auto;padding:24px 20px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px;align-content:start;}
+.emp-btn{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:all .15s;position:relative;}
+.emp-btn:active{transform:scale(.97);background:var(--bg3);}
+.emp-btn.signed{border-color:var(--green);}
+.emp-avatar{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;font-family:'Cinzel',serif;color:#fff;}
+.emp-name{font-size:14px;font-weight:700;letter-spacing:.5px;text-align:center;}
+.emp-signed-badge{position:absolute;top:10px;right:10px;background:var(--green);color:#fff;font-size:9px;font-weight:700;padding:3px 7px;border-radius:20px;letter-spacing:.5px;}
+.home-week{text-align:center;padding:14px;font-size:11px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);}
+.empty-msg{grid-column:1/-1;text-align:center;color:var(--text-faint);padding:60px 20px;font-size:14px;line-height:2;}
+
+/* SIGN screen */
+#sign .topbar .btn-back{background:none;border:none;color:var(--text-dim);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;}
+#sign .week-grid{flex-shrink:0;padding:16px 20px;display:flex;flex-direction:column;gap:8px;background:var(--bg2);border-bottom:1px solid var(--border);}
+.day-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;background:var(--bg3);}
+.day-row.off{opacity:.45;}
+.day-row.absent{background:rgba(229,57,53,.1);border:1px solid rgba(229,57,53,.25);}
+.day-row.vacation{background:rgba(30,136,229,.08);border:1px solid rgba(30,136,229,.2);}
+.day-label{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);width:36px;}
+.day-status{flex:1;font-size:13px;font-weight:600;}
+.day-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;}
+.day-badge.absent{background:rgba(229,57,53,.2);color:#ef9a9a;}
+.day-badge.vacation{background:rgba(30,136,229,.15);color:#90caf9;}
+.day-badge.off{background:rgba(240,237,232,.07);color:var(--text-faint);}
+
+#sign .sig-section{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:12px;overflow:hidden;}
+.sig-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
+.sig-canvas-wrap{flex:1;border:2px dashed var(--border2);border-radius:14px;position:relative;overflow:hidden;background:rgba(255,255,255,0.03);}
+#sigCanvas{width:100%;height:100%;display:block;touch-action:none;}
+.sig-clear{position:absolute;top:10px;right:10px;background:var(--bg3);border:1px solid var(--border2);color:var(--text-dim);font-size:11px;padding:5px 12px;border-radius:8px;cursor:pointer;font-family:'Raleway',sans-serif;}
+.sig-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-faint);font-size:13px;pointer-events:none;text-align:center;line-height:1.8;}
+.btn-sign{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:14px;padding:18px;font-size:15px;font-weight:700;font-family:'Raleway',sans-serif;letter-spacing:1px;cursor:pointer;flex-shrink:0;}
+.btn-sign:disabled{opacity:.35;cursor:not-allowed;}
+.already-signed{background:rgba(67,160,71,.1);border:1px solid rgba(67,160,71,.3);border-radius:14px;padding:20px;text-align:center;color:#a5d6a7;font-size:14px;flex-shrink:0;}
+
+/* MANAGER LOGIN */
+#mgr-login{justify-content:center;align-items:center;gap:24px;padding:40px;}
+#mgr-login .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px 32px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:20px;align-items:center;}
+#mgr-login h2{font-family:'Cinzel',serif;font-size:18px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.pin-display{display:flex;gap:12px;justify-content:center;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);transition:all .15s;}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent);}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;}
+.pin-key{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:18px;font-size:20px;font-weight:700;text-align:center;cursor:pointer;transition:all .1s;color:var(--text);}
+.pin-key:active{background:rgba(229,57,53,.15);border-color:var(--accent);}
+.pin-err{color:var(--accent);font-size:12px;text-align:center;min-height:18px;}
+.btn-cancel{background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;font-family:'Raleway',sans-serif;letter-spacing:1px;padding:8px;}
+
+/* MANAGER DASHBOARD */
+#mgr-dash .tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;}
+#mgr-dash .tab{flex:1;padding:13px 8px;text-align:center;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:'Raleway',sans-serif;transition:all .2s;}
+#mgr-dash .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-content{display:none;flex:1;overflow-y:auto;padding:20px;}
+.tab-content.active{display:block;}
+
+/* Employés tab */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.section-title{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
+.btn-add{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:12px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;letter-spacing:.5px;}
+.emp-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px;}
+.emp-card-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#fff;flex-shrink:0;}
+.emp-card-name{flex:1;font-size:15px;font-weight:700;}
+.emp-card-sub{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.btn-del{background:rgba(229,57,53,.1);border:1px solid rgba(229,57,53,.25);color:#ef9a9a;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;}
+.btn-edit-sched{background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.25);color:#ffcc80;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-right:6px;}
+
+/* Planning tab */
+.week-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.week-nav-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:18px;cursor:pointer;}
+.week-label{font-size:13px;font-weight:700;color:var(--text-dim);letter-spacing:.5px;}
+.planning-emp-block{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden;}
+.planning-emp-head{padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);}
+.planning-emp-name{font-size:14px;font-weight:700;}
+.planning-days{padding:10px 16px;display:flex;flex-direction:column;gap:6px;}
+.planning-day{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg3);}
+.planning-day-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);width:32px;}
+.planning-day-info{flex:1;font-size:12px;}
+.btn-override{background:var(--bg);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:'Raleway',sans-serif;}
+
+/* Signatures tab */
+.sig-week-block{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:16px;}
+.sig-emp-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.sig-emp-row:last-child{border-bottom:none;}
+.sig-status{margin-left:auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;}
+.sig-status.ok{background:rgba(67,160,71,.15);color:#a5d6a7;}
+.sig-status.nok{background:rgba(229,57,53,.1);color:#ef9a9a;}
+.sig-thumb{width:80px;height:40px;border-radius:6px;border:1px solid var(--border);object-fit:contain;background:#fff;cursor:pointer;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:28px 24px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;}
+.modal h3{font-family:'Cinzel',serif;font-size:16px;margin-bottom:20px;color:var(--accent);}
+.form-group{margin-bottom:16px;}
+.form-label{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:'Raleway',sans-serif;outline:none;}
+.form-input:focus{border-color:var(--accent);}
+.color-picker-row{display:flex;gap:10px;flex-wrap:wrap;}
+.color-swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;}
+.color-swatch.selected{border-color:#fff;transform:scale(1.15);}
+.modal-btns{display:flex;gap:12px;margin-top:20px;}
+.btn-primary{flex:1;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-size:13px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;}
+.btn-secondary{flex:1;background:var(--bg3);color:var(--text-dim);border:1px solid var(--border);border-radius:10px;padding:13px;font-size:13px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;}
+.schedule-grid{display:flex;flex-direction:column;gap:8px;}
+.schedule-row{display:flex;align-items:center;gap:8px;}
+.schedule-day-name{font-size:12px;font-weight:700;width:36px;color:var(--text-dim);}
+.schedule-check{width:18px;height:18px;accent-color:var(--accent);}
+.time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
+.sep{color:var(--text-faint);}
+
+/* override modal */
+.override-opts{display:flex;gap:10px;margin-bottom:16px;}
+.ov-opt{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;text-align:center;font-size:12px;font-weight:700;transition:all .15s;}
+.ov-opt.selected{border-color:var(--accent);background:rgba(229,57,53,.1);color:var(--accent);}
+
+/* Toast */
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 24px;border-radius:30px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* Settings tab */
+.setting-row{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
+.setting-row .form-input{margin-top:8px;}
+.btn-save-setting{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:12px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-top:10px;}
+</style>
+</head>
+<body>
+
+<!-- ═══ HOME ═══ -->
+<div class="screen active" id="home">
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Braise &amp; Co</div>
+      <div class="topbar-sub">Planning</div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-date" id="homeDate"></div>
+      <button class="btn-mgr" onclick="showMgrLogin()">Manager</button>
+    </div>
+  </div>
+  <div class="home-week" id="homeWeek"></div>
+  <div class="content" id="empList">
+    <div class="empty-msg">Chargement...</div>
+  </div>
+</div>
+
+<!-- ═══ SIGN ═══ -->
+<div class="screen" id="sign">
+  <div class="topbar">
+    <button class="btn-back" onclick="showScreen('home')">←</button>
+    <div>
+      <div class="topbar-logo" id="signEmpName">Employé</div>
+      <div class="topbar-sub">Signature semaine</div>
+    </div>
+  </div>
+  <div class="week-grid" id="signWeekGrid"></div>
+  <div class="sig-section">
+    <div class="sig-label">Signature</div>
+    <div class="sig-canvas-wrap" id="sigWrap">
+      <canvas id="sigCanvas"></canvas>
+      <div class="sig-hint" id="sigHint">Signez ici avec le doigt</div>
+      <button class="sig-clear" onclick="clearSig()">Effacer</button>
+    </div>
+    <div class="already-signed" id="alreadySigned" style="display:none">
+      ✓ Vous avez déjà signé cette semaine
+    </div>
+    <button class="btn-sign" id="btnSign" onclick="submitSignature()">Valider ma signature</button>
+  </div>
+</div>
+
+<!-- ═══ MANAGER LOGIN ═══ -->
+<div class="screen" id="mgr-login">
+  <div class="login-box">
+    <h2>Accès Manager</h2>
+    <div class="pin-display" id="pinDisplay">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-pad">
+      <div class="pin-key" onclick="pinKey('1')">1</div>
+      <div class="pin-key" onclick="pinKey('2')">2</div>
+      <div class="pin-key" onclick="pinKey('3')">3</div>
+      <div class="pin-key" onclick="pinKey('4')">4</div>
+      <div class="pin-key" onclick="pinKey('5')">5</div>
+      <div class="pin-key" onclick="pinKey('6')">6</div>
+      <div class="pin-key" onclick="pinKey('7')">7</div>
+      <div class="pin-key" onclick="pinKey('8')">8</div>
+      <div class="pin-key" onclick="pinKey('9')">9</div>
+      <div class="pin-key" onclick="pinKey('del')" style="font-size:16px">⌫</div>
+      <div class="pin-key" onclick="pinKey('0')">0</div>
+      <div class="pin-key" onclick="pinKey('ok')" style="background:rgba(229,57,53,.15);color:var(--accent)">OK</div>
+    </div>
+    <div class="pin-err" id="pinErr"></div>
+    <button class="btn-cancel" onclick="showScreen('home')">Annuler</button>
+  </div>
+</div>
+
+<!-- ═══ MANAGER DASHBOARD ═══ -->
+<div class="screen" id="mgr-dash">
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Manager</div>
+      <div class="topbar-sub">Braise &amp; Co</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-mgr" onclick="showScreen('home')">← Retour</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('tab-employees',this)">Employés</button>
+    <button class="tab" onclick="switchTab('tab-planning',this)">Planning</button>
+    <button class="tab" onclick="switchTab('tab-signatures',this)">Signatures</button>
+    <button class="tab" onclick="switchTab('tab-settings',this)">Réglages</button>
+  </div>
+
+  <!-- Employés -->
+  <div class="tab-content active" id="tab-employees">
+    <div class="section-head">
+      <div class="section-title">Employés</div>
+      <button class="btn-add" onclick="openAddEmployee()">+ Ajouter</button>
+    </div>
+    <div id="empCardList"></div>
+  </div>
+
+  <!-- Planning -->
+  <div class="tab-content" id="tab-planning">
+    <div class="week-nav">
+      <button class="week-nav-btn" onclick="changeWeek(-1)">‹</button>
+      <div class="week-label" id="planningWeekLabel"></div>
+      <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
+    </div>
+    <div id="planningBlocks"></div>
+  </div>
+
+  <!-- Signatures -->
+  <div class="tab-content" id="tab-signatures">
+    <div class="section-head">
+      <div class="section-title">Semaine en cours</div>
+    </div>
+    <div id="sigList"></div>
+  </div>
+
+  <!-- Réglages -->
+  <div class="tab-content" id="tab-settings">
+    <div class="setting-row">
+      <div class="section-title">Email du rapport (dimanche 19h)</div>
+      <input class="form-input" type="email" id="settingEmail" placeholder="manager@email.com">
+      <button class="btn-save-setting" onclick="saveSetting('manager_email', document.getElementById('settingEmail').value)">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL AJOUT EMPLOYÉ ═══ -->
+<div class="modal-overlay" id="modalEmployee">
+  <div class="modal">
+    <h3>Nouvel employé</h3>
+    <div class="form-group">
+      <label class="form-label">Prénom / Nom</label>
+      <input class="form-input" type="text" id="empNameInput" placeholder="Ex: Marie Dupont">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Couleur</label>
+      <div class="color-picker-row" id="colorPicker"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Horaires par défaut</label>
+      <div class="schedule-grid" id="scheduleGrid"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalEmployee')">Annuler</button>
+      <button class="btn-primary" onclick="saveEmployee()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDIT PLANNING ═══ -->
+<div class="modal-overlay" id="modalOverride">
+  <div class="modal">
+    <h3 id="overrideTitle">Modifier journée</h3>
+    <div class="override-opts">
+      <div class="ov-opt selected" id="ov-present" onclick="selectOv('present')">Présent</div>
+      <div class="ov-opt" id="ov-absent" onclick="selectOv('absent')">Absent</div>
+      <div class="ov-opt" id="ov-vacation" onclick="selectOv('vacation')">Congé</div>
+    </div>
+    <div id="ovTimeFields">
+      <div class="form-group">
+        <label class="form-label">Horaires</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input class="time-input" type="time" id="ovStart">
+          <span class="sep">→</span>
+          <input class="time-input" type="time" id="ovEnd">
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note (optionnel)</label>
+      <input class="form-input" type="text" id="ovNote" placeholder="Ex: Formation, réunion...">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalOverride')">Annuler</button>
+      <button class="btn-primary" onclick="saveOverride()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDIT HORAIRES ═══ -->
+<div class="modal-overlay" id="modalSchedule">
+  <div class="modal">
+    <h3 id="schedModalTitle">Horaires de base</h3>
+    <div class="schedule-grid" id="schedEditGrid"></div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalSchedule')">Annuler</button>
+      <button class="btn-primary" onclick="saveSchedule()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════
+const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+const PIN = '2013';
+const COLORS = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
+const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+// ══════════════════════════════════════
+//  SUPABASE HELPERS
+// ══════════════════════════════════════
+async function sb(path, opts={}) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, {
+    headers: {'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+              'Content-Type': 'application/json', 'Prefer': 'return=representation', ...opts.headers},
+    ...opts
+  });
+  if (!r.ok) { const e = await r.text(); throw new Error(e); }
+  const t = await r.text();
+  return t ? JSON.parse(t) : [];
+}
+const GET  = (path) => sb(path);
+const POST = (path, body) => sb(path, {method:'POST', body: JSON.stringify(body)});
+const PATCH= (path, body) => sb(path, {method:'PATCH', body: JSON.stringify(body), headers:{'Prefer':'return=representation'}});
+const DEL  = (path) => sb(path, {method:'DELETE', headers:{'Prefer':'return=representation'}});
+
+// ══════════════════════════════════════
+//  DATE UTILS
+// ══════════════════════════════════════
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+function dateStr(d) {
+  return d.toISOString().split('T')[0];
+}
+function weekDates(monday) {
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+}
+function fmtDate(d) {
+  return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+}
+function fmtWeek(monday) {
+  const sun = new Date(monday); sun.setDate(sun.getDate()+6);
+  return `Semaine du ${fmtDate(monday)} au ${fmtDate(sun)}`;
+}
+
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let employees = [];
+let currentEmpId = null;
+let planningWeek = getMonday(new Date());
+let overrideTarget = null; // {empId, date, dayIdx}
+let scheduleTarget = null; // empId
+let currentOvStatus = 'present';
+let pinBuffer = '';
+
+// ══════════════════════════════════════
+//  SCREEN
+// ══════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ══════════════════════════════════════
+//  HOME
+// ══════════════════════════════════════
+async function initHome() {
+  const now = new Date();
+  document.getElementById('homeDate').textContent = now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('homeWeek').textContent = fmtWeek(getMonday(now));
+  await loadHome();
+}
+
+async function loadHome() {
+  try {
+    employees = await GET('employees?select=*&order=name.asc');
+    const weekStart = dateStr(getMonday(new Date()));
+    const sigs = await GET(`signatures?week_start=eq.${weekStart}&select=employee_id`);
+    const signedIds = new Set(sigs.map(s => s.employee_id));
+
+    const el = document.getElementById('empList');
+    if (!employees.length) {
+      el.innerHTML = '<div class="empty-msg">Aucun employé enregistré.<br>Demandez au manager d\'en ajouter.</div>';
+      return;
+    }
+    el.innerHTML = employees.map(e => `
+      <div class="emp-btn ${signedIds.has(e.id)?'signed':''}" onclick="openSign('${e.id}')">
+        ${signedIds.has(e.id) ? '<div class="emp-signed-badge">✓ Signé</div>' : ''}
+        <div class="emp-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
+        <div class="emp-name">${e.name}</div>
+      </div>
+    `).join('');
+  } catch(err) {
+    console.error(err);
+  }
+}
+
+// ══════════════════════════════════════
+//  SIGN
+// ══════════════════════════════════════
+async function openSign(empId) {
+  currentEmpId = empId;
+  const emp = employees.find(e => e.id === empId);
+  document.getElementById('signEmpName').textContent = emp.name;
+
+  const monday = getMonday(new Date());
+  const weekStart = dateStr(monday);
+  const dates = weekDates(monday);
+
+  // Load schedules + overrides
+  const [scheds, overrides, existSig] = await Promise.all([
+    GET(`schedules?employee_id=eq.${empId}&select=*`),
+    GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=*`),
+    GET(`signatures?employee_id=eq.${empId}&week_start=eq.${weekStart}&select=id`)
+  ]);
+
+  const schedMap = {};
+  scheds.forEach(s => schedMap[s.day_of_week] = s);
+  const overMap = {};
+  overrides.forEach(o => overMap[o.date] = o);
+
+  document.getElementById('signWeekGrid').innerHTML = dates.map((d, i) => {
+    const dayNum = i + 1;
+    const ov = overMap[dateStr(d)];
+    const sched = schedMap[dayNum];
+
+    let cls = '', badgeHtml = '', info = '';
+    if (ov) {
+      if (ov.status === 'absent') {
+        cls = 'absent'; badgeHtml = '<span class="day-badge absent">Absent</span>';
+        info = 'Absence';
+      } else if (ov.status === 'vacation') {
+        cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';
+        info = 'Congé';
+      } else {
+        info = ov.start_time ? `${ov.start_time.slice(0,5)} – ${ov.end_time.slice(0,5)}` : '—';
+      }
+    } else if (sched && !sched.is_off && sched.start_time) {
+      info = `${sched.start_time.slice(0,5)} – ${sched.end_time.slice(0,5)}`;
+    } else {
+      cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>';
+      info = 'Repos';
+    }
+
+    return `<div class="day-row ${cls}">
+      <span class="day-label">${DAYS[i]}</span>
+      <span class="day-status">${fmtDate(d)}</span>
+      <span style="font-size:12px;color:var(--text-dim)">${info}</span>
+      ${badgeHtml}
+    </div>`;
+  }).join('');
+
+  // Signature pad
+  clearSig();
+  const alreadySigned = existSig.length > 0;
+  document.getElementById('alreadySigned').style.display = alreadySigned ? '' : 'none';
+  document.getElementById('btnSign').style.display = alreadySigned ? 'none' : '';
+  document.getElementById('sigWrap').style.display = alreadySigned ? 'none' : '';
+
+  showScreen('sign');
+  if (!alreadySigned) initSigCanvas();
+}
+
+// ── Signature canvas ──
+let sigDrawing = false, sigHasMark = false;
+let sigCtx = null;
+
+function initSigCanvas() {
+  const canvas = document.getElementById('sigCanvas');
+  const wrap = document.getElementById('sigWrap');
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  sigCtx = canvas.getContext('2d');
+  sigCtx.strokeStyle = '#F0EDE8';
+  sigCtx.lineWidth = 2.5;
+  sigCtx.lineCap = 'round';
+  sigCtx.lineJoin = 'round';
+
+  canvas.addEventListener('pointerdown', sigStart);
+  canvas.addEventListener('pointermove', sigMove);
+  canvas.addEventListener('pointerup', sigEnd);
+  canvas.addEventListener('pointercancel', sigEnd);
+}
+
+function getPos(e) {
+  const r = e.target.getBoundingClientRect();
+  return {x: e.clientX - r.left, y: e.clientY - r.top};
+}
+function sigStart(e) {
+  e.preventDefault();
+  sigDrawing = true; sigHasMark = true;
+  document.getElementById('sigHint').style.display = 'none';
+  const p = getPos(e);
+  sigCtx.beginPath();
+  sigCtx.moveTo(p.x, p.y);
+  document.getElementById('btnSign').disabled = false;
+}
+function sigMove(e) {
+  if (!sigDrawing) return;
+  e.preventDefault();
+  const p = getPos(e);
+  sigCtx.lineTo(p.x, p.y);
+  sigCtx.stroke();
+}
+function sigEnd(e) { sigDrawing = false; }
+
+function clearSig() {
+  const canvas = document.getElementById('sigCanvas');
+  if (sigCtx) sigCtx.clearRect(0,0,canvas.width,canvas.height);
+  sigHasMark = false;
+  document.getElementById('sigHint').style.display = '';
+  document.getElementById('btnSign').disabled = true;
+}
+
+async function submitSignature() {
+  if (!sigHasMark) return;
+  const canvas = document.getElementById('sigCanvas');
+  const data = canvas.toDataURL('image/png');
+  const weekStart = dateStr(getMonday(new Date()));
+  try {
+    await POST('signatures', {employee_id: currentEmpId, week_start: weekStart, signature_data: data});
+    toast('Signature enregistrée !');
+    setTimeout(() => { showScreen('home'); loadHome(); }, 1200);
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════
+//  MANAGER LOGIN
+// ══════════════════════════════════════
+function showMgrLogin() {
+  pinBuffer = '';
+  updatePinDisplay();
+  document.getElementById('pinErr').textContent = '';
+  showScreen('mgr-login');
+}
+function pinKey(k) {
+  if (k === 'del') { pinBuffer = pinBuffer.slice(0,-1); }
+  else if (k === 'ok') { checkPin(); return; }
+  else if (pinBuffer.length < 4) { pinBuffer += k; }
+  updatePinDisplay();
+  if (pinBuffer.length === 4) checkPin();
+}
+function updatePinDisplay() {
+  for (let i=0;i<4;i++) {
+    document.getElementById('d'+i).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+function checkPin() {
+  if (pinBuffer === PIN) {
+    showScreen('mgr-dash');
+    loadMgrDash();
+  } else {
+    document.getElementById('pinErr').textContent = 'Code incorrect';
+    pinBuffer = '';
+    updatePinDisplay();
+  }
+}
+
+// ══════════════════════════════════════
+//  MANAGER DASHBOARD
+// ══════════════════════════════════════
+function switchTab(id, btn) {
+  document.querySelectorAll('#mgr-dash .tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#mgr-dash .tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  if (id==='tab-employees') loadEmpCards();
+  if (id==='tab-planning') loadPlanningTab();
+  if (id==='tab-signatures') loadSigTab();
+  if (id==='tab-settings') loadSettings();
+}
+
+async function loadMgrDash() {
+  employees = await GET('employees?select=*&order=name.asc');
+  loadEmpCards();
+  document.getElementById('planningWeekLabel').textContent = fmtWeek(planningWeek);
+}
+
+// ── Employés ──
+function loadEmpCards() {
+  const el = document.getElementById('empCardList');
+  if (!employees.length) { el.innerHTML = '<div style="color:var(--text-faint);text-align:center;padding:40px">Aucun employé</div>'; return; }
+  el.innerHTML = employees.map(e => `
+    <div class="emp-card">
+      <div class="emp-card-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
+      <div style="flex:1">
+        <div class="emp-card-name">${e.name}</div>
+      </div>
+      <button class="btn-edit-sched" onclick="openEditSchedule('${e.id}')">Horaires</button>
+      <button class="btn-del" onclick="deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
+    </div>
+  `).join('');
+}
+
+async function deleteEmployee(id, name) {
+  if (!confirm(`Supprimer ${name} ? Cette action est irréversible.`)) return;
+  await DEL(`employees?id=eq.${id}`);
+  employees = employees.filter(e => e.id !== id);
+  loadEmpCards();
+  toast(`${name} supprimé`);
+}
+
+// ── Add employee ──
+function openAddEmployee() {
+  document.getElementById('empNameInput').value = '';
+  buildColorPicker('modalEmployee', COLORS[0]);
+  buildScheduleGrid('scheduleGrid', null);
+  openModal('modalEmployee');
+}
+
+function buildColorPicker(modalId, selected) {
+  document.getElementById('colorPicker').innerHTML = COLORS.map(c => `
+    <div class="color-swatch ${c===selected?'selected':''}" style="background:${c}" onclick="selectColor('${c}')"></div>
+  `).join('');
+}
+let selectedColor = COLORS[0];
+function selectColor(c) {
+  selectedColor = c;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s.style.background===c));
+}
+
+function buildScheduleGrid(containerId, schedMap) {
+  document.getElementById(containerId).innerHTML = DAYS.map((d,i) => {
+    const dayNum = i+1;
+    const s = schedMap ? schedMap[dayNum] : null;
+    const isOff = s ? s.is_off : (i>=5);
+    const start = s && !s.is_off ? s.start_time.slice(0,5) : '09:00';
+    const end   = s && !s.is_off ? s.end_time.slice(0,5)   : '17:00';
+    return `<div class="schedule-row">
+      <span class="schedule-day-name">${d}</span>
+      <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
+      <div id="times${dayNum}" style="${isOff?'opacity:.3;pointer-events:none':''}">
+        <input type="time" class="time-input" id="st${dayNum}" value="${start}">
+        <span class="sep">→</span>
+        <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDay(dayNum) {
+  const on = document.getElementById('chk'+dayNum).checked;
+  document.getElementById('times'+dayNum).style.opacity = on ? '1' : '.3';
+  document.getElementById('times'+dayNum).style.pointerEvents = on ? '' : 'none';
+}
+
+async function saveEmployee() {
+  const name = document.getElementById('empNameInput').value.trim();
+  if (!name) { toast('Entrez un prénom'); return; }
+  const [emp] = await POST('employees', {name, color: selectedColor});
+  // Save schedules
+  const rows = DAYS.map((_,i) => {
+    const dayNum = i+1;
+    const on = document.getElementById('chk'+dayNum).checked;
+    return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
+            start_time: document.getElementById('st'+dayNum).value || null,
+            end_time:   document.getElementById('et'+dayNum).value || null};
+  });
+  await POST('schedules', rows);
+  employees.push(emp);
+  closeModal('modalEmployee');
+  loadEmpCards();
+  toast(`${name} ajouté !`);
+}
+
+// ── Edit schedule ──
+async function openEditSchedule(empId) {
+  scheduleTarget = empId;
+  const emp = employees.find(e=>e.id===empId);
+  document.getElementById('schedModalTitle').textContent = `Horaires — ${emp.name}`;
+  const scheds = await GET(`schedules?employee_id=eq.${empId}&select=*`);
+  const schedMap = {};
+  scheds.forEach(s => schedMap[s.day_of_week] = s);
+  buildScheduleGrid('schedEditGrid', schedMap);
+  openModal('modalSchedule');
+}
+
+async function saveSchedule() {
+  const rows = DAYS.map((_,i) => {
+    const dayNum = i+1;
+    const on = document.getElementById('chk'+dayNum).checked;
+    return {employee_id: scheduleTarget, day_of_week: dayNum, is_off: !on,
+            start_time: document.getElementById('st'+dayNum).value || null,
+            end_time:   document.getElementById('et'+dayNum).value || null};
+  });
+  // Upsert
+  await sb('schedules', {method:'POST', body: JSON.stringify(rows),
+    headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+  closeModal('modalSchedule');
+  toast('Horaires enregistrés');
+  loadPlanningTab();
+}
+
+// ── Planning tab ──
+function changeWeek(dir) {
+  planningWeek.setDate(planningWeek.getDate() + dir*7);
+  document.getElementById('planningWeekLabel').textContent = fmtWeek(planningWeek);
+  loadPlanningTab();
+}
+
+async function loadPlanningTab() {
+  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+  const dates = weekDates(planningWeek);
+  const weekStart = dateStr(planningWeek);
+  const weekEnd   = dateStr(dates[6]);
+
+  const [allScheds, allOv] = await Promise.all([
+    GET(`schedules?select=*`),
+    GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+  ]);
+
+  document.getElementById('planningBlocks').innerHTML = employees.map(emp => {
+    const schedMap = {};
+    allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
+    const ovMap = {};
+    allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
+
+    const daysHtml = dates.map((d,i) => {
+      const dayNum = i+1;
+      const ov = ovMap[dateStr(d)];
+      const sched = schedMap[dayNum];
+      let info='', cls='';
+      if (ov) {
+        if (ov.status==='absent') { info='Absent'; cls='color:#ef9a9a'; }
+        else if (ov.status==='vacation') { info='Congé'; cls='color:#90caf9'; }
+        else info = ov.start_time ? `${ov.start_time.slice(0,5)}–${ov.end_time.slice(0,5)}` : '—';
+      } else if (sched && !sched.is_off && sched.start_time) {
+        info = `${sched.start_time.slice(0,5)}–${sched.end_time.slice(0,5)}`;
+      } else { info='Repos'; cls='color:var(--text-faint)'; }
+
+      return `<div class="planning-day">
+        <span class="planning-day-name">${DAYS[i]}</span>
+        <span class="planning-day-info" style="${cls}">${info}</span>
+        <button class="btn-override" onclick="openOverride('${emp.id}','${dateStr(d)}',${i})">Modifier</button>
+      </div>`;
+    }).join('');
+
+    return `<div class="planning-emp-block">
+      <div class="planning-emp-head">
+        <div class="emp-card-avatar" style="background:${emp.color};width:32px;height:32px;font-size:13px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700">${emp.name.charAt(0)}</div>
+        <div class="planning-emp-name">${emp.name}</div>
+      </div>
+      <div class="planning-days">${daysHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Override ──
+async function openOverride(empId, dateS, dayIdx) {
+  overrideTarget = {empId, date: dateS, dayIdx};
+  const emp = employees.find(e=>e.id===empId);
+  document.getElementById('overrideTitle').textContent = `${emp.name} — ${DAYS[dayIdx]} ${fmtDate(new Date(dateS+'T12:00'))}`;
+
+  // Load existing override or schedule
+  const [ovRes, schedRes] = await Promise.all([
+    GET(`weekly_overrides?employee_id=eq.${empId}&date=eq.${dateS}&select=*`),
+    GET(`schedules?employee_id=eq.${empId}&day_of_week=eq.${dayIdx+1}&select=*`)
+  ]);
+  const ov = ovRes[0];
+  const sched = schedRes[0];
+
+  selectOv(ov ? ov.status : 'present');
+  document.getElementById('ovStart').value = (ov?.start_time || sched?.start_time || '09:00').slice(0,5);
+  document.getElementById('ovEnd').value   = (ov?.end_time   || sched?.end_time   || '17:00').slice(0,5);
+  document.getElementById('ovNote').value  = ov?.note || '';
+  openModal('modalOverride');
+}
+
+function selectOv(status) {
+  currentOvStatus = status;
+  ['present','absent','vacation'].forEach(s => {
+    document.getElementById('ov-'+s).classList.toggle('selected', s===status);
+  });
+  document.getElementById('ovTimeFields').style.display = status==='present' ? '' : 'none';
+}
+
+async function saveOverride() {
+  const {empId, date} = overrideTarget;
+  const body = {
+    employee_id: empId, date,
+    status: currentOvStatus,
+    start_time: currentOvStatus==='present' ? document.getElementById('ovStart').value : null,
+    end_time:   currentOvStatus==='present' ? document.getElementById('ovEnd').value   : null,
+    note: document.getElementById('ovNote').value || null
+  };
+  await sb('weekly_overrides', {method:'POST', body: JSON.stringify(body),
+    headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+  closeModal('modalOverride');
+  toast('Modifié !');
+  loadPlanningTab();
+}
+
+// ── Signatures tab ──
+async function loadSigTab() {
+  const weekStart = dateStr(getMonday(new Date()));
+  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+  const sigs = await GET(`signatures?week_start=eq.${weekStart}&select=*`);
+  const sigMap = {};
+  sigs.forEach(s => sigMap[s.employee_id] = s);
+
+  document.getElementById('sigList').innerHTML = `
+    <div class="sig-week-block">
+      ${employees.map(emp => {
+        const sig = sigMap[emp.id];
+        return `<div class="sig-emp-row">
+          <div class="emp-card-avatar" style="background:${emp.color};width:36px;height:36px;font-size:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">${emp.name.charAt(0)}</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:700">${emp.name}</div>
+            ${sig ? `<div style="font-size:10px;color:var(--text-faint)">${new Date(sig.signed_at).toLocaleString('fr-FR')}</div>` : ''}
+          </div>
+          ${sig ? `<img class="sig-thumb" src="${sig.signature_data}" onclick="viewSig('${emp.name}','${sig.signature_data}')">` : ''}
+          <span class="sig-status ${sig?'ok':'nok'}">${sig ? '✓ Signé' : '✗ En attente'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function viewSig(name, data) {
+  const w = window.open('', '_blank', 'width=500,height=300');
+  w.document.write(`<html><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;padding:20px"><h3 style="color:#fff;font-family:sans-serif;margin-bottom:10px">${name}</h3><img src="${data}" style="max-width:100%;border-radius:8px;background:#fff;padding:10px"></body></html>`);
+}
+
+// ── Settings ──
+async function loadSettings() {
+  const rows = await GET('settings?select=*');
+  const email = rows.find(r=>r.key==='manager_email');
+  if (email) document.getElementById('settingEmail').value = email.value;
+}
+async function saveSetting(key, value) {
+  await sb(`settings?key=eq.${key}`, {method:'PATCH', body: JSON.stringify({value}), headers:{'Prefer':'return=representation'}});
+  toast('Enregistré !');
+}
+
+// ══════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ══════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+initHome();
+</script>
+</body>
+</html>
