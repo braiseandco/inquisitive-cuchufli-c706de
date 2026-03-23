@@ -233,6 +233,30 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
+<!-- ═══ EMP-WEEK (planning semaine salarié) ═══ -->
+<div class="screen" id="emp-week">
+  <div class="topbar">
+    <button class="btn-back" onclick="backToEmpList()">←</button>
+    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+      <div id="ewAvatar" style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;flex-shrink:0"></div>
+      <div style="min-width:0">
+        <div class="topbar-logo" id="ewEmpName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+        <div class="topbar-sub" id="ewWeekLabel"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="week-nav-btn" onclick="changeEmpWeek(-1)">‹</button>
+      <button class="week-nav-btn" onclick="changeEmpWeek(1)">›</button>
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:14px 16px;" id="ewContent">
+    <div class="empty-msg">Chargement...</div>
+  </div>
+  <div style="padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0">
+    <button class="btn-primary" style="width:100%" onclick="openEditSchedule(currentEwEmpId)">⚙️ Horaires de base</button>
+  </div>
+</div>
+
 <!-- ═══ MANAGER LOGIN ═══ -->
 <div class="screen" id="mgr-login">
   <div class="login-box">
@@ -787,15 +811,122 @@ function loadEmpCards() {
   const el = document.getElementById('empCardList');
   if (!employees.length) { el.innerHTML = '<div style="color:var(--text-faint);text-align:center;padding:40px">Aucun employé</div>'; return; }
   el.innerHTML = employees.map(e => `
-    <div class="emp-card">
+    <div class="emp-card" onclick="openEmpWeek('${e.id}')" style="cursor:pointer">
       <div class="emp-card-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
       <div style="flex:1">
         <div class="emp-card-name">${e.name}</div>
+        <div class="emp-card-sub">Voir le planning →</div>
       </div>
-      <button class="btn-edit-sched" onclick="openEditSchedule('${e.id}')">Horaires</button>
-      <button class="btn-del" onclick="deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
+      <button class="btn-del" onclick="event.stopPropagation();deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
     </div>
   `).join('');
+}
+
+// ── Planning semaine par employé ──
+let currentEwEmpId = null;
+let ewWeek = null;
+
+function backToEmpList() {
+  showScreen('mgr-dash');
+  const btn = document.querySelector('#mgr-dash .tab.active') || document.querySelector('#mgr-dash .tab');
+  switchTab('tab-employees', btn);
+}
+
+function openEmpWeek(empId) {
+  currentEwEmpId = empId;
+  ewWeek = getMonday(new Date());
+  const emp = employees.find(e => e.id === empId);
+  const av = document.getElementById('ewAvatar');
+  av.textContent = emp.name.charAt(0).toUpperCase();
+  av.style.background = emp.color;
+  document.getElementById('ewEmpName').textContent = emp.name;
+  showScreen('emp-week');
+  loadEmpWeek();
+}
+
+function changeEmpWeek(dir) {
+  ewWeek.setDate(ewWeek.getDate() + dir * 7);
+  loadEmpWeek();
+}
+
+async function loadEmpWeek() {
+  const empId = currentEwEmpId;
+  const dates = weekDates(ewWeek);
+  document.getElementById('ewWeekLabel').textContent = fmtWeek(ewWeek);
+  document.getElementById('ewContent').innerHTML = '<div class="empty-msg">Chargement...</div>';
+
+  const weekStart = dateStr(dates[1]);
+  const weekEnd   = dateStr(dates[6]);
+  const [scheds, overrides] = await Promise.all([
+    GET(`schedules?employee_id=eq.${empId}&select=*`),
+    GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+  ]);
+  const schedMap = {};
+  scheds.forEach(s => schedMap[s.day_of_week] = s);
+  const ovMap = {};
+  overrides.forEach(o => ovMap[o.date] = o);
+
+  const fmtT = t => { if (!t) return ''; const [h,m] = t.slice(0,5).split(':'); return m==='00' ? h+'h' : h+'h'+m; };
+  const calcSvc = (s, bs, be, e) => {
+    if (!s || !e) return 0;
+    const tMin = x => { const [h,m]=x.slice(0,5).split(':').map(Number); return h*60+m; };
+    const tMid = x => tMin(x) === 0 ? 1440 : tMin(x);
+    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s);
+  };
+  const DNAMES = {2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi',7:'Dimanche'};
+  const todayStr = dateStr(new Date());
+  let totalWeek = 0;
+
+  const rows = dates.slice(1, 7).map((d, i) => {
+    const dn = i + 2;
+    const ds = dateStr(d);
+    const row = ovMap[ds] || schedMap[dn];
+    const dayH = calcDayHours(row);
+    totalWeek += dayH;
+    const hasEvening = (dn === 5 || dn === 6);
+    const isToday = ds === todayStr;
+
+    let body = '';
+    if (!row || row.is_off) {
+      body = '<span class="wt-repos" style="font-size:13px">Repos</span>';
+    } else if (row.status === 'absent') {
+      body = '<span class="wt-absent" style="font-size:13px">Absent</span>';
+    } else if (row.status === 'vacation') {
+      body = '<span class="wt-conge" style="font-size:13px">Congé</span>';
+    } else {
+      if (row.start_time) {
+        const mH = calcSvc(row.start_time, row.break_start, row.break_end, row.end_time);
+        const pause = row.break_start ? ` <span style="font-size:10px;color:var(--text-faint)">⏸${fmtT(row.break_start)}-${fmtT(row.break_end)}</span>` : '';
+        body += `<div style="font-size:13px">☀️ ${fmtT(row.start_time)} → ${fmtT(row.end_time)}${pause} <span style="color:var(--accent2);font-weight:700">${(mH/60).toFixed(1).replace('.0','')}h</span></div>`;
+      } else if (hasEvening) {
+        body += '<div style="font-size:12px;color:var(--text-faint);font-style:italic">☀️ Repos midi</div>';
+      }
+      if (hasEvening) {
+        if (row.evening_start) {
+          const eH = calcSvc(row.evening_start, row.evening_break_start, row.evening_break_end, row.evening_end);
+          const epause = row.evening_break_start ? ` <span style="font-size:10px;color:var(--text-faint)">⏸${fmtT(row.evening_break_start)}-${fmtT(row.evening_break_end)}</span>` : '';
+          body += `<div style="font-size:13px;color:var(--accent3)">🌙 ${fmtT(row.evening_start)} → ${fmtT(row.evening_end)}${epause} <span style="color:var(--accent2);font-weight:700">${(eH/60).toFixed(1).replace('.0','')}h</span></div>`;
+        } else {
+          body += '<div style="font-size:12px;color:var(--text-faint);font-style:italic">🌙 Repos soir</div>';
+        }
+      }
+    }
+    const totalStr = dayH > 0 ? `<span style="font-weight:700;color:var(--accent2);font-size:14px">${dayH.toFixed(1).replace('.0','')}h</span>` : '';
+    const border = isToday ? 'var(--accent)' : 'var(--border)';
+    return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <div style="width:48px;flex-shrink:0;text-align:center">
+        <div style="font-size:11px;font-weight:700;color:${isToday?'var(--accent)':'var(--text-dim)'};text-transform:uppercase;letter-spacing:.5px">${DNAMES[dn].slice(0,3)}</div>
+        <div style="font-size:22px;font-weight:700;color:${isToday?'var(--accent)':'var(--text)'};line-height:1.1">${d.getDate()}</div>
+      </div>
+      <div style="flex:1;min-width:0">${body}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${totalStr}<span style="color:var(--text-faint)">›</span></div>
+    </div>`;
+  }).join('');
+
+  const totalLine = totalWeek > 0
+    ? `<div style="text-align:right;padding:2px 4px 14px;font-size:13px;color:var(--text-dim)">Total semaine : <strong style="color:var(--accent2)">${totalWeek.toFixed(1).replace('.0','')}h</strong></div>`
+    : '';
+  document.getElementById('ewContent').innerHTML = totalLine + rows;
 }
 
 async function deleteEmployee(id, name) {
@@ -978,7 +1109,8 @@ async function saveSchedule() {
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
     closeModal('modalSchedule');
     toast('Horaires enregistrés');
-    loadPlanningTab();
+    if (document.getElementById('emp-week').classList.contains('active')) loadEmpWeek();
+    else loadPlanningTab();
   } catch(e) {
     toast('Erreur : ' + e.message);
     console.error('saveSchedule', e);
@@ -1177,7 +1309,8 @@ async function saveOverride() {
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
     closeModal('modalOverride');
     toast('Modifié !');
-    loadPlanningTab();
+    if (document.getElementById('emp-week').classList.contains('active')) loadEmpWeek();
+    else loadPlanningTab();
   } catch(e) {
     toast('Erreur : ' + e.message);
     console.error('saveOverride', e);
