@@ -170,13 +170,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <!-- ═══ HOME ═══ -->
 <div class="screen active" id="home">
   <div class="topbar">
-    <div>
-      <div class="topbar-logo">Braise &amp; Co</div>
-      <div class="topbar-sub">Planning</div>
+    <div id="logoPress" style="display:flex;align-items:center;gap:12px;cursor:default;user-select:none;">
+      <img src="logo-braise.png" alt="Logo" style="height:42px;width:42px;object-fit:contain;border-radius:8px;">
+      <div>
+        <div class="topbar-logo">Braise &amp; Co</div>
+        <div class="topbar-sub">Suivi Horaire</div>
+      </div>
     </div>
     <div class="topbar-right">
       <div class="topbar-date" id="homeDate"></div>
-      <button class="btn-mgr" onclick="showMgrLogin()">Manager</button>
     </div>
   </div>
   <div class="home-week" id="homeWeek"></div>
@@ -452,6 +454,7 @@ let pinBuffer = '';
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if (id === 'home') loadHome();
 }
 
 // ══════════════════════════════════════
@@ -958,6 +961,28 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
+
+// ══════════════════════════════════════
+//  APPUI LONG SUR LOGO → MANAGER
+// ══════════════════════════════════════
+(function() {
+  let pressTimer = null;
+  const logo = document.getElementById('logoPress');
+
+  function startPress() {
+    pressTimer = setTimeout(() => { showMgrLogin(); }, 3000);
+  }
+  function cancelPress() {
+    clearTimeout(pressTimer);
+  }
+
+  logo.addEventListener('mousedown',   startPress);
+  logo.addEventListener('touchstart',  startPress,  {passive: true});
+  logo.addEventListener('mouseup',     cancelPress);
+  logo.addEventListener('mouseleave',  cancelPress);
+  logo.addEventListener('touchend',    cancelPress);
+  logo.addEventListener('touchcancel', cancelPress);
+})();
 
 // ══════════════════════════════════════
 //  INIT
