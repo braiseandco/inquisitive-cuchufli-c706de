@@ -978,7 +978,7 @@ async function loadPlanningTab() {
 
     // Total heures Mar→Dim (dates[1]…dates[6])
     let total = 0;
-    for (let i = 1; i <= 6; i++) total += calcHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
+    for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
 
     const cells = COLS.map(col => {
       const ds = dateStr(col.d);
