@@ -327,9 +327,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div id="ovTimeFields">
       <div class="form-group">
-        <label class="form-label">Horaires</label>
+        <label class="form-label">Horaires du matin</label>
         <div style="display:flex;align-items:center;gap:10px;">
           <input class="time-input" type="time" id="ovStart">
+          <span class="sep">→</span>
+          <input class="time-input" type="time" id="ovBreakStart">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">🍽 Reprise après pause</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input class="time-input" type="time" id="ovBreakEnd">
           <span class="sep">→</span>
           <input class="time-input" type="time" id="ovEnd">
         </div>
@@ -365,6 +373,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 // ══════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════
+// Formate les horaires avec pause repas si présente
+// ex: "10:00 – 12:00 🍽 13:00 – 15:30"
+function fmtHours(s) {
+  if (!s || !s.start_time) return '—';
+  const matin = s.start_time.slice(0,5) + ' – ' + (s.break_start ? s.break_start.slice(0,5) : s.end_time.slice(0,5));
+  if (!s.break_start || !s.break_end) return s.start_time.slice(0,5) + ' – ' + s.end_time.slice(0,5);
+  return matin + ' 🍽 ' + s.break_end.slice(0,5) + ' – ' + s.end_time.slice(0,5);
+}
+
 const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
 const PIN = '2013';
@@ -509,10 +526,10 @@ async function openSign(empId) {
         cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';
         info = 'Congé';
       } else {
-        info = ov.start_time ? `${ov.start_time.slice(0,5)} – ${ov.end_time.slice(0,5)}` : '—';
+        info = ov.start_time ? fmtHours(ov) : '—';
       }
     } else if (sched && !sched.is_off && sched.start_time) {
-      info = `${sched.start_time.slice(0,5)} – ${sched.end_time.slice(0,5)}`;
+      info = fmtHours(sched);
     } else {
       cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>';
       info = 'Repos';
@@ -702,13 +719,20 @@ function buildScheduleGrid(containerId, schedMap) {
     const dayNum = i+1;
     const s = schedMap ? schedMap[dayNum] : null;
     const isOff = s ? s.is_off : (i>=5);
-    const start = s && !s.is_off ? s.start_time.slice(0,5) : '09:00';
-    const end   = s && !s.is_off ? s.end_time.slice(0,5)   : '17:00';
-    return `<div class="schedule-row">
+    const start  = s && !s.is_off ? s.start_time.slice(0,5)               : '09:00';
+    const bStart = s && !s.is_off && s.break_start ? s.break_start.slice(0,5) : '12:00';
+    const bEnd   = s && !s.is_off && s.break_end   ? s.break_end.slice(0,5)   : '13:00';
+    const end    = s && !s.is_off ? s.end_time.slice(0,5)                  : '17:00';
+    const hasBrk = s && !s.is_off && s.break_start ? true : false;
+    return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;">
       <span class="schedule-day-name">${d}</span>
       <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
-      <div id="times${dayNum}" style="${isOff?'opacity:.3;pointer-events:none':''}">
+      <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'opacity:.3;pointer-events:none':''}">
         <input type="time" class="time-input" id="st${dayNum}" value="${start}">
+        <span class="sep">→</span>
+        <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}" placeholder="Pause début">
+        <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+        <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}" placeholder="Pause fin">
         <span class="sep">→</span>
         <input type="time" class="time-input" id="et${dayNum}" value="${end}">
       </div>
@@ -731,8 +755,10 @@ async function saveEmployee() {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
     return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
-            start_time: document.getElementById('st'+dayNum).value || null,
-            end_time:   document.getElementById('et'+dayNum).value || null};
+            start_time:  document.getElementById('st'+dayNum).value || null,
+            break_start: document.getElementById('bs'+dayNum).value || null,
+            break_end:   document.getElementById('be'+dayNum).value || null,
+            end_time:    document.getElementById('et'+dayNum).value || null};
   });
   await POST('schedules', rows);
   employees.push(emp);
@@ -758,8 +784,10 @@ async function saveSchedule() {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
     return {employee_id: scheduleTarget, day_of_week: dayNum, is_off: !on,
-            start_time: document.getElementById('st'+dayNum).value || null,
-            end_time:   document.getElementById('et'+dayNum).value || null};
+            start_time:  document.getElementById('st'+dayNum).value || null,
+            break_start: document.getElementById('bs'+dayNum).value || null,
+            break_end:   document.getElementById('be'+dayNum).value || null,
+            end_time:    document.getElementById('et'+dayNum).value || null};
   });
   // Upsert
   await sb('schedules', {method:'POST', body: JSON.stringify(rows),
@@ -801,9 +829,9 @@ async function loadPlanningTab() {
       if (ov) {
         if (ov.status==='absent') { info='Absent'; cls='color:#ef9a9a'; }
         else if (ov.status==='vacation') { info='Congé'; cls='color:#90caf9'; }
-        else info = ov.start_time ? `${ov.start_time.slice(0,5)}–${ov.end_time.slice(0,5)}` : '—';
+        else info = ov.start_time ? fmtHours(ov) : '—';
       } else if (sched && !sched.is_off && sched.start_time) {
-        info = `${sched.start_time.slice(0,5)}–${sched.end_time.slice(0,5)}`;
+        info = fmtHours(sched);
       } else { info='Repos'; cls='color:var(--text-faint)'; }
 
       return `<div class="planning-day">
@@ -838,9 +866,11 @@ async function openOverride(empId, dateS, dayIdx) {
   const sched = schedRes[0];
 
   selectOv(ov ? ov.status : 'present');
-  document.getElementById('ovStart').value = (ov?.start_time || sched?.start_time || '09:00').slice(0,5);
-  document.getElementById('ovEnd').value   = (ov?.end_time   || sched?.end_time   || '17:00').slice(0,5);
-  document.getElementById('ovNote').value  = ov?.note || '';
+  document.getElementById('ovStart').value      = (ov?.start_time  || sched?.start_time  || '09:00').slice(0,5);
+  document.getElementById('ovBreakStart').value = (ov?.break_start || sched?.break_start || '12:00').slice(0,5);
+  document.getElementById('ovBreakEnd').value   = (ov?.break_end   || sched?.break_end   || '13:00').slice(0,5);
+  document.getElementById('ovEnd').value        = (ov?.end_time    || sched?.end_time    || '17:00').slice(0,5);
+  document.getElementById('ovNote').value       = ov?.note || '';
   openModal('modalOverride');
 }
 
@@ -857,8 +887,10 @@ async function saveOverride() {
   const body = {
     employee_id: empId, date,
     status: currentOvStatus,
-    start_time: currentOvStatus==='present' ? document.getElementById('ovStart').value : null,
-    end_time:   currentOvStatus==='present' ? document.getElementById('ovEnd').value   : null,
+    start_time:  currentOvStatus==='present' ? document.getElementById('ovStart').value      : null,
+    break_start: currentOvStatus==='present' ? document.getElementById('ovBreakStart').value : null,
+    break_end:   currentOvStatus==='present' ? document.getElementById('ovBreakEnd').value   : null,
+    end_time:    currentOvStatus==='present' ? document.getElementById('ovEnd').value        : null,
     note: document.getElementById('ovNote').value || null
   };
   await sb('weekly_overrides', {method:'POST', body: JSON.stringify(body),
