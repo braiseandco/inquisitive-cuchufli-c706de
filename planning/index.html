@@ -1078,7 +1078,7 @@ async function saveOverride() {
       evening_end:         (present && hasEvening) ? document.getElementById('ovEveningEnd').value        : null,
       note: document.getElementById('ovNote').value || null
     };
-    await sb('weekly_overrides', {method:'POST', body: JSON.stringify(body),
+    await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(body),
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
     closeModal('modalOverride');
     toast('Modifié !');
