@@ -2,7 +2,7 @@
   "name": "Braise & Co — Réservations",
   "short_name": "Réservations",
   "description": "Gestion des réservations Braise & Co",
-  "start_url": "./index.html",
+  "start_url": "./reservations.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
