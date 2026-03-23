@@ -970,7 +970,19 @@ async function loadPlanningTab() {
   ];
 
   const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
-  const fmtSvc = (s,e) => s && e ? fmtT(s)+'<br>'+fmtT(e) : '';
+  const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const calcSvc = (s, bs, be, e) => {
+    if (!s || !e) return 0;
+    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s);
+  };
+  const fmtCell = (s, bs, be, e) => {
+    if (!s) return '<span class="wt-repos">—</span>';
+    const mins = calcSvc(s, bs, be, e);
+    const hStr = (mins/60).toFixed(1).replace('.0','') + 'h';
+    const pauseTxt = bs ? `<div style="font-size:8px;color:var(--text-faint);line-height:1.2">⏸ ${fmtT(bs)}-${fmtT(be)}</div>` : '';
+    return `${fmtT(s)}-${fmtT(e)}${pauseTxt}<div style="font-size:9px;color:var(--accent2);font-weight:700">${hStr}</div>`;
+  };
 
   let html = `<div class="week-table-wrap"><table class="week-table"><thead><tr>
     <th style="text-align:left">Employé</th>
@@ -992,15 +1004,13 @@ async function loadPlanningTab() {
       const ds = dateStr(col.d);
       const row = ovMap[ds] || schedMap[col.dn];
       const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
-      if (!row || row.is_off)               return `<td class="wt-repos" ${click}>Repos</td>`;
-      if (row.status === 'absent')           return `<td class="wt-absent" ${click}>Absent</td>`;
-      if (row.status === 'vacation')         return `<td class="wt-conge" ${click}>Congé</td>`;
+      if (!row || row.is_off)       return `<td class="wt-repos" ${click}>Repos</td>`;
+      if (row.status === 'absent')  return `<td class="wt-absent" ${click}>Absent</td>`;
+      if (row.status === 'vacation')return `<td class="wt-conge" ${click}>Congé</td>`;
       if (col.svc === 'morn' || col.svc === 'day') {
-        const c = row.start_time ? fmtSvc(row.start_time, row.end_time) : '<span class="wt-repos">—</span>';
-        return `<td ${click}>${c}</td>`;
+        return `<td ${click}>${fmtCell(row.start_time, row.break_start, row.break_end, row.end_time)}</td>`;
       } else {
-        const c = row.evening_start ? fmtSvc(row.evening_start, row.evening_end) : '<span class="wt-repos">—</span>';
-        return `<td ${click}>${c}</td>`;
+        return `<td ${click}>${fmtCell(row.evening_start, row.evening_break_start, row.evening_break_end, row.evening_end)}</td>`;
       }
     }).join('');
 
