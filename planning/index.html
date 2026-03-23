@@ -626,8 +626,10 @@ async function initHome() {
 async function loadHome() {
   try {
     employees = await GET('employees?select=*&order=display_order.asc,name.asc');
-    const weekStart = dateStr(getMonday(new Date()));
-    const sigs = await GET(`signatures?week_start=eq.${weekStart}&select=employee_id`);
+    const monday = getMonday(new Date());
+    const weekStart = dateStr(monday);
+    const weekEnd = dateStr(weekDates(monday)[6]);
+    const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`);
     const signedIds = new Set(sigs.map(s => s.employee_id));
 
     const el = document.getElementById('empList');
