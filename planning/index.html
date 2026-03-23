@@ -967,23 +967,24 @@ function selectOv(status) {
 }
 
 async function saveOverride() {
-  const {empId, date, dayIdx} = overrideTarget;
-  const hasEvening = (dayIdx === 4 || dayIdx === 5);
-  const present = currentOvStatus === 'present';
-  const body = {
-    employee_id: empId, date,
-    status: currentOvStatus,
-    start_time:  present ? document.getElementById('ovStart').value      : null,
-    break_start: present ? document.getElementById('ovBreakStart').value : null,
-    break_end:   present ? document.getElementById('ovBreakEnd').value   : null,
-    end_time:    present ? document.getElementById('ovEnd').value        : null,
-    evening_start:       (present && hasEvening) ? document.getElementById('ovEveningStart').value      : null,
-    evening_break_start: (present && hasEvening) ? document.getElementById('ovEveningBreakStart').value : null,
-    evening_break_end:   (present && hasEvening) ? document.getElementById('ovEveningBreakEnd').value   : null,
-    evening_end:         (present && hasEvening) ? document.getElementById('ovEveningEnd').value        : null,
-    note: document.getElementById('ovNote').value || null
-  };
   try {
+    if (!overrideTarget) { toast('Erreur : cible manquante'); return; }
+    const {empId, date, dayIdx} = overrideTarget;
+    const hasEvening = (dayIdx === 4 || dayIdx === 5);
+    const present = currentOvStatus === 'present';
+    const body = {
+      employee_id: empId, date,
+      status: currentOvStatus,
+      start_time:  present ? document.getElementById('ovStart').value      : null,
+      break_start: present ? document.getElementById('ovBreakStart').value : null,
+      break_end:   present ? document.getElementById('ovBreakEnd').value   : null,
+      end_time:    present ? document.getElementById('ovEnd').value        : null,
+      evening_start:       (present && hasEvening) ? document.getElementById('ovEveningStart').value      : null,
+      evening_break_start: (present && hasEvening) ? document.getElementById('ovEveningBreakStart').value : null,
+      evening_break_end:   (present && hasEvening) ? document.getElementById('ovEveningBreakEnd').value   : null,
+      evening_end:         (present && hasEvening) ? document.getElementById('ovEveningEnd').value        : null,
+      note: document.getElementById('ovNote').value || null
+    };
     await sb('weekly_overrides', {method:'POST', body: JSON.stringify(body),
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
     closeModal('modalOverride');
