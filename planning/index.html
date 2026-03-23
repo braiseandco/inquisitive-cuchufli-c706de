@@ -910,12 +910,16 @@ async function saveSchedule() {
             evening_break_end:   hasEvening ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
             evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
-  // Upsert
-  await sb('schedules', {method:'POST', body: JSON.stringify(rows),
-    headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
-  closeModal('modalSchedule');
-  toast('Horaires enregistrés');
-  loadPlanningTab();
+  try {
+    await sb('schedules', {method:'POST', body: JSON.stringify(rows),
+      headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+    closeModal('modalSchedule');
+    toast('Horaires enregistrés');
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('saveSchedule', e);
+  }
 }
 
 // ── Planning tab ──
