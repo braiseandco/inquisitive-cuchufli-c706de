@@ -364,8 +364,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="week-label" id="planningWeekLabel"></div>
       <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
     </div>
-    <div style="margin-bottom:14px">
-      <button class="btn-add" style="width:100%;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture exceptionnelle</button>
+    <div style="margin-bottom:14px;display:flex;gap:8px">
+      <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture exceptionnelle</button>
+      <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
     </div>
     <div id="planningBlocks"></div>
   </div>
@@ -1297,6 +1298,103 @@ async function loadPlanningTab() {
 
   html += '</tbody></table></div>';
   document.getElementById('planningBlocks').innerHTML = html;
+}
+
+async function printPlanningReport() {
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const dates = weekDates(planningWeek);
+  const weekStart = dateStr(planningWeek);
+  const weekEnd   = dateStr(dates[6]);
+
+  const [allScheds, allOv] = await Promise.all([
+    GET('schedules?select=*'),
+    GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+  ]);
+
+  const COLS = [
+    {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
+    {label:'Mercredi',   d:dates[2], dn:3, svc:'day'},
+    {label:'Jeudi',      d:dates[3], dn:4, svc:'day'},
+    {label:'Ven. midi',  d:dates[4], dn:5, svc:'morn'},
+    {label:'Ven. soir',  d:dates[4], dn:5, svc:'eve'},
+    {label:'Sam. midi',  d:dates[5], dn:6, svc:'morn'},
+    {label:'Sam. soir',  d:dates[5], dn:6, svc:'eve'},
+    {label:'Dimanche',   d:dates[6], dn:7, svc:'day'},
+  ];
+
+  const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
+  const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const calcSvc = (s, bs, be, e) => (!s||!e) ? 0 : (bs&&be ? (tMin(bs)-tMin(s))+(tMid(e)-tMin(be)) : tMid(e)-tMin(s));
+  const fmt = d => { const [y,m,j]=d.split('-'); return `${j}/${m}`; };
+
+  const headCells = COLS.map(c => `<th>${c.label}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(c.d))}</span></th>`).join('');
+
+  const rows = employees.map(emp => {
+    const schedMap = {};
+    allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
+    const ovMap = {};
+    allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
+
+    let total = 0;
+    for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
+
+    const cells = COLS.map(col => {
+      const ds = dateStr(col.d);
+      const row = ovMap[ds] || schedMap[col.dn];
+      if (!row || row.is_off)        return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
+      if (row.status === 'absent')   return `<td style="color:#c62828;text-align:center;font-weight:700">Absent</td>`;
+      if (row.status === 'vacation') return `<td style="color:#1565c0;text-align:center;font-weight:700">Congé</td>`;
+      let s, bs, be, e;
+      if (col.svc === 'morn' || col.svc === 'day') {
+        if (!row.start_time) return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
+        s=row.start_time; bs=row.break_start; be=row.break_end; e=row.end_time;
+      } else {
+        if (!row.evening_start) return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
+        s=row.evening_start; bs=row.evening_break_start; be=row.evening_break_end; e=row.evening_end;
+      }
+      const mins = calcSvc(s, bs, be, e);
+      const hStr = (mins/60).toFixed(1).replace('.0','')+'h';
+      const pauseTxt = bs ? `<div style="font-size:8px;color:#888">${fmtT(bs)}-${fmtT(be)}</div>` : '';
+      return `<td style="text-align:center;font-size:11px">${fmtT(s)}-${fmtT(e)}${pauseTxt}<div style="font-size:9px;color:#e53935;font-weight:700">${hStr}</div></td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="font-weight:700;white-space:nowrap;padding:6px 10px;border-right:2px solid #ddd">${emp.name}</td>
+      ${cells}
+      <td style="font-weight:700;color:#e53935;text-align:center;background:#fff3f3">${total > 0 ? total.toFixed(1).replace('.0','')+'h' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const d0 = new Date(weekStart+'T12:00'), d1 = new Date(weekEnd+'T12:00');
+  const title = `Semaine du ${d0.getDate()} au ${d1.getDate()} ${months[d1.getMonth()]} ${d1.getFullYear()}`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Planning — ${title}</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;padding:20px;color:#222;font-size:12px}
+    h1{font-size:17px;margin-bottom:3px}p{font-size:11px;color:#666;margin:0 0 14px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#222;color:#fff;padding:7px 5px;font-size:10px;text-align:center}
+    td{border:1px solid #ddd;padding:5px 4px;vertical-align:middle}
+    tr:nth-child(even) td{background:#fafafa}
+    .print-btn{position:fixed;top:14px;right:14px;background:#222;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer}
+    @media print{.print-btn{display:none}}
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
+  <h1>Planning Braise &amp; Co</h1>
+  <p>${title}</p>
+  <table>
+    <thead><tr><th style="text-align:left;padding:7px 10px">Employé</th>${headCells}<th>Total</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── Override ──
