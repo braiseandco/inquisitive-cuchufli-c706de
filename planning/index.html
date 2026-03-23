@@ -1325,8 +1325,9 @@ async function loadSettingsTab() {
   for (let i = 0; i < 8; i++) {
     const mon = getMonday(new Date(today));
     mon.setDate(mon.getDate() - i * 7);
+    const tue = new Date(mon); tue.setDate(mon.getDate() + 1);
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    const label = `${mon.getDate()}/${mon.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}/${sun.getFullYear()}`;
+    const label = `${tue.getDate()}/${tue.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}/${sun.getFullYear()}`;
     const monCopy = dateStr(mon);
     html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
       <span style="font-size:13px">${i === 0 ? '📅 Cette semaine' : label}</span>
