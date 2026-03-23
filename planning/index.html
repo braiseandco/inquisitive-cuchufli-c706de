@@ -591,9 +591,23 @@ async function openSign(empId) {
   document.getElementById('alreadySigned').style.display = alreadySigned ? '' : 'none';
   document.getElementById('btnSign').style.display = alreadySigned ? 'none' : '';
   document.getElementById('sigWrap').style.display = alreadySigned ? 'none' : '';
+  document.getElementById('signWeekGrid').style.display = alreadySigned ? 'none' : '';
 
   showScreen('sign');
-  if (!alreadySigned) initSigCanvas();
+  if (alreadySigned) {
+    // Retour auto à l'accueil — pas de trace des horaires après signature
+    let n = 3;
+    document.getElementById('alreadySigned').innerHTML =
+      `✓ Vous avez déjà signé cette semaine.<br><small style="opacity:.6">Retour dans <span id="sigCountdown">${n}</span>s…</small>`;
+    const iv = setInterval(() => {
+      n--;
+      const el = document.getElementById('sigCountdown');
+      if (el) el.textContent = n;
+      if (n <= 0) { clearInterval(iv); showScreen('home'); loadHome(); }
+    }, 1000);
+  } else {
+    initSigCanvas();
+  }
 }
 
 // ── Signature canvas ──
@@ -655,7 +669,7 @@ async function submitSignature() {
   try {
     await POST('signatures', {employee_id: currentEmpId, week_start: weekStart, signature_data: data});
     toast('Signature enregistrée !');
-    setTimeout(() => { showScreen('home'); loadHome(); }, 1200);
+    setTimeout(() => { showScreen('home'); loadHome(); }, 800);
   } catch(e) {
     toast('Erreur : ' + e.message);
   }
