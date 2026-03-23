@@ -110,14 +110,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .week-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
 .week-nav-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:18px;cursor:pointer;}
 .week-label{font-size:13px;font-weight:700;color:var(--text-dim);letter-spacing:.5px;}
-.planning-emp-block{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden;}
-.planning-emp-head{padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);}
-.planning-emp-name{font-size:14px;font-weight:700;}
-.planning-days{padding:10px 16px;display:flex;flex-direction:column;gap:6px;}
-.planning-day{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg3);}
-.planning-day-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);width:32px;}
-.planning-day-info{flex:1;font-size:12px;}
 .btn-override{background:var(--bg);border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:'Raleway',sans-serif;}
+/* Grille semaine */
+.week-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -20px;padding:0 4px 20px;}
+.week-table{border-collapse:collapse;width:100%;min-width:600px;}
+.week-table th{background:var(--bg3);font-size:9px;letter-spacing:.8px;text-transform:uppercase;padding:7px 4px;border:1px solid var(--border);text-align:center;color:var(--text-dim);white-space:nowrap;line-height:1.4;}
+.week-table th small{font-size:8px;opacity:.7;display:block;font-weight:400;letter-spacing:0;}
+.week-table td{border:1px solid var(--border);padding:6px 5px;text-align:center;font-size:10px;cursor:pointer;line-height:1.5;}
+.week-table td:first-child{font-weight:700;font-size:11px;background:var(--bg2);white-space:nowrap;text-align:left;padding:6px 10px;cursor:default;position:sticky;left:0;z-index:1;min-width:90px;}
+.week-table tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+.week-table tr:nth-child(even) td:first-child{background:var(--bg2);}
+.week-table td:active{background:var(--bg3) !important;}
+.wt-repos{color:var(--text-faint);font-style:italic;}
+.wt-absent{color:#ef9a9a;font-weight:700;}
+.wt-conge{color:#90caf9;}
+.wt-ecole{color:#ce93d8;}
+.wt-total{font-weight:700;color:var(--accent2);background:rgba(229,57,53,.06) !important;white-space:nowrap;}
 
 /* Signatures tab */
 .sig-week-block{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:16px;}
@@ -930,50 +938,78 @@ function changeWeek(dir) {
 }
 
 async function loadPlanningTab() {
+  document.getElementById('planningBlocks').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-faint)">Chargement…</div>';
   if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
   const dates = weekDates(planningWeek);
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
 
   const [allScheds, allOv] = await Promise.all([
-    GET(`schedules?select=*`),
+    GET('schedules?select=*'),
     GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
   ]);
 
-  document.getElementById('planningBlocks').innerHTML = employees.map(emp => {
+  // Colonnes : Lundi fermé → Mar(1), Mer(2), Jeu(3), Ven🌞(4), Ven🌙(4), Sam🌞(5), Sam🌙(5), Dim(6)
+  const COLS = [
+    {label:'Mar',    d:dates[1], dn:2, svc:'day'},
+    {label:'Mer',    d:dates[2], dn:3, svc:'day'},
+    {label:'Jeu',    d:dates[3], dn:4, svc:'day'},
+    {label:'Ven 🌞', d:dates[4], dn:5, svc:'morn'},
+    {label:'Ven 🌙', d:dates[4], dn:5, svc:'eve'},
+    {label:'Sam 🌞', d:dates[5], dn:6, svc:'morn'},
+    {label:'Sam 🌙', d:dates[5], dn:6, svc:'eve'},
+    {label:'Dim',    d:dates[6], dn:7, svc:'day'},
+  ];
+
+  const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
+  const fmtSvc = (s,e) => s && e ? fmtT(s)+'<br>'+fmtT(e) : '';
+
+  let html = `<div class="week-table-wrap"><table class="week-table"><thead><tr>
+    <th style="text-align:left">Employé</th>
+    ${COLS.map(c=>`<th>${c.label}<br><small>${fmtDate(c.d)}</small></th>`).join('')}
+    <th>Total</th>
+  </tr></thead><tbody>`;
+
+  for (const emp of employees) {
     const schedMap = {};
     allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
     const ovMap = {};
     allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
 
-    const daysHtml = dates.map((d,i) => {
-      const dayNum = i+1;
-      const ov = ovMap[dateStr(d)];
-      const sched = schedMap[dayNum];
-      let info='', cls='';
-      if (ov) {
-        if (ov.status==='absent') { info='Absent'; cls='color:#ef9a9a'; }
-        else if (ov.status==='vacation') { info='Congé'; cls='color:#90caf9'; }
-        else info = ov.start_time ? fmtHours(ov) : '—';
-      } else if (sched && !sched.is_off && sched.start_time) {
-        info = fmtHours(sched);
-      } else { info='Repos'; cls='color:var(--text-faint)'; }
+    // Total heures Mar→Dim (dates[1]…dates[6])
+    let total = 0;
+    for (let i = 1; i <= 6; i++) total += calcHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
 
-      return `<div class="planning-day">
-        <span class="planning-day-name">${DAYS[i]}</span>
-        <span class="planning-day-info" style="${cls}">${info}</span>
-        <button class="btn-override" onclick="openOverride('${emp.id}','${dateStr(d)}',${i})">Modifier</button>
-      </div>`;
+    const cells = COLS.map(col => {
+      const ds = dateStr(col.d);
+      const row = ovMap[ds] || schedMap[col.dn];
+      const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
+      if (!row || row.is_off)               return `<td class="wt-repos" ${click}>Repos</td>`;
+      if (row.status === 'absent')           return `<td class="wt-absent" ${click}>Absent</td>`;
+      if (row.status === 'vacation')         return `<td class="wt-conge" ${click}>Congé</td>`;
+      if (col.svc === 'morn' || col.svc === 'day') {
+        const c = row.start_time ? fmtSvc(row.start_time, row.end_time) : '<span class="wt-repos">—</span>';
+        return `<td ${click}>${c}</td>`;
+      } else {
+        const c = row.evening_start ? fmtSvc(row.evening_start, row.evening_end) : '<span class="wt-repos">—</span>';
+        return `<td ${click}>${c}</td>`;
+      }
     }).join('');
 
-    return `<div class="planning-emp-block">
-      <div class="planning-emp-head">
-        <div class="emp-card-avatar" style="background:${emp.color};width:32px;height:32px;font-size:13px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700">${emp.name.charAt(0)}</div>
-        <div class="planning-emp-name">${emp.name}</div>
-      </div>
-      <div class="planning-days">${daysHtml}</div>
-    </div>`;
-  }).join('');
+    html += `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:22px;height:22px;border-radius:50%;background:${emp.color};display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex-shrink:0">${emp.name.charAt(0)}</div>
+          <span>${emp.name}</span>
+        </div>
+      </td>
+      ${cells}
+      <td class="wt-total">${total > 0 ? total.toFixed(1).replace('.0','')+'h' : '—'}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  document.getElementById('planningBlocks').innerHTML = html;
 }
 
 // ── Override ──
