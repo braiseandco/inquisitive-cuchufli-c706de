@@ -70,7 +70,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 #sign .sig-section{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:12px;overflow:hidden;}
 .sig-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
 .sig-canvas-wrap{flex:1;border:2px dashed var(--border2);border-radius:14px;position:relative;overflow:hidden;background:rgba(255,255,255,0.03);}
-#sigCanvas{width:100%;height:100%;display:block;touch-action:none;}
+#sigCanvas,#sigDayCanvas{width:100%;height:100%;display:block;touch-action:none;}
 .sig-clear{position:absolute;top:10px;right:10px;background:var(--bg3);border:1px solid var(--border2);color:var(--text-dim);font-size:11px;padding:5px 12px;border-radius:8px;cursor:pointer;font-family:'Raleway',sans-serif;}
 .sig-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-faint);font-size:13px;pointer-events:none;text-align:center;line-height:1.8;}
 .btn-sign{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:14px;padding:18px;font-size:15px;font-weight:700;font-family:'Raleway',sans-serif;letter-spacing:1px;cursor:pointer;flex-shrink:0;}
@@ -674,8 +674,11 @@ function initDaySigCanvas() {
 }
 
 function getDayPos(e) {
-  const r = e.target.getBoundingClientRect();
-  return {x: e.clientX - r.left, y: e.clientY - r.top};
+  const canvas = document.getElementById('sigDayCanvas');
+  const r = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / r.width;
+  const scaleY = canvas.height / r.height;
+  return {x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY};
 }
 function daySigStart(e) {
   e.preventDefault();
