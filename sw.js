@@ -18,6 +18,8 @@ self.addEventListener('activate', function(e) {
 
 self.addEventListener('fetch', function(e) {
   var url = e.request.url;
+  // Laisser le SW du planning gérer ses propres requêtes
+  if (url.includes('/planning/')) return;
   // Pas de cache pour supabase, fonts externes, CDN
   if (url.includes('supabase') || url.includes('fonts.googleapis') || url.includes('cdnjs') || url.includes('qrserver')) {
     e.respondWith(fetch(e.request, {cache: 'no-store'}));
