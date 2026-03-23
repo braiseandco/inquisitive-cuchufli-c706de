@@ -1,0 +1,17 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'>
+  <rect width='512' height='512' rx='77' fill='#1a0a0a'/>
+  <rect width='512' height='512' rx='77' fill='url(#g)'/>
+  <defs>
+    <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0%' stop-color='#2a0808'/>
+      <stop offset='100%' stop-color='#0a0a0f'/>
+    </linearGradient>
+  </defs>
+  <!-- Horloge -->
+  <circle cx='256' cy='215.04' r='112.64' fill='none' stroke='#e53935' stroke-width='20.48'/>
+  <line x1='256' y1='215.04' x2='256' y2='133.12' stroke='#e53935' stroke-width='17.92' stroke-linecap='round'/>
+  <line x1='256' y1='215.04' x2='317.44' y2='256' stroke='#ffcc02' stroke-width='17.92' stroke-linecap='round'/>
+  <!-- Texte -->
+  <text x='256' y='419.84' font-family='Arial,sans-serif' font-weight='900' font-size='66.56' fill='#e53935' text-anchor='middle' letter-spacing='1'>PLANNING</text>
+  <text x='256' y='476.16' font-family='Arial,sans-serif' font-weight='700' font-size='43.52' fill='rgba(240,237,232,0.4)' text-anchor='middle'>BRAISE &amp; CO</text>
+</svg>
