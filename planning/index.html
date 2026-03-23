@@ -605,7 +605,7 @@ async function openSign(empId) {
   // Total heures semaine
   const totalH = dates.reduce((sum, d, i) => {
     const ds = toDateStr(d);
-    const ov = ovMap[ds];
+    const ov = overMap[ds];
     const sched = schedMap[i+1];
     const row = ov ? {...sched, ...ov} : sched;
     return sum + calcDayHours(row);
