@@ -351,37 +351,44 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div id="ovTimeFields">
       <div class="form-group">
-        <label class="form-label">Horaires du matin</label>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input class="time-input" type="time" id="ovStart">
-          <span class="sep">→</span>
-          <input class="time-input" type="time" id="ovBreakStart">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label class="form-label" style="margin:0">Horaires du matin</label>
+          <button type="button" class="day-toggle on" id="ovMornToggle" onclick="toggleOvMorn()">TRAVAILLE</button>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">🍽 Reprise après pause</label>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <input class="time-input" type="time" id="ovBreakEnd">
-          <span class="sep">→</span>
-          <input class="time-input" type="time" id="ovEnd">
+        <div id="ovMornFields">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <input class="time-input" type="time" id="ovStart">
+            <span class="sep">→</span>
+            <input class="time-input" type="time" id="ovBreakStart">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input class="time-input" type="time" id="ovBreakEnd">
+            <span class="sep">→</span>
+            <input class="time-input" type="time" id="ovEnd">
+          </div>
         </div>
       </div>
       <div id="ovEveningSection" style="display:none">
-        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent3);margin:10px 0 8px;font-weight:700;">🌙 Service du soir</div>
-        <div class="form-group">
-          <label class="form-label">Début soir → Pause repas</label>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <input class="time-input" type="time" id="ovEveningStart">
-            <span class="sep">→</span>
-            <input class="time-input" type="time" id="ovEveningBreakStart">
-          </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 8px;">
+          <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent3);font-weight:700;">🌙 Service du soir</span>
+          <button type="button" class="day-toggle on" id="ovEveToggle" onclick="toggleOvEve()">TRAVAILLE</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">🍽 Reprise soir → Fin</label>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <input class="time-input" type="time" id="ovEveningBreakEnd">
-            <span class="sep">→</span>
-            <input class="time-input" type="time" id="ovEveningEnd">
+        <div id="ovEveFields">
+          <div class="form-group">
+            <label class="form-label">Début soir → Pause repas</label>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input class="time-input" type="time" id="ovEveningStart">
+              <span class="sep">→</span>
+              <input class="time-input" type="time" id="ovEveningBreakStart">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">🍽 Reprise soir → Fin</label>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input class="time-input" type="time" id="ovEveningBreakEnd">
+              <span class="sep">→</span>
+              <input class="time-input" type="time" id="ovEveningEnd">
+            </div>
           </div>
         </div>
       </div>
@@ -833,29 +840,51 @@ function buildScheduleGrid(containerId, schedMap) {
     const eBStart = s?.evening_break_start ? s.evening_break_start.slice(0,5) : '19:00';
     const eBEnd   = s?.evening_break_end   ? s.evening_break_end.slice(0,5)   : '19:30';
     const eEnd    = s?.evening_end         ? s.evening_end.slice(0,5)         : '00:00';
+    const mornRepos = hasEvening && !isOff && s && !s.start_time;
+    const eveRepos  = hasEvening && !isOff && s && !s.evening_start;
     const eveningHtml = hasEvening ? `
-        <div style="width:100%;margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
-          <span style="font-size:10px;color:var(--accent3);font-weight:700;width:100%">🌙 Service du soir</span>
-          <input type="time" class="time-input" id="est${dayNum}" value="${eStart}">
-          <span class="sep">→</span>
-          <input type="time" class="time-input" id="ebs${dayNum}" value="${eBStart}">
-          <span style="font-size:10px;color:var(--text-faint)">🍽</span>
-          <input type="time" class="time-input" id="ebe${dayNum}" value="${eBEnd}">
-          <span class="sep">→</span>
-          <input type="time" class="time-input" id="eet${dayNum}" value="${eEnd}">
+        <div style="width:100%;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:10px;color:var(--accent3);font-weight:700;">🌙 Service du soir</span>
+            <button type="button" class="day-toggle ${eveRepos?'off':'on'}" id="evetog${dayNum}" onclick="toggleEve(${dayNum})">${eveRepos?'REPOS':'TRAVAILLE'}</button>
+          </div>
+          <div id="evetimes${dayNum}" style="display:${eveRepos?'none':'flex'};flex-wrap:wrap;align-items:center;gap:6px;">
+            <input type="time" class="time-input" id="est${dayNum}" value="${eStart}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="ebs${dayNum}" value="${eBStart}">
+            <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+            <input type="time" class="time-input" id="ebe${dayNum}" value="${eBEnd}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="eet${dayNum}" value="${eEnd}">
+          </div>
         </div>` : '';
-    return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);">
-      <span class="schedule-day-name">${d}</span>
-      <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
-      <button type="button" class="day-toggle ${isOff?'off':'on'}" id="tog${dayNum}" onclick="toggleDay(${dayNum})">${isOff?'REPOS':'TRAVAILLE'}</button>
-      <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'display:none!important':''}">
+    const mornHtml = hasEvening ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:10px;color:var(--text-faint);font-weight:700;">☀️ Service du midi</span>
+          <button type="button" class="day-toggle ${mornRepos?'off':'on'}" id="morntog${dayNum}" onclick="toggleMorn(${dayNum})">${mornRepos?'REPOS':'TRAVAILLE'}</button>
+        </div>
+        <div id="morntimes${dayNum}" style="display:${mornRepos?'none':'flex'};flex-wrap:wrap;align-items:center;gap:6px;">
+          <input type="time" class="time-input" id="st${dayNum}" value="${start}">
+          <span class="sep">→</span>
+          <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
+          <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+          <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
+          <span class="sep">→</span>
+          <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+        </div>` : `
         <input type="time" class="time-input" id="st${dayNum}" value="${start}">
         <span class="sep">→</span>
         <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
         <span style="font-size:10px;color:var(--text-faint)">🍽</span>
         <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
         <span class="sep">→</span>
-        <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+        <input type="time" class="time-input" id="et${dayNum}" value="${end}">`;
+    return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span class="schedule-day-name">${d}</span>
+      <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
+      <button type="button" class="day-toggle ${isOff?'off':'on'}" id="tog${dayNum}" onclick="toggleDay(${dayNum})">${isOff?'REPOS':'TRAVAILLE'}</button>
+      <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'display:none!important':''}">
+        ${mornHtml}
         ${eveningHtml}
       </div>
     </div>`;
@@ -872,6 +901,20 @@ function toggleDay(dayNum) {
   const times = document.getElementById('times'+dayNum);
   times.style.display = on ? 'flex' : 'none';
 }
+function toggleMorn(dayNum) {
+  const tog = document.getElementById('morntog'+dayNum);
+  const off = tog.classList.contains('off');
+  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
+  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
+  document.getElementById('morntimes'+dayNum).style.display = off ? 'flex' : 'none';
+}
+function toggleEve(dayNum) {
+  const tog = document.getElementById('evetog'+dayNum);
+  const off = tog.classList.contains('off');
+  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
+  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
+  document.getElementById('evetimes'+dayNum).style.display = off ? 'flex' : 'none';
+}
 
 async function saveEmployee() {
   const name = document.getElementById('empNameInput').value.trim();
@@ -882,15 +925,17 @@ async function saveEmployee() {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
     const hasEvening = (dayNum === 5 || dayNum === 6);
+    const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
+    const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
     return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
-            start_time:  document.getElementById('st'+dayNum).value || null,
-            break_start: document.getElementById('bs'+dayNum).value || null,
-            break_end:   document.getElementById('be'+dayNum).value || null,
-            end_time:    document.getElementById('et'+dayNum).value || null,
-            evening_start:       hasEvening ? (document.getElementById('est'+dayNum)?.value || null) : null,
-            evening_break_start: hasEvening ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
-            evening_break_end:   hasEvening ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
-            evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
+            start_time:  (!on || mornOff) ? null : (document.getElementById('st'+dayNum).value || null),
+            break_start: (!on || mornOff) ? null : (document.getElementById('bs'+dayNum).value || null),
+            break_end:   (!on || mornOff) ? null : (document.getElementById('be'+dayNum).value || null),
+            end_time:    (!on || mornOff) ? null : (document.getElementById('et'+dayNum).value || null),
+            evening_start:       (hasEvening && !eveOff) ? (document.getElementById('est'+dayNum)?.value || null) : null,
+            evening_break_start: (hasEvening && !eveOff) ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
+            evening_break_end:   (hasEvening && !eveOff) ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
+            evening_end:         (hasEvening && !eveOff) ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
   await POST('schedules', rows);
   employees.push(emp);
@@ -916,15 +961,17 @@ async function saveSchedule() {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
     const hasEvening = (dayNum === 5 || dayNum === 6);
+    const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
+    const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
     return {employee_id: scheduleTarget, day_of_week: dayNum, is_off: !on,
-            start_time:  document.getElementById('st'+dayNum).value || null,
-            break_start: document.getElementById('bs'+dayNum).value || null,
-            break_end:   document.getElementById('be'+dayNum).value || null,
-            end_time:    document.getElementById('et'+dayNum).value || null,
-            evening_start:       hasEvening ? (document.getElementById('est'+dayNum)?.value || null) : null,
-            evening_break_start: hasEvening ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
-            evening_break_end:   hasEvening ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
-            evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
+            start_time:  (!on || mornOff) ? null : (document.getElementById('st'+dayNum).value || null),
+            break_start: (!on || mornOff) ? null : (document.getElementById('bs'+dayNum).value || null),
+            break_end:   (!on || mornOff) ? null : (document.getElementById('be'+dayNum).value || null),
+            end_time:    (!on || mornOff) ? null : (document.getElementById('et'+dayNum).value || null),
+            evening_start:       (hasEvening && !eveOff) ? (document.getElementById('est'+dayNum)?.value || null) : null,
+            evening_break_start: (hasEvening && !eveOff) ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
+            evening_break_end:   (hasEvening && !eveOff) ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
+            evening_end:         (hasEvening && !eveOff) ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
   try {
     await sb('schedules?on_conflict=employee_id,day_of_week', {method:'POST', body: JSON.stringify(rows),
@@ -1008,8 +1055,10 @@ async function loadPlanningTab() {
       if (row.status === 'absent')  return `<td class="wt-absent" ${click}>Absent</td>`;
       if (row.status === 'vacation')return `<td class="wt-conge" ${click}>Congé</td>`;
       if (col.svc === 'morn' || col.svc === 'day') {
+        if (!row.start_time) return `<td class="wt-repos" ${click}>Repos</td>`;
         return `<td ${click}>${fmtCell(row.start_time, row.break_start, row.break_end, row.end_time)}</td>`;
       } else {
+        if (!row.evening_start) return `<td class="wt-repos" ${click}>Repos</td>`;
         return `<td ${click}>${fmtCell(row.evening_start, row.evening_break_start, row.evening_break_end, row.evening_end)}</td>`;
       }
     }).join('');
@@ -1055,8 +1104,20 @@ async function openOverride(empId, dateS, dayIdx) {
     document.getElementById('ovNote').value       = ov?.note || '';
 
     const hasEvening = (dayIdx === 4 || dayIdx === 5);
+    // Morning repos: override présent mais pas d'heure de début
+    const mornRepos = ov && ov.status === 'present' && !ov.start_time;
+    const togM = document.getElementById('ovMornToggle');
+    togM.textContent = mornRepos ? 'REPOS' : 'TRAVAILLE';
+    togM.className = 'day-toggle ' + (mornRepos ? 'off' : 'on');
+    document.getElementById('ovMornFields').style.display = mornRepos ? 'none' : '';
     document.getElementById('ovEveningSection').style.display = hasEvening ? '' : 'none';
     if (hasEvening) {
+      // Evening repos: override présent mais pas d'heure soir
+      const eveRepos = ov && ov.status === 'present' && !ov.evening_start;
+      const togE = document.getElementById('ovEveToggle');
+      togE.textContent = eveRepos ? 'REPOS' : 'TRAVAILLE';
+      togE.className = 'day-toggle ' + (eveRepos ? 'off' : 'on');
+      document.getElementById('ovEveFields').style.display = eveRepos ? 'none' : '';
       document.getElementById('ovEveningStart').value      = st(ov?.evening_start       || sched?.evening_start,       '18:00');
       document.getElementById('ovEveningBreakStart').value = st(ov?.evening_break_start || sched?.evening_break_start, '19:00');
       document.getElementById('ovEveningBreakEnd').value   = st(ov?.evening_break_end   || sched?.evening_break_end,   '19:30');
@@ -1076,6 +1137,20 @@ function selectOv(status) {
   });
   document.getElementById('ovTimeFields').style.display = status==='present' ? '' : 'none';
 }
+function toggleOvMorn() {
+  const tog = document.getElementById('ovMornToggle');
+  const off = tog.classList.contains('off');
+  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
+  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
+  document.getElementById('ovMornFields').style.display = off ? '' : 'none';
+}
+function toggleOvEve() {
+  const tog = document.getElementById('ovEveToggle');
+  const off = tog.classList.contains('off');
+  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
+  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
+  document.getElementById('ovEveFields').style.display = off ? '' : 'none';
+}
 
 async function saveOverride() {
   try {
@@ -1083,17 +1158,19 @@ async function saveOverride() {
     const {empId, date, dayIdx} = overrideTarget;
     const hasEvening = (dayIdx === 4 || dayIdx === 5);
     const present = currentOvStatus === 'present';
+    const mornOff = present && document.getElementById('ovMornToggle').classList.contains('off');
+    const eveOff  = present && hasEvening && document.getElementById('ovEveToggle').classList.contains('off');
     const body = {
       employee_id: empId, date,
       status: currentOvStatus,
-      start_time:  present ? document.getElementById('ovStart').value      : null,
-      break_start: present ? document.getElementById('ovBreakStart').value : null,
-      break_end:   present ? document.getElementById('ovBreakEnd').value   : null,
-      end_time:    present ? document.getElementById('ovEnd').value        : null,
-      evening_start:       (present && hasEvening) ? document.getElementById('ovEveningStart').value      : null,
-      evening_break_start: (present && hasEvening) ? document.getElementById('ovEveningBreakStart').value : null,
-      evening_break_end:   (present && hasEvening) ? document.getElementById('ovEveningBreakEnd').value   : null,
-      evening_end:         (present && hasEvening) ? document.getElementById('ovEveningEnd').value        : null,
+      start_time:  (present && !mornOff) ? document.getElementById('ovStart').value      : null,
+      break_start: (present && !mornOff) ? document.getElementById('ovBreakStart').value : null,
+      break_end:   (present && !mornOff) ? document.getElementById('ovBreakEnd').value   : null,
+      end_time:    (present && !mornOff) ? document.getElementById('ovEnd').value        : null,
+      evening_start:       (present && hasEvening && !eveOff) ? document.getElementById('ovEveningStart').value      : null,
+      evening_break_start: (present && hasEvening && !eveOff) ? document.getElementById('ovEveningBreakStart').value : null,
+      evening_break_end:   (present && hasEvening && !eveOff) ? document.getElementById('ovEveningBreakEnd').value   : null,
+      evening_end:         (present && hasEvening && !eveOff) ? document.getElementById('ovEveningEnd').value        : null,
       note: document.getElementById('ovNote').value || null
     };
     await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(body),
