@@ -624,7 +624,7 @@ async function initHome() {
 
 async function loadHome() {
   try {
-    employees = await GET('employees?select=*&order=name.asc');
+    employees = await GET('employees?select=*&order=display_order.asc,name.asc');
     const weekStart = dateStr(getMonday(new Date()));
     const sigs = await GET(`signatures?week_start=eq.${weekStart}&select=employee_id`);
     const signedIds = new Set(sigs.map(s => s.employee_id));
@@ -850,7 +850,7 @@ function switchTab(id, btn) {
 }
 
 async function loadMgrDash() {
-  employees = await GET('employees?select=*&order=name.asc');
+  employees = await GET('employees?select=*&order=display_order.asc,name.asc');
   loadEmpCards();
   document.getElementById('planningWeekLabel').textContent = fmtWeek(planningWeek);
 }
@@ -1197,7 +1197,7 @@ function changeWeek(dir) {
 
 async function loadPlanningTab() {
   document.getElementById('planningBlocks').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-faint)">Chargement…</div>';
-  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
   const dates = weekDates(planningWeek);
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
@@ -1286,7 +1286,7 @@ async function loadPlanningTab() {
 async function openOverride(empId, dateS, dayIdx) {
   try {
     overrideTarget = {empId, date: dateS, dayIdx};
-    if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+    if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
     const emp = employees.find(e => e.id === empId);
     if (!emp) { toast('Employé introuvable'); return; }
     document.getElementById('overrideTitle').textContent = `${emp.name} — ${DAYS[dayIdx]} ${fmtDate(new Date(dateS+'T12:00'))}`;
@@ -1410,7 +1410,7 @@ async function saveFermeture() {
   const start = document.getElementById('fermStart').value;
   const end   = document.getElementById('fermEnd').value;
   if (!start || !end || end < start) { toast('Dates invalides'); return; }
-  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
 
   // Générer toutes les dates de la plage
   const dates = [];
@@ -1457,7 +1457,7 @@ async function loadSigTab() {
   const monday = getMonday(new Date());
   const weekStart = dateStr(monday);
   const weekEnd = dateStr(weekDates(monday)[6]);
-  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
   const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*&order=date.asc`);
 
   // Grouper par employé
