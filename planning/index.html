@@ -1306,10 +1306,13 @@ async function printPlanningReport() {
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
 
-  const [allScheds, allOv] = await Promise.all([
+  const [allScheds, allOv, allSigs] = await Promise.all([
     GET('schedules?select=*'),
-    GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+    GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`),
+    GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
   ]);
+  const sigMap = {};
+  allSigs.forEach(s => { if(!sigMap[s.employee_id]) sigMap[s.employee_id]={}; sigMap[s.employee_id][s.date]=s.signature_data; });
 
   const COLS = [
     {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
@@ -1367,21 +1370,37 @@ async function printPlanningReport() {
   }).join('');
 
   const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const d0 = new Date(weekStart+'T12:00'), d1 = new Date(weekEnd+'T12:00');
   const title = `Semaine du ${d0.getDate()} au ${d1.getDate()} ${months[d1.getMonth()]} ${d1.getFullYear()}`;
+
+  // Section signatures
+  const sigHeadCells = dates.map((d,i) => `<th>${dayNames[i]}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(d))}</span></th>`).join('');
+  const sigRows = employees.map(emp => {
+    const empSigs = sigMap[emp.id] || {};
+    const cells = dates.map(d => {
+      const data = empSigs[dateStr(d)];
+      return data
+        ? `<td style="padding:3px;text-align:center"><img src="${data}" style="width:100px;height:42px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;padding:2px"></td>`
+        : `<td style="text-align:center;color:#ccc;font-size:10px">—</td>`;
+    }).join('');
+    return `<tr><td style="font-weight:700;white-space:nowrap;padding:5px 10px;border-right:2px solid #ddd">${emp.name}</td>${cells}</tr>`;
+  }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Planning — ${title}</title>
   <style>
     *{box-sizing:border-box}
     body{font-family:Arial,sans-serif;padding:20px;color:#222;font-size:12px}
-    h1{font-size:17px;margin-bottom:3px}p{font-size:11px;color:#666;margin:0 0 14px}
+    h1{font-size:17px;margin-bottom:3px}
+    h2{font-size:14px;margin:24px 0 10px;border-top:2px solid #222;padding-top:14px}
+    p{font-size:11px;color:#666;margin:0 0 14px}
     table{border-collapse:collapse;width:100%}
     th{background:#222;color:#fff;padding:7px 5px;font-size:10px;text-align:center}
     td{border:1px solid #ddd;padding:5px 4px;vertical-align:middle}
     tr:nth-child(even) td{background:#fafafa}
     .print-btn{position:fixed;top:14px;right:14px;background:#222;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer}
-    @media print{.print-btn{display:none}}
+    @media print{.print-btn{display:none}.page-break{page-break-before:always}}
   </style></head><body>
   <button class="print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
   <h1>Planning Braise &amp; Co</h1>
@@ -1389,6 +1408,12 @@ async function printPlanningReport() {
   <table>
     <thead><tr><th style="text-align:left;padding:7px 10px">Employé</th>${headCells}<th>Total</th></tr></thead>
     <tbody>${rows}</tbody>
+  </table>
+  <div class="page-break"></div>
+  <h2>Signatures</h2>
+  <table>
+    <thead><tr><th style="text-align:left;padding:7px 10px">Employé</th>${sigHeadCells}</tr></thead>
+    <tbody>${sigRows}</tbody>
   </table>
   </body></html>`;
 
