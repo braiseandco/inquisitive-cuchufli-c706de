@@ -752,7 +752,9 @@ function initDaySigCanvas() {
   canvas.width = wrap.clientWidth;
   canvas.height = wrap.clientHeight;
   sigDayCtx = canvas.getContext('2d');
-  sigDayCtx.strokeStyle = '#F0EDE8';
+  sigDayCtx.fillStyle = '#ffffff';
+  sigDayCtx.fillRect(0, 0, canvas.width, canvas.height);
+  sigDayCtx.strokeStyle = '#1a1a26';
   sigDayCtx.lineWidth = 2.5;
   sigDayCtx.lineCap = 'round';
   sigDayCtx.lineJoin = 'round';
@@ -788,7 +790,10 @@ function daySigEnd() { sigDayDrawing = false; }
 
 function clearDaySig() {
   const canvas = document.getElementById('sigDayCanvas');
-  if (sigDayCtx) sigDayCtx.clearRect(0, 0, canvas.width, canvas.height);
+  if (sigDayCtx) {
+    sigDayCtx.fillStyle = '#ffffff';
+    sigDayCtx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   sigDayHasMark = false; sigDayDrawing = false;
   const hint = document.getElementById('sigDayHint');
   if (hint) hint.style.display = '';
@@ -1001,7 +1006,7 @@ async function loadEmpWeek() {
     const sigBlock = sigData
       ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:8px">
            <span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Signé</span>
-           <img src="${sigData}" style="height:38px;max-width:180px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigData}')">
+           <img src="${sigData}" style="height:38px;max-width:180px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigData}')">
          </div>`
       : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:10px;color:var(--text-faint);font-style:italic">Non signé</div>` : '');
     return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer">
@@ -1398,15 +1403,15 @@ async function printPlanningReport(week) {
     // Ligne signature : Mar Mer Jeu Ven(colspan=2) Sam(colspan=2) Dim — Total vide
     const sigCells = [dates[1],dates[2],dates[3]].map(d => {
       const data = empSigs[dateStr(d)];
-      return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+      return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>`
                   : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
     }).join('') +
     [dates[4],dates[5]].map(d => {
       const data = empSigs[dateStr(d)];
-      return data ? `<td colspan="2" style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+      return data ? `<td colspan="2" style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>`
                   : `<td colspan="2" style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
     }).join('') +
-    (() => { const data = empSigs[dateStr(dates[6])]; return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>` : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`; })();
+    (() => { const data = empSigs[dateStr(dates[6])]; return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>` : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`; })();
 
     return `<tr>
       <td style="font-weight:700;white-space:nowrap;padding:6px 10px;border-right:2px solid #ddd" rowspan="2">${emp.name}</td>
@@ -1680,7 +1685,7 @@ async function printSigReport() {
     const cells = dayDates.map(d => {
       const data = empSigs[d];
       return data
-        ? `<td style="padding:4px;text-align:center;vertical-align:middle"><img src="${data}" style="width:120px;height:50px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;padding:2px"></td>`
+        ? `<td style="padding:4px;text-align:center;vertical-align:middle"><img src="${data}" style="width:120px;height:50px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#1a1a26;padding:2px"></td>`
         : `<td style="text-align:center;color:#ccc;font-size:11px">—</td>`;
     }).join('');
     return `<tr><td style="padding:8px 12px;font-weight:700;white-space:nowrap;border-right:2px solid #eee">${emp.name}</td>${cells}</tr>`;
