@@ -1338,6 +1338,7 @@ async function printPlanningReport() {
     allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
     const ovMap = {};
     allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
+    const empSigs = sigMap[emp.id] || {};
 
     let total = 0;
     for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
@@ -1362,30 +1363,30 @@ async function printPlanningReport() {
       return `<td style="text-align:center;font-size:11px">${fmtT(s)}-${fmtT(e)}${pauseTxt}<div style="font-size:9px;color:#e53935;font-weight:700">${hStr}</div></td>`;
     }).join('');
 
+    // Ligne signature : Mar Mer Jeu Ven(colspan=2) Sam(colspan=2) Dim — Total vide
+    const sigCells = [dates[1],dates[2],dates[3]].map(d => {
+      const data = empSigs[dateStr(d)];
+      return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+                  : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
+    }).join('') +
+    [dates[4],dates[5]].map(d => {
+      const data = empSigs[dateStr(d)];
+      return data ? `<td colspan="2" style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+                  : `<td colspan="2" style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
+    }).join('') +
+    (() => { const data = empSigs[dateStr(dates[6])]; return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>` : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`; })();
+
     return `<tr>
-      <td style="font-weight:700;white-space:nowrap;padding:6px 10px;border-right:2px solid #ddd">${emp.name}</td>
+      <td style="font-weight:700;white-space:nowrap;padding:6px 10px;border-right:2px solid #ddd" rowspan="2">${emp.name}</td>
       ${cells}
-      <td style="font-weight:700;color:#e53935;text-align:center;background:#fff3f3">${total > 0 ? total.toFixed(1).replace('.0','')+'h' : '—'}</td>
-    </tr>`;
+      <td style="font-weight:700;color:#e53935;text-align:center;background:#fff3f3" rowspan="2">${total > 0 ? total.toFixed(1).replace('.0','')+'h' : '—'}</td>
+    </tr>
+    <tr>${sigCells}</tr>`;
   }).join('');
 
   const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-  const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const d0 = new Date(weekStart+'T12:00'), d1 = new Date(weekEnd+'T12:00');
   const title = `Semaine du ${d0.getDate()} au ${d1.getDate()} ${months[d1.getMonth()]} ${d1.getFullYear()}`;
-
-  // Section signatures
-  const sigHeadCells = dates.map((d,i) => `<th>${dayNames[i]}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(d))}</span></th>`).join('');
-  const sigRows = employees.map(emp => {
-    const empSigs = sigMap[emp.id] || {};
-    const cells = dates.map(d => {
-      const data = empSigs[dateStr(d)];
-      return data
-        ? `<td style="padding:3px;text-align:center"><img src="${data}" style="width:100px;height:42px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;padding:2px"></td>`
-        : `<td style="text-align:center;color:#ccc;font-size:10px">—</td>`;
-    }).join('');
-    return `<tr><td style="font-weight:700;white-space:nowrap;padding:5px 10px;border-right:2px solid #ddd">${emp.name}</td>${cells}</tr>`;
-  }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Planning — ${title}</title>
@@ -1393,14 +1394,13 @@ async function printPlanningReport() {
     *{box-sizing:border-box}
     body{font-family:Arial,sans-serif;padding:20px;color:#222;font-size:12px}
     h1{font-size:17px;margin-bottom:3px}
-    h2{font-size:14px;margin:24px 0 10px;border-top:2px solid #222;padding-top:14px}
     p{font-size:11px;color:#666;margin:0 0 14px}
     table{border-collapse:collapse;width:100%}
     th{background:#222;color:#fff;padding:7px 5px;font-size:10px;text-align:center}
     td{border:1px solid #ddd;padding:5px 4px;vertical-align:middle}
     tr:nth-child(even) td{background:#fafafa}
     .print-btn{position:fixed;top:14px;right:14px;background:#222;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer}
-    @media print{.print-btn{display:none}.page-break{page-break-before:always}}
+    @media print{.print-btn{display:none}}
   </style></head><body>
   <button class="print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
   <h1>Planning Braise &amp; Co</h1>
@@ -1408,12 +1408,6 @@ async function printPlanningReport() {
   <table>
     <thead><tr><th style="text-align:left;padding:7px 10px">Employé</th>${headCells}<th>Total</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table>
-  <div class="page-break"></div>
-  <h2>Signatures</h2>
-  <table>
-    <thead><tr><th style="text-align:left;padding:7px 10px">Employé</th>${sigHeadCells}</tr></thead>
-    <tbody>${sigRows}</tbody>
   </table>
   </body></html>`;
 
