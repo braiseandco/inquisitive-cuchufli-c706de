@@ -239,10 +239,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <button class="btn-back" onclick="backToEmpList()">←</button>
     <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
       <div id="ewAvatar" style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;flex-shrink:0"></div>
-      <div style="min-width:0">
+      <div style="min-width:0;display:flex;align-items:center;gap:6px">
         <div class="topbar-logo" id="ewEmpName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-        <div class="topbar-sub" id="ewWeekLabel"></div>
+        <button onclick="openRenameEmp()" style="background:none;border:none;color:var(--text-faint);font-size:14px;cursor:pointer;padding:2px 4px;flex-shrink:0" title="Renommer">✏️</button>
       </div>
+        <div class="topbar-sub" id="ewWeekLabel"></div>
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0">
       <button class="week-nav-btn" onclick="changeEmpWeek(-1)">‹</button>
@@ -254,6 +255,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
   <div style="padding:10px 16px;border-top:1px solid var(--border);flex-shrink:0">
     <button class="btn-primary" style="width:100%" onclick="openEditSchedule(currentEwEmpId)">⚙️ Horaires de base</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL RENAME ═══ -->
+<div class="modal-overlay" id="modalRename">
+  <div class="modal">
+    <h3>Renommer l'employé</h3>
+    <div class="form-group">
+      <label class="form-label">Prénom</label>
+      <input class="form-input" type="text" id="renameInput" placeholder="Prénom" autocomplete="off">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalRename')">Annuler</button>
+      <button class="btn-primary" onclick="saveRenameEmp()">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -842,6 +858,28 @@ function openEmpWeek(empId) {
   document.getElementById('ewEmpName').textContent = emp.name;
   showScreen('emp-week');
   loadEmpWeek();
+}
+
+function openRenameEmp() {
+  const emp = employees.find(e => e.id === currentEwEmpId);
+  document.getElementById('renameInput').value = emp ? emp.name : '';
+  openModal('modalRename');
+}
+
+async function saveRenameEmp() {
+  const name = document.getElementById('renameInput').value.trim();
+  if (!name) { toast('Entrez un prénom'); return; }
+  try {
+    await PATCH(`employees?id=eq.${currentEwEmpId}`, {name});
+    const emp = employees.find(e => e.id === currentEwEmpId);
+    if (emp) emp.name = name;
+    document.getElementById('ewEmpName').textContent = name;
+    document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
+    closeModal('modalRename');
+    toast('Nom mis à jour');
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+  }
 }
 
 function changeEmpWeek(dir) {
