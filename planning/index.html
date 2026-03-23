@@ -427,10 +427,16 @@ const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 //  SUPABASE HELPERS
 // ══════════════════════════════════════
 async function sb(path, opts={}) {
+  const {headers: extraHeaders, ...restOpts} = opts;
   const r = await fetch(SB_URL + '/rest/v1/' + path, {
-    headers: {'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-              'Content-Type': 'application/json', 'Prefer': 'return=representation', ...opts.headers},
-    ...opts
+    ...restOpts,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...extraHeaders
+    }
   });
   if (!r.ok) { const e = await r.text(); throw new Error(e); }
   const t = await r.text();
