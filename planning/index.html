@@ -64,6 +64,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .day-badge.absent{background:rgba(229,57,53,.2);color:#ef9a9a;}
 .day-badge.vacation{background:rgba(30,136,229,.15);color:#90caf9;}
 .day-badge.off{background:rgba(240,237,232,.07);color:var(--text-faint);}
+.day-sig-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Raleway',sans-serif;flex-shrink:0;}
+.day-signed{font-size:11px;font-weight:700;color:#a5d6a7;flex-shrink:0;}
 
 #sign .sig-section{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:12px;overflow:hidden;}
 .sig-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
@@ -198,27 +200,36 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
-<!-- ═══ SIGN ═══ -->
+<!-- ═══ SIGN (aperçu semaine) ═══ -->
 <div class="screen" id="sign">
   <div class="topbar">
     <button class="btn-back" onclick="showScreen('home')">←</button>
     <div>
       <div class="topbar-logo" id="signEmpName">Employé</div>
-      <div class="topbar-sub">Signature semaine</div>
+      <div class="topbar-sub">Semaine en cours</div>
     </div>
   </div>
-  <div class="week-grid" id="signWeekGrid"></div>
+  <div class="week-grid" id="signWeekGrid" style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;"></div>
+</div>
+
+<!-- ═══ SIGN-DAY (signature journalière) ═══ -->
+<div class="screen" id="sign-day">
+  <div class="topbar">
+    <button class="btn-back" onclick="showScreen('sign')">←</button>
+    <div>
+      <div class="topbar-logo" id="signDayEmpName">Employé</div>
+      <div class="topbar-sub" id="signDayDate">Date</div>
+    </div>
+  </div>
+  <div id="signDayInfo" style="padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:13px;color:var(--text-dim);flex-shrink:0;"></div>
   <div class="sig-section">
     <div class="sig-label">Signature</div>
-    <div class="sig-canvas-wrap" id="sigWrap">
-      <canvas id="sigCanvas"></canvas>
-      <div class="sig-hint" id="sigHint">Signez ici avec le doigt</div>
-      <button class="sig-clear" onclick="clearSig()">Effacer</button>
+    <div class="sig-canvas-wrap" id="sigDayWrap">
+      <canvas id="sigDayCanvas"></canvas>
+      <div class="sig-hint" id="sigDayHint">Signez ici avec le doigt</div>
+      <button class="sig-clear" onclick="clearDaySig()">Effacer</button>
     </div>
-    <div class="already-signed" id="alreadySigned" style="display:none">
-      ✓ Vous avez déjà signé cette semaine
-    </div>
-    <button class="btn-sign" id="btnSign" onclick="submitSignature()">Valider ma signature</button>
+    <button class="btn-sign" id="btnDaySign" onclick="submitDaySignature()" disabled>Valider ma signature</button>
   </div>
 </div>
 
@@ -566,150 +577,144 @@ async function openSign(empId) {
   const monday = getMonday(new Date());
   const weekStart = dateStr(monday);
   const dates = weekDates(monday);
+  const today = dateStr(new Date());
 
-  // Load schedules + overrides
-  const [scheds, overrides, existSig] = await Promise.all([
+  const [scheds, overrides, dailySigs] = await Promise.all([
     GET(`schedules?employee_id=eq.${empId}&select=*`),
     GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=*`),
-    GET(`signatures?employee_id=eq.${empId}&week_start=eq.${weekStart}&select=id`)
+    GET(`daily_signatures?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=date`)
   ]);
 
   const schedMap = {};
   scheds.forEach(s => schedMap[s.day_of_week] = s);
-  const overMap = {};
-  overrides.forEach(o => overMap[o.date] = o);
+  const ovMap = {};
+  overrides.forEach(o => ovMap[o.date] = o);
+  const signedDates = new Set(dailySigs.map(s => s.date));
 
   let gridHtml = dates.map((d, i) => {
     const dayNum = i + 1;
-    const ov = overMap[dateStr(d)];
+    const ds = dateStr(d);
+    const ov = ovMap[ds];
     const sched = schedMap[dayNum];
 
     let cls = '', badgeHtml = '', info = '';
     if (ov) {
-      if (ov.status === 'absent') {
-        cls = 'absent'; badgeHtml = '<span class="day-badge absent">Absent</span>';
-        info = 'Absence';
-      } else if (ov.status === 'vacation') {
-        cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';
-        info = 'Congé';
-      } else {
-        info = ov.start_time ? fmtHours(ov) : '—';
-      }
+      if (ov.status === 'absent')        { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absence'; }
+      else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
+      else { info = ov.start_time ? fmtHours(ov) : '—'; }
     } else if (sched && !sched.is_off && sched.start_time) {
       info = fmtHours(sched);
     } else {
-      cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>';
-      info = 'Repos';
+      cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>'; info = 'Repos';
+    }
+
+    const isWorked = !cls;
+    let actionHtml = '';
+    if (signedDates.has(ds)) {
+      actionHtml = '<span class="day-signed">✓ Signé</span>';
+    } else if (isWorked && ds <= today) {
+      actionHtml = `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i})">Signer</button>`;
     }
 
     return `<div class="day-row ${cls}">
       <span class="day-label">${DAYS[i]}</span>
       <span class="day-status">${fmtDate(d)}</span>
-      <span style="font-size:12px;color:var(--text-dim)">${info}</span>
-      ${badgeHtml}
+      <span style="font-size:11px;color:var(--text-dim);flex:1">${info}</span>
+      ${badgeHtml}${actionHtml}
     </div>`;
   }).join('');
 
-  // Total heures semaine
-  const totalH = dates.reduce((sum, d, i) => {
-    const ds = dateStr(d);
-    const ov = overMap[ds];
-    const sched = schedMap[i+1];
-    const row = ov ? {...sched, ...ov} : sched;
-    return sum + calcDayHours(row);
-  }, 0);
-  const totalFmt = Number.isInteger(totalH) ? totalH + 'h' : totalH.toString().replace('.', 'h') + '';
+  // Total semaine
+  const totalH = dates.reduce((sum, d, i) => sum + calcDayHours(ovMap[dateStr(d)] || schedMap[i+1]), 0);
   gridHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin-top:4px;border-radius:10px;background:rgba(229,57,53,.08);border:1px solid rgba(229,57,53,.2)">
     <span style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim)">Total semaine</span>
     <span style="font-size:18px;font-weight:900;color:var(--accent)">${totalH.toFixed(1).replace('.0','')}h</span>
   </div>`;
   document.getElementById('signWeekGrid').innerHTML = gridHtml;
-
-  // Signature pad
-  clearSig();
-  const alreadySigned = existSig.length > 0;
-  document.getElementById('alreadySigned').style.display = alreadySigned ? '' : 'none';
-  document.getElementById('btnSign').style.display = alreadySigned ? 'none' : '';
-  document.getElementById('sigWrap').style.display = alreadySigned ? 'none' : '';
-  document.getElementById('signWeekGrid').style.display = alreadySigned ? 'none' : '';
-
   showScreen('sign');
-  if (alreadySigned) {
-    // Retour auto à l'accueil — pas de trace des horaires après signature
-    let n = 3;
-    document.getElementById('alreadySigned').innerHTML =
-      `✓ Vous avez déjà signé cette semaine.<br><small style="opacity:.6">Retour dans <span id="sigCountdown">${n}</span>s…</small>`;
-    const iv = setInterval(() => {
-      n--;
-      const el = document.getElementById('sigCountdown');
-      if (el) el.textContent = n;
-      if (n <= 0) { clearInterval(iv); showScreen('home'); loadHome(); }
-    }, 1000);
-  } else {
-    initSigCanvas();
-  }
 }
 
-// ── Signature canvas ──
-let sigDrawing = false, sigHasMark = false;
-let sigCtx = null;
+async function openDaySign(empId, dateS, dayIdx) {
+  currentEmpId = empId;
+  currentSignDate = dateS;
+  const emp = employees.find(e => e.id === empId);
+  document.getElementById('signDayEmpName').textContent = emp.name;
+  document.getElementById('signDayDate').textContent = DAYS[dayIdx] + ' ' + fmtDate(new Date(dateS + 'T12:00'));
 
-function initSigCanvas() {
-  const canvas = document.getElementById('sigCanvas');
-  const wrap = document.getElementById('sigWrap');
+  const [ovRes, schedRes] = await Promise.all([
+    GET(`weekly_overrides?employee_id=eq.${empId}&date=eq.${dateS}&select=*`),
+    GET(`schedules?employee_id=eq.${empId}&day_of_week=eq.${dayIdx+1}&select=*`)
+  ]);
+  const row = (Array.isArray(ovRes) ? ovRes[0] : null) || (Array.isArray(schedRes) ? schedRes[0] : null);
+  document.getElementById('signDayInfo').innerHTML = row && row.start_time ? fmtHours(row) : '—';
+
+  clearDaySig();
+  showScreen('sign-day');
+  initDaySigCanvas();
+}
+
+// ── Signature journalière ──
+let currentSignDate = null;
+let sigDayCtx = null, sigDayDrawing = false, sigDayHasMark = false;
+
+function initDaySigCanvas() {
+  const canvas = document.getElementById('sigDayCanvas');
+  const wrap = document.getElementById('sigDayWrap');
   canvas.width = wrap.clientWidth;
   canvas.height = wrap.clientHeight;
-  sigCtx = canvas.getContext('2d');
-  sigCtx.strokeStyle = '#F0EDE8';
-  sigCtx.lineWidth = 2.5;
-  sigCtx.lineCap = 'round';
-  sigCtx.lineJoin = 'round';
-
-  canvas.addEventListener('pointerdown', sigStart);
-  canvas.addEventListener('pointermove', sigMove);
-  canvas.addEventListener('pointerup', sigEnd);
-  canvas.addEventListener('pointercancel', sigEnd);
+  sigDayCtx = canvas.getContext('2d');
+  sigDayCtx.strokeStyle = '#F0EDE8';
+  sigDayCtx.lineWidth = 2.5;
+  sigDayCtx.lineCap = 'round';
+  sigDayCtx.lineJoin = 'round';
+  canvas.addEventListener('pointerdown', daySigStart);
+  canvas.addEventListener('pointermove', daySigMove);
+  canvas.addEventListener('pointerup',   daySigEnd);
+  canvas.addEventListener('pointercancel', daySigEnd);
 }
 
-function getPos(e) {
+function getDayPos(e) {
   const r = e.target.getBoundingClientRect();
   return {x: e.clientX - r.left, y: e.clientY - r.top};
 }
-function sigStart(e) {
+function daySigStart(e) {
   e.preventDefault();
-  sigDrawing = true; sigHasMark = true;
-  document.getElementById('sigHint').style.display = 'none';
-  const p = getPos(e);
-  sigCtx.beginPath();
-  sigCtx.moveTo(p.x, p.y);
-  document.getElementById('btnSign').disabled = false;
+  sigDayDrawing = true; sigDayHasMark = true;
+  document.getElementById('sigDayHint').style.display = 'none';
+  const p = getDayPos(e);
+  sigDayCtx.beginPath(); sigDayCtx.moveTo(p.x, p.y);
+  document.getElementById('btnDaySign').disabled = false;
 }
-function sigMove(e) {
-  if (!sigDrawing) return;
+function daySigMove(e) {
+  if (!sigDayDrawing) return;
   e.preventDefault();
-  const p = getPos(e);
-  sigCtx.lineTo(p.x, p.y);
-  sigCtx.stroke();
+  const p = getDayPos(e);
+  sigDayCtx.lineTo(p.x, p.y); sigDayCtx.stroke();
+  sigDayCtx.beginPath(); sigDayCtx.moveTo(p.x, p.y);
 }
-function sigEnd(e) { sigDrawing = false; }
+function daySigEnd() { sigDayDrawing = false; }
 
-function clearSig() {
-  const canvas = document.getElementById('sigCanvas');
-  if (sigCtx) sigCtx.clearRect(0,0,canvas.width,canvas.height);
-  sigHasMark = false;
-  document.getElementById('sigHint').style.display = '';
-  document.getElementById('btnSign').disabled = true;
+function clearDaySig() {
+  const canvas = document.getElementById('sigDayCanvas');
+  if (sigDayCtx) sigDayCtx.clearRect(0, 0, canvas.width, canvas.height);
+  sigDayHasMark = false; sigDayDrawing = false;
+  const hint = document.getElementById('sigDayHint');
+  if (hint) hint.style.display = '';
+  const btn = document.getElementById('btnDaySign');
+  if (btn) btn.disabled = true;
 }
 
-async function submitSignature() {
-  if (!sigHasMark) return;
-  const canvas = document.getElementById('sigCanvas');
-  const data = canvas.toDataURL('image/png');
-  const weekStart = dateStr(getMonday(new Date()));
+async function submitDaySignature() {
+  if (!sigDayHasMark) return;
+  const data = document.getElementById('sigDayCanvas').toDataURL('image/png');
   try {
-    await POST('signatures', {employee_id: currentEmpId, week_start: weekStart, signature_data: data});
+    await sb('daily_signatures?on_conflict=employee_id,date', {
+      method: 'POST',
+      body: JSON.stringify({employee_id: currentEmpId, date: currentSignDate, signature_data: data}),
+      headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
+    });
     toast('Signature enregistrée !');
-    setTimeout(() => { showScreen('home'); loadHome(); }, 800);
+    setTimeout(() => openSign(currentEmpId), 600);
   } catch(e) {
     toast('Erreur : ' + e.message);
   }
@@ -1091,24 +1096,30 @@ async function saveOverride() {
 
 // ── Signatures tab ──
 async function loadSigTab() {
-  const weekStart = dateStr(getMonday(new Date()));
+  const monday = getMonday(new Date());
+  const weekStart = dateStr(monday);
+  const weekEnd = dateStr(weekDates(monday)[6]);
   if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
-  const sigs = await GET(`signatures?week_start=eq.${weekStart}&select=*`);
+  const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*&order=date.asc`);
+
+  // Grouper par employé
   const sigMap = {};
-  sigs.forEach(s => sigMap[s.employee_id] = s);
+  sigs.forEach(s => { if (!sigMap[s.employee_id]) sigMap[s.employee_id] = []; sigMap[s.employee_id].push(s); });
 
   document.getElementById('sigList').innerHTML = `
     <div class="sig-week-block">
       ${employees.map(emp => {
-        const sig = sigMap[emp.id];
+        const empSigs = sigMap[emp.id] || [];
+        const count = empSigs.length;
+        const lastSig = empSigs[empSigs.length - 1];
         return `<div class="sig-emp-row">
           <div class="emp-card-avatar" style="background:${emp.color};width:36px;height:36px;font-size:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">${emp.name.charAt(0)}</div>
           <div style="flex:1">
             <div style="font-size:14px;font-weight:700">${emp.name}</div>
-            ${sig ? `<div style="font-size:10px;color:var(--text-faint)">${new Date(sig.signed_at).toLocaleString('fr-FR')}</div>` : ''}
+            <div style="font-size:10px;color:var(--text-faint)">${count > 0 ? count + ' jour(s) signé(s) cette semaine' : 'Aucune signature'}</div>
           </div>
-          ${sig ? `<img class="sig-thumb" src="${sig.signature_data}" onclick="viewSig('${emp.name}','${sig.signature_data}')">` : ''}
-          <span class="sig-status ${sig?'ok':'nok'}">${sig ? '✓ Signé' : '✗ En attente'}</span>
+          ${lastSig ? `<img class="sig-thumb" src="${lastSig.signature_data}" onclick="viewSig('${emp.name}','${lastSig.signature_data}')">` : ''}
+          <span class="sig-status ${count > 0 ? 'ok' : 'nok'}">${count > 0 ? '✓ ' + count + 'j' : '✗ 0j'}</span>
         </div>`;
       }).join('')}
     </div>`;
