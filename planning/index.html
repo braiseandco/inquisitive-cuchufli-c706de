@@ -417,6 +417,23 @@ function fmtHours(s) {
   return result;
 }
 
+// Calcule les heures travaillées d'une journée (retourne un float en heures)
+function calcDayHours(row) {
+  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation' || !row.start_time) return 0;
+  const t = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+  const midnight = s => t(s) === 0 ? 1440 : t(s);
+  let total = 0;
+  const s=t(row.start_time), e=midnight(row.end_time);
+  if(row.break_start && row.break_end) total += (t(row.break_start)-s) + (e-t(row.break_end));
+  else total += e-s;
+  if(row.evening_start && row.evening_end) {
+    const es=t(row.evening_start), ee=midnight(row.evening_end);
+    if(row.evening_break_start && row.evening_break_end) total += (t(row.evening_break_start)-es) + (ee-t(row.evening_break_end));
+    else total += ee-es;
+  }
+  return total/60;
+}
+
 const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
 const PIN = '2013';
@@ -554,7 +571,7 @@ async function openSign(empId) {
   const overMap = {};
   overrides.forEach(o => overMap[o.date] = o);
 
-  document.getElementById('signWeekGrid').innerHTML = dates.map((d, i) => {
+  let gridHtml = dates.map((d, i) => {
     const dayNum = i + 1;
     const ov = overMap[dateStr(d)];
     const sched = schedMap[dayNum];
@@ -584,6 +601,21 @@ async function openSign(empId) {
       ${badgeHtml}
     </div>`;
   }).join('');
+
+  // Total heures semaine
+  const totalH = dates.reduce((sum, d, i) => {
+    const ds = toDateStr(d);
+    const ov = ovMap[ds];
+    const sched = schedMap[i+1];
+    const row = ov ? {...sched, ...ov} : sched;
+    return sum + calcDayHours(row);
+  }, 0);
+  const totalFmt = Number.isInteger(totalH) ? totalH + 'h' : totalH.toString().replace('.', 'h') + '';
+  gridHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin-top:4px;border-radius:10px;background:rgba(229,57,53,.08);border:1px solid rgba(229,57,53,.2)">
+    <span style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim)">Total semaine</span>
+    <span style="font-size:18px;font-weight:900;color:var(--accent)">${totalH.toFixed(1).replace('.0','')}h</span>
+  </div>`;
+  document.getElementById('signWeekGrid').innerHTML = gridHtml;
 
   // Signature pad
   clearSig();
