@@ -929,14 +929,17 @@ async function loadEmpWeek() {
 
   const weekStart = dateStr(dates[1]);
   const weekEnd   = dateStr(dates[6]);
-  const [scheds, overrides] = await Promise.all([
+  const [scheds, overrides, dailySigs] = await Promise.all([
     GET(`schedules?employee_id=eq.${empId}&select=*`),
-    GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+    GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${weekEnd}&select=*`),
+    GET(`daily_signatures?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
   ]);
   const schedMap = {};
   scheds.forEach(s => schedMap[s.day_of_week] = s);
   const ovMap = {};
   overrides.forEach(o => ovMap[o.date] = o);
+  const sigByDate = {};
+  dailySigs.forEach(s => sigByDate[s.date] = s.signature_data);
 
   const fmtT = t => { if (!t) return ''; const [h,m] = t.slice(0,5).split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const calcSvc = (s, bs, be, e) => {
@@ -985,13 +988,24 @@ async function loadEmpWeek() {
     }
     const totalStr = dayH > 0 ? `<span style="font-weight:700;color:var(--accent2);font-size:14px">${dayH.toFixed(1).replace('.0','')}h</span>` : '';
     const border = isToday ? 'var(--accent)' : 'var(--border)';
-    return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px">
-      <div style="width:48px;flex-shrink:0;text-align:center">
-        <div style="font-size:11px;font-weight:700;color:${isToday?'var(--accent)':'var(--text-dim)'};text-transform:uppercase;letter-spacing:.5px">${DNAMES[dn].slice(0,3)}</div>
-        <div style="font-size:22px;font-weight:700;color:${isToday?'var(--accent)':'var(--text)'};line-height:1.1">${d.getDate()}</div>
+    const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation';
+    const sigData = sigByDate[ds];
+    const sigBlock = sigData
+      ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:8px">
+           <span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Signé</span>
+           <img src="${sigData}" style="height:38px;max-width:180px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#fff;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigData}')">
+         </div>`
+      : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:10px;color:var(--text-faint);font-style:italic">Non signé</div>` : '');
+    return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:48px;flex-shrink:0;text-align:center">
+          <div style="font-size:11px;font-weight:700;color:${isToday?'var(--accent)':'var(--text-dim)'};text-transform:uppercase;letter-spacing:.5px">${DNAMES[dn].slice(0,3)}</div>
+          <div style="font-size:22px;font-weight:700;color:${isToday?'var(--accent)':'var(--text)'};line-height:1.1">${d.getDate()}</div>
+        </div>
+        <div style="flex:1;min-width:0">${body}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${totalStr}<span style="color:var(--text-faint)">›</span></div>
       </div>
-      <div style="flex:1;min-width:0">${body}</div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">${totalStr}<span style="color:var(--text-faint)">›</span></div>
+      ${sigBlock}
     </div>`;
   }).join('');
 
