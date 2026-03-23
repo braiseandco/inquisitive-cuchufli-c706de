@@ -921,33 +921,41 @@ async function loadPlanningTab() {
 
 // ── Override ──
 async function openOverride(empId, dateS, dayIdx) {
-  overrideTarget = {empId, date: dateS, dayIdx};
-  const emp = employees.find(e=>e.id===empId);
-  document.getElementById('overrideTitle').textContent = `${emp.name} — ${DAYS[dayIdx]} ${fmtDate(new Date(dateS+'T12:00'))}`;
+  try {
+    overrideTarget = {empId, date: dateS, dayIdx};
+    if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) { toast('Employé introuvable'); return; }
+    document.getElementById('overrideTitle').textContent = `${emp.name} — ${DAYS[dayIdx]} ${fmtDate(new Date(dateS+'T12:00'))}`;
 
-  // Load existing override or schedule
-  const [ovRes, schedRes] = await Promise.all([
-    GET(`weekly_overrides?employee_id=eq.${empId}&date=eq.${dateS}&select=*`),
-    GET(`schedules?employee_id=eq.${empId}&day_of_week=eq.${dayIdx+1}&select=*`)
-  ]);
-  const ov = ovRes[0];
-  const sched = schedRes[0];
+    const [ovRes, schedRes] = await Promise.all([
+      GET(`weekly_overrides?employee_id=eq.${empId}&date=eq.${dateS}&select=*`),
+      GET(`schedules?employee_id=eq.${empId}&day_of_week=eq.${dayIdx+1}&select=*`)
+    ]);
+    const ov    = Array.isArray(ovRes)    ? ovRes[0]    : null;
+    const sched = Array.isArray(schedRes) ? schedRes[0] : null;
 
-  selectOv(ov ? ov.status : 'present');
-  document.getElementById('ovStart').value      = (ov?.start_time  || sched?.start_time  || '09:00').slice(0,5);
-  document.getElementById('ovBreakStart').value = (ov?.break_start || sched?.break_start || '12:00').slice(0,5);
-  document.getElementById('ovBreakEnd').value   = (ov?.break_end   || sched?.break_end   || '13:00').slice(0,5);
-  document.getElementById('ovEnd').value        = (ov?.end_time    || sched?.end_time    || '17:00').slice(0,5);
-  document.getElementById('ovNote').value       = ov?.note || '';
-  const hasEvening = (overrideTarget.dayIdx === 4 || overrideTarget.dayIdx === 5);
-  document.getElementById('ovEveningSection').style.display = hasEvening ? '' : 'none';
-  if (hasEvening) {
-    document.getElementById('ovEveningStart').value      = (ov?.evening_start       || sched?.evening_start       || '18:00').slice(0,5);
-    document.getElementById('ovEveningBreakStart').value = (ov?.evening_break_start || sched?.evening_break_start || '19:00').slice(0,5);
-    document.getElementById('ovEveningBreakEnd').value   = (ov?.evening_break_end   || sched?.evening_break_end   || '19:30').slice(0,5);
-    document.getElementById('ovEveningEnd').value        = (ov?.evening_end         || sched?.evening_end         || '00:00').slice(0,5);
+    selectOv(ov ? ov.status : 'present');
+    const st = (v, fb) => v ? String(v).slice(0,5) : fb;
+    document.getElementById('ovStart').value      = st(ov?.start_time  || sched?.start_time,  '09:00');
+    document.getElementById('ovBreakStart').value = st(ov?.break_start || sched?.break_start, '12:00');
+    document.getElementById('ovBreakEnd').value   = st(ov?.break_end   || sched?.break_end,   '13:00');
+    document.getElementById('ovEnd').value        = st(ov?.end_time    || sched?.end_time,    '17:00');
+    document.getElementById('ovNote').value       = ov?.note || '';
+
+    const hasEvening = (dayIdx === 4 || dayIdx === 5);
+    document.getElementById('ovEveningSection').style.display = hasEvening ? '' : 'none';
+    if (hasEvening) {
+      document.getElementById('ovEveningStart').value      = st(ov?.evening_start       || sched?.evening_start,       '18:00');
+      document.getElementById('ovEveningBreakStart').value = st(ov?.evening_break_start || sched?.evening_break_start, '19:00');
+      document.getElementById('ovEveningBreakEnd').value   = st(ov?.evening_break_end   || sched?.evening_break_end,   '19:30');
+      document.getElementById('ovEveningEnd').value        = st(ov?.evening_end         || sched?.evening_end,         '00:00');
+    }
+    openModal('modalOverride');
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('openOverride', e);
   }
-  openModal('modalOverride');
 }
 
 function selectOv(status) {
