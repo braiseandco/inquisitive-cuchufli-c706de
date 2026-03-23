@@ -612,7 +612,7 @@ async function openSign(empId) {
     let actionHtml = '';
     if (signedDates.has(ds)) {
       actionHtml = '<span class="day-signed">✓ Signé</span>';
-    } else if (isWorked && ds <= today) {
+    } else if (isWorked) {
       actionHtml = `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i})">Signer</button>`;
     }
 
