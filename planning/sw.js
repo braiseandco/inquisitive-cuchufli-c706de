@@ -1,4 +1,4 @@
-const CACHE = 'planning-v1';
+const CACHE = 'planning-v2';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
@@ -8,15 +8,21 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    // Ne supprimer que les anciens caches "planning-*", pas les caches d'autres SW
+    Promise.all(keys.filter(k => k.startsWith('planning-') && k !== CACHE).map(k => caches.delete(k)))
   ));
   self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('supabase.co')) return;
+  if (e.request.url.includes('supabase.co') || e.request.url.includes('fonts.googleapis')) return;
+  // Network-first avec fallback cache (offline)
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    fetch(e.request, {cache: 'no-store'}).then(response => {
+      const clone = response.clone();
+      caches.open(CACHE).then(c => c.put(e.request, clone));
+      return response;
+    }).catch(() => caches.match(e.request))
   );
 });
