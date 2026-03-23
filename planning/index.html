@@ -146,7 +146,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .schedule-grid{display:flex;flex-direction:column;gap:8px;}
 .schedule-row{display:flex;align-items:center;gap:8px;}
 .schedule-day-name{font-size:12px;font-weight:700;width:36px;color:var(--text-dim);}
-.schedule-check{width:18px;height:18px;accent-color:var(--accent);}
+.schedule-check{display:none;}
+.day-toggle{padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;border:1px solid var(--border2);transition:all .15s;letter-spacing:.5px;}
+.day-toggle.on{background:rgba(67,160,71,.15);color:#a5d6a7;border-color:rgba(67,160,71,.4);}
+.day-toggle.off{background:rgba(229,57,53,.1);color:#ef9a9a;border-color:rgba(229,57,53,.3);}
 .time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
 .sep{color:var(--text-faint);}
 
@@ -772,10 +775,11 @@ function buildScheduleGrid(containerId, schedMap) {
           <span class="sep">→</span>
           <input type="time" class="time-input" id="eet${dayNum}" value="${eEnd}">
         </div>` : '';
-    return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;">
+    return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);">
       <span class="schedule-day-name">${d}</span>
       <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
-      <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'opacity:.3;pointer-events:none':''}">
+      <button type="button" class="day-toggle ${isOff?'off':'on'}" id="tog${dayNum}" onclick="toggleDay(${dayNum})">${isOff?'REPOS':'TRAVAILLE'}</button>
+      <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'display:none!important':''}">
         <input type="time" class="time-input" id="st${dayNum}" value="${start}">
         <span class="sep">→</span>
         <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
@@ -790,9 +794,14 @@ function buildScheduleGrid(containerId, schedMap) {
 }
 
 function toggleDay(dayNum) {
-  const on = document.getElementById('chk'+dayNum).checked;
-  document.getElementById('times'+dayNum).style.opacity = on ? '1' : '.3';
-  document.getElementById('times'+dayNum).style.pointerEvents = on ? '' : 'none';
+  const chk = document.getElementById('chk'+dayNum);
+  chk.checked = !chk.checked;
+  const on = chk.checked;
+  const tog = document.getElementById('tog'+dayNum);
+  tog.textContent = on ? 'TRAVAILLE' : 'REPOS';
+  tog.className = 'day-toggle ' + (on ? 'on' : 'off');
+  const times = document.getElementById('times'+dayNum);
+  times.style.display = on ? 'flex' : 'none';
 }
 
 async function saveEmployee() {
