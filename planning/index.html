@@ -344,6 +344,25 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           <input class="time-input" type="time" id="ovEnd">
         </div>
       </div>
+      <div id="ovEveningSection" style="display:none">
+        <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent3);margin:10px 0 8px;font-weight:700;">🌙 Service du soir</div>
+        <div class="form-group">
+          <label class="form-label">Début soir → Pause repas</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input class="time-input" type="time" id="ovEveningStart">
+            <span class="sep">→</span>
+            <input class="time-input" type="time" id="ovEveningBreakStart">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">🍽 Reprise soir → Fin</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input class="time-input" type="time" id="ovEveningBreakEnd">
+            <span class="sep">→</span>
+            <input class="time-input" type="time" id="ovEveningEnd">
+          </div>
+        </div>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Note (optionnel)</label>
@@ -379,9 +398,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 // ex: "10:00 – 12:00 🍽 13:00 – 15:30"
 function fmtHours(s) {
   if (!s || !s.start_time) return '—';
-  const matin = s.start_time.slice(0,5) + ' – ' + (s.break_start ? s.break_start.slice(0,5) : s.end_time.slice(0,5));
-  if (!s.break_start || !s.break_end) return s.start_time.slice(0,5) + ' – ' + s.end_time.slice(0,5);
-  return matin + ' 🍽 ' + s.break_end.slice(0,5) + ' – ' + s.end_time.slice(0,5);
+  let result;
+  if (s.break_start && s.break_end) {
+    result = s.start_time.slice(0,5) + ' – ' + s.break_start.slice(0,5) + ' 🍽 ' + s.break_end.slice(0,5) + ' – ' + s.end_time.slice(0,5);
+  } else {
+    result = s.start_time.slice(0,5) + ' – ' + s.end_time.slice(0,5);
+  }
+  if (s.evening_start && s.evening_end) {
+    if (s.evening_break_start && s.evening_break_end) {
+      result += '<br><span style="color:var(--accent3);font-size:11px">🌙 ' + s.evening_start.slice(0,5) + ' – ' + s.evening_break_start.slice(0,5) + ' 🍽 ' + s.evening_break_end.slice(0,5) + ' – ' + s.evening_end.slice(0,5) + '</span>';
+    } else {
+      result += '<br><span style="color:var(--accent3);font-size:11px">🌙 ' + s.evening_start.slice(0,5) + ' – ' + s.evening_end.slice(0,5) + '</span>';
+    }
+  }
+  return result;
 }
 
 const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
@@ -721,23 +751,39 @@ function buildScheduleGrid(containerId, schedMap) {
   document.getElementById(containerId).innerHTML = DAYS.map((d,i) => {
     const dayNum = i+1;
     const s = schedMap ? schedMap[dayNum] : null;
-    const isOff = s ? s.is_off : (i>=5);
-    const start  = s && !s.is_off ? s.start_time.slice(0,5)               : '09:00';
+    const isOff = s ? s.is_off : (i>=6);
+    const start  = s && !s.is_off ? s.start_time.slice(0,5)                   : '09:00';
     const bStart = s && !s.is_off && s.break_start ? s.break_start.slice(0,5) : '12:00';
     const bEnd   = s && !s.is_off && s.break_end   ? s.break_end.slice(0,5)   : '13:00';
-    const end    = s && !s.is_off ? s.end_time.slice(0,5)                  : '17:00';
-    const hasBrk = s && !s.is_off && s.break_start ? true : false;
+    const end    = s && !s.is_off ? s.end_time.slice(0,5)                      : '17:00';
+    const hasEvening = (dayNum === 5 || dayNum === 6);
+    const eStart  = s?.evening_start       ? s.evening_start.slice(0,5)       : '18:00';
+    const eBStart = s?.evening_break_start ? s.evening_break_start.slice(0,5) : '19:00';
+    const eBEnd   = s?.evening_break_end   ? s.evening_break_end.slice(0,5)   : '19:30';
+    const eEnd    = s?.evening_end         ? s.evening_end.slice(0,5)         : '00:00';
+    const eveningHtml = hasEvening ? `
+        <div style="width:100%;margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+          <span style="font-size:10px;color:var(--accent3);font-weight:700;width:100%">🌙 Service du soir</span>
+          <input type="time" class="time-input" id="est${dayNum}" value="${eStart}">
+          <span class="sep">→</span>
+          <input type="time" class="time-input" id="ebs${dayNum}" value="${eBStart}">
+          <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+          <input type="time" class="time-input" id="ebe${dayNum}" value="${eBEnd}">
+          <span class="sep">→</span>
+          <input type="time" class="time-input" id="eet${dayNum}" value="${eEnd}">
+        </div>` : '';
     return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;">
       <span class="schedule-day-name">${d}</span>
       <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
       <div id="times${dayNum}" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;${isOff?'opacity:.3;pointer-events:none':''}">
         <input type="time" class="time-input" id="st${dayNum}" value="${start}">
         <span class="sep">→</span>
-        <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}" placeholder="Pause début">
+        <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
         <span style="font-size:10px;color:var(--text-faint)">🍽</span>
-        <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}" placeholder="Pause fin">
+        <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
         <span class="sep">→</span>
         <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+        ${eveningHtml}
       </div>
     </div>`;
   }).join('');
@@ -757,11 +803,16 @@ async function saveEmployee() {
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
+    const hasEvening = (dayNum === 5 || dayNum === 6);
     return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
             start_time:  document.getElementById('st'+dayNum).value || null,
             break_start: document.getElementById('bs'+dayNum).value || null,
             break_end:   document.getElementById('be'+dayNum).value || null,
-            end_time:    document.getElementById('et'+dayNum).value || null};
+            end_time:    document.getElementById('et'+dayNum).value || null,
+            evening_start:       hasEvening ? (document.getElementById('est'+dayNum)?.value || null) : null,
+            evening_break_start: hasEvening ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
+            evening_break_end:   hasEvening ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
+            evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
   await POST('schedules', rows);
   employees.push(emp);
@@ -786,11 +837,16 @@ async function saveSchedule() {
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
+    const hasEvening = (dayNum === 5 || dayNum === 6);
     return {employee_id: scheduleTarget, day_of_week: dayNum, is_off: !on,
             start_time:  document.getElementById('st'+dayNum).value || null,
             break_start: document.getElementById('bs'+dayNum).value || null,
             break_end:   document.getElementById('be'+dayNum).value || null,
-            end_time:    document.getElementById('et'+dayNum).value || null};
+            end_time:    document.getElementById('et'+dayNum).value || null,
+            evening_start:       hasEvening ? (document.getElementById('est'+dayNum)?.value || null) : null,
+            evening_break_start: hasEvening ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
+            evening_break_end:   hasEvening ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
+            evening_end:         hasEvening ? (document.getElementById('eet'+dayNum)?.value || null) : null};
   });
   // Upsert
   await sb('schedules', {method:'POST', body: JSON.stringify(rows),
@@ -874,6 +930,14 @@ async function openOverride(empId, dateS, dayIdx) {
   document.getElementById('ovBreakEnd').value   = (ov?.break_end   || sched?.break_end   || '13:00').slice(0,5);
   document.getElementById('ovEnd').value        = (ov?.end_time    || sched?.end_time    || '17:00').slice(0,5);
   document.getElementById('ovNote').value       = ov?.note || '';
+  const hasEvening = (overrideTarget.dayIdx === 4 || overrideTarget.dayIdx === 5);
+  document.getElementById('ovEveningSection').style.display = hasEvening ? '' : 'none';
+  if (hasEvening) {
+    document.getElementById('ovEveningStart').value      = (ov?.evening_start       || sched?.evening_start       || '18:00').slice(0,5);
+    document.getElementById('ovEveningBreakStart').value = (ov?.evening_break_start || sched?.evening_break_start || '19:00').slice(0,5);
+    document.getElementById('ovEveningBreakEnd').value   = (ov?.evening_break_end   || sched?.evening_break_end   || '19:30').slice(0,5);
+    document.getElementById('ovEveningEnd').value        = (ov?.evening_end         || sched?.evening_end         || '00:00').slice(0,5);
+  }
   openModal('modalOverride');
 }
 
@@ -886,14 +950,20 @@ function selectOv(status) {
 }
 
 async function saveOverride() {
-  const {empId, date} = overrideTarget;
+  const {empId, date, dayIdx} = overrideTarget;
+  const hasEvening = (dayIdx === 4 || dayIdx === 5);
+  const present = currentOvStatus === 'present';
   const body = {
     employee_id: empId, date,
     status: currentOvStatus,
-    start_time:  currentOvStatus==='present' ? document.getElementById('ovStart').value      : null,
-    break_start: currentOvStatus==='present' ? document.getElementById('ovBreakStart').value : null,
-    break_end:   currentOvStatus==='present' ? document.getElementById('ovBreakEnd').value   : null,
-    end_time:    currentOvStatus==='present' ? document.getElementById('ovEnd').value        : null,
+    start_time:  present ? document.getElementById('ovStart').value      : null,
+    break_start: present ? document.getElementById('ovBreakStart').value : null,
+    break_end:   present ? document.getElementById('ovBreakEnd').value   : null,
+    end_time:    present ? document.getElementById('ovEnd').value        : null,
+    evening_start:       (present && hasEvening) ? document.getElementById('ovEveningStart').value      : null,
+    evening_break_start: (present && hasEvening) ? document.getElementById('ovEveningBreakStart').value : null,
+    evening_break_end:   (present && hasEvening) ? document.getElementById('ovEveningBreakEnd').value   : null,
+    evening_end:         (present && hasEvening) ? document.getElementById('ovEveningEnd').value        : null,
     note: document.getElementById('ovNote').value || null
   };
   await sb('weekly_overrides', {method:'POST', body: JSON.stringify(body),
