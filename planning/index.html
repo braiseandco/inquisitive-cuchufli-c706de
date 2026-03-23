@@ -374,6 +374,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tab-content" id="tab-signatures">
     <div class="section-head">
       <div class="section-title">Semaine en cours</div>
+      <button class="btn-add" onclick="printSigReport()" style="font-size:11px;padding:8px 12px">🖨️ Imprimer</button>
     </div>
     <div id="sigList"></div>
   </div>
@@ -1486,6 +1487,66 @@ async function loadSigTab() {
 function viewSig(name, data) {
   const w = window.open('', '_blank', 'width=500,height=300');
   w.document.write(`<html><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;padding:20px"><h3 style="color:#fff;font-family:sans-serif;margin-bottom:10px">${name}</h3><img src="${data}" style="max-width:100%;border-radius:8px;background:#fff;padding:10px"></body></html>`);
+}
+
+async function printSigReport() {
+  const monday = getMonday(new Date());
+  const dates = weekDates(monday);
+  const weekStart = dateStr(dates[0]);
+  const weekEnd   = dateStr(dates[6]);
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
+
+  // sigMap[employeeId][date] = signature_data
+  const sigMap = {};
+  sigs.forEach(s => { if (!sigMap[s.employee_id]) sigMap[s.employee_id] = {}; sigMap[s.employee_id][s.date] = s.signature_data; });
+
+  const dayLabels = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const dayDates  = dates.map(d => dateStr(d));
+
+  // Formatage date lisible
+  const fmt = d => { const [y,m,j] = d.split('-'); return `${j}/${m}`; };
+  const fmtLong = d => { const days=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche']; const months=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']; const dt=new Date(d+'T12:00'); return `${days[dt.getDay()===0?6:dt.getDay()-1]} ${dt.getDate()} ${months[dt.getMonth()]}`; };
+
+  const headCells = dayDates.map((d,i) => `<th>${dayLabels[i]}<br><span style="font-weight:400;font-size:10px">${fmt(d)}</span></th>`).join('');
+
+  const rows = employees.map(emp => {
+    const empSigs = sigMap[emp.id] || {};
+    const cells = dayDates.map(d => {
+      const data = empSigs[d];
+      return data
+        ? `<td style="padding:4px;text-align:center;vertical-align:middle"><img src="${data}" style="width:120px;height:50px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;padding:2px"></td>`
+        : `<td style="text-align:center;color:#ccc;font-size:11px">—</td>`;
+    }).join('');
+    return `<tr><td style="padding:8px 12px;font-weight:700;white-space:nowrap;border-right:2px solid #eee">${emp.name}</td>${cells}</tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Signatures — semaine du ${fmt(weekStart)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 20px; color: #222; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    p { font-size: 12px; color: #666; margin: 0 0 16px; }
+    table { border-collapse: collapse; width: 100%; }
+    th { background: #222; color: #fff; padding: 8px 6px; font-size: 12px; text-align: center; }
+    td { border: 1px solid #ddd; }
+    tr:nth-child(even) td { background: #f9f9f9; }
+    .print-btn { position: fixed; top: 16px; right: 16px; background: #222; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+    @media print { .print-btn { display: none; } }
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
+  <h1>Signatures du personnel</h1>
+  <p>Semaine du ${fmtLong(weekStart)} au ${fmtLong(weekEnd)}</p>
+  <table>
+    <thead><tr><th style="text-align:left;padding:8px 12px">Employé</th>${headCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── Settings ──
