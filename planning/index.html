@@ -258,6 +258,34 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
+<!-- ═══ MODAL FERMETURE ═══ -->
+<div class="modal-overlay" id="modalFermeture">
+  <div class="modal">
+    <h3>🔒 Fermeture exceptionnelle</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin:-4px 0 14px">Applique un statut à tous les employés sur la période choisie.</p>
+    <div class="form-group">
+      <label class="form-label">Du</label>
+      <input class="form-input" type="date" id="fermStart">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Au</label>
+      <input class="form-input" type="date" id="fermEnd">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Statut</label>
+      <div class="override-opts">
+        <div class="ov-opt selected" id="ferm-vacation" onclick="selectFerm('vacation')">Congé</div>
+        <div class="ov-opt" id="ferm-repos" onclick="selectFerm('repos')">Repos</div>
+        <div class="ov-opt" id="ferm-absent" onclick="selectFerm('absent')">Absent</div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalFermeture')">Annuler</button>
+      <button class="btn-primary" onclick="saveFermeture()">Appliquer</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL RENAME ═══ -->
 <div class="modal-overlay" id="modalRename">
   <div class="modal">
@@ -335,6 +363,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="week-nav-btn" onclick="changeWeek(-1)">‹</button>
       <div class="week-label" id="planningWeekLabel"></div>
       <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
+    </div>
+    <div style="margin-bottom:14px">
+      <button class="btn-add" style="width:100%;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture exceptionnelle</button>
     </div>
     <div id="planningBlocks"></div>
   </div>
@@ -1354,6 +1385,70 @@ async function saveOverride() {
   } catch(e) {
     toast('Erreur : ' + e.message);
     console.error('saveOverride', e);
+  }
+}
+
+// ── Fermeture exceptionnelle ──
+let currentFermStatus = 'vacation';
+
+function openFermeture() {
+  const today = dateStr(new Date());
+  document.getElementById('fermStart').value = today;
+  document.getElementById('fermEnd').value = today;
+  selectFerm('vacation');
+  openModal('modalFermeture');
+}
+
+function selectFerm(status) {
+  currentFermStatus = status;
+  ['vacation','repos','absent'].forEach(s => {
+    document.getElementById('ferm-'+s).classList.toggle('selected', s === status);
+  });
+}
+
+async function saveFermeture() {
+  const start = document.getElementById('fermStart').value;
+  const end   = document.getElementById('fermEnd').value;
+  if (!start || !end || end < start) { toast('Dates invalides'); return; }
+  if (!employees.length) employees = await GET('employees?select=*&order=name.asc');
+
+  // Générer toutes les dates de la plage
+  const dates = [];
+  const cur = new Date(start + 'T12:00');
+  const last = new Date(end + 'T12:00');
+  while (cur <= last) { dates.push(dateStr(cur)); cur.setDate(cur.getDate() + 1); }
+
+  // Construire les overrides pour tous les employés × toutes les dates
+  const isOff = currentFermStatus === 'repos';
+  const status = isOff ? 'present' : currentFermStatus;
+  const rows = [];
+  for (const emp of employees) {
+    for (const d of dates) {
+      rows.push({
+        employee_id: emp.id, date: d,
+        status, is_off: isOff,
+        start_time: null, break_start: null, break_end: null, end_time: null,
+        evening_start: null, evening_break_start: null, evening_break_end: null, evening_end: null,
+        note: 'Fermeture exceptionnelle'
+      });
+    }
+  }
+
+  try {
+    // Envoyer par lots de 50 pour éviter des payloads trop lourds
+    const BATCH = 50;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      await sb('weekly_overrides?on_conflict=employee_id,date', {
+        method: 'POST', body: JSON.stringify(rows.slice(i, i + BATCH)),
+        headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
+      });
+    }
+    closeModal('modalFermeture');
+    toast(`Fermeture appliquée — ${employees.length} employés × ${dates.length} jours`);
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('saveFermeture', e);
   }
 }
 
