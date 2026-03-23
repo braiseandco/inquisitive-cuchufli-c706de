@@ -761,10 +761,10 @@ function buildScheduleGrid(containerId, schedMap) {
     const dayNum = i+1;
     const s = schedMap ? schedMap[dayNum] : null;
     const isOff = s ? s.is_off : (i>=6);
-    const start  = s && !s.is_off ? s.start_time.slice(0,5)                   : '09:00';
-    const bStart = s && !s.is_off && s.break_start ? s.break_start.slice(0,5) : '12:00';
-    const bEnd   = s && !s.is_off && s.break_end   ? s.break_end.slice(0,5)   : '13:00';
-    const end    = s && !s.is_off ? s.end_time.slice(0,5)                      : '17:00';
+    const start  = s && !s.is_off ? s.start_time.slice(0,5)                   : '10:00';
+    const bStart = s && !s.is_off && s.break_start ? s.break_start.slice(0,5) : '11:30';
+    const bEnd   = s && !s.is_off && s.break_end   ? s.break_end.slice(0,5)   : '12:00';
+    const end    = s && !s.is_off ? s.end_time.slice(0,5)                      : '15:30';
     const hasEvening = (dayNum === 5 || dayNum === 6);
     const eStart  = s?.evening_start       ? s.evening_start.slice(0,5)       : '18:00';
     const eBStart = s?.evening_break_start ? s.evening_break_start.slice(0,5) : '19:00';
