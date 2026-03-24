@@ -1,7 +1,7 @@
 // Service Worker — Braise & Co
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'braise-v5';
+const CACHE = 'braise-v6';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();
@@ -15,6 +15,29 @@ self.addEventListener('activate', function(e) {
     })
   );
   self.clients.claim();
+});
+
+// ── PUSH NOTIFICATIONS ──────────────────────────────────────────
+self.addEventListener('push', function(e) {
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; } catch(_) {}
+  var title = data.title || '🔥 Braise & Co';
+  var body  = data.body  || '';
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      data: { url: 'https://app.braiseandco.fr/carte-fidelite.html' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+  var target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(clients.openWindow(target));
 });
 
 self.addEventListener('fetch', function(e) {
