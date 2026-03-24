@@ -13,7 +13,7 @@
 <title>Caisse — Braise &amp; Co</title>
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/caisse/sw.js', { scope: '/caisse/' });
+    navigator.serviceWorker.register('/caisse/sw.js', { scope: '/caisse/', updateViaCache: 'none' });
   }
 </script>
 <style>
