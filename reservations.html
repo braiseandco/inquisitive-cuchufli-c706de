@@ -88,6 +88,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .resa-card{background:rgba(160,20,20,0.22);border:1px solid rgba(220,60,60,0.4);border-radius:14px;padding:15px 16px;margin-bottom:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
 .resa-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--red);}
 .resa-card.en-attente::before{background:var(--accent);}
+.resa-card.en-attente{border-color:#ffd600;box-shadow:0 0 0 1px #ffd600,0 0 14px rgba(255,214,0,0.25);}
 .resa-card.annulee::before{background:var(--red);opacity:0.5;}
 .resa-card:active{transform:scale(0.99);}
 /* Badge origine web */
@@ -974,13 +975,7 @@ async function loadResas(highlightId, silent=false){
         const card = document.querySelector('.resa-card[data-id="'+highlightId+'"]');
         if(card){
           card.scrollIntoView({behavior:'smooth', block:'center'});
-          card.style.transition='box-shadow .3s, border-color .3s';
-          card.style.boxShadow='0 0 0 2px #ffd600, 0 0 20px rgba(255,214,0,0.4)';
-          card.style.borderColor='#ffd600';
-          setTimeout(()=>{
-            card.style.boxShadow='';
-            card.style.borderColor='';
-          }, 3500);
+          // Cadre jaune géré par CSS (.en-attente) — scroll uniquement
         }
       }, 120);
     }
@@ -1121,6 +1116,7 @@ function resaCardHtml(r){
   if(isArrivee) cardClasses += ' arrivee';
   else if(isEnRetard) cardClasses += ' en-retard';
   if(isWeb) cardClasses += ' web-resa';
+  if(!isArrivee && r.statut === 'en-attente') cardClasses += ' en-attente';
   return '<div class="'+cardClasses+'" data-id="'+r.id+'" data-heure="'+heure+'" data-date="'+(r.date||'')+'" data-table-id="'+(r.table_id||'')+'">'+
     '<div class="resa-card-top">'+
     '<div class="resa-heure">'+heure+'</div>'+
