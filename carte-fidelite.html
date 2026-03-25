@@ -851,6 +851,12 @@ checkMobileView();
         }
       },300);
     }
+    return;
+  }
+  // Déjà inscrit et ouverture directe (icône accueil) → carte directement
+  if(!p.get('carte')){
+    const savedId=localStorage.getItem('my_carte_id');
+    if(savedId) setTimeout(()=>loadMobileCard(savedId),300);
   }
 })();
 </script>
