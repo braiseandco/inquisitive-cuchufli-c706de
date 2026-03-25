@@ -322,6 +322,7 @@ async function checkMobileView(){
   const params=new URLSearchParams(window.location.search);
   const cid=params.get('carte');
   if(!cid)return false;
+  localStorage.setItem('my_carte_id',cid);
   document.getElementById('mobile-view').classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('fire-canvas').style.opacity='0.35';
@@ -376,7 +377,7 @@ function renderMobileCard(c){
 }
 
 document.getElementById('btn-inscrit').onclick=()=>go('sf');
-document.getElementById('btn-lookup').onclick=()=>{document.getElementById('lookup-q').value='';document.getElementById('lookup-results').innerHTML='<div class="empty"><div class="empty-ico">🔍</div>Tapez au moins 2 caractères</div>';go('sl');};
+document.getElementById('btn-lookup').onclick=()=>{const savedId=localStorage.getItem('my_carte_id');if(savedId){loadMobileCard(savedId);}else{toast('Ouvrez le lien envoy\u00e9 par SMS pour acc\u00e9der \u00e0 votre carte','ko');}};
 document.getElementById('btn-admin-open').onclick=()=>{document.getElementById('admin-pw').value='';document.getElementById('modal-admin').classList.add('open');};
 
 // QR code d'accueil
