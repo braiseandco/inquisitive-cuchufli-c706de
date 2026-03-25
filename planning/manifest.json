@@ -1,8 +1,9 @@
 {
+  "id": "/planning/",
   "name": "Braise & Co — Planning",
   "short_name": "Planning",
   "description": "Suivi horaire Braise & Co",
-  "start_url": "./index.html",
+  "start_url": "/planning/index.html",
   "scope": "/planning/",
   "display": "standalone",
   "orientation": "any",
