@@ -815,19 +815,15 @@ document.head.appendChild(manifestLink);
 // ── Service Worker + mise à jour automatique ─────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').then(function(reg) {
-    // Vérifier les mises à jour dès le chargement
-    reg.update();
-    // Quand un nouveau SW est installé, recharger automatiquement
-    reg.addEventListener('updatefound', function() {
-      var newWorker = reg.installing;
-      newWorker.addEventListener('statechange', function() {
-        if (newWorker.state === 'activated') {
-          // Nouvelle version active : recharger silencieusement
-          window.location.reload();
-        }
-      });
-    });
+    reg.update(); // Vérifie une mise à jour dès le chargement
+    setInterval(function(){ reg.update(); }, 60 * 60 * 1000); // Revérifie toutes les heures
   }).catch(function(){});
+  // Rechargement automatique quand le nouveau SW envoie SW_UPDATED
+  navigator.serviceWorker.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'SW_UPDATED') {
+      window.location.reload();
+    }
+  });
 }
 
 // ── Install prompt ────────────────────────────────────────────

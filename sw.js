@@ -1,20 +1,30 @@
 // Service Worker — Braise & Co
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'braise-v8';
+const CACHE = 'braise-v9';
 
 self.addEventListener('install', function(e) {
-  self.skipWaiting();
+  self.skipWaiting(); // Active immédiatement sans attendre la fermeture des onglets
 });
 
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
-      // Ne supprimer que les anciens caches "braise-*", pas les caches d'autres SW
-      return Promise.all(keys.filter(function(k) { return k.startsWith('braise-') && k !== CACHE; }).map(function(k) { return caches.delete(k); }));
+      return Promise.all(
+        keys.filter(function(k) { return k.startsWith('braise-') && k !== CACHE; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    }).then(function() {
+      // Envoie un message à tous les onglets ouverts pour qu'ils se rechargent
+      return self.clients.matchAll({ type: 'window' }).then(function(clients) {
+        clients.forEach(function(client) {
+          client.postMessage({ type: 'SW_UPDATED' });
+        });
+      });
     })
   );
-  self.clients.claim();
 });
 
 // ── PUSH NOTIFICATIONS ──────────────────────────────────────────
