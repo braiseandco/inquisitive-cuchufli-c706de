@@ -4,7 +4,7 @@
   "short_name": "Fidélité",
   "description": "Carte de fidélité Braise & Co",
   "start_url": "/carte-fidelite.html",
-  "scope": "/",
+  "scope": "/carte-fidelite.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#000000",
