@@ -348,7 +348,7 @@ async function loadMobileCard(id, from){
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
 
-function renderMobileCard(c){
+function renderMobileCard(c){ window.currentMobileClient = c;
   const inCycle=c.stamps%MAX_STAMPS;
   const lvls=['Nouveau','Régulier','Fidèle','VIP','Ambassadeur'];
   document.getElementById('mv-name').textContent=c.prenom+' '+(c.nom||'').toUpperCase();
@@ -919,12 +919,17 @@ let rnPax=2;
 
 function openResaModal(){
   // Pre-fill with client data if available
-  const nameEl=document.getElementById('card-name');
-  if(nameEl&&nameEl.textContent){
-    const parts=nameEl.textContent.trim().split(' ');
-    document.getElementById('rn-nom').value=parts[0]||'';
+  const mc = window.currentMobileClient;
+  if(mc){
+    document.getElementById('rn-nom').value=(mc.prenom||'')+' '+(mc.nom||'');
+    document.getElementById('rn-tel').value=mc.tel||'';
+  } else {
+    const nameEl=document.getElementById('card-name');
+    if(nameEl&&nameEl.textContent){
+      const parts=nameEl.textContent.trim().split(' ');
+      document.getElementById('rn-nom').value=parts[0]||'';
+    }
   }
-  // Pre-fill phone from email field or current client
   const emailEl=document.getElementById('card-email');
   // Set min date to tomorrow
   const tom=new Date();tom.setDate(tom.getDate()+1);
@@ -984,7 +989,7 @@ document.getElementById('rn-submit').addEventListener('click',async function(){
     const res=await fetch(RESA_SB_URL+'/rest/v1/reservations',{
       method:'POST',
       headers:{'apikey':RESA_SB_KEY,'Authorization':'Bearer '+RESA_SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
-      body:JSON.stringify({id,nom,telephone:tel,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',created_at:new Date().toISOString()})
+      body:JSON.stringify({id,nom,telephone:tel,email:(window.currentMobileClient&&window.currentMobileClient.email)||null,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',source:'fidelite',created_at:new Date().toISOString()})
     });
     if(!res.ok)throw new Error();
     const dateStr=new Date(date+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
