@@ -833,7 +833,7 @@ document.head.appendChild(manifestLink);
 
 // ── Service Worker + mise à jour automatique ─────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+  navigator.serviceWorker.register('/sw-fidelite.js', { scope: '/carte-fidelite.html' }).then(function(reg) {
     reg.update(); // Vérifie une mise à jour dès le chargement
     setInterval(function(){ reg.update(); }, 60 * 60 * 1000); // Revérifie toutes les heures
   }).catch(function(){});
