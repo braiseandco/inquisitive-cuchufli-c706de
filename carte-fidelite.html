@@ -399,6 +399,7 @@ document.getElementById('btn-form-submit').onclick=async function(){
     if(ex){setErr('email','Email déjà inscrit');showLoader(false);return;}
     const id=genId();
     await createClient({id,prenom,nom,email,tel,date_naissance:dob,stamps:0,total_stamps:0,rewards_used:0,apero_used:0,apero_pending:false,visits:[]});
+    localStorage.setItem('my_carte_id',id);
     showLoader(false);
     ['f-prenom','f-nom','f-email','f-tel','f-dob'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('success-msg').innerHTML='Bienvenue <strong>'+prenom+'</strong> ! Collectez 1 tampon par passage. Au 5ème : <strong>apéro offert 🍹</strong> ! Au 10ème : <strong>repas offert 🍽️</strong> !';
