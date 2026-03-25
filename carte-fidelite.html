@@ -957,11 +957,11 @@ if (isIOS && !isInStandalone) {
   showInstallBanner();
 }
 
-// Also add install button on mobile card view
+// Also add install button on mobile card view (Android only — iOS uses le guide visuel)
 window.addEventListener('load', () => {
   const mv = document.getElementById('mobile-view');
   if (!mv) return;
-  if (isInStandalone) return;
+  if (isInStandalone || isIOS) return;
   const btn = document.createElement('button');
   btn.className = 'btn-fire';
   btn.style.cssText = 'max-width:360px;margin-top:20px;font-size:13px;padding:14px;';
