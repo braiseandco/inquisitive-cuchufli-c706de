@@ -607,7 +607,7 @@ async function loadAdmin(){
         pushBtn.disabled=true;pushBtn.textContent='...';
         const r=await fetch(PUSH_API,{method:'POST',headers:{'Content-Type':'application/json','x-api-secret':PUSH_SECRET},body:JSON.stringify({client_id:c.id,title:'🔥 Braise & Co',body:msg.trim()})});
         const d=await r.json();
-        if(d.no_sub){toast('Pas d'abonnement push pour '+c.prenom,'ko');}
+        if(d.no_sub){toast('Pas d\u2019abonnement push pour '+c.prenom,'ko');}
         else if(d.ok){toast('Notification envoyée à '+c.prenom,'ok');}
         else{toast('Erreur envoi','ko');}
         pushBtn.disabled=false;pushBtn.textContent='🔔';
