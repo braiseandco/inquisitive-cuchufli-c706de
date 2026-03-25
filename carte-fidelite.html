@@ -612,7 +612,22 @@ async function loadAdmin(){
         else{toast('Erreur envoi','ko');}
         pushBtn.disabled=false;pushBtn.textContent='🔔';
       });
-      wrap.appendChild(btn);wrap.appendChild(mailBtn);wrap.appendChild(pushBtn);list.appendChild(wrap);
+      const delBtn=document.createElement('button');
+      delBtn.textContent='🗑';
+      delBtn.title='Supprimer ce client';
+      delBtn.style.cssText='flex-shrink:0;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,50,50,0.35);background:rgba(255,30,30,0.08);color:#ff4444;font-size:18px;cursor:pointer;';
+      delBtn.addEventListener('click',async e=>{
+        e.stopPropagation();
+        if(!confirm('Supprimer la carte de '+c.prenom+' '+(c.nom||'').toUpperCase()+' ?
+Cette action est irréversible.'))return;
+        delBtn.disabled=true;delBtn.textContent='...';
+        try{
+          await sbFetch('clients?id=eq.'+c.id,{method:'DELETE'});
+          toast(c.prenom+' supprimé','ok');
+          wrap.remove();
+        }catch(err){toast('Erreur suppression','ko');delBtn.disabled=false;delBtn.textContent='🗑';}
+      });
+      wrap.appendChild(btn);wrap.appendChild(mailBtn);wrap.appendChild(pushBtn);wrap.appendChild(delBtn);list.appendChild(wrap);
     });
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
