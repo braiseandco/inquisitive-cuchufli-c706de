@@ -1,9 +1,10 @@
 {
+  "id": "/reservations.html",
   "name": "Braise & Co — Réservations",
   "short_name": "Réservations",
   "description": "Gestion des réservations Braise & Co",
-  "start_url": "./reservations.html",
-  "scope": "./",
+  "start_url": "/reservations.html",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",

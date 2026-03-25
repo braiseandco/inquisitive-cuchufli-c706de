@@ -1,8 +1,9 @@
 {
+  "id": "/caisse/",
   "name": "Braise & Co — Caisse",
   "short_name": "Caisse",
   "description": "Gestion de caisse Braise & Co",
-  "start_url": "./index.html",
+  "start_url": "/caisse/index.html",
   "scope": "/caisse/",
   "display": "standalone",
   "orientation": "any",
