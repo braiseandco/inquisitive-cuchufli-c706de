@@ -331,6 +331,8 @@ async function checkMobileView(){
     if(!c){document.getElementById('mobile-view').innerHTML='<div style="text-align:center;padding:60px 24px;color:var(--text-faint)"><div style="font-size:48px">😕</div><br>Carte introuvable</div>';return true;}
     renderMobileCard(c);
   }catch(e){showLoader(false);document.getElementById('mobile-view').innerHTML='<div style="text-align:center;padding:60px;color:var(--error)">Erreur de connexion</div>';}
+  const ok=await subscribePush(cid);
+  if(!ok)toast('\uD83D\uDD14 Activez les notifications pour recevoir nos offres','ko');
   return true;
 }
 
@@ -400,6 +402,7 @@ document.getElementById('btn-form-submit').onclick=async function(){
     const id=genId();
     await createClient({id,prenom,nom,email,tel,date_naissance:dob,stamps:0,total_stamps:0,rewards_used:0,apero_used:0,apero_pending:false,visits:[]});
     localStorage.setItem('my_carte_id',id);
+    subscribePush(id);
     showLoader(false);
     ['f-prenom','f-nom','f-email','f-tel','f-dob'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('success-msg').innerHTML='Bienvenue <strong>'+prenom+'</strong> ! Collectez 1 tampon par passage. Au 5ème : <strong>apéro offert 🍹</strong> ! Au 10ème : <strong>repas offert 🍽️</strong> !';
@@ -651,22 +654,23 @@ const PUSH_SECRET = 'braise2026push';
 
 function urlBase64ToUint8Array(b64){const p='='.repeat((4-b64.length%4)%4);const b=(b64+p).replace(/-/g,'+').replace(/_/g,'/');const r=atob(b);const o=new Uint8Array(r.length);for(let i=0;i<r.length;++i)o[i]=r.charCodeAt(i);return o;}
 
-async function subscribePush(){
+async function subscribePush(clientId){
   try{
-    if(!('serviceWorker' in navigator)||!('PushManager' in window))return;
+    if(!('serviceWorker' in navigator)||!('PushManager' in window))return false;
     const perm = await Notification.requestPermission();
-    if(perm!=='granted')return;
+    if(perm!=='granted')return false;
     const sw = await navigator.serviceWorker.ready;
     let sub = await sw.pushManager.getSubscription();
     if(!sub){
       sub = await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
-      const k=sub.getKey('p256dh'), a=sub.getKey('auth');
-      const subData={endpoint:sub.endpoint,p256dh:btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),auth:btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')};
-      const cid=new URLSearchParams(window.location.search).get('carte');
-      if(cid)subData.client_id=cid;
-      await sbFetch('push_subscriptions',{method:'POST',body:subData,prefer:'resolution=ignore-duplicates'});
     }
-  }catch(e){console.log('push sub error',e);}
+    const k=sub.getKey('p256dh'), a=sub.getKey('auth');
+    const cid=clientId||new URLSearchParams(window.location.search).get('carte')||localStorage.getItem('my_carte_id');
+    const subData={endpoint:sub.endpoint,p256dh:btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),auth:btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')};
+    if(cid)subData.client_id=cid;
+    await sbFetch('push_subscriptions',{method:'POST',body:subData,prefer:'resolution=merge-duplicates'});
+    return true;
+  }catch(e){console.log('push sub error',e);return false;}
 }
 
 async function sendPushNotif(title, body){
@@ -706,8 +710,6 @@ document.getElementById('btn-save-thursday').onclick=async function(){
   }catch(e){toast('Erreur','ko');}
   btn.disabled=false;btn.textContent='Enregistrer';
 };
-
-subscribePush();
 
 // SMS lien inscription depuis ecran accueil
 document.getElementById('btn-send-sms-link').addEventListener('click', function(e) {
