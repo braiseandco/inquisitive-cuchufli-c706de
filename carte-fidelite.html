@@ -392,6 +392,11 @@ document.getElementById('btn-form-submit').onclick=async function(){
     const mobileLink='https://braiseandco.github.io/inquisitive-cuchufli-c706de/carte-fidelite.html?carte='+id;
     drawQR(document.getElementById('qr-success-canvas'),mobileLink);
     currentId=id;go('ss');
+    // Déclencher l'installation PWA automatiquement après création de carte
+    setTimeout(()=>{
+      if(deferredPrompt){deferredPrompt.prompt();}
+      else if(isIOS&&!isInStandalone){document.getElementById('ios-hint').classList.add('show');setTimeout(()=>document.getElementById('ios-hint').classList.remove('show'),12000);}
+    },800);
   }catch(e){showLoader(false);toast('Erreur de connexion. Réessayez.','ko');}
 };
 function setErr(f,m){const el=document.getElementById('err-'+f);el.textContent=m;el.classList.add('show');document.getElementById('f-'+f).classList.add('err');}
