@@ -237,6 +237,14 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 <button class="btn-resa" id="btn-resa-mobile" style="max-width:420px;margin-top:16px;">📅 Réserver une table</button>
 <button id="btn-enable-notif" style="display:none;max-width:420px;width:100%;margin-top:10px;padding:14px;border-radius:14px;border:1px solid rgba(255,100,0,0.4);background:rgba(255,100,0,0.08);color:var(--accent);font-family:Raleway,sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;">🔔 Activer les notifications</button>
 <div id="notif-ok-badge" style="display:none;max-width:420px;width:100%;margin-top:10px;padding:10px;text-align:center;font-size:12px;color:rgba(100,200,100,0.7);">🔔 Notifications activées</div>
+<div id="ios-install-guide" style="display:none;max-width:420px;width:100%;margin-top:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,100,0,0.25);border-radius:14px;padding:16px 18px;">
+  <div style="font-family:'Cinzel',serif;font-size:12px;color:var(--fire3);font-weight:700;margin-bottom:12px;letter-spacing:1px;">📲 INSTALLER L'APP SUR VOTRE IPHONE</div>
+  <div style="font-size:13px;color:var(--text-dim);line-height:2;display:flex;flex-direction:column;gap:4px;">
+    <div>1️⃣ &nbsp;Appuyez sur <strong style="color:#fff;">⬆️ Partager</strong> en bas de Safari</div>
+    <div>2️⃣ &nbsp;Puis <strong style="color:#fff;">"Sur l'écran d'accueil"</strong></div>
+    <div>3️⃣ &nbsp;Appuyez sur <strong style="color:#fff;">"Ajouter"</strong></div>
+  </div>
+</div>
 <div id="notif-msg-box" style="display:none;max-width:420px;width:100%;margin-top:18px;background:rgba(255,100,0,0.12);border:1px solid rgba(255,100,0,0.35);border-radius:14px;padding:16px 18px;text-align:left"><div id="notif-msg-title" style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire3);font-weight:700;margin-bottom:6px"></div><div id="notif-msg-body" style="font-size:13px;color:var(--text-dim);line-height:1.6"></div></div>
 </div></div>
 <script>
@@ -367,6 +375,13 @@ function renderMobileCard(c){ window.currentMobileClient = c;
     } else {
       offerBox.style.display = 'none';
     }
+  }
+  // Guide iOS : afficher si iOS et pas encore installé en PWA
+  const iosGuide = document.getElementById('ios-install-guide');
+  if(iosGuide){
+    const _isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    const _isInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    iosGuide.style.display = (_isIOS && !_isInstalled) ? 'block' : 'none';
   }
   // Vérifier état notifications et afficher bouton si besoin
   setTimeout(async()=>{
