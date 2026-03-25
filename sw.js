@@ -1,7 +1,7 @@
 // Service Worker — Braise & Co
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'braise-v6';
+const CACHE = 'braise-v7';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();

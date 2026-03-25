@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="fidelite/manifest.json">
 <title>Braise &amp; Co — Fidélité</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Raleway:wght@300;400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -744,31 +745,22 @@ checkMobileView();
 
 <!-- Service Worker + PWA -->
 <script>
-// ── PWA Manifest (inline) ─────────────────────────────────────
-const manifestData = {
-  name: "Braise & Co Fidélité",
-  short_name: "Braise & Co",
-  description: "Carte de fidélité Braise & Co - Biganos",
-  start_url: window.location.href,
-  display: "standalone",
-  background_color: "#000000",
-  theme_color: "#FF4500",
-  orientation: "portrait",
-  icons: [
-    { src: "https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=BraiseCo&bgcolor=0a0200&color=FF6B00", sizes: "192x192", type: "image/png" },
-    { src: "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=BraiseCo&bgcolor=0a0200&color=FF6B00", sizes: "512x512", type: "image/png" }
-  ]
-};
-const manifestBlob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
-const manifestUrl = URL.createObjectURL(manifestBlob);
-const manifestLink = document.createElement('link');
-manifestLink.rel = 'manifest';
-manifestLink.href = manifestUrl;
-document.head.appendChild(manifestLink);
-
-// ── Service Worker ────────────────────────────────────────────
+// ── Service Worker + mise à jour automatique ─────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    // Vérifier les mises à jour dès le chargement
+    reg.update();
+    // Quand un nouveau SW est installé, recharger automatiquement
+    reg.addEventListener('updatefound', function() {
+      var newWorker = reg.installing;
+      newWorker.addEventListener('statechange', function() {
+        if (newWorker.state === 'activated') {
+          // Nouvelle version active : recharger silencieusement
+          window.location.reload();
+        }
+      });
+    });
+  }).catch(function(){});
 }
 
 // ── Install prompt ────────────────────────────────────────────
