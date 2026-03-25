@@ -601,10 +601,13 @@ async function loadAdmin(){
       pushBtn.style.cssText='flex-shrink:0;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,100,0,0.35);background:rgba(255,80,0,0.08);color:#ff6600;font-size:18px;cursor:pointer;';
       pushBtn.addEventListener('click',async e=>{
         e.stopPropagation();
+        const defMsg='Bonjour '+c.prenom+' ! Venez nous rendre visite, votre prochaine récompense approche 😊';
+        const msg=prompt('Message pour '+c.prenom+' :',defMsg);
+        if(msg===null||!msg.trim())return;
         pushBtn.disabled=true;pushBtn.textContent='...';
-        const r=await fetch(PUSH_API,{method:'POST',headers:{'Content-Type':'application/json','x-api-secret':PUSH_SECRET},body:JSON.stringify({client_id:c.id,title:'🔥 Braise & Co',body:'Bonjour '+c.prenom+' ! Venez nous rendre visite, votre prochaine récompense approche 😊'})});
+        const r=await fetch(PUSH_API,{method:'POST',headers:{'Content-Type':'application/json','x-api-secret':PUSH_SECRET},body:JSON.stringify({client_id:c.id,title:'🔥 Braise & Co',body:msg.trim()})});
         const d=await r.json();
-        if(d.no_sub){toast('Pas d'abonnement push pour ce client','ko');}
+        if(d.no_sub){toast('Pas d'abonnement push pour '+c.prenom,'ko');}
         else if(d.ok){toast('Notification envoyée à '+c.prenom,'ok');}
         else{toast('Erreur envoi','ko');}
         pushBtn.disabled=false;pushBtn.textContent='🔔';
