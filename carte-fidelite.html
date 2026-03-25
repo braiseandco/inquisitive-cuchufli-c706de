@@ -675,7 +675,7 @@ document.getElementById('btn-send-sms-link').addEventListener('click', function(
   e.preventDefault();
   const tel = document.getElementById('sms-tel-input').value.replace(/\s/g,'').trim();
   if(!tel){toast('Numéro manquant','ko');return;}
-  const msg = 'Bonjour ! Voici votre lien pour créer votre carte de fidélité Braise & Co 🔥 : https://app.braiseandco.fr/carte-fidelite.html?action=inscription — Ouvrez ce lien depuis votre téléphone et installez l'appli !';
+  const msg = `Bonjour ! Voici votre lien pour créer votre carte de fidélité Braise & Co 🔥 : https://app.braiseandco.fr/carte-fidelite.html?action=inscription — Ouvrez ce lien depuis votre téléphone et installez l'appli !`;
   const smsUrl = 'sms:' + tel + '?body=' + encodeURIComponent(msg);
   window.open(smsUrl) || (window.location.href = smsUrl);
   if(navigator.clipboard) setTimeout(()=>navigator.clipboard.writeText(tel).then(()=>toast('📱 '+tel+' copié','ok')).catch(()=>{}), 500);
