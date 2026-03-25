@@ -595,15 +595,21 @@ async function loadAdmin(){
       mailBtn.title='Envoyer le mail de relance';
       mailBtn.style.cssText='flex-shrink:0;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,100,0,0.35);background:rgba(255,80,0,0.08);color:#ff6600;font-size:18px;cursor:pointer;';
       mailBtn.addEventListener('click',e=>{e.stopPropagation();sendRelanceEmail(c,mailBtn);});
-      const smsBtn=document.createElement('a');
-      const smsMsg=encodeURIComponent('Bonjour '+c.prenom+', voici votre carte de fidelite Braise & Co : https://app.braiseandco.fr/carte-fidelite.html — Installez-la sur votre telephone pour cumuler vos passages !');
-      const smsNum=c.tel?c.tel.replace(/\s/g,''):'';
-      smsBtn.href='sms:'+smsNum+'?body='+smsMsg;
-      smsBtn.textContent='📱';
-      smsBtn.title='Envoyer le lien par SMS';
-      smsBtn.style.cssText='flex-shrink:0;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,100,0,0.35);background:rgba(255,80,0,0.08);color:#ff6600;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;';
-      smsBtn.addEventListener('click',e=>e.stopPropagation());
-      wrap.appendChild(btn);wrap.appendChild(mailBtn);wrap.appendChild(smsBtn);list.appendChild(wrap);
+      const pushBtn=document.createElement('button');
+      pushBtn.textContent='🔔';
+      pushBtn.title='Envoyer une notification push';
+      pushBtn.style.cssText='flex-shrink:0;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,100,0,0.35);background:rgba(255,80,0,0.08);color:#ff6600;font-size:18px;cursor:pointer;';
+      pushBtn.addEventListener('click',async e=>{
+        e.stopPropagation();
+        pushBtn.disabled=true;pushBtn.textContent='...';
+        const r=await fetch(PUSH_API,{method:'POST',headers:{'Content-Type':'application/json','x-api-secret':PUSH_SECRET},body:JSON.stringify({client_id:c.id,title:'🔥 Braise & Co',body:'Bonjour '+c.prenom+' ! Venez nous rendre visite, votre prochaine récompense approche 😊'})});
+        const d=await r.json();
+        if(d.no_sub){toast('Pas d'abonnement push pour ce client','ko');}
+        else if(d.ok){toast('Notification envoyée à '+c.prenom,'ok');}
+        else{toast('Erreur envoi','ko');}
+        pushBtn.disabled=false;pushBtn.textContent='🔔';
+      });
+      wrap.appendChild(btn);wrap.appendChild(mailBtn);wrap.appendChild(pushBtn);list.appendChild(wrap);
     });
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
@@ -625,7 +631,10 @@ async function subscribePush(){
     if(!sub){
       sub = await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
       const k=sub.getKey('p256dh'), a=sub.getKey('auth');
-      await sbFetch('push_subscriptions',{method:'POST',body:{endpoint:sub.endpoint,p256dh:btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),auth:btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')},prefer:'resolution=ignore-duplicates'});
+      const subData={endpoint:sub.endpoint,p256dh:btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),auth:btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')};
+      const cid=new URLSearchParams(window.location.search).get('carte');
+      if(cid)subData.client_id=cid;
+      await sbFetch('push_subscriptions',{method:'POST',body:subData,prefer:'resolution=ignore-duplicates'});
     }
   }catch(e){console.log('push sub error',e);}
 }
