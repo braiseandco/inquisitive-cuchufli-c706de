@@ -819,28 +819,7 @@ if (isIOS && !isInStandalone) {
   showInstallBanner();
 }
 
-// Also add install button on mobile card view
-window.addEventListener('load', () => {
-  const mv = document.getElementById('mobile-view');
-  if (!mv) return;
-  if (isInStandalone) return;
-  const btn = document.createElement('button');
-  btn.className = 'btn-fire';
-  btn.style.cssText = 'max-width:360px;margin-top:20px;font-size:13px;padding:14px;';
-  btn.innerHTML = "📲 Installer l'app sur mon téléphone";
-  btn.onclick = function() {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-    } else if (isIOS) {
-      const hint = document.getElementById('ios-hint');
-      hint.classList.add('show');
-      setTimeout(() => hint.classList.remove('show'), 7000);
-    } else {
-      document.getElementById('pwa-banner').classList.add('show');
-    }
-  };
-  mv.appendChild(btn);
-});
+
 
 // ── RÉSERVATION ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
