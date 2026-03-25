@@ -46,8 +46,23 @@ self.addEventListener('push', function(e) {
 
 self.addEventListener('notificationclick', function(e) {
   e.notification.close();
-  var target = (e.notification.data && e.notification.data.url) || '/';
-  e.waitUntil(clients.openWindow(target));
+  var title = e.notification.title || '';
+  var body  = e.notification.body  || '';
+  var base = 'https://app.braiseandco.fr/carte-fidelite.html?action=ma-carte'
+    + '&ntitle=' + encodeURIComponent(title)
+    + '&nbody='  + encodeURIComponent(body);
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(cs) {
+      for (var i = 0; i < cs.length; i++) {
+        if (cs[i].url.includes('carte-fidelite') && 'focus' in cs[i]) {
+          cs[i].focus();
+          cs[i].navigate(base);
+          return;
+        }
+      }
+      return clients.openWindow(base);
+    })
+  );
 });
 
 self.addEventListener('fetch', function(e) {
