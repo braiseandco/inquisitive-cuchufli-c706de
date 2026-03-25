@@ -3,7 +3,7 @@
   "short_name": "Réservations",
   "description": "Gestion des réservations Braise & Co",
   "start_url": "./reservations.html",
-  "scope": "./",
+  "scope": "./reservations.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",
