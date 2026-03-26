@@ -637,11 +637,17 @@ async function envoyerConfirmationEmail(resa) {
 
 // ── Supabase ─────────────────────────────────────────────────
 async function sbFetch(path,opts={}){
-  const res=await fetch(SB_URL+'/rest/v1/'+path,{
-    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':opts.prefer||'',...(opts.headers||{})},...opts
-  });
-  if(!res.ok){const e=await res.text();throw new Error('SB:'+e);}
-  const t=await res.text();return t?JSON.parse(t):null;
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),8000);
+  try{
+    const res=await fetch(SB_URL+'/rest/v1/'+path,{
+      signal:ctrl.signal,
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':opts.prefer||'',...(opts.headers||{})},...opts
+    });
+    clearTimeout(tid);
+    if(!res.ok){const e=await res.text();throw new Error('SB:'+e);}
+    const t=await res.text();return t?JSON.parse(t):null;
+  }catch(e){clearTimeout(tid);throw e;}
 }
 const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc');
 const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');

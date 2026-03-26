@@ -546,20 +546,26 @@ const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 //  SUPABASE HELPERS
 // ══════════════════════════════════════
 async function sb(path, opts={}) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 8000);
   const {headers: extraHeaders, ...restOpts} = opts;
-  const r = await fetch(SB_URL + '/rest/v1/' + path, {
-    ...restOpts,
-    headers: {
-      'apikey': SB_KEY,
-      'Authorization': 'Bearer ' + SB_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
-      ...extraHeaders
-    }
-  });
-  if (!r.ok) { const e = await r.text(); throw new Error(e); }
-  const t = await r.text();
-  return t ? JSON.parse(t) : [];
+  try {
+    const r = await fetch(SB_URL + '/rest/v1/' + path, {
+      ...restOpts,
+      signal: ctrl.signal,
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+        ...extraHeaders
+      }
+    });
+    clearTimeout(tid);
+    if (!r.ok) { const e = await r.text(); throw new Error(e); }
+    const t = await r.text();
+    return t ? JSON.parse(t) : [];
+  } catch(e) { clearTimeout(tid); throw e; }
 }
 const GET  = (path) => sb(path);
 const POST = (path, body) => sb(path, {method:'POST', body: JSON.stringify(body)});
