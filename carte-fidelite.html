@@ -1142,7 +1142,7 @@ document.getElementById('rn-submit').addEventListener('click',async function(){
     const res=await fetch(RESA_SB_URL+'/rest/v1/reservations',{
       method:'POST',
       headers:{'apikey':RESA_SB_KEY,'Authorization':'Bearer '+RESA_SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
-      body:JSON.stringify({id,nom,telephone:tel,email:(window.currentMobileClient&&window.currentMobileClient.email)||null,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',source:'fidelite',created_at:new Date().toISOString()})
+      body:JSON.stringify({id,nom,telephone:tel,email:(window.currentMobileClient&&window.currentMobileClient.email)||null,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',created_at:new Date().toISOString()})
     });
     if(!res.ok)throw new Error();
     const dateStr=new Date(date+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
