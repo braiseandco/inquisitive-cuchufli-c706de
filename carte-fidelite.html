@@ -911,29 +911,6 @@ checkMobileView();
 
 <!-- Service Worker + PWA -->
 <script>
-// ── PWA Manifest (inline) ─────────────────────────────────────
-const manifestData = {
-  name: "Braise & Co Fidélité",
-  short_name: "Braise & Co",
-  description: "Carte de fidélité Braise & Co - Biganos",
-  start_url: "/carte-fidelite.html",
-  scope: "/carte-fidelite.html",
-  display: "standalone",
-  background_color: "#000000",
-  theme_color: "#FF4500",
-  orientation: "portrait",
-  icons: [
-    { src: "https://api.qrserver.com/v1/create-qr-code/?size=192x192&data=BraiseCo&bgcolor=0a0200&color=FF6B00", sizes: "192x192", type: "image/png" },
-    { src: "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=BraiseCo&bgcolor=0a0200&color=FF6B00", sizes: "512x512", type: "image/png" }
-  ]
-};
-const manifestBlob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
-const manifestUrl = URL.createObjectURL(manifestBlob);
-const manifestLink = document.createElement('link');
-manifestLink.rel = 'manifest';
-manifestLink.href = manifestUrl;
-document.head.appendChild(manifestLink);
-
 // ── Service Worker + mise à jour automatique ─────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw-fidelite.js', { scope: '/carte-fidelite.html' }).then(function(reg) {
