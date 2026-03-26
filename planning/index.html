@@ -654,6 +654,7 @@ async function loadHome() {
     `).join('');
   } catch(err) {
     console.error(err);
+    document.getElementById('empList').innerHTML = '<div class="empty-msg">Connexion impossible.<br>Vérifiez votre réseau.</div>';
   }
 }
 
@@ -760,6 +761,10 @@ function initDaySigCanvas() {
   sigDayCtx.lineWidth = 2.5;
   sigDayCtx.lineCap = 'round';
   sigDayCtx.lineJoin = 'round';
+  canvas.removeEventListener('pointerdown', daySigStart);
+  canvas.removeEventListener('pointermove', daySigMove);
+  canvas.removeEventListener('pointerup', daySigEnd);
+  canvas.removeEventListener('pointercancel', daySigEnd);
   canvas.addEventListener('pointerdown', daySigStart);
   canvas.addEventListener('pointermove', daySigMove);
   canvas.addEventListener('pointerup',   daySigEnd);
