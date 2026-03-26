@@ -827,12 +827,12 @@ document.getElementById('btn-save-thursday').onclick=async function(){
 // SMS inscription — deux boutons iPhone / Android
 (function(){
   const LIEN = 'https://app.braiseandco.fr/carte-fidelite.html?action=inscription';
-  const MSG_IOS = 'Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ' + LIEN + '
+  const MSG_IOS = `Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ${LIEN}
 
-Pour installer l'app sur votre iPhone : ouvrez ce lien avec Safari, puis appuyez sur ⬆️ en bas → "Sur l'écran d'accueil" → "Ajouter". Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁';
-  const MSG_ANDROID = 'Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ' + LIEN + '
+Pour installer l'app sur votre iPhone : ouvrez ce lien avec Safari, puis appuyez sur ⬆️ en bas → "Sur l'écran d'accueil" → "Ajouter". Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁`;
+  const MSG_ANDROID = `Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ${LIEN}
 
-Pour installer l'app : ouvrez ce lien depuis Chrome, créez votre carte, puis touchez le bouton "Installer l'app" qui apparaît. Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁';
+Pour installer l'app : ouvrez ce lien depuis Chrome, créez votre carte, puis touchez le bouton "Installer l'app" qui apparaît. Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁`;
 
   function sendSMS(msg){
     const tel = document.getElementById('sms-tel-input').value.replace(/\s/g,'').trim();
