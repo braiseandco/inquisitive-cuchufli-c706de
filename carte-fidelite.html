@@ -535,12 +535,12 @@ async function doSearch(){
       container.innerHTML='<div class="empty"><div class="empty-ico">😕</div>Aucun client trouvé<br><small style="opacity:.6">Vérifiez le numéro ou inscrivez-le</small></div>';
       return;
     }
-    if(results.length===1){loadMobileCard(results[0].id,'sl');return;}
+    if(results.length===1){openCard(results[0].id,'sl');return;}
     container.innerHTML='';
     results.forEach(c=>{
       const btn=document.createElement('button');btn.className='client-card';
       btn.innerHTML='<div><div class="client-name">'+esc(c.prenom+' '+(c.nom||'').toUpperCase())+'</div><div class="client-meta">'+esc(c.tel||c.email)+'</div></div><div class="stamp-badge">'+(c.stamps%MAX_STAMPS)+'/'+MAX_STAMPS+' 🔥</div>';
-      btn.addEventListener('click',()=>loadMobileCard(c.id,'sl'));container.appendChild(btn);
+      btn.addEventListener('click',()=>openCard(c.id,'sl'));container.appendChild(btn);
     });
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
 }
