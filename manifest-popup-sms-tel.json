@@ -1,0 +1,27 @@
+{
+  "id": "/reservations-popup-sms-tel.html",
+  "name": "Braise & Co — Réservation Pop-up SMS Tél",
+  "short_name": "Résa SMS Tél",
+  "description": "Réservations Braise & Co — Notification SMS téléphone (Option B)",
+  "start_url": "/reservations-popup-sms-tel.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0f",
+  "theme_color": "#ff6b00",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
