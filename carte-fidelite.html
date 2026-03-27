@@ -513,7 +513,7 @@ document.getElementById('btn-form-submit').onclick=async function(){
     const ex=email?await getByEmail(email):null;
     if(ex){setErr('email','Email déjà inscrit');showLoader(false);return;}
     const id=genId();
-    await createClient({id,prenom,nom,email,tel,date_naissance:dob,stamps:0,total_stamps:0,rewards_used:0,apero_used:0,apero_pending:false,visits:[]});
+    await createClient({id,prenom,nom,email,tel:tel.replace(/[\s.\-]/g,''),date_naissance:dob,stamps:0,total_stamps:0,rewards_used:0,apero_used:0,apero_pending:false,visits:[]});
     localStorage.setItem('my_carte_id',id);
     subscribePush(id);
     showLoader(false);
