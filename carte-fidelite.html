@@ -16,11 +16,11 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 html,body{height:100%;overflow:hidden;background:#000;}
 body{font-family:'Raleway',sans-serif;color:var(--text);}
-#fire-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
-.screen{display:none;position:fixed;inset:0;flex-direction:column;overflow:hidden;z-index:10;}
+#fire-canvas{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:0;pointer-events:none;}
+.screen{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;flex-direction:column;overflow:hidden;z-index:10;}
 .screen.active{display:flex;}
 .scroll-zone{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px;}
-.hdr{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid rgba(255,100,0,0.2);flex-shrink:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(12px);}
+.hdr{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid rgba(255,100,0,0.2);flex-shrink:0;background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}
 .hdr-title{font-family:'Cinzel',serif;font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .hdr-sub{font-size:11px;color:var(--text-dim);margin-top:2px;letter-spacing:1px;}
 .btn-back{width:40px;height:40px;border:1px solid rgba(255,100,0,0.35);border-radius:10px;background:rgba(255,80,0,0.08);color:var(--fire3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;}
@@ -77,7 +77,7 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 .lvl-badge{background:linear-gradient(135deg,rgba(255,80,0,0.2),rgba(255,150,0,0.1));border:1px solid rgba(255,120,0,0.4);padding:6px 12px;border-radius:16px;font-size:10px;font-weight:700;color:var(--fire4);text-transform:uppercase;letter-spacing:1px;}
 .stamps-label{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;}
 .stamps-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;}
-.stamp{aspect-ratio:1;border-radius:50%;border:1.5px solid rgba(255,100,0,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;background:rgba(255,50,0,0.04);color:rgba(255,240,220,0.15);font-weight:700;transition:all .3s;overflow:hidden;padding:2px;}
+.stamp{min-height:44px;aspect-ratio:1;border-radius:50%;border:1.5px solid rgba(255,100,0,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;background:rgba(255,50,0,0.04);color:rgba(255,240,220,0.15);font-weight:700;transition:all .3s;overflow:hidden;padding:2px;}
 .stamp.on{background:radial-gradient(circle,rgba(255,120,0,0.3) 0%,rgba(255,60,0,0.15) 100%);border-color:var(--fire2);box-shadow:0 0 12px rgba(255,100,0,0.5),inset 0 0 8px rgba(255,150,0,0.2);animation:stampFlame .5s cubic-bezier(.34,1.56,.64,1);}
 @keyframes stampFlame{0%{transform:scale(0) rotate(-20deg);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}
 .prog-wrap{background:rgba(255,255,255,0.05);border-radius:100px;height:4px;margin-bottom:5px;overflow:hidden;}
@@ -122,16 +122,16 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 .section-title{font-family:'Cinzel',serif;font-size:16px;color:var(--fire3);margin-bottom:13px;}
 .btn-export{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:15px;background:rgba(255,60,0,0.06);border:1px solid rgba(255,100,0,0.28);border-radius:13px;font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;color:var(--fire3);cursor:pointer;letter-spacing:1px;margin-bottom:10px;transition:all .2s;}
 .btn-export:active{background:rgba(255,80,0,0.15);}
-.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(120px);background:rgba(10,3,0,0.92);border:1px solid rgba(255,100,0,0.3);border-radius:12px;padding:12px 22px;font-size:14px;font-weight:600;color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,0.5);z-index:9999;transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none;backdrop-filter:blur(12px);}
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(120px);background:rgba(10,3,0,0.92);border:1px solid rgba(255,100,0,0.3);border-radius:12px;padding:12px 22px;font-size:14px;font-weight:600;color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,0.5);z-index:9999;transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}
 .toast.show{transform:translateX(-50%) translateY(0);}
 .toast.ok{border-color:var(--success);color:#7DDBA0;}
 .toast.ko{border-color:var(--error);color:#FF8A85;}
-.loader{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.loader{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:500;background:rgba(0,0,0,0.7);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;flex-direction:column;gap:16px;}
 .loader.show{display:flex;}
 .spinner{width:44px;height:44px;border:3px solid rgba(255,100,0,0.2);border-top-color:var(--fire2);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .loader-text{font-size:13px;color:var(--text-dim);letter-spacing:2px;}
-.overlay{display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:28px;}
+.overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:800;background:rgba(0,0,0,0.85);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:28px;}
 .overlay.open{display:flex;}
 .modal{background:#0d0300;border:1px solid rgba(255,100,0,0.3);border-radius:22px;padding:28px;width:100%;max-width:340px;box-shadow:0 0 40px rgba(255,60,0,0.15),0 20px 60px rgba(0,0,0,0.7);}
 .modal-title{font-family:'Cinzel',serif;font-size:20px;font-weight:700;color:var(--fire3);margin-bottom:6px;}
@@ -139,13 +139,13 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 .modal-btns{display:flex;gap:10px;margin-top:16px;}
 .btn-mcancel{flex:1;padding:13px;background:rgba(255,80,0,0.05);border:1px solid rgba(255,100,0,0.2);border-radius:11px;color:var(--text-dim);font-family:'Raleway',sans-serif;font-size:13px;cursor:pointer;}
 .btn-mok{flex:1;padding:13px;background:linear-gradient(135deg,var(--ember),var(--fire2));border:none;border-radius:11px;color:#000;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 0 14px rgba(255,80,0,0.35);}
-#mobile-view{display:none;position:fixed;inset:0;z-index:20;flex-direction:column;overflow-y:auto;background:#000;align-items:center;padding:40px 24px 60px;}
+#mobile-view{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:20;flex-direction:column;overflow-y:auto;background:#000;align-items:center;padding:40px 24px 60px;}
 #mobile-view.active{display:flex;}
 .mobile-card{width:100%;max-width:420px;background:linear-gradient(145deg,#0f0300,#1a0500,#0a0200);border:1px solid rgba(255,100,0,0.3);border-radius:24px;padding:28px;text-align:center;box-shadow:0 0 60px rgba(255,60,0,0.2);margin-top:16px;}
 .mobile-name{font-family:'Cinzel',serif;font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--fire3),var(--fire4));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px;}
 .mobile-since{font-size:11px;color:var(--text-faint);letter-spacing:1px;margin-bottom:22px;}
 .mobile-stamps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;}
-.mobile-stamp{aspect-ratio:1;border-radius:50%;border:1.5px solid rgba(255,100,0,0.2);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:2px;background:rgba(255,50,0,0.04);font-size:14px;color:rgba(255,240,220,0.15);}
+.mobile-stamp{min-height:44px;aspect-ratio:1;border-radius:50%;border:1.5px solid rgba(255,100,0,0.2);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:2px;background:rgba(255,50,0,0.04);font-size:14px;color:rgba(255,240,220,0.15);}
 .mobile-stamp.on{border-color:var(--fire2);box-shadow:0 0 10px rgba(255,100,0,0.5);background:radial-gradient(circle,rgba(255,120,0,0.3),rgba(255,60,0,0.15));}
 .mobile-prog{background:rgba(255,255,255,0.05);border-radius:100px;height:5px;margin:8px 0 4px;overflow:hidden;}
 .mobile-prog-fill{height:100%;background:linear-gradient(90deg,var(--ember),var(--fire4));border-radius:100px;}
@@ -157,7 +157,7 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 .btn-resa{display:block;width:100%;padding:16px;margin-top:14px;background:linear-gradient(135deg,#c62828,#FF6B00);border:none;border-radius:14px;color:#fff;font-family:'Cinzel',serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1.5px;box-shadow:0 0 24px rgba(255,107,0,0.35);text-align:center;}
 .btn-resa:active{transform:scale(0.97);}
 /* Resa Modal */
-.resa-overlay{display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);align-items:flex-end;justify-content:center;}
+.resa-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:800;background:rgba(0,0,0,0.9);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);align-items:flex-end;justify-content:center;}
 .resa-overlay.open{display:flex;}
 .resa-modal{background:linear-gradient(160deg,#0f0f18,#1a1020);border:1px solid rgba(255,107,0,0.25);border-radius:22px 22px 0 0;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;}
 .resa-handle{width:36px;height:4px;background:rgba(255,107,0,0.3);border-radius:4px;margin:0 auto 18px;}
@@ -206,7 +206,7 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
   background:rgba(10,3,0,0.95);border:1px solid rgba(255,100,0,0.3);
   border-radius:14px;padding:16px 20px;width:calc(100% - 40px);max-width:340px;
   z-index:901;opacity:0;transition:all .3s;pointer-events:none;
-  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
 }
 .ios-hint.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
 .ios-hint-title{font-family:'Cinzel',serif;font-size:13px;color:var(--fire3);margin-bottom:10px;}
@@ -261,6 +261,13 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 <div id="notif-msg-box" style="display:none;max-width:420px;width:100%;margin-top:18px;background:rgba(255,100,0,0.12);border:1px solid rgba(255,100,0,0.35);border-radius:14px;padding:16px 18px;text-align:left"><div id="notif-msg-title" style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire3);font-weight:700;margin-bottom:6px"></div><div id="notif-msg-body" style="font-size:13px;color:var(--text-dim);line-height:1.6"></div></div>
 </div></div>
 <script>
+// ── LOCALSTORAGE SÉCURISÉ (Safari mode privé) ──────────────
+const safeStorage = {
+  getItem(k){ try{ return safeStorage.getItem(k); }catch(e){ return null; } },
+  setItem(k,v){ try{ safeStorage.setItem(k,v); }catch(e){} },
+  removeItem(k){ try{ safeStorage.removeItem(k); }catch(e){} }
+};
+// ────────────────────────────────────────────────────────────
 const SUPABASE_URL="https://ipnuwxirmfumxsguudvi.supabase.co";
 const SUPABASE_KEY="sb_publishable_iIxaYsXCZMBekFbl8596zQ_z7ENQ9n1";
 const RELANCE_URL="https://script.google.com/macros/s/AKfycbwygMo5J67qTOT29X2DQaV7csz_F5eEk-gd_ABd6QMzDr14lXQOzTbvEMyMwhJrbiWF/exec";
@@ -352,7 +359,7 @@ async function checkMobileView(){
   const params=new URLSearchParams(window.location.search);
   const cid=params.get('carte');
   if(!cid)return false;
-  localStorage.setItem('my_carte_id',cid);
+  safeStorage.setItem('my_carte_id',cid);
   document.getElementById('mobile-view').classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('fire-canvas').style.opacity='0.35';
@@ -361,8 +368,7 @@ async function checkMobileView(){
     if(!c){document.getElementById('mobile-view').innerHTML='<div style="text-align:center;padding:60px 24px;color:var(--text-faint)"><div style="font-size:48px">😕</div><br>Carte introuvable</div>';return true;}
     renderMobileCard(c);
   }catch(e){showLoader(false);document.getElementById('mobile-view').innerHTML='<div style="text-align:center;padding:60px;color:var(--error)">Erreur de connexion</div>';}
-  const ok=await subscribePush(cid);
-  if(!ok)toast('\uD83D\uDD14 Activez les notifications pour recevoir nos offres','ko');
+  // DISABLED: push demandé manuellement
   return true;
 }
 
@@ -376,9 +382,9 @@ async function loadMobileCard(id, from){
     showLoader(true);
     try{
       c=await getById(id);
-      if(c) localStorage.setItem(CACHE_KEY,JSON.stringify({...c,_cached_at:Date.now()}));
+      if(c) safeStorage.setItem(CACHE_KEY,JSON.stringify({...c,_cached_at:Date.now()}));
     }catch(netErr){
-      const saved=localStorage.getItem(CACHE_KEY);
+      const saved=safeStorage.getItem(CACHE_KEY);
       if(saved){c=JSON.parse(saved);offline=true;}
     }
     showLoader(false);
@@ -483,7 +489,7 @@ function renderMobileCard(c){ window.currentMobileClient = c;
 }
 
 document.getElementById('btn-inscrit').onclick=()=>go('sf');
-document.getElementById('btn-lookup').onclick=()=>{const savedId=localStorage.getItem('my_carte_id');if(savedId){loadMobileCard(savedId);}else{document.getElementById('lookup-tel-input').value='';document.getElementById('lookup-tel-err').style.display='none';document.getElementById('modal-lookup-tel').classList.add('open');setTimeout(()=>document.getElementById('lookup-tel-input').focus(),200);}};
+document.getElementById('btn-lookup').onclick=()=>{const savedId=safeStorage.getItem('my_carte_id');if(savedId){loadMobileCard(savedId);}else{document.getElementById('lookup-tel-input').value='';document.getElementById('lookup-tel-err').style.display='none';document.getElementById('modal-lookup-tel').classList.add('open');setTimeout(()=>document.getElementById('lookup-tel-input').focus(),200);}};
 async function doLookupByTel(){
   const tel=document.getElementById('lookup-tel-input').value.trim();
   if(!tel){return;}
@@ -492,7 +498,7 @@ async function doLookupByTel(){
     const results=await searchClients(tel);showLoader(false);
     if(!results.length){document.getElementById('lookup-tel-err').style.display='block';return;}
     const c=results[0];
-    localStorage.setItem('my_carte_id',c.id);
+    safeStorage.setItem('my_carte_id',c.id);
     document.getElementById('modal-lookup-tel').classList.remove('open');
     loadMobileCard(c.id);
   }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
@@ -546,14 +552,14 @@ document.getElementById('btn-form-submit').onclick=async function(){
     const ex=email?await getByEmail(email):null;
     if(ex){setErr('email','Email déjà inscrit');showLoader(false);return;}
     const id=genId();
-    const parrainId=localStorage.getItem('parrain_id')||null;
+    const parrainId=safeStorage.getItem('parrain_id')||null;
     await createClient({id,prenom,nom,email,tel:telNorm,date_naissance:dob,stamps:0,total_stamps:0,rewards_used:0,apero_used:0,apero_pending:false,visits:[],parrain_id:parrainId,filleuls:0});
-    if(parrainId){rewardParrain(parrainId,prenom);localStorage.removeItem('parrain_id');}
-    localStorage.setItem('my_carte_id',id);
-    subscribePush(id);
+    if(parrainId){rewardParrain(parrainId,prenom);safeStorage.removeItem('parrain_id');}
+    safeStorage.setItem('my_carte_id',id);
+    // DISABLED: push demandé manuellement
     showLoader(false);
     ['f-prenom','f-nom','f-email','f-tel','f-dob'].forEach(i=>document.getElementById(i).value='');
-    document.getElementById('success-msg').innerHTML='Bienvenue <strong>'+prenom+'</strong> ! Collectez 1 tampon par passage. Au 5ème : <strong>apéro offert 🍹</strong> ! Au 10ème : <strong>repas offert 🍽️</strong> !';
+    document.getElementById('success-msg').innerHTML='Bienvenue <strong>'+esc(prenom)+'</strong> ! Collectez 1 tampon par passage. Au 5ème : <strong>apéro offert 🍹</strong> ! Au 10ème : <strong>repas offert 🍽️</strong> !';
     const mobileLink='https://app.braiseandco.fr/carte-fidelite.html?carte='+id;
     drawQR(document.getElementById('qr-success-canvas'),mobileLink);
     currentId=id;
@@ -668,6 +674,7 @@ document.getElementById('btn-checkin').onclick=async function(){
     // Effacer l'offre active si présente
     const offerClear = c.active_offer ? {active_offer:null} : {};
     visits.push(new Date().toISOString());
+    if(visits.length > 200) visits = visits.slice(-200);
     const newStamps=(c.stamps||0)+1;
     if(newStamps===APERO_STAMP){
       await updateClient(currentId,{stamps:newStamps,apero_pending:true,total_stamps:(c.total_stamps||0)+1,last_visit:new Date().toISOString(),visits,...offerClear});
@@ -688,12 +695,12 @@ function showRewardScreen(c,type){
     const chosenLabel=c.apero_choice?choiceLabels[c.apero_choice]:'🍹 Apéro ou 🥃 Digestif';
     document.getElementById('reward-confetti').textContent=c.apero_choice==='digestif'?'🥃':'🍹';
     document.getElementById('reward-big-text').textContent=c.apero_choice?(choiceLabels[c.apero_choice]+' offert !'):'Récompense offerte !';
-    document.getElementById('reward-msg').innerHTML='Félicitations <strong>'+c.prenom+'</strong> ! 5 passages atteints.<br>Récompense choisie : <strong>'+chosenLabel+'</strong>.<br>Le client peut choisir sur son téléphone si ce n\'est pas encore fait.';
+    document.getElementById('reward-msg').innerHTML='Félicitations <strong>'+esc(c.prenom)+'</strong> ! 5 passages atteints.<br>Récompense choisie : <strong>'+chosenLabel+'</strong>.<br>Le client peut choisir sur son téléphone si ce n\'est pas encore fait.';
     document.getElementById('pin-modal-desc').textContent='Entrez le code PIN pour confirmer la récompense.';
   } else {
     document.getElementById('reward-confetti').textContent='🎉';
     document.getElementById('reward-big-text').textContent='Repas offert !';
-    document.getElementById('reward-msg').innerHTML='Félicitations <strong>'+c.prenom+'</strong> ! Vous avez atteint 10 passages. Le staff valide votre repas offert avec son code PIN.';
+    document.getElementById('reward-msg').innerHTML='Félicitations <strong>'+esc(c.prenom)+'</strong> ! Vous avez atteint 10 passages. Le staff valide votre repas offert avec son code PIN.';
     document.getElementById('pin-modal-desc').textContent='Entrez le code PIN pour confirmer le repas offert et remettre le compteur à zéro.';
   }
   go('srw');
@@ -827,7 +834,8 @@ async function rewardParrain(parrainId, filleulPrenom){
       update.active_offer={title:'🍹 Apéro offert !',body:'Bravo ! Vous avez parrainé '+filleuls+' amis. Un apéro vous est offert — présentez cette carte au staff.',sent_at:new Date().toISOString()};
     }
     await updateClient(parrainId,update);
-  }catch(e){console.log('rewardParrain error',e);}
+  }catch(e){//console.log('rewardParrain error',e);
+  }
 }
 
 async function subscribePush(clientId){
@@ -841,12 +849,13 @@ async function subscribePush(clientId){
       sub = await sw.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
     }
     const k=sub.getKey('p256dh'), a=sub.getKey('auth');
-    const cid=clientId||new URLSearchParams(window.location.search).get('carte')||localStorage.getItem('my_carte_id');
+    const cid=clientId||new URLSearchParams(window.location.search).get('carte')||safeStorage.getItem('my_carte_id');
     const subData={endpoint:sub.endpoint,p256dh:btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''),auth:btoa(String.fromCharCode(...new Uint8Array(a))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'')};
     if(cid)subData.client_id=cid;
     await sbFetch('push_subscriptions',{method:'POST',body:JSON.stringify(subData),prefer:'resolution=merge-duplicates'});
     return true;
-  }catch(e){console.log('push sub error',e);return false;}
+  }catch(e){//console.log('push sub error',e);
+  return false;}
 }
 
 async function sendPushNotif(title, body){
@@ -888,7 +897,7 @@ document.getElementById('btn-send-notif').onclick=function(){
 document.getElementById('btn-save-thursday').onclick=async function(){
   const btn=this;btn.disabled=true;btn.textContent='...';
   try{
-    await sbFetch('notification_settings?id=eq.1',{method:'PATCH',body:{thursday_enabled:document.getElementById('thursday-enabled').checked,thursday_hour:parseInt(document.getElementById('thursday-hour').value)||19,thursday_text:document.getElementById('thursday-text').value.trim()},prefer:'return=minimal'});
+    await sbFetch('notification_settings?id=eq.1',{method:'PATCH',body:JSON.stringify({thursday_enabled:document.getElementById('thursday-enabled').checked,thursday_hour:parseInt(document.getElementById('thursday-hour').value)||19,thursday_text:document.getElementById('thursday-text').value.trim()}),prefer:'return=minimal'});
     toast('Parametres enregistres','ok');
   }catch(e){toast('Erreur','ko');}
   btn.disabled=false;btn.textContent='Enregistrer';
@@ -980,7 +989,7 @@ checkMobileView();
   if(p.get('action')==='inscription'){
     const parrain=p.get('parrain');
     if(parrain){
-      localStorage.setItem('parrain_id',parrain);
+      safeStorage.setItem('parrain_id',parrain);
       // Charger le prénom du parrain pour la bannière
       getById(parrain).then(pc=>{
         if(pc){
@@ -992,7 +1001,7 @@ checkMobileView();
     setTimeout(()=>go('sf'),300);return;
   }
   if(p.get('action')==='ma-carte'){
-    const savedId=localStorage.getItem('my_carte_id');
+    const savedId=safeStorage.getItem('my_carte_id');
     if(savedId){
       setTimeout(async()=>{
         await loadMobileCard(savedId);
@@ -1009,7 +1018,7 @@ checkMobileView();
   }
   // Déjà inscrit et ouverture directe (icône accueil) → carte directement
   if(!p.get('carte')){
-    const savedId=localStorage.getItem('my_carte_id');
+    const savedId=safeStorage.getItem('my_carte_id');
     if(savedId) setTimeout(()=>loadMobileCard(savedId),300);
   }
 })();
@@ -1056,7 +1065,7 @@ checkMobileView();
 <script>
 // ── Service Worker + mise à jour automatique ─────────────────
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw-fidelite.js', { scope: '/carte-fidelite.html' }).then(function(reg) {
+  navigator.serviceWorker.register('/sw-fidelite.js', { scope: '/' }).then(function(reg) {
     reg.update(); // Vérifie une mise à jour dès le chargement
     setInterval(function(){ reg.update(); }, 60 * 60 * 1000); // Revérifie toutes les heures
   }).catch(function(){});
@@ -1090,7 +1099,7 @@ function showHint(id, delay) {
 
 function showInstallBanner() {
   if (isInStandalone) return; // already installed
-  if (localStorage.getItem('pwa-dismissed')) return;
+  if (safeStorage.getItem('pwa-dismissed')) return;
   setTimeout(() => document.getElementById('pwa-banner').classList.add('show'), 2000);
 }
 
@@ -1127,7 +1136,7 @@ document.getElementById('pwa-install-btn').onclick = async function() {
 
 document.getElementById('pwa-banner-close').onclick = function() {
   document.getElementById('pwa-banner').classList.remove('show');
-  localStorage.setItem('pwa-dismissed', '1');
+  safeStorage.setItem('pwa-dismissed', '1');
 };
 
 // iOS: show banner after delay if not installed
@@ -1195,9 +1204,9 @@ function closeResaModal(){
   document.getElementById('resa-overlay').classList.remove('open');
 }
 
-document.getElementById('btn-resa-card')?.addEventListener('click',openResaModal);
+var _btnResaCard = document.getElementById('btn-resa-card'); if(_btnResaCard) _btnResaCard.addEventListener('click',openResaModal);
 document.getElementById('btn-enable-notif').addEventListener('click', async function(){
-  const savedId = localStorage.getItem('my_carte_id');
+  const savedId = safeStorage.getItem('my_carte_id');
   this.textContent='⏳ Activation...'; this.disabled=true;
   const ok = await subscribePush(savedId);
   if(ok){
@@ -1205,8 +1214,8 @@ document.getElementById('btn-enable-notif').addEventListener('click', async func
     document.getElementById('notif-ok-badge').style.display='block';
     toast('🔔 Notifications activées !','ok');
     // Café offert à la première activation des notifications
-    if(!localStorage.getItem('notif-cafe-offered') && savedId){
-      localStorage.setItem('notif-cafe-offered','1');
+    if(!safeStorage.getItem('notif-cafe-offered') && savedId){
+      safeStorage.setItem('notif-cafe-offered','1');
       const cafeOffer={title:'☕ Café offert !',body:'Merci d\'avoir activé les notifications ! Présentez cette carte au staff lors de votre prochaine visite.',sent_at:new Date().toISOString()};
       sbFetch('clients?id=eq.'+savedId,{method:'PATCH',body:JSON.stringify({active_offer:cafeOffer})}).catch(()=>{});
       const offerBox=document.getElementById('mv-offer-box');
@@ -1224,7 +1233,7 @@ document.getElementById('btn-enable-notif').addEventListener('click', async func
   }
 });
 async function saveAperoChoice(choice){
-  const savedId=localStorage.getItem('my_carte_id');
+  const savedId=safeStorage.getItem('my_carte_id');
   if(!savedId)return;
   const icons={apero:'🍹',digestif:'🥃'};
   const labels={apero:'Apéro offert !',digestif:'Digestif offert !'};
@@ -1236,12 +1245,12 @@ async function saveAperoChoice(choice){
   document.getElementById('mv-reward').style.display='block';
   toast(icons[choice]+' '+labels[choice]+' — À présenter au staff','ok');
 }
-document.getElementById('btn-choose-apero')?.addEventListener('click',()=>saveAperoChoice('apero'));
-document.getElementById('btn-choose-digestif')?.addEventListener('click',()=>saveAperoChoice('digestif'));
+var _btnChooseApero = document.getElementById('btn-choose-apero'); if(_btnChooseApero) _btnChooseApero.addEventListener('click',()=>saveAperoChoice('apero'));
+var _btnChooseDigestif = document.getElementById('btn-choose-digestif'); if(_btnChooseDigestif) _btnChooseDigestif.addEventListener('click',()=>saveAperoChoice('digestif'));
 
-document.getElementById('btn-resa-mobile')?.addEventListener('click',openResaModal);
-document.getElementById('btn-not-me')?.addEventListener('click',function(){
-  localStorage.removeItem('my_carte_id');
+var _btnResaMobile = document.getElementById('btn-resa-mobile'); if(_btnResaMobile) _btnResaMobile.addEventListener('click',openResaModal);
+var _btnNotMe = document.getElementById('btn-not-me'); if(_btnNotMe) _btnNotMe.addEventListener('click',function(){
+  safeStorage.removeItem('my_carte_id');
   document.getElementById('mobile-view').classList.remove('active');
   go('sw');
 });
