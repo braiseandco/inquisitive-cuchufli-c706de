@@ -147,6 +147,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .btn-primary{flex:1;padding:15px;background:linear-gradient(135deg,var(--red),var(--accent));border:none;border-radius:12px;color:#fff;font-family:'Raleway',sans-serif;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;box-shadow:0 0 18px rgba(255,107,0,0.3);}
 .btn-primary:active{transform:scale(0.97);}
 .btn-cancel{padding:15px 20px;background:rgba(255,107,0,0.05);border:1px solid var(--border2);border-radius:12px;color:var(--text-dim);font-family:'Raleway',sans-serif;font-size:14px;cursor:pointer;}
+.btn-pax-adj{width:56px;height:56px;border-radius:50%;background:rgba(255,107,0,0.15);border:2px solid var(--accent);color:var(--accent);font-size:28px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
 
 /* ── PLAN DE SALLE ── */
 #screen-plan{background:var(--bg);}
@@ -415,6 +416,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <button class="btn-cancel" style="width:100%;margin-top:8px;" id="tp-close">Fermer</button>
 </div>
 <div id="table-panel-overlay" style="display:none;position:fixed;inset:0;z-index:599;"></div>
+
+<!-- MODAL: WALK-IN (clients sans réservation) -->
+<div class="overlay" id="modal-walkin">
+  <div class="modal" style="max-width:320px;text-align:center;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Table <span id="wk-table-num">1</span></div>
+    <div style="color:var(--text-faint);font-size:13px;margin-bottom:20px;">Clients sans réservation</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:24px;">
+      <button class="btn-pax-adj" onclick="wkAdj(-1)">−</button>
+      <span id="wk-pax" style="font-size:52px;font-weight:900;min-width:70px;line-height:1;">2</span>
+      <button class="btn-pax-adj" onclick="wkAdj(1)">+</button>
+    </div>
+    <div style="color:var(--text-faint);font-size:12px;margin-bottom:20px;" id="wk-cap-info">Capacité : 4 pers.</div>
+    <button class="btn-primary" id="wk-confirm" style="width:100%;padding:16px;font-size:16px;">✓ Placer</button>
+    <button class="btn-unassign" id="wk-assign-existing" style="width:100%;margin-top:8px;font-size:12px;color:var(--text-faint);">Affecter une réservation existante</button>
+    <button class="btn-cancel" id="wk-cancel" style="width:100%;margin-top:8px;">Annuler</button>
+  </div>
+</div>
 
 <!-- MODAL: NOUVELLE RÉSERVATION -->
 <div class="overlay" id="modal-resa">
@@ -1647,8 +1666,8 @@ function setupTableInteractions(el, table, allVisible){
         document.getElementById('assign-banner').style.display='none';
         assignTable(rid,table.id);
       } else if(!tableResas[table.id]){
-        // Table LIBRE → panel (permet Fusionner + Nouvelle résa)
-        openTablePanel(table, null);
+        // Table LIBRE → walk-in rapide
+        openWalkIn(table);
       } else {
         // Table OCCUPÉE → voir le détail
         openTablePanel(table, tableResas[table.id]);
@@ -1897,6 +1916,43 @@ async function openTablePanel(table, resa){
     newResaBtn.style.display = 'none';
   }
 }
+
+// ── WALK-IN ──────────────────────────────────────────────
+let wkTable = null, wkPax = 2;
+function openWalkIn(table){
+  wkTable = table;
+  wkPax = Math.min(2, table.capacite || 2);
+  document.getElementById('wk-table-num').textContent = table.numero;
+  document.getElementById('wk-cap-info').textContent = 'Capacité : '+(table.capacite||'?')+' pers.';
+  document.getElementById('wk-pax').textContent = wkPax;
+  document.getElementById('modal-walkin').classList.add('open');
+}
+function wkAdj(d){
+  wkPax = Math.max(1, Math.min(wkTable ? (wkTable.capacite||20) : 20, wkPax + d));
+  document.getElementById('wk-pax').textContent = wkPax;
+}
+async function placeWalkIn(){
+  if(!wkTable) return;
+  const now = new Date();
+  const heure = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('modal-walkin').classList.remove('open');
+  showLoader(true);
+  try{
+    const wkId = genId();
+    notifiedResaIds.add(wkId); // évite la notif "nouvelle résa en ligne"
+    await createResa({id:wkId, nom:'—', personnes:wkPax, date:planDate, heure:heure, statut:'arrivee', table_id:wkTable.id});
+    showLoader(false);
+    toast('Table '+wkTable.numero+' placée ('+wkPax+'p) ✓','ok');
+    loadPlan();
+  }catch(e){ showLoader(false); toast('Erreur','ko'); }
+}
+document.getElementById('wk-confirm').onclick = placeWalkIn;
+document.getElementById('wk-cancel').onclick = ()=>document.getElementById('modal-walkin').classList.remove('open');
+document.getElementById('wk-assign-existing').onclick = ()=>{
+  document.getElementById('modal-walkin').classList.remove('open');
+  openTablePanel(wkTable, null);
+};
+// ─────────────────────────────────────────────────────────
 
 document.getElementById('tp-merge').onclick = function(){
   closeTablePanel();
