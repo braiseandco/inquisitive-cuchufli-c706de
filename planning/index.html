@@ -732,7 +732,11 @@ async function openSign(empId) {
 
     let cls = '', badgeHtml = '', info = '';
     if (ov) {
-      if (ov.status === 'off')           { cls = 'off';      badgeHtml = '<span class="day-badge off">Fermé</span>';       info = 'Fermé'; }
+      if (ov.status === 'off') {
+        cls = 'off';
+        if (dayNum === 1) { badgeHtml = '<span class="day-badge off">Fermé</span>'; info = 'Fermé'; }
+        else              { badgeHtml = '<span class="day-badge off">Repos</span>';  info = 'Repos'; }
+      }
       else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absence'; }
       else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
       else { info = ov.start_time ? fmtHours(ov) : '—'; }
@@ -1985,14 +1989,17 @@ async function confirmImport() {
     const COLORS_CYCLE = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 
     // Lundi = mardi - 1 jour
+    // Formatage local (évite décalage timezone avec toISOString)
+    const localDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
     const monday = new Date(tuesday); monday.setDate(tuesday.getDate() - 1);
-    const mondayStr = monday.toISOString().slice(0, 10);
+    const mondayStr = localDate(monday);
 
     // Dates de la semaine : mardi (offset 0) → dimanche (offset 5)
     const weekDates = Array.from({length: 6}, (_, i) => {
       const d = new Date(tuesday);
       d.setDate(tuesday.getDate() + i);
-      return d.toISOString().slice(0, 10);
+      return localDate(d);
     });
     // Toutes les dates y compris lundi (pour DELETE)
     const allWeekDates = [mondayStr, ...weekDates];
@@ -2052,7 +2059,7 @@ async function confirmImport() {
         allOverrides.push({
           employee_id: emp.id,
           date: dateStr,
-          status: (!midiH && !soirH) ? 'absent' : 'present',
+          status: (!midiH && !soirH) ? 'off' : 'present',
           start_time:   midiH ? midiH.start : null,
           end_time:     midiH ? midiH.end   : null,
           break_start: null, break_end: null,
