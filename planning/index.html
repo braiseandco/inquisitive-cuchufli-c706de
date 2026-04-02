@@ -763,9 +763,7 @@ async function openSign(empId) {
     let cls = '', badgeHtml = '', info = '';
     if (ov) {
       if (ov.status === 'off') {
-        cls = 'off';
-        if (dayNum === 1) { badgeHtml = '<span class="day-badge off">Fermé</span>'; info = 'Fermé'; }
-        else              { badgeHtml = '<span class="day-badge off">Repos</span>';  info = 'Repos'; }
+        cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>'; info = 'Repos';
       }
       else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absent'; }
       else if (ov.status === 'arret')    { cls = 'absent';   badgeHtml = '<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d">Arrêt</span>'; info = 'Arrêt maladie'; }
@@ -1369,7 +1367,7 @@ async function loadPlanningTab() {
       const ds = dateStr(col.d);
       const ov = ovMap[ds];
       const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
-      if (col.closed) return `<td class="wt-repos" style="opacity:.4;font-style:italic">Fermé</td>`;
+      if (col.closed) return `<td class="wt-repos" style="opacity:.5">Repos</td>`;
       if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
       if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
       if (ov.status === 'absent')     return `<td class="wt-absent" ${click}>Absent</td>`;
