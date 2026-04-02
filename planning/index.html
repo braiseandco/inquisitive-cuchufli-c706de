@@ -732,7 +732,8 @@ async function openSign(empId) {
 
     let cls = '', badgeHtml = '', info = '';
     if (ov) {
-      if (ov.status === 'absent')        { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absence'; }
+      if (ov.status === 'off')           { cls = 'off';      badgeHtml = '<span class="day-badge off">Fermé</span>';       info = 'Fermé'; }
+      else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absence'; }
       else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
       else { info = ov.start_time ? fmtHours(ov) : '—'; }
     } else if (sched && !sched.is_off && sched.start_time) {
@@ -1976,12 +1977,18 @@ async function confirmImport() {
     const emps = await GET('employees?select=*&order=display_order.asc,name.asc');
     const COLORS_CYCLE = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 
+    // Lundi = mardi - 1 jour
+    const monday = new Date(tuesday); monday.setDate(tuesday.getDate() - 1);
+    const mondayStr = monday.toISOString().slice(0, 10);
+
     // Dates de la semaine : mardi (offset 0) → dimanche (offset 5)
     const weekDates = Array.from({length: 6}, (_, i) => {
       const d = new Date(tuesday);
       d.setDate(tuesday.getDate() + i);
       return d.toISOString().slice(0, 10);
     });
+    // Toutes les dates y compris lundi (pour DELETE)
+    const allWeekDates = [mondayStr, ...weekDates];
 
     const allOverrides = [];
 
@@ -1994,9 +2001,20 @@ async function confirmImport() {
         emps.push(emp);
       }
 
-      // Supprimer les anciens overrides pour cet employé sur la semaine
-      await sb('weekly_overrides?employee_id=eq.' + emp.id + '&date=in.(' + weekDates.join(',') + ')', {
+      // Supprimer les anciens overrides pour cet employé sur toute la semaine (lundi inclus)
+      await sb('weekly_overrides?employee_id=eq.' + emp.id + '&date=in.(' + allWeekDates.join(',') + ')', {
         method: 'DELETE', headers: { 'Prefer': 'return=minimal' }
+      });
+
+      // Lundi = repos (restaurant fermé)
+      allOverrides.push({
+        employee_id: emp.id,
+        date: mondayStr,
+        status: 'off',
+        start_time: null, end_time: null,
+        break_start: null, break_end: null,
+        evening_start: null, evening_end: null,
+        evening_break_start: null, evening_break_end: null,
       });
 
       const dayOffsets = [
