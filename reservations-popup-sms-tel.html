@@ -1229,13 +1229,6 @@ async function openDetail(id){
             }
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
-            if(r.telephone){
-              const smsSent = confirm('📱 Envoyer SMS au : ' + r.telephone + '\n\nSMS envoyé ?');
-              if(smsSent){
-                await updateResa(id,{sms_envoye:true});
-                loadResas();
-              }
-            }
             toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
           } else {
             showLoader(false);
