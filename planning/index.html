@@ -2005,7 +2005,6 @@ async function confirmImport() {
         const override = {
           employee_id: emp.id,
           date: dateStr,
-          is_off: !midiH && !soirH,
           status: (!midiH && !soirH) ? 'absent' : 'present',
           start_time:   midiH ? midiH.start : null,
           end_time:     midiH ? midiH.end   : null,
