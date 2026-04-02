@@ -1967,16 +1967,25 @@ async function confirmImport() {
   const tuesday = new Date(weekDateVal + 'T12:00:00');
   if (tuesday.getDay() !== 2) { toast('La date doit être un mardi ⚠️'); return; }
 
-  document.getElementById('btnConfirmImport').disabled = true;
-  document.getElementById('btnConfirmImport').textContent = '⏳ Import…';
+  const btnConfirm = document.getElementById('btnConfirmImport');
+  const errZone = document.getElementById('importPreviewZone');
+  btnConfirm.disabled = true;
+  btnConfirm.textContent = '⏳ Import…';
 
   try {
-    // Reload employees to get latest
     const emps = await GET('employees?select=*&order=display_order.asc,name.asc');
     const COLORS_CYCLE = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 
+    // Dates de la semaine : mardi (offset 0) → dimanche (offset 5)
+    const weekDates = Array.from({length: 6}, (_, i) => {
+      const d = new Date(tuesday);
+      d.setDate(tuesday.getDate() + i);
+      return d.toISOString().slice(0, 10);
+    });
+
+    const allOverrides = [];
+
     for (const empData of importParsedData) {
-      // Find or create employee
       let emp = emps.find(e => e.name.toUpperCase() === empData.name.toUpperCase());
       if (!emp) {
         const color = COLORS_CYCLE[emps.length % COLORS_CYCLE.length];
@@ -1985,24 +1994,27 @@ async function confirmImport() {
         emps.push(emp);
       }
 
-      // Build day overrides
+      // Supprimer les anciens overrides pour cet employé sur la semaine
+      await sb('weekly_overrides?employee_id=eq.' + emp.id + '&date=in.(' + weekDates.join(',') + ')', {
+        method: 'DELETE', headers: { 'Prefer': 'return=minimal' }
+      });
+
       const dayOffsets = [
         { field: 'mardi',        offset: 0 },
         { field: 'mercredi',     offset: 1 },
         { field: 'jeudi',        offset: 2 },
-        { field: 'vendrediMidi', offset: 3, midi: true },
-        { field: 'samediMidi',   offset: 4, midi: true },
+        { field: 'vendrediMidi', offset: 3 },
+        { field: 'samediMidi',   offset: 4 },
         { field: 'dimanche',     offset: 5 },
       ];
 
-      for (const { field, offset, midi } of dayOffsets) {
-        const d = new Date(tuesday); d.setDate(tuesday.getDate() + offset);
-        const dateStr = d.toISOString().slice(0,10);
+      for (const { field, offset } of dayOffsets) {
+        const dateStr = weekDates[offset];
         const midiH = empData[field];
         const soirField = field === 'vendrediMidi' ? 'vendrediSoir' : field === 'samediMidi' ? 'samediSoir' : null;
         const soirH = soirField ? empData[soirField] : null;
 
-        const override = {
+        allOverrides.push({
           employee_id: emp.id,
           date: dateStr,
           status: (!midiH && !soirH) ? 'absent' : 'present',
@@ -2012,25 +2024,32 @@ async function confirmImport() {
           evening_start: soirH ? soirH.start : null,
           evening_end:   soirH ? soirH.end   : null,
           evening_break_start: null, evening_break_end: null,
-        };
-
-        await sb('weekly_overrides?on_conflict=employee_id,date', {
-          method: 'POST',
-          headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-          body: JSON.stringify(override),
         });
       }
     }
 
+    // Insertion groupée
+    if (allOverrides.length > 0) {
+      await sb('weekly_overrides', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify(allOverrides),
+      });
+    }
+
     employees = emps;
-    toast('Planning importé ✓', 'ok');
     closeImportModal();
+    toast('Planning importé ✓');
     loadPlanningTab();
   } catch(e) {
-    toast('Erreur import : ' + e.message);
+    console.error('Import error:', e);
+    errZone.insertAdjacentHTML('beforeend',
+      '<div style="margin-top:12px;padding:12px;background:rgba(229,57,53,.15);border:1px solid rgba(229,57,53,.4);border-radius:10px;color:#ef9a9a;font-size:12px;">❌ Erreur : ' + e.message + '</div>'
+    );
+    toast('Erreur import');
   } finally {
-    document.getElementById('btnConfirmImport').disabled = false;
-    document.getElementById('btnConfirmImport').textContent = '✓ Importer';
+    btnConfirm.disabled = false;
+    btnConfirm.textContent = '✓ Importer';
   }
 }
 
