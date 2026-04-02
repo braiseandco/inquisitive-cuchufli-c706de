@@ -125,6 +125,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .week-table td:active{background:var(--bg3) !important;}
 .wt-repos{color:var(--text-faint);font-style:italic;}
 .wt-absent{color:#ef9a9a;font-weight:700;}
+.wt-arret{color:#ffb74d;font-weight:700;}
 .wt-conge{color:#90caf9;}
 .wt-ecole{color:#ce93d8;}
 .wt-total{font-weight:700;color:var(--accent2);background:rgba(229,57,53,.06) !important;white-space:nowrap;}
@@ -737,7 +738,8 @@ async function openSign(empId) {
         if (dayNum === 1) { badgeHtml = '<span class="day-badge off">Fermé</span>'; info = 'Fermé'; }
         else              { badgeHtml = '<span class="day-badge off">Repos</span>';  info = 'Repos'; }
       }
-      else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absence'; }
+      else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absent'; }
+      else if (ov.status === 'arret')    { cls = 'absent';   badgeHtml = '<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d">Arrêt</span>'; info = 'Arrêt maladie'; }
       else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
       else { info = ov.start_time ? fmtHours(ov) : '—'; }
     } else if (sched && !sched.is_off && sched.start_time) {
@@ -1340,6 +1342,7 @@ async function loadPlanningTab() {
       if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
       if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
       if (ov.status === 'absent')     return `<td class="wt-absent" ${click}>Absent</td>`;
+      if (ov.status === 'arret')      return `<td class="wt-arret" ${click}>Arrêt</td>`;
       if (ov.status === 'vacation')   return `<td class="wt-conge" ${click}>Congé</td>`;
       if (col.svc === 'morn' || col.svc === 'day') {
         if (!ov.start_time) return `<td class="wt-repos" ${click}>Repos</td>`;
@@ -1868,7 +1871,8 @@ function parseHoraire(str) {
   if (up === '' || up === 'NAN') return null;
   if (up === 'REPOS') return null; // repos normal
   if (/^(VACANT|VACANCE|VACANCES|CONGE|CONGES)/.test(up)) return { special: 'vacation' };
-  if (/^(ABSENT|ARRET|MALADIE)/.test(up)) return { special: 'absent' };
+  if (/^ABSENT/.test(up)) return { special: 'absent' };
+  if (/^(ARRET|MALADIE)/.test(up)) return { special: 'arret' };
   const parts = str.split(/\s+/);
   if (parts.length < 2) return null;
   function toTime(t) {
@@ -2066,6 +2070,7 @@ async function confirmImport() {
         const specialSoir = soirH?.special;
         let status;
         if (specialMidi === 'vacation' || specialSoir === 'vacation') status = 'vacation';
+        else if (specialMidi === 'arret' || specialSoir === 'arret') status = 'arret';
         else if (specialMidi === 'absent' || specialSoir === 'absent') status = 'absent';
         else if (!midiH && !soirH) status = 'off';
         else status = 'present';
