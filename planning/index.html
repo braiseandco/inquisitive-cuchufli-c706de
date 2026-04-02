@@ -172,6 +172,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 24px;border-radius:30px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s;pointer-events:none;}
 .toast.show{transform:translateX(-50%) translateY(0);}
 
+/* Import CSV */
+.import-preview{overflow-x:auto;margin-top:16px;}
+.import-table{border-collapse:collapse;width:100%;font-size:11px;min-width:500px;}
+.import-table th{background:var(--bg3);padding:6px 8px;border:1px solid var(--border);text-align:center;font-size:10px;letter-spacing:.5px;color:var(--text-dim);white-space:nowrap;}
+.import-table td{border:1px solid var(--border);padding:5px 7px;text-align:center;white-space:nowrap;}
+.import-table td:first-child{font-weight:700;text-align:left;background:var(--bg2);}
+.import-new-emp{color:#81c784;font-weight:700;}
+.import-repos{color:var(--text-faint);font-style:italic;}
+.import-hours{color:var(--text);font-size:10px;}
+.import-info{font-size:12px;color:var(--text-dim);line-height:1.7;background:rgba(255,107,0,.06);border:1px solid rgba(255,107,0,.2);border-radius:10px;padding:12px 14px;margin-bottom:16px;}
+.import-info code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-size:11px;}
+.btn-file{display:block;width:100%;padding:14px;background:rgba(255,107,0,.1);border:1px dashed rgba(255,107,0,.4);border-radius:12px;color:var(--accent2);font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:center;}
+
 /* Settings tab */
 .setting-row{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
 .setting-row .form-input{margin-top:8px;}
@@ -360,9 +373,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="week-label" id="planningWeekLabel"></div>
       <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
     </div>
-    <div style="margin-bottom:14px;display:flex;gap:8px">
-      <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture exceptionnelle</button>
+    <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture</button>
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
+      <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
     </div>
     <div id="planningBlocks"></div>
   </div>
@@ -388,6 +402,34 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printPlanningReportForDate()">🖨️ Générer le PDF</button>
     <div id="recentWeeksList" style="margin-top:24px"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL IMPORT CSV ═══ -->
+<div class="modal-overlay" id="modalImport">
+  <div class="modal" style="max-width:560px;">
+    <h3>📥 Importer le planning</h3>
+    <div class="import-info">
+      Dans LibreOffice Calc : <strong>Fichier → Enregistrer une copie → CSV</strong><br>
+      Séparateur : <code>;</code> ou <code>,</code> — encodage : <code>UTF-8</code>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Semaine (date du mardi)</label>
+      <input class="form-input" type="date" id="importWeekDate">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Fichier CSV</label>
+      <label class="btn-file">
+        📂 Choisir le fichier CSV
+        <input type="file" id="importFileInput" accept=".csv,.txt" style="display:none" onchange="onImportFileChange(this)">
+      </label>
+      <div id="importFileName" style="font-size:11px;color:var(--text-faint);margin-top:6px;text-align:center;"></div>
+    </div>
+    <div id="importPreviewZone"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-secondary" onclick="closeImportModal()">Annuler</button>
+      <button class="btn-primary" id="btnConfirmImport" style="display:none" onclick="confirmImport()">✓ Importer</button>
+    </div>
   </div>
 </div>
 
@@ -1780,6 +1822,218 @@ function toast(msg) {
   logo.addEventListener('touchcancel', cancelPress);
   logo.addEventListener('contextmenu', e => e.preventDefault());
 })();
+
+// ══════════════════════════════════════
+//  IMPORT CSV PLANNING
+// ══════════════════════════════════════
+
+let importParsedData = null;
+
+function openImportModal() {
+  // Auto-set date to next (or current) Tuesday
+  const today = new Date();
+  const day = today.getDay();
+  const diff = day <= 2 ? 2 - day : 9 - day;
+  const tuesday = new Date(today);
+  tuesday.setDate(today.getDate() + diff);
+  document.getElementById('importWeekDate').value = tuesday.toISOString().slice(0,10);
+  document.getElementById('importFileName').textContent = '';
+  document.getElementById('importPreviewZone').innerHTML = '';
+  document.getElementById('btnConfirmImport').style.display = 'none';
+  importParsedData = null;
+  document.getElementById('modalImport').classList.add('open');
+}
+
+function closeImportModal() {
+  document.getElementById('modalImport').classList.remove('open');
+}
+
+function parseHoraire(str) {
+  if (!str || typeof str !== 'string') return null;
+  str = str.trim();
+  if (!str || str === '' || str.toLowerCase() === 'repos' || str.toLowerCase() === 'nan' || str === '-') return null;
+  const parts = str.split(/\s+/);
+  if (parts.length < 2) return null;
+  function toTime(t) {
+    t = t.trim();
+    if (t === '24h' || t === '24h00') return '00:00';
+    const m = t.match(/^(\d{1,2})h(\d{0,2})$/i);
+    if (!m) return null;
+    return m[1].padStart(2,'0') + ':' + (m[2] || '00').padStart(2,'0');
+  }
+  const start = toTime(parts[0]);
+  const end   = toTime(parts[1]);
+  if (!start || !end) return null;
+  return { start, end };
+}
+
+function parseCSVLine(line, sep) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQ = !inQ; }
+    else if (line[i] === sep && !inQ) { result.push(cur.trim()); cur = ''; }
+    else cur += line[i];
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function parsePlanningCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const sep = lines[0].split(';').length > lines[0].split(',').length ? ';' : ',';
+  const rows = lines.map(l => parseCSVLine(l, sep));
+
+  // Skip header row
+  let start = 0;
+  if (rows[0] && rows[0][0] && rows[0][0].toUpperCase().includes('JOUR')) start = 1;
+
+  const result = [];
+  for (let i = start; i < rows.length; i += 3) {
+    const r = rows[i];
+    if (!r || !r[0] || !r[0].trim() || r[0].trim().toUpperCase() === 'H.SUP') continue;
+    const name = r[0].trim();
+    result.push({
+      name,
+      mardi:        parseHoraire(r[1]),
+      mercredi:     parseHoraire(r[2]),
+      jeudi:        parseHoraire(r[3]),
+      vendrediMidi: parseHoraire(r[4]),
+      vendrediSoir: parseHoraire(r[5]),
+      samediMidi:   parseHoraire(r[6]),
+      samediSoir:   parseHoraire(r[7]),
+      dimanche:     parseHoraire(r[8]),
+    });
+  }
+  return result;
+}
+
+function onImportFileChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('importFileName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    importParsedData = parsePlanningCSV(e.target.result);
+    renderImportPreview(importParsedData);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function renderImportPreview(data) {
+  const zone = document.getElementById('importPreviewZone');
+  if (!data || data.length === 0) {
+    zone.innerHTML = '<div style="color:var(--accent);font-size:13px;text-align:center;margin-top:12px;">❌ Aucun employé trouvé — vérifier le fichier CSV</div>';
+    document.getElementById('btnConfirmImport').style.display = 'none';
+    return;
+  }
+
+  const knownNames = (employees || []).map(e => e.name.toUpperCase());
+  const newEmps = data.filter(d => !knownNames.includes(d.name.toUpperCase()));
+
+  const days = ['Mar','Mer','Jeu','Ven☀','Ven🌙','Sam☀','Sam🌙','Dim'];
+  const fields = ['mardi','mercredi','jeudi','vendrediMidi','vendrediSoir','samediMidi','samediSoir','dimanche'];
+
+  let html = '<div class="import-preview"><table class="import-table"><thead><tr><th>Employé</th>';
+  days.forEach(d => html += `<th>${d}</th>`);
+  html += '</tr></thead><tbody>';
+
+  data.forEach(emp => {
+    const isNew = !knownNames.includes(emp.name.toUpperCase());
+    html += `<tr><td>${isNew ? '<span class="import-new-emp">✦ '+emp.name+'</span>' : emp.name}</td>`;
+    fields.forEach(f => {
+      const h = emp[f];
+      html += h ? `<td class="import-hours">${h.start}<br>${h.end}</td>`
+                : `<td class="import-repos">repos</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+
+  if (newEmps.length > 0) {
+    html += `<div style="margin-top:10px;font-size:12px;color:#81c784;font-weight:700;">✦ Nouveaux employés à créer : ${newEmps.map(e=>e.name).join(', ')}</div>`;
+  }
+
+  zone.innerHTML = html;
+  document.getElementById('btnConfirmImport').style.display = '';
+}
+
+async function confirmImport() {
+  if (!importParsedData || importParsedData.length === 0) return;
+  const weekDateVal = document.getElementById('importWeekDate').value;
+  if (!weekDateVal) { toast('Choisir la date du mardi'); return; }
+
+  const tuesday = new Date(weekDateVal + 'T12:00:00');
+  if (tuesday.getDay() !== 2) { toast('La date doit être un mardi ⚠️'); return; }
+
+  document.getElementById('btnConfirmImport').disabled = true;
+  document.getElementById('btnConfirmImport').textContent = '⏳ Import…';
+
+  try {
+    // Reload employees to get latest
+    const emps = await GET('employees?select=*&order=display_order.asc,name.asc');
+    const COLORS_CYCLE = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
+
+    for (const empData of importParsedData) {
+      // Find or create employee
+      let emp = emps.find(e => e.name.toUpperCase() === empData.name.toUpperCase());
+      if (!emp) {
+        const color = COLORS_CYCLE[emps.length % COLORS_CYCLE.length];
+        const created = await POST('employees', { name: empData.name, color, display_order: emps.length + 1 });
+        emp = created[0];
+        emps.push(emp);
+      }
+
+      // Build day overrides
+      const dayOffsets = [
+        { field: 'mardi',        offset: 0 },
+        { field: 'mercredi',     offset: 1 },
+        { field: 'jeudi',        offset: 2 },
+        { field: 'vendrediMidi', offset: 3, midi: true },
+        { field: 'samediMidi',   offset: 4, midi: true },
+        { field: 'dimanche',     offset: 5 },
+      ];
+
+      for (const { field, offset, midi } of dayOffsets) {
+        const d = new Date(tuesday); d.setDate(tuesday.getDate() + offset);
+        const dateStr = d.toISOString().slice(0,10);
+        const midiH = empData[field];
+        const soirField = field === 'vendrediMidi' ? 'vendrediSoir' : field === 'samediMidi' ? 'samediSoir' : null;
+        const soirH = soirField ? empData[soirField] : null;
+
+        const override = {
+          employee_id: emp.id,
+          date: dateStr,
+          is_off: !midiH && !soirH,
+          status: (!midiH && !soirH) ? 'absent' : 'present',
+          start_time:   midiH ? midiH.start : null,
+          end_time:     midiH ? midiH.end   : null,
+          break_start: null, break_end: null,
+          evening_start: soirH ? soirH.start : null,
+          evening_end:   soirH ? soirH.end   : null,
+          evening_break_start: null, evening_break_end: null,
+        };
+
+        await sb('weekly_overrides?on_conflict=employee_id,date', {
+          method: 'POST',
+          headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(override),
+        });
+      }
+    }
+
+    employees = emps;
+    toast('Planning importé ✓', 'ok');
+    closeImportModal();
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur import : ' + e.message);
+  } finally {
+    document.getElementById('btnConfirmImport').disabled = false;
+    document.getElementById('btnConfirmImport').textContent = '✓ Importer';
+  }
+}
 
 // ══════════════════════════════════════
 //  INIT
