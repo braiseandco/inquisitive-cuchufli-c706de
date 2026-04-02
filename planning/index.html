@@ -1863,7 +1863,12 @@ function closeImportModal() {
 function parseHoraire(str) {
   if (!str || typeof str !== 'string') return null;
   str = str.trim();
-  if (!str || str === '' || str.toLowerCase() === 'repos' || str.toLowerCase() === 'nan' || str === '-') return null;
+  if (!str || str === '-') return null;
+  const up = str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  if (up === '' || up === 'NAN') return null;
+  if (up === 'REPOS') return null; // repos normal
+  if (/^(VACANT|VACANCE|VACANCES|CONGE|CONGES)/.test(up)) return { special: 'vacation' };
+  if (/^ABSENT/.test(up)) return { special: 'absent' };
   const parts = str.split(/\s+/);
   if (parts.length < 2) return null;
   function toTime(t) {
@@ -2056,15 +2061,24 @@ async function confirmImport() {
         const soirField = field === 'vendrediMidi' ? 'vendrediSoir' : field === 'samediMidi' ? 'samediSoir' : null;
         const soirH = soirField ? empData[soirField] : null;
 
+        // Déterminer le statut
+        const specialMidi = midiH?.special;
+        const specialSoir = soirH?.special;
+        let status;
+        if (specialMidi === 'vacation' || specialSoir === 'vacation') status = 'vacation';
+        else if (specialMidi === 'absent' || specialSoir === 'absent') status = 'absent';
+        else if (!midiH && !soirH) status = 'off';
+        else status = 'present';
+
         allOverrides.push({
           employee_id: emp.id,
           date: dateStr,
-          status: (!midiH && !soirH) ? 'off' : 'present',
-          start_time:   midiH ? midiH.start : null,
-          end_time:     midiH ? midiH.end   : null,
+          status,
+          start_time:   (status === 'present' && midiH && !midiH.special) ? midiH.start : null,
+          end_time:     (status === 'present' && midiH && !midiH.special) ? midiH.end   : null,
           break_start: null, break_end: null,
-          evening_start: soirH ? soirH.start : null,
-          evening_end:   soirH ? soirH.end   : null,
+          evening_start: (status === 'present' && soirH && !soirH.special) ? soirH.start : null,
+          evening_end:   (status === 'present' && soirH && !soirH.special) ? soirH.end   : null,
           evening_break_start: null, evening_break_end: null,
         });
       }
