@@ -1315,8 +1315,9 @@ async function loadPlanningTab() {
     GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
   ]);
 
-  // Colonnes : Lundi fermé → Mar(1), Mer(2), Jeu(3), Ven🌞(4), Ven🌙(4), Sam🌞(5), Sam🌙(5), Dim(6)
+  // Colonnes : Lun(0=fermé), Mar(1), Mer(2), Jeu(3), Ven🌞(4), Ven🌙(4), Sam🌞(5), Sam🌙(5), Dim(6)
   const COLS = [
+    {label:'Lun',    d:dates[0], dn:1, svc:'day', closed:true},
     {label:'Mar',    d:dates[1], dn:2, svc:'day'},
     {label:'Mer',    d:dates[2], dn:3, svc:'day'},
     {label:'Jeu',    d:dates[3], dn:4, svc:'day'},
@@ -1368,6 +1369,7 @@ async function loadPlanningTab() {
       const ds = dateStr(col.d);
       const ov = ovMap[ds];
       const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
+      if (col.closed) return `<td class="wt-repos" style="opacity:.4;font-style:italic">Fermé</td>`;
       if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
       if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
       if (ov.status === 'absent')     return `<td class="wt-absent" ${click}>Absent</td>`;
@@ -1886,6 +1888,7 @@ const EDIT_COLS = [
   {label:'Sam 🌙', offset:5, svc:'eve'},
   {label:'Dim',    offset:6, svc:'day'},
 ];
+// Note : lundi (offset:0) exclu du modal modifier — restaurant fermé
 
 function editCellVal(ov, svc) {
   if (!ov) return '';
