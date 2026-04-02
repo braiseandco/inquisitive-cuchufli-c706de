@@ -411,6 +411,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printPlanningReportForDate()">🖨️ Générer le PDF</button>
     <div id="recentWeeksList" style="margin-top:24px"></div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:12px">PDF par employé</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Toutes les semaines travaillées pour un employé.</p>
+      <div class="form-group">
+        <label class="form-label">Employé</label>
+        <select class="form-input" id="reportEmpSelect">
+          <option value="">— Choisir —</option>
+        </select>
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printEmpReport()">🖨️ Générer le PDF employé</button>
+    </div>
   </div>
 </div>
 
@@ -1411,6 +1423,11 @@ function printPlanningReportForDate() {
 async function loadSettingsTab() {
   const today = new Date();
   document.getElementById('reportWeekDate').value = dateStr(getMonday(today));
+  // Remplir le sélecteur employé
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const sel = document.getElementById('reportEmpSelect');
+  sel.innerHTML = '<option value="">— Choisir —</option>' +
+    employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
   // Afficher les 8 dernières semaines
   const list = document.getElementById('recentWeeksList');
   let html = '<div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Semaines récentes</div>';
@@ -1427,6 +1444,112 @@ async function loadSettingsTab() {
     </div>`;
   }
   list.innerHTML = html;
+}
+
+async function printEmpReport() {
+  const empId = document.getElementById('reportEmpSelect').value;
+  if (!empId) { toast('Choisir un employé'); return; }
+  const emp = employees.find(e => e.id === empId);
+
+  // Récupérer tous les overrides de cet employé
+  const allOv = await GET(`weekly_overrides?employee_id=eq.${empId}&order=date.asc&select=*`);
+  if (!allOv.length) { toast('Aucun planning trouvé pour cet employé'); return; }
+
+  // Grouper par semaine (lundi)
+  const weekMap = {};
+  allOv.forEach(ov => {
+    const d = new Date(ov.date + 'T12:00');
+    const mon = getMonday(d);
+    const key = dateStr(mon);
+    if (!weekMap[key]) weekMap[key] = { mon, overrides: [] };
+    weekMap[key].overrides.push(ov);
+  });
+
+  const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
+  const calcSvc = (s,bs,be,e) => (!s||!e)?0:(bs&&be?(tMin(bs)-tMin(s))+(tMid(e)-tMin(be)):tMid(e)-tMin(s)-(hasPause(s)?30:0));
+  const fmtT = t => { if(!t) return ''; const [h,m]=t.split(':'); return m==='00'?h+'h':h+'h'+m; };
+  const fmt  = d => { const [y,m,j]=d.split('-'); return `${j}/${m}`; };
+
+  const DAY_LABELS = ['Lun','Mar','Mer','Jeu','Ven☀','Ven🌙','Sam☀','Sam🌙','Dim'];
+
+  let rows = '';
+  let grandTotal = 0;
+
+  for (const key of Object.keys(weekMap).sort()) {
+    const { mon, overrides } = weekMap[key];
+    const dates = weekDates(mon);
+    const ovMap = {};
+    overrides.forEach(o => ovMap[o.date] = o);
+
+    // Sauter les semaines avec seulement le lundi (off)
+    const hasWork = overrides.some(o => o.status === 'present');
+    if (!hasWork && overrides.every(o => o.status === 'off')) continue;
+
+    const tue = dates[1]; const sun = dates[6];
+    const weekLabel = `${tue.getDate()}/${tue.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}`;
+
+    let weekTotal = 0;
+    const cells = dates.map((d, i) => {
+      const ds = dateStr(d);
+      const ov = ovMap[ds];
+      if (!ov || ov.status === 'off')      return `<td style="color:#aaa;text-align:center;font-size:10px">Repos</td>`;
+      if (ov.status === 'absent')          return `<td style="color:#c62828;text-align:center;font-weight:700;font-size:10px">Absent</td>`;
+      if (ov.status === 'arret')           return `<td style="color:#e65100;text-align:center;font-weight:700;font-size:10px">Arrêt</td>`;
+      if (ov.status === 'vacation')        return `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
+      // Vendredi et samedi : deux lignes midi/soir dans une cellule
+      if (i === 4 || i === 5) {
+        const mMins = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
+        const eMins = calcSvc(ov.evening_start,ov.evening_break_start,ov.evening_break_end,ov.evening_end);
+        weekTotal += (mMins + eMins);
+        const mLine = ov.start_time   ? `${fmtT(ov.start_time)}-${fmtT(ov.end_time)} <span style="color:#e53935">${(mMins/60).toFixed(1).replace('.0','')}h</span>` : '<span style="color:#aaa">—</span>';
+        const eLine = ov.evening_start? `${fmtT(ov.evening_start)}-${fmtT(ov.evening_end)} <span style="color:#e53935">${(eMins/60).toFixed(1).replace('.0','')}h</span>` : '<span style="color:#aaa">—</span>';
+        return `<td style="text-align:center;font-size:10px;line-height:1.6">${mLine}<br>${eLine}</td>`;
+      }
+      const mins = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
+      weekTotal += mins;
+      return `<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`;
+    }).join('');
+
+    grandTotal += weekTotal;
+    rows += `<tr style="border-bottom:1px solid #ddd">
+      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;font-size:11px">${weekLabel}</td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;color:#e53935;font-size:11px">${(weekTotal/60).toFixed(1).replace('.0','')}h</td>
+    </tr>`;
+  }
+
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Planning — ${emp.name}</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:20px;color:#111;}
+    h1{font-size:18px;margin-bottom:4px}
+    h2{font-size:13px;color:#666;font-weight:400;margin-bottom:16px}
+    table{border-collapse:collapse;width:100%;font-size:11px;}
+    th{background:#222;color:#fff;padding:7px 6px;text-align:center;font-size:10px;}
+    td{padding:6px 5px;border:1px solid #ddd;vertical-align:middle;}
+    .total-row td{background:#f5f5f5;font-weight:700;}
+    @media print{button{display:none}}
+  </style></head><body>
+  <button onclick="window.print()" style="margin-bottom:16px;padding:8px 18px;background:#e53935;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Imprimer</button>
+  <h1>${emp.name}</h1>
+  <h2>Récapitulatif de toutes les semaines</h2>
+  <table>
+    <thead><tr>
+      <th>Semaine</th>
+      ${DAY_LABELS.map(l=>`<th>${l}</th>`).join('')}
+      <th>Total</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="total-row">
+      <td colspan="9" style="text-align:right;padding:8px">Total général</td>
+      <td style="text-align:center;color:#e53935">${(grandTotal/60).toFixed(1).replace('.0','')}h</td>
+    </tfoot>
+  </table>
+  </body></html>`);
+  win.document.close();
 }
 
 async function printPlanningReport(week) {
