@@ -2342,7 +2342,7 @@ let _smsCurrentResaId = null;
 
 function envoyerNotifSms(r){
   const dd = r.date.slice(8,10), mm = r.date.slice(5,7);
-  const msg = 'Votre reservation chez Braise & Co est confirmee le '+dd+'/'+mm+' a '+r.heure.slice(0,5)+' pour '+r.personnes+' pers. A bientot !';
+  const msg = 'Votre reservation chez Braise et Co est confirmee le '+dd+'/'+mm+' a '+r.heure.slice(0,5)+' pour '+r.personnes+' pers. A bientot !';
 
   // ── Modal in-app (fiable sur tous les appareils) ──────────
   _smsCurrentResaId = r.id;
