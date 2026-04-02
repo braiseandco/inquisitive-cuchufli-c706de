@@ -2098,7 +2098,9 @@ async function checkNewResas(){
       // Filtrer les IDs déjà notifiés
       const vraimentNouveaux = newOnes.filter(r => !notifiedResaIds.has(r.id));
       vraimentNouveaux.forEach(r => notifiedResaIds.add(r.id));
-      if(vraimentNouveaux.length > 0) showNotification(vraimentNouveaux);
+      // Ne pas afficher la bannière verte pour les confirmees → gérées par le popup SMS
+      const pourBanniere = vraimentNouveaux.filter(r => r.statut !== 'confirmee');
+      if(pourBanniere.length > 0) showNotification(pourBanniere);
     }
   }catch(e){ console.log('Polling error:', e); }
 }
@@ -2325,7 +2327,7 @@ async function checkConfirmedResas(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const confirmed = await sbFetch(
-      'reservations?statut=eq.confirmee&sms_envoye=eq.false&date=gte.'+today+'&select=*'
+      'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&select=*'
     );
     if(!confirmed || confirmed.length === 0) return;
     const nouvelles = confirmed.filter(r => !smsNotifiedIds.has(r.id));
