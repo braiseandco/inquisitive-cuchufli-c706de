@@ -1319,23 +1319,30 @@ async function loadPlanningTab() {
     const ovMap = {};
     allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
 
-    // Total heures Mar→Dim (dates[1]…dates[6])
+    // Si la semaine a des overrides pour cet employé, on utilise UNIQUEMENT les overrides
+    // Si aucun override pour la semaine → planning non importé, afficher "—"
+    const hasOvThisWeek = Object.keys(ovMap).length > 0;
+
+    // Total heures Mar→Dim (overrides seulement)
     let total = 0;
-    for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
+    if (hasOvThisWeek) {
+      for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])]);
+    }
 
     const cells = COLS.map(col => {
       const ds = dateStr(col.d);
-      const row = ovMap[ds] || schedMap[col.dn];
+      const ov = ovMap[ds];
       const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
-      if (!row || row.is_off)       return `<td class="wt-repos" ${click}>Repos</td>`;
-      if (row.status === 'absent')  return `<td class="wt-absent" ${click}>Absent</td>`;
-      if (row.status === 'vacation')return `<td class="wt-conge" ${click}>Congé</td>`;
+      if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
+      if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
+      if (ov.status === 'absent')     return `<td class="wt-absent" ${click}>Absent</td>`;
+      if (ov.status === 'vacation')   return `<td class="wt-conge" ${click}>Congé</td>`;
       if (col.svc === 'morn' || col.svc === 'day') {
-        if (!row.start_time) return `<td class="wt-repos" ${click}>Repos</td>`;
-        return `<td ${click}>${fmtCell(row.start_time, row.break_start, row.break_end, row.end_time)}</td>`;
+        if (!ov.start_time) return `<td class="wt-repos" ${click}>Repos</td>`;
+        return `<td ${click}>${fmtCell(ov.start_time, ov.break_start, ov.break_end, ov.end_time)}</td>`;
       } else {
-        if (!row.evening_start) return `<td class="wt-repos" ${click}>Repos</td>`;
-        return `<td ${click}>${fmtCell(row.evening_start, row.evening_break_start, row.evening_break_end, row.evening_end)}</td>`;
+        if (!ov.evening_start) return `<td class="wt-repos" ${click}>Repos</td>`;
+        return `<td ${click}>${fmtCell(ov.evening_start, ov.evening_break_start, ov.evening_break_end, ov.evening_end)}</td>`;
       }
     }).join('');
 
@@ -1992,8 +1999,16 @@ async function confirmImport() {
 
     const allOverrides = [];
 
+    // Normalise : strip accents, uppercase, split en mots
+    const normWords = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().split(/\s+/).filter(Boolean);
+    const nameMatches = (dbName, csvName) => {
+      const dbW = normWords(dbName);
+      const csvW = normWords(csvName);
+      return csvW.some(cw => dbW.includes(cw));
+    };
+
     for (const empData of importParsedData) {
-      let emp = emps.find(e => e.name.toUpperCase() === empData.name.toUpperCase());
+      let emp = emps.find(e => nameMatches(e.name, empData.name));
       if (!emp) {
         const color = COLORS_CYCLE[emps.length % COLORS_CYCLE.length];
         const created = await POST('employees', { name: empData.name, color, display_order: emps.length + 1 });
