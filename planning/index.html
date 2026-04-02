@@ -1039,7 +1039,8 @@ async function loadEmpWeek() {
     if (!s || !e) return 0;
     const tMin = x => { const [h,m]=x.slice(0,5).split(':').map(Number); return h*60+m; };
     const tMid = x => tMin(x) === 0 ? 1440 : tMin(x);
-    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s);
+    const hasPause = tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
+    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s) - (hasPause ? 30 : 0);
   };
   const DNAMES = {2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi',7:'Dimanche'};
   const todayStr = dateStr(new Date());
@@ -1331,9 +1332,10 @@ async function loadPlanningTab() {
   const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
   const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
   const calcSvc = (s, bs, be, e) => {
     if (!s || !e) return 0;
-    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s);
+    return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s) - (hasPause(s) ? 30 : 0);
   };
   const fmtCell = (s, bs, be, e) => {
     if (!s) return '<span class="wt-repos">—</span>';
@@ -1456,7 +1458,8 @@ async function printPlanningReport(week) {
   const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
   const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
-  const calcSvc = (s, bs, be, e) => (!s||!e) ? 0 : (bs&&be ? (tMin(bs)-tMin(s))+(tMid(e)-tMin(be)) : tMid(e)-tMin(s));
+  const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
+  const calcSvc = (s, bs, be, e) => (!s||!e) ? 0 : (bs&&be ? (tMin(bs)-tMin(s))+(tMid(e)-tMin(be)) : tMid(e)-tMin(s)-(hasPause(s)?30:0));
   const fmt = d => { const [y,m,j]=d.split('-'); return `${j}/${m}`; };
 
   const headCells = COLS.map(c => `<th>${c.label}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(c.d))}</span></th>`).join('');
