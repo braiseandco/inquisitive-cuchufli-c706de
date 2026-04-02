@@ -656,7 +656,7 @@ function getMonday(d) {
   return dt;
 }
 function dateStr(d) {
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function weekDates(monday) {
   return Array.from({length:7}, (_,i) => {
