@@ -2348,7 +2348,8 @@ function buildSmsUrl(telephone, msg){
 let _smsCurrentResaId = null;
 
 function envoyerNotifSms(r){
-  const msg = 'Votre réservation chez Braise & Co est confirmée pour le '+fmtDate(r.date)+' à '+r.heure.slice(0,5)+' pour '+r.personnes+' personne'+(r.personnes>1?'s':'')+'. À bientôt !';
+  const dd = r.date.slice(8,10), mm = r.date.slice(5,7);
+  const msg = 'Votre reservation chez Braise & Co est confirmee le '+dd+'/'+mm+' a '+r.heure.slice(0,5)+' pour '+r.personnes+' pers. A bientot !';
 
   // ── Modal in-app (fiable sur tous les appareils) ──────────
   _smsCurrentResaId = r.id;
