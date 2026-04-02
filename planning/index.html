@@ -1868,7 +1868,7 @@ function parseHoraire(str) {
   if (up === '' || up === 'NAN') return null;
   if (up === 'REPOS') return null; // repos normal
   if (/^(VACANT|VACANCE|VACANCES|CONGE|CONGES)/.test(up)) return { special: 'vacation' };
-  if (/^ABSENT/.test(up)) return { special: 'absent' };
+  if (/^(ABSENT|ARRET|MALADIE)/.test(up)) return { special: 'absent' };
   const parts = str.split(/\s+/);
   if (parts.length < 2) return null;
   function toTime(t) {
