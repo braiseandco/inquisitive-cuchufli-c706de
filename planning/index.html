@@ -2000,11 +2000,13 @@ async function confirmImport() {
     const allOverrides = [];
 
     // Normalise : strip accents, uppercase, split en mots
-    const normWords = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().split(/\s+/).filter(Boolean);
+    const norm = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+    const normWords = str => norm(str).split(/\s+/).filter(Boolean);
+    // "FOUGERE" matche "Fougères" (FOUGERES) → on vérifie si un mot CSV est préfixe d'un mot DB ou vice-versa
     const nameMatches = (dbName, csvName) => {
       const dbW = normWords(dbName);
       const csvW = normWords(csvName);
-      return csvW.some(cw => dbW.includes(cw));
+      return csvW.some(cw => dbW.some(dw => dw.startsWith(cw) || cw.startsWith(dw)));
     };
 
     for (const empData of importParsedData) {
