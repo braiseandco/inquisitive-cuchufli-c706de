@@ -1491,26 +1491,43 @@ async function printEmpReport() {
     const weekLabel = `${tue.getDate()}/${tue.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}`;
 
     let weekTotal = 0;
-    const cells = dates.map((d, i) => {
+    const cellArr = [];
+    dates.forEach((d, i) => {
       const ds = dateStr(d);
       const ov = ovMap[ds];
-      if (!ov || ov.status === 'off')      return `<td style="color:#aaa;text-align:center;font-size:10px">Repos</td>`;
-      if (ov.status === 'absent')          return `<td style="color:#c62828;text-align:center;font-weight:700;font-size:10px">Absent</td>`;
-      if (ov.status === 'arret')           return `<td style="color:#e65100;text-align:center;font-weight:700;font-size:10px">Arrêt</td>`;
-      if (ov.status === 'vacation')        return `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
-      // Vendredi et samedi : deux lignes midi/soir dans une cellule
+      const tdRepos = `<td style="color:#aaa;text-align:center;font-size:10px">Repos</td>`;
+      const tdAbsent  = `<td style="color:#c62828;text-align:center;font-weight:700;font-size:10px">Absent</td>`;
+      const tdArret   = `<td style="color:#e65100;text-align:center;font-weight:700;font-size:10px">Arrêt</td>`;
+      const tdVacance = `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
+
+      // Vendredi (i=4) et Samedi (i=5) : deux colonnes séparées midi + soir
       if (i === 4 || i === 5) {
-        const mMins = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
-        const eMins = calcSvc(ov.evening_start,ov.evening_break_start,ov.evening_break_end,ov.evening_end);
-        weekTotal += (mMins + eMins);
-        const mLine = ov.start_time   ? `${fmtT(ov.start_time)}-${fmtT(ov.end_time)} <span style="color:#e53935">${(mMins/60).toFixed(1).replace('.0','')}h</span>` : '<span style="color:#aaa">—</span>';
-        const eLine = ov.evening_start? `${fmtT(ov.evening_start)}-${fmtT(ov.evening_end)} <span style="color:#e53935">${(eMins/60).toFixed(1).replace('.0','')}h</span>` : '<span style="color:#aaa">—</span>';
-        return `<td style="text-align:center;font-size:10px;line-height:1.6">${mLine}<br>${eLine}</td>`;
+        if (!ov || ov.status === 'off')    { cellArr.push(tdRepos, tdRepos); return; }
+        if (ov.status === 'absent')        { cellArr.push(tdAbsent, tdAbsent); return; }
+        if (ov.status === 'arret')         { cellArr.push(tdArret, tdArret); return; }
+        if (ov.status === 'vacation')      { cellArr.push(tdVacance, tdVacance); return; }
+        const mMins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
+        const eMins = calcSvc(ov.evening_start, ov.evening_break_start, ov.evening_break_end, ov.evening_end);
+        weekTotal += mMins + eMins;
+        const tdM = ov.start_time
+          ? `<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mMins/60).toFixed(1).replace('.0','')}h</span></td>`
+          : tdRepos;
+        const tdE = ov.evening_start
+          ? `<td style="text-align:center;font-size:10px">${fmtT(ov.evening_start)}-${fmtT(ov.evening_end)}<br><span style="color:#e53935;font-weight:700">${(eMins/60).toFixed(1).replace('.0','')}h</span></td>`
+          : tdRepos;
+        cellArr.push(tdM, tdE);
+        return;
       }
-      const mins = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
+      // Autres jours : une seule colonne
+      if (!ov || ov.status === 'off')    { cellArr.push(tdRepos); return; }
+      if (ov.status === 'absent')        { cellArr.push(tdAbsent); return; }
+      if (ov.status === 'arret')         { cellArr.push(tdArret); return; }
+      if (ov.status === 'vacation')      { cellArr.push(tdVacance); return; }
+      const mins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
       weekTotal += mins;
-      return `<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`;
-    }).join('');
+      cellArr.push(`<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`);
+    });
+    const cells = cellArr.join('');
 
     grandTotal += weekTotal;
     rows += `<tr style="border-bottom:1px solid #ddd">
