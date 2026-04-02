@@ -173,6 +173,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 24px;border-radius:30px;font-size:13px;font-weight:600;z-index:9999;transition:transform .3s;pointer-events:none;}
 .toast.show{transform:translateX(-50%) translateY(0);}
 
+/* Modifier semaine */
+.edit-week-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Raleway',sans-serif;font-size:11px;padding:5px 6px;width:100%;min-width:80px;text-align:center;}
+.edit-week-input:focus{outline:none;border-color:var(--accent2);}
+.edit-week-th{background:var(--bg3);padding:7px 8px;border:1px solid var(--border);text-align:center;font-size:10px;color:var(--text-dim);white-space:nowrap;}
+.edit-week-td{border:1px solid var(--border);padding:4px 5px;vertical-align:middle;}
+.edit-week-name{font-size:12px;font-weight:700;padding:6px 10px;white-space:nowrap;}
+
 /* Import CSV */
 .import-preview{overflow-x:auto;margin-top:16px;}
 .import-table{border-collapse:collapse;width:100%;font-size:11px;min-width:500px;}
@@ -378,6 +385,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture</button>
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
+      <button class="btn-add" style="background:rgba(30,136,229,.15);color:#90caf9;border:1px solid rgba(30,136,229,.3);padding:10px 14px" onclick="openEditWeek()">✏️ Modifier</button>
     </div>
     <div id="planningBlocks"></div>
   </div>
@@ -403,6 +411,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printPlanningReportForDate()">🖨️ Générer le PDF</button>
     <div id="recentWeeksList" style="margin-top:24px"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL MODIFIER SEMAINE ═══ -->
+<div class="modal-overlay" id="modalEditWeek">
+  <div class="modal" style="max-width:98vw;width:780px;padding:20px 16px;">
+    <h3>✏️ Modifier la semaine</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.7">
+      Saisissez les horaires (<code>10h 15h30</code>) ou : <code>REPOS</code> · <code>ABSENT</code> · <code>ARRET</code> · <code>VACANCES</code>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="editWeekTable" style="border-collapse:collapse;width:100%;font-size:11px;min-width:600px;">
+        <thead id="editWeekHead"></thead>
+        <tbody id="editWeekBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-secondary" onclick="closeModal('modalEditWeek')">Annuler</button>
+      <button class="btn-primary" onclick="saveEditWeek()">✓ Enregistrer</button>
+    </div>
+    <div id="editWeekError" style="margin-top:10px;display:none;color:#ef9a9a;font-size:12px;"></div>
   </div>
 </div>
 
@@ -1843,6 +1872,148 @@ function toast(msg) {
 // ══════════════════════════════════════
 
 let importParsedData = null;
+
+// ══════════════════════════════════════
+//  MODIFIER SEMAINE
+// ══════════════════════════════════════
+const EDIT_COLS = [
+  {label:'Mar',    offset:1, svc:'day'},
+  {label:'Mer',    offset:2, svc:'day'},
+  {label:'Jeu',    offset:3, svc:'day'},
+  {label:'Ven ☀', offset:4, svc:'morn'},
+  {label:'Ven 🌙', offset:4, svc:'eve'},
+  {label:'Sam ☀', offset:5, svc:'morn'},
+  {label:'Sam 🌙', offset:5, svc:'eve'},
+  {label:'Dim',    offset:6, svc:'day'},
+];
+
+function editCellVal(ov, svc) {
+  if (!ov) return '';
+  if (ov.status === 'off')      return 'REPOS';
+  if (ov.status === 'absent')   return 'ABSENT';
+  if (ov.status === 'arret')    return 'ARRET';
+  if (ov.status === 'vacation') return 'VACANCES';
+  if (svc === 'eve') {
+    if (!ov.evening_start) return 'REPOS';
+    return (ov.evening_start||'').slice(0,5).replace(':','h') + ' ' + (ov.evening_end||'').slice(0,5).replace(':','h');
+  }
+  if (!ov.start_time) return 'REPOS';
+  return (ov.start_time||'').slice(0,5).replace(':','h') + ' ' + (ov.end_time||'').slice(0,5).replace(':','h');
+}
+
+async function openEditWeek() {
+  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const dates = weekDates(planningWeek);
+  const weekStart = dateStr(planningWeek);
+  const weekEnd   = dateStr(dates[6]);
+  const allOv = await GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
+
+  // thead
+  let head = '<tr><th class="edit-week-th" style="text-align:left">Employé</th>';
+  EDIT_COLS.forEach(c => {
+    const d = dates[c.offset];
+    head += `<th class="edit-week-th">${c.label}<br><small>${d.getDate()}/${d.getMonth()+1}</small></th>`;
+  });
+  head += '</tr>';
+  document.getElementById('editWeekHead').innerHTML = head;
+
+  // tbody
+  let body = '';
+  employees.forEach((emp, ei) => {
+    const ovMap = {};
+    allOv.filter(o => o.employee_id === emp.id).forEach(o => ovMap[o.date] = o);
+    body += `<tr><td class="edit-week-td edit-week-name">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:18px;height:18px;border-radius:50%;background:${emp.color};flex-shrink:0"></div>
+        <span>${emp.name}</span>
+      </div></td>`;
+    EDIT_COLS.forEach((c, ci) => {
+      const ds = dateStr(dates[c.offset]);
+      const ov = ovMap[ds];
+      const val = editCellVal(ov, c.svc);
+      body += `<td class="edit-week-td"><input class="edit-week-input" id="ewi_${ei}_${ci}" value="${val}" placeholder="REPOS"></td>`;
+    });
+    body += '</tr>';
+  });
+  document.getElementById('editWeekBody').innerHTML = body;
+  document.getElementById('editWeekError').style.display = 'none';
+  openModal('modalEditWeek');
+}
+
+async function saveEditWeek() {
+  const dates = weekDates(planningWeek);
+  const localDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // Construire les overrides à partir des inputs
+  const byEmpDate = {}; // empId → date → {morn, eve}
+  employees.forEach((emp, ei) => {
+    byEmpDate[emp.id] = {};
+    EDIT_COLS.forEach((c, ci) => {
+      const ds = localDate(dates[c.offset]);
+      if (!byEmpDate[emp.id][ds]) byEmpDate[emp.id][ds] = {};
+      byEmpDate[emp.id][ds][c.svc] = document.getElementById(`ewi_${ei}_${ci}`)?.value.trim() || '';
+    });
+  });
+
+  const overrides = [];
+  for (const emp of employees) {
+    for (const [ds, svcs] of Object.entries(byEmpDate[emp.id])) {
+      const mornVal = (svcs.morn || svcs.day || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const eveVal  = (svcs.eve || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const isSpecial = v => /^(REPOS|ABSENT|ARRET|MALADIE|VACANT|VACANCE|VACANCES|CONGE|CONGES|)$/.test(v);
+
+      let status, start_time=null, end_time=null, evening_start=null, evening_end=null;
+      if (/^(ARRET|MALADIE)/.test(mornVal))           status = 'arret';
+      else if (/^ABSENT/.test(mornVal))                status = 'absent';
+      else if (/^(VACANT|VACANCE|VACANCES|CONGE)/.test(mornVal)) status = 'vacation';
+      else {
+        // Essayer de parser les horaires
+        const pMorn = parseHoraire(svcs.morn || svcs.day || '');
+        const pEve  = parseHoraire(svcs.eve  || '');
+        const hasMorn = pMorn && !pMorn.special;
+        const hasEve  = pEve  && !pEve.special;
+        if (!hasMorn && !hasEve) { status = 'off'; }
+        else {
+          status = 'present';
+          if (hasMorn) { start_time   = pMorn.start; end_time     = pMorn.end; }
+          if (hasEve)  { evening_start = pEve.start;  evening_end  = pEve.end; }
+        }
+      }
+      overrides.push({
+        employee_id: emp.id, date: ds, status,
+        start_time, end_time, break_start: null, break_end: null,
+        evening_start, evening_end, evening_break_start: null, evening_break_end: null,
+      });
+    }
+  }
+
+  // DELETE + INSERT
+  const weekStart = localDate(planningWeek);
+  const weekEnd   = localDate(weekDates(planningWeek)[6]);
+  try {
+    const btn = document.querySelector('#modalEditWeek .btn-primary');
+    btn.disabled = true; btn.textContent = '⏳…';
+    for (const emp of employees) {
+      await sb(`weekly_overrides?employee_id=eq.${emp.id}&date=gte.${weekStart}&date=lte.${weekEnd}`,
+        { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    }
+    await sb('weekly_overrides', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify(overrides),
+    });
+    closeModal('modalEditWeek');
+    toast('Planning enregistré ✓');
+    loadPlanningTab();
+  } catch(e) {
+    const err = document.getElementById('editWeekError');
+    err.textContent = '❌ Erreur : ' + e.message;
+    err.style.display = '';
+  } finally {
+    const btn = document.querySelector('#modalEditWeek .btn-primary');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Enregistrer'; }
+  }
+}
 
 function openImportModal() {
   // Auto-set date to next (or current) Tuesday
