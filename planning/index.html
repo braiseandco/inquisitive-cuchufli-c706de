@@ -591,19 +591,21 @@ function fmtHours(s) {
 
 // Calcule les heures travaillées d'une journée (retourne un float en heures)
 function calcDayHours(row) {
-  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation') return 0;
+  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation' || row.status === 'arret') return 0;
   const t = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
   const midnight = s => t(s) === 0 ? 1440 : t(s);
+  // Pause repas 30min auto, sauf si embauche à 12h00 ou 19h30
+  const hasPause = start => t(start) !== 12*60 && t(start) !== 19*60+30;
   let total = 0;
   if (row.start_time && row.end_time) {
     const s=t(row.start_time), e=midnight(row.end_time);
     if(row.break_start && row.break_end) total += (t(row.break_start)-s) + (e-t(row.break_end));
-    else total += e-s;
+    else { total += e-s; if(hasPause(row.start_time)) total -= 30; }
   }
   if(row.evening_start && row.evening_end) {
     const es=t(row.evening_start), ee=midnight(row.evening_end);
     if(row.evening_break_start && row.evening_break_end) total += (t(row.evening_break_start)-es) + (ee-t(row.evening_break_end));
-    else total += ee-es;
+    else { total += ee-es; if(hasPause(row.evening_start)) total -= 30; }
   }
   return total/60;
 }
