@@ -423,6 +423,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       </div>
       <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printEmpReport()">🖨️ Générer le PDF employé</button>
     </div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">Sauvegarde des données</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Exporte toutes les données (plannings, horaires, signatures) en fichier JSON. À faire régulièrement pour archivage sur 5 ans.</p>
+      <button class="btn-primary" style="width:100%;background:rgba(30,136,229,.2);border:1px solid rgba(30,136,229,.4);color:#90caf9" onclick="exportAllData()">💾 Exporter toutes les données</button>
+      <div id="exportStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
+    </div>
   </div>
 </div>
 
@@ -895,7 +902,18 @@ function clearDaySig() {
 
 async function submitDaySignature() {
   if (!sigDayHasMark) return;
-  const data = document.getElementById('sigDayCanvas').toDataURL('image/png');
+  const canvas = document.getElementById('sigDayCanvas');
+  // Tampon horodatage en bas à droite
+  const now = new Date();
+  const stamp = now.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+              + ' ' + now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 11px Arial';
+  ctx.fillStyle = '#1a1a26';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(stamp, canvas.width - 4, canvas.height - 2);
+  const data = canvas.toDataURL('image/png');
   try {
     await sb('daily_signatures?on_conflict=employee_id,date', {
       method: 'POST',
@@ -1451,9 +1469,14 @@ async function printEmpReport() {
   if (!empId) { toast('Choisir un employé'); return; }
   const emp = employees.find(e => e.id === empId);
 
-  // Récupérer tous les overrides de cet employé
-  const allOv = await GET(`weekly_overrides?employee_id=eq.${empId}&order=date.asc&select=*`);
+  // Récupérer overrides ET signatures
+  const [allOv, allSigsEmp] = await Promise.all([
+    GET(`weekly_overrides?employee_id=eq.${empId}&order=date.asc&select=*`),
+    GET(`daily_signatures?employee_id=eq.${empId}&order=date.asc&select=date,signature_data`)
+  ]);
   if (!allOv.length) { toast('Aucun planning trouvé pour cet employé'); return; }
+  const sigMap = {};
+  allSigsEmp.forEach(s => { sigMap[s.date] = s.signature_data; });
 
   // Grouper par semaine (lundi)
   const weekMap = {};
@@ -1529,16 +1552,28 @@ async function printEmpReport() {
     });
     const cells = cellArr.join('');
 
+    // Ligne signatures : Lun Mar Mer Jeu Ven(colspan=2) Sam(colspan=2) Dim
+    const mkSigCell = (d, colspan) => {
+      const data = sigMap[dateStr(d)];
+      const cs = colspan > 1 ? ` colspan="${colspan}"` : '';
+      return data
+        ? `<td${cs} style="padding:3px;text-align:center;background:#fff"><img src="${data}" style="width:90px;height:36px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff"></td>`
+        : `<td${cs} style="text-align:center;color:#ccc;font-size:9px;background:#fafafa">—</td>`;
+    };
+    const sigCells = [0,1,2,3].map(i => mkSigCell(dates[i], 1)).join('')
+      + [4,5].map(i => mkSigCell(dates[i], 2)).join('')
+      + mkSigCell(dates[6], 1);
+
     grandTotal += weekTotal;
-    rows += `<tr style="border-bottom:1px solid #ddd">
-      <td style="padding:6px 8px;font-weight:700;white-space:nowrap;font-size:11px">${weekLabel}</td>
+    rows += `<tr>
+      <td rowspan="2" style="padding:6px 8px;font-weight:700;white-space:nowrap;font-size:11px;border-bottom:2px solid #ccc">${weekLabel}</td>
       ${cells}
-      <td style="text-align:center;font-weight:700;color:#e53935;font-size:11px">${(weekTotal/60).toFixed(1).replace('.0','')}h</td>
-    </tr>`;
+      <td rowspan="2" style="text-align:center;font-weight:700;color:#e53935;font-size:11px;border-bottom:2px solid #ccc">${(weekTotal/60).toFixed(1).replace('.0','')}h</td>
+    </tr>
+    <tr style="border-bottom:2px solid #ccc">${sigCells}</tr>`;
   }
 
-  const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  const empHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Planning — ${emp.name}</title>
   <style>
     body{font-family:Arial,sans-serif;margin:20px;color:#111;}
@@ -1565,8 +1600,8 @@ async function printEmpReport() {
       <td style="text-align:center;color:#e53935">${(grandTotal/60).toFixed(1).replace('.0','')}h</td>
     </tfoot>
   </table>
-  </body></html>`);
-  win.document.close();
+  </body></html>`;
+  openPrintOverlay(empHtml);
 }
 
 async function printPlanningReport(week) {
@@ -1583,7 +1618,6 @@ async function printPlanningReport(week) {
   ]);
   const sigMap = {};
   allSigs.forEach(s => { if(!sigMap[s.employee_id]) sigMap[s.employee_id]={}; sigMap[s.employee_id][s.date]=s.signature_data; });
-
   const COLS = [
     {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
     {label:'Mercredi',   d:dates[2], dn:3, svc:'day'},
@@ -1637,15 +1671,15 @@ async function printPlanningReport(week) {
     // Ligne signature : Mar Mer Jeu Ven(colspan=2) Sam(colspan=2) Dim — Total vide
     const sigCells = [dates[1],dates[2],dates[3]].map(d => {
       const data = empSigs[dateStr(d)];
-      return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>`
-                  : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
+      return data ? `<td style="padding:3px;text-align:center;background:#fff"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+                  : `<td style="text-align:center;color:#ccc;font-size:10px;background:#fff">—</td>`;
     }).join('') +
     [dates[4],dates[5]].map(d => {
       const data = empSigs[dateStr(d)];
-      return data ? `<td colspan="2" style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>`
-                  : `<td colspan="2" style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`;
+      return data ? `<td colspan="2" style="padding:3px;text-align:center;background:#fff"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>`
+                  : `<td colspan="2" style="text-align:center;color:#ccc;font-size:10px;background:#fff">—</td>`;
     }).join('') +
-    (() => { const data = empSigs[dateStr(dates[6])]; return data ? `<td style="padding:3px;text-align:center;background:#f9f9f9"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#1a1a26;padding:2px"></td>` : `<td style="text-align:center;color:#ccc;font-size:10px;background:#f9f9f9">—</td>`; })();
+    (() => { const data = empSigs[dateStr(dates[6])]; return data ? `<td style="padding:3px;text-align:center;background:#fff"><img src="${data}" style="width:110px;height:44px;object-fit:contain;border:1px solid #ddd;border-radius:3px;background:#fff;padding:2px"></td>` : `<td style="text-align:center;color:#ccc;font-size:10px;background:#fff">—</td>`; })();
 
     return `<tr>
       <td style="font-weight:700;white-space:nowrap;padding:6px 10px;border-right:2px solid #ddd" rowspan="2">${emp.name}</td>
@@ -1682,9 +1716,7 @@ async function printPlanningReport(week) {
   </table>
   </body></html>`;
 
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
+  openPrintOverlay(html);
 }
 
 // ── Override ──
@@ -1889,8 +1921,8 @@ async function loadSigTab() {
 }
 
 function viewSig(name, data) {
-  const w = window.open('', '_blank', 'width=500,height=300');
-  w.document.write(`<html><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;padding:20px"><h3 style="color:#fff;font-family:sans-serif;margin-bottom:10px">${name}</h3><img src="${data}" style="max-width:100%;border-radius:8px;background:#fff;padding:10px"></body></html>`);
+  const sigHtml = `<html><body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;padding:20px"><h3 style="color:#fff;font-family:sans-serif;margin-bottom:10px">${name}</h3><img src="${data}" style="max-width:100%;border-radius:8px;background:#fff;padding:10px"></body></html>`;
+  openPrintOverlay(sigHtml);
 }
 
 async function printSigReport() {
@@ -1919,7 +1951,7 @@ async function printSigReport() {
     const cells = dayDates.map(d => {
       const data = empSigs[d];
       return data
-        ? `<td style="padding:4px;text-align:center;vertical-align:middle"><img src="${data}" style="width:120px;height:50px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#1a1a26;padding:2px"></td>`
+        ? `<td style="padding:4px;text-align:center;vertical-align:middle"><img src="${data}" style="width:120px;height:50px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fff;padding:2px"></td>`
         : `<td style="text-align:center;color:#ccc;font-size:11px">—</td>`;
     }).join('');
     return `<tr><td style="padding:8px 12px;font-weight:700;white-space:nowrap;border-right:2px solid #eee">${emp.name}</td>${cells}</tr>`;
@@ -1948,9 +1980,153 @@ async function printSigReport() {
   </table>
   </body></html>`;
 
-  const w = window.open('', '_blank');
-  w.document.write(html);
-  w.document.close();
+  openPrintOverlay(html);
+}
+
+// ── Export données ──
+async function exportAllData() {
+  const status = document.getElementById('exportStatus');
+  status.textContent = 'Récupération des données…';
+  try {
+    const [emps, allOv, allSigs] = await Promise.all([
+      GET('employees?select=*&order=display_order.asc,name.asc'),
+      GET('weekly_overrides?select=*&order=date.asc'),
+      GET('daily_signatures?select=*&order=date.asc')
+    ]);
+
+    const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+    const tMid = s => tMin(s)===0?1440:tMin(s);
+    const hasPause = s => s && tMin(s)!==12*60 && tMin(s)!==19*60+30;
+    const calcSvc = (s,bs,be,e) => (!s||!e)?0:(bs&&be?(tMin(bs)-tMin(s))+(tMid(e)-tMin(be)):tMid(e)-tMin(s)-(hasPause(s)?30:0));
+    const fmtT = t => { if(!t) return ''; const [h,m]=t.split(':'); return m==='00'?h+'h':h+'h'+m; };
+    const fmt = d => { const [y,m,j]=d.split('-'); return `${j}/${m}/${y}`; };
+
+    // Grouper overrides par employé puis par semaine
+    const sigMap = {};
+    allSigs.forEach(s => { if(!sigMap[s.employee_id]) sigMap[s.employee_id]={}; sigMap[s.employee_id][s.date]=s.signature_data; });
+
+    const DAYS = ['Lun','Mar','Mer','Jeu','Ven☀','Ven🌙','Sam☀','Sam🌙','Dim'];
+
+    let sections = '';
+    for (const emp of emps) {
+      const empOv = allOv.filter(o => o.employee_id === emp.id);
+      if (!empOv.length) continue;
+
+      // Grouper par semaine
+      const weekMap = {};
+      empOv.forEach(ov => {
+        const mon = dateStr(getMonday(new Date(ov.date+'T12:00')));
+        if (!weekMap[mon]) weekMap[mon] = {};
+        weekMap[mon][ov.date] = ov;
+      });
+
+      const empSigs = sigMap[emp.id] || {};
+      let rows = '';
+
+      for (const monKey of Object.keys(weekMap).sort()) {
+        const mon = new Date(monKey+'T12:00');
+        const dates = weekDates(mon);
+        const ovMap = weekMap[monKey];
+        const hasWork = Object.values(ovMap).some(o => o.status === 'present' || (!o.status && o.start_time));
+        if (!hasWork) continue;
+
+        const tue = dates[1], sun = dates[6];
+        const weekLabel = `${tue.getDate()}/${tue.getMonth()+1} → ${sun.getDate()}/${sun.getMonth()+1}`;
+
+        let weekTotal = 0;
+        const cells = [];
+        dates.forEach((d, i) => {
+          const ds = dateStr(d);
+          const ov = ovMap[ds];
+          if (i===4||i===5) {
+            if (!ov||ov.status==='off') { cells.push('<td style="color:#aaa;text-align:center;font-size:9px">Repos</td>','<td style="color:#aaa;text-align:center;font-size:9px">Repos</td>'); return; }
+            if (ov.status==='absent')   { cells.push('<td style="color:#c62828;text-align:center;font-size:9px">Absent</td>','<td style="color:#c62828;text-align:center;font-size:9px">Absent</td>'); return; }
+            if (ov.status==='vacation') { cells.push('<td style="color:#1565c0;text-align:center;font-size:9px">Congé</td>','<td style="color:#1565c0;text-align:center;font-size:9px">Congé</td>'); return; }
+            const mM = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
+            const eM = calcSvc(ov.evening_start,ov.evening_break_start,ov.evening_break_end,ov.evening_end);
+            weekTotal += mM+eM;
+            cells.push(
+              ov.start_time ? `<td style="text-align:center;font-size:9px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><b style="color:#e53935">${(mM/60).toFixed(1).replace('.0','')}h</b></td>` : '<td style="color:#aaa;text-align:center;font-size:9px">—</td>',
+              ov.evening_start ? `<td style="text-align:center;font-size:9px">${fmtT(ov.evening_start)}-${fmtT(ov.evening_end)}<br><b style="color:#e53935">${(eM/60).toFixed(1).replace('.0','')}h</b></td>` : '<td style="color:#aaa;text-align:center;font-size:9px">—</td>'
+            );
+            return;
+          }
+          if (!ov||ov.status==='off') { cells.push('<td style="color:#aaa;text-align:center;font-size:9px">Repos</td>'); return; }
+          if (ov.status==='absent')   { cells.push('<td style="color:#c62828;text-align:center;font-size:9px">Absent</td>'); return; }
+          if (ov.status==='vacation') { cells.push('<td style="color:#1565c0;text-align:center;font-size:9px">Congé</td>'); return; }
+          const m = calcSvc(ov.start_time,ov.break_start,ov.break_end,ov.end_time);
+          weekTotal += m;
+          cells.push(`<td style="text-align:center;font-size:9px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><b style="color:#e53935">${(m/60).toFixed(1).replace('.0','')}h</b></td>`);
+        });
+
+        // Ligne signatures
+        const sigCells = dates.map((d, i) => {
+          const ds = dateStr(d);
+          const data = empSigs[ds];
+          // Ven et Sam : colspan 2
+          if (i===4||i===5) {
+            return data
+              ? `<td colspan="2" style="padding:2px;text-align:center;background:#fff"><img src="${data}" style="width:80px;height:30px;object-fit:contain;background:#fff"></td>`
+              : `<td colspan="2" style="text-align:center;color:#ccc;font-size:9px">—</td>`;
+          }
+          if (i===1||i===2||i===3||i===6) { // Mar Mer Jeu Dim (on skip les doublons Ven/Sam)
+            return data
+              ? `<td style="padding:2px;text-align:center;background:#fff"><img src="${data}" style="width:80px;height:30px;object-fit:contain;background:#fff"></td>`
+              : `<td style="text-align:center;color:#ccc;font-size:9px">—</td>`;
+          }
+          return null; // Lun ignoré (repos fixe), Ven/Sam gérés en colspan
+        }).filter(c => c !== null);
+
+        rows += `
+          <tr style="border-top:2px solid #ccc">
+            <td rowspan="2" style="padding:5px 6px;font-weight:700;font-size:10px;white-space:nowrap;border-right:2px solid #ddd">${weekLabel}</td>
+            ${cells.join('')}
+            <td rowspan="2" style="text-align:center;font-weight:700;color:#e53935;font-size:11px;border-left:2px solid #ddd">${(weekTotal/60).toFixed(1).replace('.0','')}h</td>
+          </tr>
+          <tr>${sigCells.join('')}</tr>`;
+      }
+
+      if (!rows) continue;
+      sections += `
+        <div class="emp-section">
+          <h2>${emp.name}</h2>
+          <table>
+            <thead><tr>
+              <th>Semaine</th>
+              ${DAYS.map(l=>`<th>${l}</th>`).join('')}
+              <th>Total</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
+    const exportDate = new Date().toLocaleDateString('fr-FR');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Archive planning Braise &amp; Co</title>
+    <style>
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;padding:20px;color:#111;font-size:11px}
+      h1{font-size:18px;margin-bottom:4px}
+      .subtitle{font-size:12px;color:#666;margin-bottom:24px}
+      h2{font-size:14px;font-weight:900;margin:0 0 8px;padding:8px 12px;background:#222;color:#fff;border-radius:6px}
+      .emp-section{margin-bottom:32px;page-break-inside:avoid}
+      table{border-collapse:collapse;width:100%;font-size:10px;margin-bottom:4px}
+      th{background:#444;color:#fff;padding:5px 4px;text-align:center;font-size:9px}
+      td{border:1px solid #ddd;padding:4px 3px;vertical-align:middle}
+      @media print{.print-btn{display:none}.emp-section{page-break-before:always}.emp-section:first-child{page-break-before:auto}}
+    </style></head><body>
+    <button class="print-btn" onclick="window.print()" style="margin-bottom:16px;padding:8px 20px;background:#222;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Imprimer / PDF</button>
+    <h1>Archive planning — Braise &amp; Co</h1>
+    <p class="subtitle">Généré le ${exportDate} · ${allOv.length} entrées · ${allSigs.length} signatures</p>
+    ${sections}
+    </body></html>`;
+
+    status.textContent = `✓ Prêt — ${allOv.length} plannings, ${allSigs.length} signatures`;
+    openPrintOverlay(html);
+  } catch(e) {
+    status.textContent = 'Erreur : ' + e.message;
+  }
 }
 
 // ── Settings ──
@@ -2435,6 +2611,28 @@ async function confirmImport() {
 //  INIT
 // ══════════════════════════════════════
 initHome();
+
+function openPrintOverlay(html) {
+  const overlay = document.getElementById('printOverlay');
+  const frame   = document.getElementById('printFrame');
+  overlay.style.display = 'flex';
+  frame.contentDocument.open();
+  frame.contentDocument.write(html);
+  frame.contentDocument.close();
+}
+function closePrintOverlay() {
+  document.getElementById('printOverlay').style.display = 'none';
+  document.getElementById('printFrame').srcdoc = '';
+}
 </script>
+
+<!-- ═══ PRINT OVERLAY ═══ -->
+<div id="printOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#f0f0f0;flex-direction:column">
+  <div style="background:#222;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-shrink:0">
+    <button onclick="closePrintOverlay()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">✕ Fermer</button>
+    <button onclick="document.getElementById('printFrame').contentWindow.print()" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨️ Imprimer / PDF</button>
+  </div>
+  <iframe id="printFrame" style="flex:1;border:none;background:#fff"></iframe>
+</div>
 </body>
 </html>
