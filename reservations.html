@@ -1666,8 +1666,12 @@ function setupTableInteractions(el, table, allVisible){
         document.getElementById('assign-banner').style.display='none';
         assignTable(rid,table.id);
       } else if(!tableResas[table.id]){
-        // Table LIBRE → walk-in rapide
-        openWalkIn(table);
+        // Table LIBRE → walk-in rapide, sauf si fusionnée (pour pouvoir défusionner)
+        if(table.merged_with){
+          openTablePanel(table, null);
+        } else {
+          openWalkIn(table);
+        }
       } else {
         // Table OCCUPÉE → voir le détail
         openTablePanel(table, tableResas[table.id]);
