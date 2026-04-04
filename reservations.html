@@ -1817,10 +1817,11 @@ document.getElementById('merge-cancel-btn').onclick = () => {
 };
 
 // ── TABLE PANEL ───────────────────────────────────────────────
-let currentTableId=null, currentTableResa=null;
+let currentTableId=null, currentTableResa=null, currentTableObj=null;
 
 async function openTablePanel(table, resa){
   currentTableId = table.id;
+  currentTableObj = table;
   currentTableResa = resa;
   document.getElementById('tp-title').textContent = 'Table '+table.numero;
   document.getElementById('tp-sub').textContent = table.capacite+' couverts • '+(resa?'Occupée':'Libre');
@@ -2011,13 +2012,20 @@ document.getElementById('tp-change-table').onclick = function(){
 
 // ── DÉFUSION ──────────────────────────────────────────────────
 document.getElementById('tp-defuse').onclick = async function(){
-  const table = allTables.find(t=>t.id===currentTableId);
-  if(!table || !table.merged_with) return;
+  // Utilise currentTableObj (capturé à l'ouverture du panel) plutôt que allTables
+  // pour éviter les problèmes si allTables a été rafraîchi entretemps
+  const table = currentTableObj || allTables.find(t=>t.id===currentTableId);
+  if(!table){ toast('Table introuvable','ko'); return; }
+  if(!table.merged_with){ toast('Cette table n\'est pas fusionnée','ko'); return; }
 
   if(!confirm('Défusionner les tables '+table.numero+' et '+table.merged_with+' ?')) return;
 
   showLoader(true);
   try{
+    // Recharger les tables depuis la DB pour avoir les positions à jour
+    const freshTables = await getTables();
+    allTables = freshTables || allTables;
+
     // Retrouver la table cachée (x_pos=-500) dont le numero = merged_with
     const partnerNumero = parseInt(table.merged_with);
     const partner = allTables.find(t=>
