@@ -1091,8 +1091,16 @@ function renderResas(resas){
   // Bind clicks (onclick + touchend pour Android/tablette)
   container.querySelectorAll('.resa-card').forEach(card=>{
     card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
+    let _touchStartY=0, _touchStartX=0;
+    card.addEventListener('touchstart',function(e){
+      _touchStartY=e.touches[0].clientY;
+      _touchStartX=e.touches[0].clientX;
+    },{passive:true});
     card.addEventListener('touchend',function(e){
       if(e.target.closest('.btn-arrivee,.btn-delete-resa')) return;
+      const dy=Math.abs(e.changedTouches[0].clientY-_touchStartY);
+      const dx=Math.abs(e.changedTouches[0].clientX-_touchStartX);
+      if(dy>10||dx>10) return; // scroll détecté, pas un tap
       if(e.cancelable)e.preventDefault();
       clickResa(this.dataset.id, this.dataset.tableId);
     },{passive:false});
