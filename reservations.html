@@ -435,6 +435,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
+<!-- MODAL: CONFIRMATION GÉNÉRIQUE -->
+<div class="overlay" id="modal-confirm" style="z-index:4000;">
+  <div class="modal" style="max-width:300px;text-align:center;">
+    <div class="modal-handle"></div>
+    <div id="modal-confirm-msg" style="font-size:15px;font-weight:600;margin:16px 0 24px;"></div>
+    <div style="display:flex;gap:12px;">
+      <button class="btn-cancel" id="modal-confirm-no" style="flex:1;">Annuler</button>
+      <button class="btn-primary" id="modal-confirm-yes" style="flex:1;">Confirmer</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: NOUVELLE RÉSERVATION -->
 <div class="overlay" id="modal-resa">
   <div class="modal">
@@ -700,6 +712,7 @@ function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);r
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 let _tt;
 function toast(msg,type){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type?' '+type:'');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3200);}
+function showConfirm(msg){return new Promise(resolve=>{document.getElementById('modal-confirm-msg').textContent=msg;document.getElementById('modal-confirm').classList.add('open');const yes=document.getElementById('modal-confirm-yes');const no=document.getElementById('modal-confirm-no');function done(v){document.getElementById('modal-confirm').classList.remove('open');yes.removeEventListener('click',onYes);no.removeEventListener('click',onNo);resolve(v);}function onYes(){done(true);}function onNo(){done(false);}yes.addEventListener('click',onYes);no.addEventListener('click',onNo);});}
 function showLoader(v){document.getElementById('loader').classList.toggle('show',v);}
 
 // ── State ─────────────────────────────────────────────────────
@@ -1234,13 +1247,6 @@ async function openDetail(id){
             }
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
-            if(r.telephone){
-              const smsSent = confirm('📱 Envoyer SMS au : ' + r.telephone + '\n\nSMS envoyé ?');
-              if(smsSent){
-                await updateResa(id,{sms_envoye:true});
-                loadResas();
-              }
-            }
             toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
           } else {
             showLoader(false);
@@ -1667,7 +1673,7 @@ function setupTableInteractions(el, table, allVisible){
         const srcId = pendingMergeId; pendingMergeId = null;
         document.getElementById('merge-bar').classList.remove('show');
         const src = allTables.find(t=>t.id===srcId);
-        if(src && confirm('Fusionner Table '+src.numero+' avec Table '+table.numero+' ?')){
+        if(src && await showConfirm('Fusionner Table '+src.numero+' avec Table '+table.numero+' ?')){
           showLoader(true);
           try{
             const newCap = (src.capacite||4)+(table.capacite||4);
@@ -1706,7 +1712,7 @@ function setupTableInteractions(el, table, allVisible){
     });
 
     if(tgt){
-      if(confirm('Fusionner table '+table.numero+' avec table '+tgt.numero+' ?')){
+      if(await showConfirm('Fusionner table '+table.numero+' avec table '+tgt.numero+' ?')){
         showLoader(true);
         try{
           const newCap = (table.capacite||4)+(tgt.capacite||4);
