@@ -1678,7 +1678,7 @@ function setupTableInteractions(el, table, allVisible){
           try{
             const newCap = (src.capacite||4)+(table.capacite||4);
             const partnerNum = String(table.numero);
-            await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), forme:'fusionnee:'+partnerNum, merged_with:partnerNum, capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos});
+            await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), merged_with:partnerNum, capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos});
             await updateTable(table.id,{x_pos:-500, y_pos:-500, capacite_origine:table.capacite||4});
             showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
           }catch(e){showLoader(false);toast('Erreur: '+e.message,'ko');}
@@ -1720,7 +1720,6 @@ function setupTableInteractions(el, table, allVisible){
           await updateTable(table.id,{
             capacite: newCap,
             numero: Math.min(table.numero,tgt.numero),
-            forme: 'fusionnee:'+partnerNum2,
             merged_with: partnerNum2,
             capacite_origine: table.capacite||4,
             x_pos: tgt.x_pos, y_pos: tgt.y_pos
@@ -2320,7 +2319,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-07.2';
+const APP_VERSION = '2026-04-07.3';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
