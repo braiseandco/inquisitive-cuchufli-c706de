@@ -1675,7 +1675,7 @@ function setupTableInteractions(el, table, allVisible){
             await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), forme:'fusionnee:'+partnerNum, merged_with:partnerNum, capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos});
             await updateTable(table.id,{x_pos:-500, y_pos:-500, capacite_origine:table.capacite||4});
             showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
-          }catch(e){showLoader(false);toast('Erreur','ko');}
+          }catch(e){showLoader(false);toast('Erreur: '+e.message,'ko');}
         }
         return;
       } else if(pendingResaId && !tableResas[table.id]){
@@ -1721,7 +1721,7 @@ function setupTableInteractions(el, table, allVisible){
           });
           await updateTable(tgt.id,{x_pos:-500, y_pos:-500, capacite_origine: tgt.capacite||4});
           showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
-        }catch(e){showLoader(false);toast('Erreur','ko');}
+        }catch(e){showLoader(false);toast('Erreur: '+e.message,'ko');}
       }else{
         el.style.left=ox+'px'; el.style.top=oy+'px';
       }
@@ -2314,7 +2314,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-04.1';
+const APP_VERSION = '2026-04-07.1';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
