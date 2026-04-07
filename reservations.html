@@ -2320,7 +2320,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-07.1';
+const APP_VERSION = '2026-04-07.2';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -2331,7 +2331,7 @@ async function checkAndUpdate(){
     const data = await res.json();
     btn.style.animation=''; btn.style.pointerEvents='';
     if(!data.version || data.version===APP_VERSION){ toast("Déjà à jour ✓",'ok'); return; }
-    if(confirm('🆕 Nouvelle version disponible !\n\nMettre à jour maintenant ?')){
+    if(await showConfirm('🆕 Nouvelle version disponible ! Mettre à jour ?')){
       if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
       if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
       window.location.href = window.location.pathname + '?_v=' + Date.now();
