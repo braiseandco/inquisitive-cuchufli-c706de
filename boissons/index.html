@@ -337,7 +337,7 @@
     Commande <span class="tab-badge hidden" id="badge-commande">0</span>
   </div>
   <div class="tab" onclick="switchTab('stock')" id="tab-stock">
-    Frigo / Stock
+    Cave
   </div>
   <div class="tab" onclick="switchTab('historique')" id="tab-historique">
     Historique
@@ -457,6 +457,9 @@
     </div>
 
     <button class="settings-save" onclick="saveSettings()">Enregistrer</button>
+    <div style="height:1px;background:var(--border);margin:16px 0"></div>
+    <div class="settings-label">Application</div>
+    <button class="settings-save" style="background:var(--surf2);color:var(--text);" onclick="updateApp()">🔄 Mettre à jour l'application</button>
     <button class="btn-close" onclick="closeSettings()">Annuler</button>
   </div>
 </div>
@@ -481,7 +484,7 @@
           <option>Jus de fruits</option>
           <option>Sirops & Purées</option>
           <option>Eaux</option>
-          <option>Thés & Infusions</option>
+
           <option>Vins</option>
           <option>Alcools</option>
           <option>Divers</option>
@@ -529,78 +532,76 @@
 <script>
 /* ═══════════════════════════════════════════════════
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
+   DATA_VERSION : incrémenter pour forcer reset localStorage
 ═══════════════════════════════════════════════════ */
+const DATA_VERSION = 3;
+
 const PRODUITS_DEFAUT = [
   // PRESSIONS
-  { id:'p001', code:'011717', nom:'Fût 20L Leffe Blonde 6.6°',        cat:'Pressions',       unite:'fût',      prix:90.48  },
-  { id:'p003', code:'010028', nom:'Fût 30L Stella Artois 5.2°',        cat:'Pressions',       unite:'fût',      prix:95.61  },
-  // BIÈRES — VC commandées par carton/caisse, VP par bouteille
-  { id:'p004', code:'001553', nom:'1664 Blonde 33cl VC',               cat:'Bières',          unite:'carton',   prix:1.43   },
-  { id:'p005', code:'001108', nom:'Desperados 33cl VC',                cat:'Bières',          unite:'caisse',   prix:1.58   },
-  { id:'p006', code:'011895', nom:'1664 Sans Alcool 33cl VP',          cat:'Bières',          unite:'bouteille',prix:1.20   },
-  { id:'p007', code:'001413', nom:'Hoegaarden Blanche 33cl VC',        cat:'Bières',          unite:'caisse',   prix:1.43   },
-  { id:'p008', code:'001199', nom:'Delirium Tremens 33cl VC 8.5°',     cat:'Bières',          unite:'caisse',   prix:1.54   },
-  { id:'p009', code:'011701', nom:'La Chouffe Blonde 33cl VC 8°',      cat:'Bières',          unite:'caisse',   prix:1.63   },
-  { id:'p010', code:'001144', nom:'Bud 33cl VP',                       cat:'Bières',          unite:'bouteille',prix:1.29   },
+  { id:'p001', code:'011717', nom:'Fût 20L Leffe Blonde 6.6°',        cat:'Pressions',       unite:'fût',       prix:90.48, min:2 },
+  { id:'p003', code:'010028', nom:'Fût 30L Stella Artois 5.2°',        cat:'Pressions',       unite:'fût',       prix:95.61, min:2 },
+  // BIÈRES
+  { id:'p004', code:'001553', nom:'1664 Blonde 33cl VC',               cat:'Bières',          unite:'carton',    prix:1.43,  min:1 },
+  { id:'p005', code:'001108', nom:'Desperados 33cl VC',                cat:'Bières',          unite:'caisse',    prix:1.58,  min:1 },
+  { id:'p006', code:'011895', nom:'1664 Sans Alcool 33cl VP',          cat:'Bières',          unite:'bouteille', prix:1.20,  min:1 },
+  { id:'p007', code:'001413', nom:'Hoegaarden Blanche 33cl VC',        cat:'Bières',          unite:'caisse',    prix:1.43,  min:1 },
+  { id:'p008', code:'001199', nom:'Delirium Tremens 33cl VC 8.5°',     cat:'Bières',          unite:'caisse',    prix:1.54,  min:1 },
+  { id:'p009', code:'011701', nom:'La Chouffe Blonde 33cl VC 8°',      cat:'Bières',          unite:'caisse',    prix:1.63,  min:1 },
+  { id:'p010', code:'001144', nom:'Bud 33cl VP',                       cat:'Bières',          unite:'bouteille', prix:1.29,  min:1 },
   // SODAS
-  { id:'p011', code:'002321', nom:'Coca Cola 33cl VC',                 cat:'Sodas',           unite:'caisse',   prix:0.92   },
-  { id:'p012', code:'002357', nom:'Coca Cola Sans Sucre 33cl VC',      cat:'Sodas',           unite:'caisse',   prix:0.83   },
-  { id:'p013', code:'002459', nom:'Coca Cola Cherry 33cl VC',          cat:'Sodas',           unite:'caisse',   prix:1.03   },
-  { id:'p014', code:'002003', nom:'Limonade Bordet 25cl VC',           cat:'Sodas',           unite:'caisse',   prix:0.67   },
-  { id:'p015', code:'002558', nom:'Sprite 25cl VC',                    cat:'Sodas',           unite:'caisse',   prix:0.78   },
-  { id:'p016', code:'002559', nom:'Fanta Orange 25cl VC',              cat:'Sodas',           unite:'caisse',   prix:0.82   },
-  { id:'p017', code:'002846', nom:'Fuzetea Pêche 25cl VC',             cat:'Sodas',           unite:'caisse',   prix:0.71   },
-  { id:'p018', code:'002888', nom:'Tropico Original 25cl VC',          cat:'Sodas',           unite:'caisse',   prix:0.83   },
-  { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20  },
+  { id:'p011', code:'002321', nom:'Coca Cola 33cl VC',                 cat:'Sodas',           unite:'caisse',    prix:0.92,  min:4 },
+  { id:'p012', code:'002357', nom:'Coca Cola Sans Sucre 33cl VC',      cat:'Sodas',           unite:'caisse',    prix:0.83,  min:1 },
+  { id:'p013', code:'002459', nom:'Coca Cola Cherry 33cl VC',          cat:'Sodas',           unite:'caisse',    prix:1.03,  min:1 },
+  { id:'p015', code:'002558', nom:'Sprite 25cl VC',                    cat:'Sodas',           unite:'caisse',    prix:0.78,  min:2 },
+  { id:'p016', code:'002559', nom:'Fanta Orange 25cl VC',              cat:'Sodas',           unite:'caisse',    prix:0.82,  min:1 },
+  { id:'p017', code:'002846', nom:'Fuzetea Pêche 25cl VC',             cat:'Sodas',           unite:'caisse',    prix:0.71,  min:2 },
+  { id:'p018', code:'002888', nom:'Tropico Original 25cl VC',          cat:'Sodas',           unite:'caisse',    prix:0.83,  min:1 },
+  { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20,  min:1 },
   // JUS DE FRUITS
-  { id:'p020', code:'003813', nom:'Pago Ananas 20cl VC',               cat:'Jus de fruits',   unite:'caisse',   prix:0.82   },
-  { id:'p021', code:'003817', nom:'Pago Orange 20cl VC',               cat:'Jus de fruits',   unite:'caisse',   prix:0.89   },
-  { id:'p022', code:'003818', nom:'Pago Pomme 20cl VC',                cat:'Jus de fruits',   unite:'caisse',   prix:0.78   },
-  { id:'p023', code:'701308', nom:'Norbert Ananas 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.55  },
-  { id:'p024', code:'706354', nom:'Norbert Orange 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.30  },
+  { id:'p020', code:'003813', nom:'Pago Ananas 20cl VC',               cat:'Jus de fruits',   unite:'caisse',    prix:0.82,  min:1 },
+  { id:'p021', code:'003817', nom:'Pago Orange 20cl VC',               cat:'Jus de fruits',   unite:'caisse',    prix:0.89,  min:1 },
+  { id:'p022', code:'003818', nom:'Pago Pomme 20cl VC',                cat:'Jus de fruits',   unite:'caisse',    prix:0.78,  min:1 },
+  { id:'p023', code:'701308', nom:'Norbert Ananas 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.55,  min:3 },
+  { id:'p024', code:'706354', nom:'Norbert Orange 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.30,  min:3 },
   // SIROPS & PURÉES
-  { id:'p025', code:'000756', nom:'Sirop Sucre de Canne Fuego 1L',    cat:'Sirops & Purées', unite:'bouteille',prix:4.03   },
-  { id:'p026', code:'003605', nom:'Sirop Menthe Verte Fuego 1L',      cat:'Sirops & Purées', unite:'bouteille',prix:3.04   },
-  { id:'p027', code:'003612', nom:'Sirop Citron Clair Fuego 1L',      cat:'Sirops & Purées', unite:'bouteille',prix:3.04   },
-  { id:'p028', code:'003613', nom:'Sirop Fraise Fuego 1L',            cat:'Sirops & Purées', unite:'bouteille',prix:3.86   },
-  { id:'p029', code:'003614', nom:'Sirop Grenadine Fuego 1L',         cat:'Sirops & Purées', unite:'bouteille',prix:3.04   },
-  { id:'p030', code:'003618', nom:'Sirop Pêche Fuego 1L',             cat:'Sirops & Purées', unite:'bouteille',prix:3.99   },
-  { id:'p031', code:'003947', nom:'Purée Mangue Teisseire 1L',        cat:'Sirops & Purées', unite:'bouteille',prix:8.53   },
-  { id:'p032', code:'003952', nom:'Purée Framboise Teisseire 1L',     cat:'Sirops & Purées', unite:'bouteille',prix:10.84  },
+  { id:'p025', code:'000756', nom:'Sirop Sucre de Canne Fuego 1L',    cat:'Sirops & Purées', unite:'bouteille', prix:4.03,  min:1 },
+  { id:'p026', code:'003605', nom:'Sirop Menthe Verte Fuego 1L',      cat:'Sirops & Purées', unite:'bouteille', prix:3.04,  min:1 },
+  { id:'p027', code:'003612', nom:'Sirop Citron Clair Fuego 1L',      cat:'Sirops & Purées', unite:'bouteille', prix:3.04,  min:1 },
+  { id:'p028', code:'003613', nom:'Sirop Fraise Fuego 1L',            cat:'Sirops & Purées', unite:'bouteille', prix:3.86,  min:1 },
+  { id:'p029', code:'003614', nom:'Sirop Grenadine Fuego 1L',         cat:'Sirops & Purées', unite:'bouteille', prix:3.04,  min:1 },
+  { id:'p030', code:'003618', nom:'Sirop Pêche Fuego 1L',             cat:'Sirops & Purées', unite:'bouteille', prix:3.99,  min:1 },
+  { id:'p031', code:'003947', nom:'Purée Mangue Teisseire 1L',        cat:'Sirops & Purées', unite:'bouteille', prix:8.53,  min:1 },
+  { id:'p032', code:'003952', nom:'Purée Framboise Teisseire 1L',     cat:'Sirops & Purées', unite:'bouteille', prix:10.84, min:1 },
   // EAUX
-  { id:'p035', code:'007044', nom:'Perrier 33cl VC',                   cat:'Eaux',            unite:'caisse',   prix:0.89   },
-  { id:'p036', code:'007006', nom:'Perrier 1L PET',                    cat:'Eaux',            unite:'pack de 12',prix:0.88  },
-  { id:'p037', code:'007127', nom:'Abatilles Plate 1L PET',            cat:'Eaux',            unite:'carton',   prix:0.83   },
-  { id:'p038', code:'007129', nom:'Abatilles Pétillante 1L PET',       cat:'Eaux',            unite:'carton',   prix:0.92   },
-  { id:'p039', code:'007132', nom:'Abatilles Plate 50cl PET',          cat:'Eaux',            unite:'pack de 12',prix:0.71  },
-  { id:'p040', code:'007133', nom:'Abatilles Pétillante 50cl PET',     cat:'Eaux',            unite:'pack de 12',prix:0.80  },
-  // THÉS & INFUSIONS
-  { id:'p041', code:'602075', nom:"Infusions Verveine Menthe Baronny's x25", cat:"Thés & Infusions", unite:'boîte',    prix:4.69 },
-  { id:'p042', code:'602094', nom:"Infusions Verveine Baronny's Diamant x25", cat:"Thés & Infusions", unite:'boîte',   prix:4.83 },
+  { id:'p035', code:'007044', nom:'Perrier 33cl VC',                   cat:'Eaux',            unite:'caisse',    prix:0.89,  min:1 },
+  { id:'p036', code:'007006', nom:'Perrier 1L PET',                    cat:'Eaux',            unite:'pack de 12',prix:0.88,  min:1 },
+  { id:'p037', code:'007127', nom:'Abatilles Plate 1L PET',            cat:'Eaux',            unite:'carton',    prix:0.83,  min:1 },
+  { id:'p038', code:'007129', nom:'Abatilles Pétillante 1L PET',       cat:'Eaux',            unite:'carton',    prix:0.92,  min:1 },
+  { id:'p039', code:'007132', nom:'Abatilles Plate 50cl PET',          cat:'Eaux',            unite:'pack de 12',prix:0.71,  min:1 },
+  { id:'p040', code:'007133', nom:'Abatilles Pétillante 50cl PET',     cat:'Eaux',            unite:'pack de 12',prix:0.80,  min:1 },
   // VINS
-  { id:'p043', code:'009273', nom:'Vin Blanc Sec BIB 10L — Ronde du Vin',   cat:'Vins', unite:'BIB', prix:15.81 },
-  { id:'p044', code:'009274', nom:'Vin Rouge BIB 10L — Ronde du Vin',       cat:'Vins', unite:'BIB', prix:20.32 },
+  { id:'p043', code:'009273', nom:'Vin Blanc Sec BIB 10L — Ronde du Vin', cat:'Vins',        unite:'BIB',       prix:15.81, min:1 },
+  { id:'p044', code:'009274', nom:'Vin Rouge BIB 10L — Ronde du Vin',     cat:'Vins',        unite:'BIB',       prix:20.32, min:1 },
   // ALCOOLS
-  { id:'p045', code:'000152', nom:'Ricard 45° 1L',                    cat:'Alcools',         unite:'bouteille',prix:22.40  },
-  { id:'p046', code:'701827', nom:'Whisky Cutty Sark 70cl',           cat:'Alcools',         unite:'bouteille',prix:15.61  },
-  { id:'p047', code:'200806', nom:'Rhum Blanc Damoiseau BIB 5L',      cat:'Alcools',         unite:'BIB',      prix:62.38  },
-  { id:'p048', code:'000260', nom:'Porto Ruby Sandeman 75cl',         cat:'Alcools',         unite:'bouteille',prix:11.29  },
-  { id:'p049', code:'000301', nom:'Lillet Rouge 75cl',                cat:'Alcools',         unite:'bouteille',prix:14.16  },
-  { id:'p050', code:'000302', nom:'Lillet Blanc 75cl',                cat:'Alcools',         unite:'bouteille',prix:14.16  },
-  { id:'p051', code:'000188', nom:'Janeiro Cachaça 70cl',             cat:'Alcools',         unite:'bouteille',prix:19.27  },
-  { id:'p052', code:'201104', nom:'Ron Diplomatico 70cl',             cat:'Alcools',         unite:'bouteille',prix:33.49  },
-  { id:'p053', code:'230737', nom:'Limoncello Scogliera 70cl',        cat:'Alcools',         unite:'bouteille',prix:9.58   },
-  { id:'p054', code:'702321', nom:'Liqueur Manzanita 70cl',           cat:'Alcools',         unite:'bouteille',prix:12.02  },
-  { id:'p055', code:'704605', nom:'Get 27 1L',                        cat:'Alcools',         unite:'bouteille',prix:18.42  },
-  { id:'p056', code:'705588', nom:'Crème de Mûres Fuego 1L',         cat:'Alcools',         unite:'bouteille',prix:9.12   },
-  { id:'p057', code:'230722', nom:'Crème de Cassis Fuego 1L',        cat:'Alcools',         unite:'bouteille',prix:7.91   },
-  { id:'p058', code:'705586', nom:'Crème de Cassis Fuego Gravure 1L', cat:'Alcools',        unite:'bouteille',prix:8.57   },
-  { id:'p059', code:'000559', nom:'Martini Rosso 1L',                 cat:'Alcools',         unite:'bouteille',prix:12.27  },
-  { id:'p060', code:'000562', nom:'Martini Bianco 1L',                cat:'Alcools',         unite:'bouteille',prix:12.27  },
-  { id:'p061', code:'707507', nom:'Vermouth Martini Bianco 1L',       cat:'Alcools',         unite:'bouteille',prix:12.27  },
-  { id:'p062', code:'707508', nom:'Vermouth Martini Rosso 1L',        cat:'Alcools',         unite:'bouteille',prix:12.27  },
+  { id:'p045', code:'000152', nom:'Ricard 45° 1L',                    cat:'Alcools',         unite:'bouteille', prix:22.40, min:2 },
+  { id:'p046', code:'701827', nom:'Whisky Cutty Sark 70cl',           cat:'Alcools',         unite:'bouteille', prix:15.61, min:2 },
+  { id:'p047', code:'200806', nom:'Rhum Blanc Damoiseau BIB 5L',      cat:'Alcools',         unite:'BIB',       prix:62.38, min:2 },
+  { id:'p048', code:'000260', nom:'Porto Ruby Sandeman 75cl',         cat:'Alcools',         unite:'bouteille', prix:11.29, min:2 },
+  { id:'p049', code:'000301', nom:'Lillet Rouge 75cl',                cat:'Alcools',         unite:'bouteille', prix:14.16, min:2 },
+  { id:'p050', code:'000302', nom:'Lillet Blanc 75cl',                cat:'Alcools',         unite:'bouteille', prix:14.16, min:2 },
+  { id:'p051', code:'000188', nom:'Janeiro Cachaça 70cl',             cat:'Alcools',         unite:'bouteille', prix:19.27, min:2 },
+  { id:'p052', code:'201104', nom:'Ron Diplomatico 70cl',             cat:'Alcools',         unite:'bouteille', prix:33.49, min:2 },
+  { id:'p053', code:'230737', nom:'Limoncello Scogliera 70cl',        cat:'Alcools',         unite:'bouteille', prix:9.58,  min:2 },
+  { id:'p054', code:'702321', nom:'Liqueur Manzanita 70cl',           cat:'Alcools',         unite:'bouteille', prix:12.02, min:2 },
+  { id:'p055', code:'704605', nom:'Get 27 1L',                        cat:'Alcools',         unite:'bouteille', prix:18.42, min:2 },
+  { id:'p056', code:'705588', nom:'Crème de Mûres Fuego 1L',         cat:'Alcools',         unite:'bouteille', prix:9.12,  min:2 },
+  { id:'p057', code:'230722', nom:'Crème de Cassis Fuego 1L',        cat:'Alcools',         unite:'bouteille', prix:7.91,  min:2 },
+  { id:'p059', code:'000559', nom:'Martini Rosso 1L',                 cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
+  { id:'p060', code:'000562', nom:'Martini Bianco 1L',                cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
+  { id:'p061', code:'707507', nom:'Vermouth Martini Bianco 1L',       cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
+  { id:'p062', code:'707508', nom:'Vermouth Martini Rosso 1L',        cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
   // DIVERS
-  { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',     prix:41.46  },
+  { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',      prix:41.46, min:1 },
 ];
 
 /* ═══════════════ STATE ═══════════════ */
@@ -623,15 +624,21 @@ function save() {
 
 function load() {
   try {
+    const savedVer = parseInt(localStorage.getItem('bc_data_version') || '0', 10);
+    // Réinitialiser les produits si nouvelle version
+    if (savedVer < DATA_VERSION) {
+      localStorage.removeItem('bc_produits');
+      localStorage.removeItem('bc_stockMin');
+      localStorage.setItem('bc_data_version', DATA_VERSION);
+    }
     produits   = JSON.parse(localStorage.getItem('bc_produits'))   || null;
     commande   = JSON.parse(localStorage.getItem('bc_commande'))   || {};
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
-    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', stockMinDefault: 6 };
+    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '' };
     historique = JSON.parse(localStorage.getItem('bc_historique')) || [];
   } catch(e) {}
 
-  // Première utilisation : charger les produits par défaut
   if (!produits) {
     produits = PRODUITS_DEFAUT.map(p => ({ ...p, actif: true, custom: false }));
   }
@@ -921,10 +928,11 @@ function confirmSent() {
 
 /* ═══════════════ STOCK ═══════════════ */
 function stockClass(id) {
+  const p = produits.find(x => x.id === id);
   const qty = stock[id] || 0;
-  const min = stockMin[id] !== undefined ? stockMin[id] : (settings.stockMinDefault || 6);
+  const min = stockMin[id] !== undefined ? stockMin[id] : (p ? p.min : 1);
   if (qty === 0) return 'crit';
-  if (qty <= Math.floor(min / 2)) return 'crit';
+  if (min > 1 && qty <= Math.floor(min / 2)) return 'crit';
   if (qty < min) return 'warn';
   return 'ok';
 }
@@ -960,7 +968,7 @@ function renderStock() {
     cats[cat].forEach(p => {
       const qty = stock[p.id] || 0;
       const cls = qty === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
-      const min = stockMin[p.id] !== undefined ? stockMin[p.id] : (settings.stockMinDefault || 6);
+      const min = stockMin[p.id] !== undefined ? stockMin[p.id] : (p.min || 1);
       html += `
         <div class="stock-row">
           <div class="s-dot ${cls}"></div>
@@ -1106,6 +1114,20 @@ document.querySelectorAll('.overlay').forEach(ov => {
     }
   });
 });
+
+/* ═══════════════ MISE À JOUR APP ═══════════════ */
+async function updateApp() {
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) await r.unregister();
+  }
+  if ('caches' in window) {
+    const keys = await caches.keys();
+    for (const k of keys) await caches.delete(k);
+  }
+  closeSettings();
+  window.location.reload(true);
+}
 
 /* ═══════════════ INIT ═══════════════ */
 load();
