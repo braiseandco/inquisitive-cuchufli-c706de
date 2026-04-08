@@ -393,6 +393,13 @@
 <!-- ══════════════════════ PANEL VIN ══════════════════════ -->
 <div class="panel" id="panel-vin">
   <div id="vin-list"></div>
+  <div style="padding:12px 16px 4px">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Message / commentaire</div>
+    <textarea id="vin-note" rows="3"
+      style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit"
+      placeholder="Ex : livraison avant 10h, manque de blanc…"
+      oninput="saveVinNote()"></textarea>
+  </div>
 </div>
 
 <!-- ══════════════════════ PANEL HISTORIQUE ══════════════════════ -->
@@ -1131,12 +1138,17 @@ function updateVinBar() {
   }
 }
 
+function saveVinNote() {
+  localStorage.setItem('bc_vin_note', document.getElementById('vin-note').value);
+}
+
 function openConfirmVin() {
   const allIds = Object.keys(commandeVin).filter(id => commandeVin[id] > 0);
   if (!allIds.length) return;
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR');
+  const note = (localStorage.getItem('bc_vin_note') || '').trim();
 
   const mainIds    = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'main'; });
   const moscatoIds = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'moscato'; });
@@ -1157,7 +1169,8 @@ function openConfirmVin() {
   const mainSection = document.getElementById('vin-fourn-main');
   if (mainIds.length) {
     const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
-    const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}\n\nMerci !`;
+    const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
+      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci !`;
     document.getElementById('conf-vin-sms-main').href = buildSmsUrl(VIN_TEL_MAIN, msg);
     mainSection.classList.remove('hidden');
   } else {
@@ -1167,7 +1180,8 @@ function openConfirmVin() {
   const moscatoSection = document.getElementById('vin-fourn-moscato');
   if (moscatoIds.length) {
     const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
-    const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}\n\nMerci !`;
+    const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
+      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci !`;
     document.getElementById('conf-vin-sms-moscato').href = buildSmsUrl(VIN_TEL_MOSCATO, msg);
     moscatoSection.classList.remove('hidden');
   } else {
@@ -1183,6 +1197,9 @@ function closeConfirmVin() {
 
 function confirmVinSent() {
   commandeVin = {};
+  localStorage.removeItem('bc_vin_note');
+  const nel = document.getElementById('vin-note');
+  if (nel) nel.value = '';
   save();
   renderVin();
 }
@@ -1409,6 +1426,8 @@ renderVin();
 updateSundayInfo();
 const _savedNote = localStorage.getItem('bc_note');
 if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
+const _savedVinNote = localStorage.getItem('bc_vin_note');
+if (_savedVinNote) { const _vnel = document.getElementById('vin-note'); if (_vnel) _vnel.value = _savedVinNote; }
 
 // Afficher la barre commande par défaut
 document.getElementById('panier-bar').style.display = '';
