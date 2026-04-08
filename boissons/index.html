@@ -992,7 +992,7 @@ function openConfirm() {
     + smsLines.join('\n')
     + `\n\nTotal : ${ids.length} ref., env. ${fmt(totalHT)} HT`
     + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nMerci !`;
+    + `\n\nMerci de confirmer la réception de la commande par SMS.`;
 
   const smsBtn = document.getElementById('conf-sms-btn');
   if (tel) {
@@ -1015,7 +1015,7 @@ function openConfirm() {
     + smsLines.join('\n')
     + `\n\nMontant estimé HT : ${fmt(totalHT)}`
     + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nCordialement,\nBraise & Co`;
+    + `\n\nMerci de confirmer la réception de la commande par SMS.\n\nCordialement,\nBraise & Co`;
   mailBtn.href = buildMailtoUrl(toField, mailSubject, mailBody);
   if (!toField) mailBtn.style.opacity = '0.5';
   else mailBtn.style.opacity = '1';
@@ -1170,7 +1170,7 @@ function openConfirmVin() {
   if (mainIds.length) {
     const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
     const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
-      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci !`;
+      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     document.getElementById('conf-vin-sms-main').href = buildSmsUrl(VIN_TEL_MAIN, msg);
     mainSection.classList.remove('hidden');
   } else {
@@ -1181,7 +1181,7 @@ function openConfirmVin() {
   if (moscatoIds.length) {
     const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
     const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
-      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci !`;
+      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     document.getElementById('conf-vin-sms-moscato').href = buildSmsUrl(VIN_TEL_MOSCATO, msg);
     moscatoSection.classList.remove('hidden');
   } else {
