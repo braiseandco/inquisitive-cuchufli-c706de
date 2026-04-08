@@ -322,7 +322,8 @@
     }
 
     @media (min-width: 520px) {
-      .panier-bar { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
+      .panier-bar, .panier-bar { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
+      #panier-bar-vin { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
       .overlay { justify-content: center; align-items: center; }
       .modal { border-radius: 20px; margin: 16px; max-height: 88dvh; }
     }
@@ -346,6 +347,9 @@
   </div>
   <div class="tab" onclick="switchTab('stock')" id="tab-stock">
     Cave
+  </div>
+  <div class="tab" onclick="switchTab('vin')" id="tab-vin">
+    Vin
   </div>
   <div class="tab" onclick="switchTab('historique')" id="tab-historique">
     Historique
@@ -386,6 +390,11 @@
   <div id="stock-list"></div>
 </div>
 
+<!-- ══════════════════════ PANEL VIN ══════════════════════ -->
+<div class="panel" id="panel-vin">
+  <div id="vin-list"></div>
+</div>
+
 <!-- ══════════════════════ PANEL HISTORIQUE ══════════════════════ -->
 <div class="panel" id="panel-historique">
   <div id="hist-list"></div>
@@ -401,6 +410,17 @@
     Envoyer la commande par SMS
   </button>
   <button class="btn-reset" id="btn-reset" onclick="resetCommande()">Tout réinitialiser</button>
+</div>
+
+<!-- ══════════════════════ PANIER BAR VIN ══════════════════════ -->
+<div class="panier-bar" id="panier-bar-vin" style="display:none">
+  <div class="panier-info">
+    <span id="vin-articles" class="panier-empty">Aucun article sélectionné</span>
+  </div>
+  <button class="btn-send" id="btn-send-vin" disabled onclick="openConfirmVin()">
+    Commander le vin par SMS
+  </button>
+  <button class="btn-reset" onclick="resetVin()">Tout réinitialiser</button>
 </div>
 
 <!-- ══════════════════════ MODAL CONFIRMATION ══════════════════════ -->
@@ -441,6 +461,42 @@
         ✉️ Recevoir la copie par email
       </a>
       <button class="btn-close" onclick="closeConfirm(); confirmSent()">
+        ✓ Commande envoyée — terminer
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL CONFIRMATION VIN ══════════════════════ -->
+<div class="overlay" id="overlay-confirm-vin">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Commander le vin</div>
+
+    <div class="modal-section">
+      <div class="ms-label">Date de commande</div>
+      <div class="ms-val" id="conf-vin-date"></div>
+    </div>
+
+    <div class="modal-section">
+      <div class="ms-label">Produits commandés</div>
+      <div id="conf-vin-lines"></div>
+    </div>
+
+    <div class="modal-actions">
+      <div id="vin-fourn-main">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Fournisseur principal · <span style="font-size:11px">0684803816</span></div>
+        <a class="btn-primary" id="conf-vin-sms-main" href="#">
+          📨 SMS — Vins (rouge, rosé, blanc)
+        </a>
+      </div>
+      <div id="vin-fourn-moscato" style="margin-top:8px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Fournisseur Moscato · <span style="font-size:11px">0614274109</span></div>
+        <a class="btn-primary" id="conf-vin-sms-moscato" href="#" style="background:var(--surf3);color:var(--text)">
+          📨 SMS — Moscato
+        </a>
+      </div>
+      <button class="btn-close" onclick="closeConfirmVin(); confirmVinSent()">
         ✓ Commande envoyée — terminer
       </button>
     </div>
@@ -619,6 +675,20 @@ const PRODUITS_DEFAUT = [
   { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',      prix:41.46, min:1 },
 ];
 
+/* ═══════════════ VINS ═══════════════ */
+const VIN_TEL_MAIN    = '0684803816';
+const VIN_TEL_MOSCATO = '0614274109';
+const VIN_PRODUITS = [
+  { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main' },
+  { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main' },
+  { id:'v003', nom:'La Rose Trémière',            cat:'Rouge',   min:15, fourn:'main' },
+  { id:'v004', nom:'Château d\'Alix',             cat:'Rouge',   min:10, fourn:'main' },
+  { id:'v005', nom:'Château Haut d\'As Rosé',    cat:'Rosé',    min:10, fourn:'main' },
+  { id:'v006', nom:'Château Berné Provence',      cat:'Rosé',    min:10, fourn:'main' },
+  { id:'v007', nom:'Château d\'As Carré d\'As',  cat:'Blanc',   min:5,  fourn:'main' },
+  { id:'v008', nom:'Vin Moscato',                 cat:'Moscato', min:10, fourn:'moscato' },
+];
+
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
 let commande  = {}; // { id: qty }
@@ -627,6 +697,7 @@ let stock     = {}; // { id: qty }
 let stockMin  = {}; // { id: minQty }
 let settings  = { telFourn: '', email: '' };
 let historique = [];
+let commandeVin = {}; // { id: qty }
 const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
@@ -638,6 +709,7 @@ function save() {
   localStorage.setItem('bc_stockMin',  JSON.stringify(stockMin));
   localStorage.setItem('bc_settings',  JSON.stringify(settings));
   localStorage.setItem('bc_historique', JSON.stringify(historique));
+  localStorage.setItem('bc_vin_commande', JSON.stringify(commandeVin));
 }
 
 function load() {
@@ -655,7 +727,8 @@ function load() {
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
     settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '' };
-    historique = JSON.parse(localStorage.getItem('bc_historique')) || [];
+    historique   = JSON.parse(localStorage.getItem('bc_historique'))    || [];
+    commandeVin  = JSON.parse(localStorage.getItem('bc_vin_commande'))  || {};
   } catch(e) {}
 
   if (!produits) {
@@ -700,10 +773,12 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
 
-  document.getElementById('panier-bar').style.display = name === 'commande' ? '' : 'none';
+  document.getElementById('panier-bar').style.display     = name === 'commande' ? '' : 'none';
+  document.getElementById('panier-bar-vin').style.display  = name === 'vin'      ? '' : 'none';
 
-  if (name === 'stock') renderStock();
+  if (name === 'stock')      renderStock();
   if (name === 'historique') renderHistorique();
+  if (name === 'vin')        renderVin();
 }
 
 /* ═══════════════ COMMANDE ═══════════════ */
@@ -980,6 +1055,144 @@ function confirmSent() {
   filterCommande();
 }
 
+/* ═══════════════ VIN ═══════════════ */
+function renderVin() {
+  const list = document.getElementById('vin-list');
+  const ORDER = ['Rouge', 'Rosé', 'Blanc', 'Moscato'];
+  const cats = {};
+  VIN_PRODUITS.forEach(p => {
+    if (!cats[p.cat]) cats[p.cat] = [];
+    cats[p.cat].push(p);
+  });
+
+  let html = '';
+  ORDER.filter(c => cats[c]).forEach(cat => {
+    html += `<div class="cat-label">${cat}${cat === 'Moscato' ? ' <span style="font-size:10px;color:var(--muted);font-weight:500;text-transform:none">(autre fournisseur)</span>' : ''}</div>`;
+    cats[cat].forEach(p => {
+      const qty = commandeVin[p.id] || 0;
+      html += `<div class="prod-row${qty > 0 ? ' has-qty' : ''}" id="vinrow-${p.id}">
+        <div class="prod-info">
+          <div class="prod-name">${p.nom}</div>
+          <div class="prod-meta">carton · min ${p.min}</div>
+        </div>
+        <div class="stepper">
+          <button class="s-btn" onclick="changeVinQty('${p.id}',-1)">−</button>
+          <input type="number" class="s-qty${qty > 0 ? ' active' : ''}"
+                 id="vinqty-${p.id}" value="${qty || ''}" min="0"
+                 placeholder="0" inputmode="numeric"
+                 onchange="setVinQty('${p.id}', this.value)"
+                 onfocus="this.select()">
+          <button class="s-btn plus" onclick="changeVinQty('${p.id}',1)">+</button>
+        </div>
+      </div>`;
+    });
+  });
+
+  list.innerHTML = html + '<div style="height:120px"></div>';
+  updateVinBar();
+}
+
+function changeVinQty(id, delta) {
+  const cur = commandeVin[id] || 0;
+  const nv  = Math.max(0, cur + delta);
+  if (nv === 0) delete commandeVin[id]; else commandeVin[id] = nv;
+  save();
+  const row = document.getElementById('vinrow-' + id);
+  const inp = document.getElementById('vinqty-' + id);
+  if (row) row.classList.toggle('has-qty', nv > 0);
+  if (inp) { inp.value = nv || ''; inp.classList.toggle('active', nv > 0); }
+  updateVinBar();
+}
+
+function setVinQty(id, val) {
+  const nv = Math.max(0, parseInt(val, 10) || 0);
+  if (nv === 0) delete commandeVin[id]; else commandeVin[id] = nv;
+  save();
+  const row = document.getElementById('vinrow-' + id);
+  const inp = document.getElementById('vinqty-' + id);
+  if (row) row.classList.toggle('has-qty', nv > 0);
+  if (inp) inp.classList.toggle('active', nv > 0);
+  updateVinBar();
+}
+
+function updateVinBar() {
+  const ids = Object.keys(commandeVin).filter(id => commandeVin[id] > 0);
+  const total = ids.reduce((s, id) => s + commandeVin[id], 0);
+  const artEl  = document.getElementById('vin-articles');
+  const btnEl  = document.getElementById('btn-send-vin');
+  if (ids.length) {
+    artEl.textContent = `${ids.length} référence${ids.length>1?'s':''} · ${total} carton${total>1?'s':''}`;
+    artEl.className = 'panier-total';
+    btnEl.disabled = false;
+  } else {
+    artEl.textContent = 'Aucun article sélectionné';
+    artEl.className = 'panier-empty';
+    btnEl.disabled = true;
+  }
+}
+
+function openConfirmVin() {
+  const allIds = Object.keys(commandeVin).filter(id => commandeVin[id] > 0);
+  if (!allIds.length) return;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR');
+
+  const mainIds    = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'main'; });
+  const moscatoIds = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'moscato'; });
+
+  let linesHtml = '';
+  allIds.forEach(id => {
+    const p = VIN_PRODUITS.find(x => x.id === id);
+    if (!p) return;
+    linesHtml += `<div class="order-line">
+      <span>${p.nom}</span>
+      <span class="order-line-qty">${commandeVin[id]} carton${commandeVin[id]>1?'s':''}</span>
+    </div>`;
+  });
+
+  document.getElementById('conf-vin-date').textContent = fmtDate(now);
+  document.getElementById('conf-vin-lines').innerHTML = linesHtml;
+
+  const mainSection = document.getElementById('vin-fourn-main');
+  if (mainIds.length) {
+    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}\n\nMerci !`;
+    document.getElementById('conf-vin-sms-main').href = buildSmsUrl(VIN_TEL_MAIN, msg);
+    mainSection.classList.remove('hidden');
+  } else {
+    mainSection.classList.add('hidden');
+  }
+
+  const moscatoSection = document.getElementById('vin-fourn-moscato');
+  if (moscatoIds.length) {
+    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}\n\nMerci !`;
+    document.getElementById('conf-vin-sms-moscato').href = buildSmsUrl(VIN_TEL_MOSCATO, msg);
+    moscatoSection.classList.remove('hidden');
+  } else {
+    moscatoSection.classList.add('hidden');
+  }
+
+  document.getElementById('overlay-confirm-vin').classList.add('open');
+}
+
+function closeConfirmVin() {
+  document.getElementById('overlay-confirm-vin').classList.remove('open');
+}
+
+function confirmVinSent() {
+  commandeVin = {};
+  save();
+  renderVin();
+}
+
+function resetVin() {
+  commandeVin = {};
+  save();
+  renderVin();
+}
+
 /* ═══════════════ STOCK ═══════════════ */
 function stockClass(id) {
   const p = produits.find(x => x.id === id);
@@ -1192,6 +1405,7 @@ async function updateApp() {
 /* ═══════════════ INIT ═══════════════ */
 load();
 renderCommande();
+renderVin();
 updateSundayInfo();
 const _savedNote = localStorage.getItem('bc_note');
 if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
