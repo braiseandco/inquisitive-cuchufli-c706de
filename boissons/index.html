@@ -399,7 +399,7 @@
   <div class="tab" onclick="switchTab('vin')" id="tab-vin">
     Vin
   </div>
-  <div class="tab" onclick="switchTab('historique')" id="tab-historique">
+  <div class="tab" onclick="switchTab('historique')" id="tab-historique" style="display:none">
     Historique
   </div>
 </div>
@@ -1623,6 +1623,32 @@ function triggerInstall() {
     });
   }
 }
+
+// Appui long sur le logo → débloquer l'onglet Historique
+(function() {
+  const logo = document.querySelector('.header-logo');
+  logo.style.webkitTouchCallout = 'none';
+  logo.style.webkitUserSelect   = 'none';
+  logo.style.userSelect         = 'none';
+  logo.style.cursor             = 'default';
+  let pressTimer = null;
+  function startPress(e) {
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      const tab = document.getElementById('tab-historique');
+      tab.style.display = '';
+      switchTab('historique');
+    }, 2000);
+  }
+  function cancelPress() { clearTimeout(pressTimer); }
+  logo.addEventListener('mousedown',   startPress,  { passive: false });
+  logo.addEventListener('touchstart',  startPress,  { passive: false });
+  logo.addEventListener('mouseup',     cancelPress);
+  logo.addEventListener('mouseleave',  cancelPress);
+  logo.addEventListener('touchend',    cancelPress);
+  logo.addEventListener('touchcancel', cancelPress);
+  logo.addEventListener('contextmenu', e => e.preventDefault());
+})();
 
 // Bannière iOS (Safari — pas de prompt automatique)
 const _isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
