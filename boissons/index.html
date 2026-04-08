@@ -779,7 +779,8 @@ const VIN_PRODUITS = [
 let produits = [];
 let commande  = {}; // { id: qty }
 let gratuit   = null; // id du produit marqué GRATUIT (Sprite ou Fuzetea)
-let stock     = {}; // { id: qty }
+let stock     = {}; // { id: qty } — en caisses (ou pièces pour fûts/bouteilles)
+let stockBout = {}; // { id: qty } — bouteilles en vrac (pour produits en caisse/carton)
 let stockMin  = {}; // { id: minQty }
 let settings  = { telFourn: '', email: '' };
 let historique = [];
@@ -793,6 +794,7 @@ function save() {
   localStorage.setItem('bc_commande',  JSON.stringify(commande));
   localStorage.setItem('bc_gratuit',   gratuit || '');
   localStorage.setItem('bc_stock',     JSON.stringify(stock));
+  localStorage.setItem('bc_stockBout', JSON.stringify(stockBout));
   localStorage.setItem('bc_stockMin',  JSON.stringify(stockMin));
   localStorage.setItem('bc_settings',  JSON.stringify(settings));
   localStorage.setItem('bc_historique', JSON.stringify(historique));
@@ -812,6 +814,7 @@ function load() {
     commande   = JSON.parse(localStorage.getItem('bc_commande'))   || {};
     gratuit    = localStorage.getItem('bc_gratuit') || null;
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
+    stockBout  = JSON.parse(localStorage.getItem('bc_stockBout'))  || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
     settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '' };
     historique   = JSON.parse(localStorage.getItem('bc_historique'))    || [];
@@ -1292,10 +1295,22 @@ function resetVin() {
 }
 
 /* ═══════════════ STOCK ═══════════════ */
+function isCaisseProduct(p) {
+  return p && (p.unite === 'caisse' || p.unite === 'carton');
+}
+
 function stockClass(id) {
   const p = produits.find(x => x.id === id);
-  const qty = stock[id] || 0;
   const min = stockMin[id] !== undefined ? stockMin[id] : (p ? p.min : 1);
+  if (isCaisseProduct(p)) {
+    const totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
+    const minBout = min * 24;
+    if (totalBout === 0) return 'crit';
+    if (minBout > 24 && totalBout <= Math.floor(minBout / 2)) return 'crit';
+    if (totalBout < minBout) return 'warn';
+    return 'ok';
+  }
+  const qty = stock[id] || 0;
   if (qty === 0) return 'crit';
   if (min > 1 && qty <= Math.floor(min / 2)) return 'crit';
   if (qty < min) return 'warn';
@@ -1334,9 +1349,12 @@ function renderStock() {
       const qty = stock[p.id] || 0;
       const cls = qty === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
       const prep = cavePrep[p.id] || 0;
-      const isCaisse = p.unite === 'caisse' || p.unite === 'carton';
+      const isCaisse = isCaisseProduct(p);
       const unitLabel = isCaisse ? 'bout.' : p.unite;
-      const stockLabel = isCaisse ? `${qty} cs` : `${qty} ${p.unite}`;
+      const bout = stockBout[p.id] || 0;
+      const stockLabel = isCaisse
+        ? (bout > 0 ? `${qty} cs ${bout} bout.` : `${qty} cs`)
+        : `${qty} ${p.unite}`;
       const prepSub = isCaisse && prep > 0 ? ` = ${Math.floor(prep/24)} cs` : '';
       html += `
         <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
@@ -1407,14 +1425,17 @@ function setCavePrep(id, val) {
 function updateCaveSubtitle(id) {
   const p = produits.find(x => x.id === id);
   if (!p) return;
-  const isCaisse = p.unite === 'caisse' || p.unite === 'carton';
+  const isCaisse = isCaisseProduct(p);
   const prep = cavePrep[id] || 0;
   const row = document.getElementById('caverow-' + id);
   if (!row) return;
   const subEl = row.querySelector('.stock-sub');
   if (!subEl) return;
   const cls = (stock[p.id] || 0) === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
-  const stockLabel = isCaisse ? `${stock[p.id] || 0} cs` : `${stock[p.id] || 0} ${p.unite}`;
+  const bout = stockBout[p.id] || 0;
+  const stockLabel = isCaisse
+    ? (bout > 0 ? `${stock[p.id] || 0} cs ${bout} bout.` : `${stock[p.id] || 0} cs`)
+    : `${stock[p.id] || 0} ${p.unite}`;
   const prepSub = isCaisse && prep > 0 ? ` = ${Math.floor(prep/24)} cs` : '';
   const unitLabel = isCaisse ? 'bout.' : p.unite;
   subEl.innerHTML = `stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${id}')">${stockLabel}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${unitLabel}${prepSub}</span>` : ''}`;
@@ -1470,12 +1491,18 @@ function validerCave() {
 }
 
 function confirmerCave() {
-  // Soustraire du stock (en caisses pour les produits au caisse/carton)
   Object.keys(cavePrep).forEach(id => {
     const p = produits.find(x => x.id === id);
-    const isCaisse = p && (p.unite === 'caisse' || p.unite === 'carton');
-    const qty = isCaisse ? Math.floor(cavePrep[id] / 24) : cavePrep[id];
-    stock[id] = Math.max(0, (stock[id] || 0) - qty);
+    if (isCaisseProduct(p)) {
+      // Soustraire en bouteilles puis reconvertir
+      let totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
+      totalBout = Math.max(0, totalBout - cavePrep[id]);
+      stock[id] = Math.floor(totalBout / 24);
+      const reste = totalBout % 24;
+      if (reste > 0) stockBout[id] = reste; else delete stockBout[id];
+    } else {
+      stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+    }
   });
   cavePrep = {};
   save();
@@ -1489,16 +1516,35 @@ function closeBesoins() {
 
 /* ═══════════════ INVENTAIRE ═══════════════ */
 function openInventaire() {
+  const inputStyle = 'background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:7px;color:var(--text);font-size:14px;text-align:center;outline:none';
   let html = '';
   produits.filter(p => p.actif).forEach(p => {
-    html += `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="flex:1;font-size:13px">${p.nom}</span>
-        <input type="number" min="0" inputmode="numeric"
-               style="width:64px;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:7px;color:var(--text);font-size:14px;text-align:center;outline:none"
-               id="inv-${p.id}"
-               placeholder="${stock[p.id] !== undefined ? stock[p.id] : '—'}">
-      </div>`;
+    if (isCaisseProduct(p)) {
+      const cs = stock[p.id] !== undefined ? stock[p.id] : '';
+      const bt = stockBout[p.id] || '';
+      html += `
+        <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;margin-bottom:6px">${p.nom}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" inputmode="numeric" style="width:56px;${inputStyle}"
+                   id="inv-cs-${p.id}" placeholder="${cs !== '' ? cs : '—'}">
+            <span style="font-size:12px;color:var(--muted)">caisses</span>
+            <span style="font-size:12px;color:var(--dim)">+</span>
+            <input type="number" min="0" max="23" inputmode="numeric" style="width:56px;${inputStyle}"
+                   id="inv-bt-${p.id}" placeholder="${bt !== '' ? bt : '0'}">
+            <span style="font-size:12px;color:var(--muted)">bouteilles</span>
+          </div>
+        </div>`;
+    } else {
+      html += `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="flex:1;font-size:13px">${p.nom}</span>
+          <input type="number" min="0" inputmode="numeric"
+                 style="width:64px;${inputStyle}"
+                 id="inv-${p.id}"
+                 placeholder="${stock[p.id] !== undefined ? stock[p.id] : '—'}">
+        </div>`;
+    }
   });
   document.getElementById('inventaire-list').innerHTML = html;
   document.getElementById('overlay-inventaire').classList.add('open');
@@ -1506,10 +1552,28 @@ function openInventaire() {
 
 function saveInventaire() {
   produits.filter(p => p.actif).forEach(p => {
-    const el = document.getElementById('inv-' + p.id);
-    if (el && el.value !== '') {
-      const n = parseInt(el.value, 10);
-      if (!isNaN(n) && n >= 0) stock[p.id] = n;
+    if (isCaisseProduct(p)) {
+      const elCs = document.getElementById('inv-cs-' + p.id);
+      const elBt = document.getElementById('inv-bt-' + p.id);
+      if (elCs && elCs.value !== '') {
+        const n = parseInt(elCs.value, 10);
+        if (!isNaN(n) && n >= 0) stock[p.id] = n;
+      }
+      if (elBt && elBt.value !== '') {
+        const b = parseInt(elBt.value, 10);
+        if (!isNaN(b) && b >= 0) {
+          // Normaliser : si ≥ 24, convertir en caisses supplémentaires
+          stock[p.id] = (stock[p.id] || 0) + Math.floor(b / 24);
+          const reste = b % 24;
+          if (reste > 0) stockBout[p.id] = reste; else delete stockBout[p.id];
+        }
+      }
+    } else {
+      const el = document.getElementById('inv-' + p.id);
+      if (el && el.value !== '') {
+        const n = parseInt(el.value, 10);
+        if (!isNaN(n) && n >= 0) stock[p.id] = n;
+      }
     }
   });
   save();
