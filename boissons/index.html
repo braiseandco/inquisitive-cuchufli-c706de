@@ -1015,7 +1015,7 @@ function openConfirm() {
     + smsLines.join('\n')
     + `\n\nMontant estimé HT : ${fmt(totalHT)}`
     + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nMerci de confirmer la réception de la commande par SMS.\n\nCordialement,\nBraise & Co`;
+    + `\n\nMerci de confirmer la réception de la commande par SMS ou en répondant à cet email.\n\nCordialement,\nBraise & Co`;
   mailBtn.href = buildMailtoUrl(toField, mailSubject, mailBody);
   if (!toField) mailBtn.style.opacity = '0.5';
   else mailBtn.style.opacity = '1';
