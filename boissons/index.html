@@ -1296,11 +1296,22 @@ function resetVin() {
 
 /* ═══════════════ STOCK ═══════════════ */
 function isCaisseProduct(p) {
-  return p && (p.unite === 'caisse' || p.unite === 'carton');
+  return p && (p.unite === 'caisse' || p.unite === 'carton') && !isVinProduct(p);
+}
+function isVinProduct(p) {
+  return p && VIN_PRODUITS.some(v => v.id === p.id);
+}
+function vinStockLabel(id) {
+  const qty = stock[id] || 0;
+  const cartons = Math.floor(qty / 6);
+  const rest = qty % 6;
+  if (cartons > 0 && rest > 0) return `${cartons} crt. ${rest} bout.`;
+  if (cartons > 0) return `${cartons} crt.`;
+  return `${qty} bout.`;
 }
 
 function stockClass(id) {
-  const p = produits.find(x => x.id === id);
+  const p = produits.find(x => x.id === id) || VIN_PRODUITS.find(x => x.id === id);
   const min = stockMin[id] !== undefined ? stockMin[id] : (p ? p.min : 1);
   if (isCaisseProduct(p)) {
     const totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
@@ -1335,7 +1346,9 @@ function renderStock() {
   });
 
   // Alertes
-  const critiques = produits.filter(p => p.actif && stockClass(p.id) === 'crit' && (stock[p.id] || 0) === 0);
+  const critiquesProd = produits.filter(p => p.actif && stockClass(p.id) === 'crit' && (stock[p.id] || 0) === 0);
+  const critiquesVin  = VIN_PRODUITS.filter(p => stockClass(p.id) === 'crit' && (stock[p.id] || 0) === 0);
+  const critiques = [...critiquesProd, ...critiquesVin];
   if (critiques.length > 0) {
     alertsZone.innerHTML = `<div class="alert-banner">⚠️ Stock épuisé : ${critiques.map(p => p.nom.split(' ').slice(0,3).join(' ')).join(', ')}</div>`;
   } else {
@@ -1362,6 +1375,39 @@ function renderStock() {
           <div class="stock-info">
             <div class="stock-name">${p.nom}</div>
             <div class="stock-sub">stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${p.id}')">${stockLabel}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${unitLabel}${prepSub}</span>` : ''}</div>
+          </div>
+          <div class="stepper">
+            <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
+            <input type="number" class="s-qty${prep > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                   id="caveqty-${p.id}" value="${prep || ''}" placeholder="0"
+                   onchange="setCavePrep('${p.id}', this.value)"
+                   onfocus="this.select()">
+            <button class="s-btn plus" onclick="changeCavePrep('${p.id}',1)">+</button>
+          </div>
+        </div>`;
+    });
+  });
+
+  // Section Vins
+  const vinCats = {};
+  VIN_PRODUITS.forEach(p => { if (!vinCats[p.cat]) vinCats[p.cat] = []; vinCats[p.cat].push(p); });
+  const VIN_CAT_ORDER = ['Rouge','Rosé','Blanc','Moscato'];
+  const sortedVinCats = Object.keys(vinCats).sort((a,b) => {
+    const ia = VIN_CAT_ORDER.indexOf(a), ib = VIN_CAT_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  html += `<div class="cat-label" style="color:var(--muted);padding-top:18px">— Vins —</div>`;
+  sortedVinCats.forEach(cat => {
+    html += `<div class="cat-label">${cat}</div>`;
+    vinCats[cat].forEach(p => {
+      const cls = stockClass(p.id);
+      const prep = cavePrep[p.id] || 0; // en cartons
+      html += `
+        <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
+          <div class="s-dot ${cls}"></div>
+          <div class="stock-info">
+            <div class="stock-name">${p.nom}</div>
+            <div class="stock-sub" id="cavesubvin-${p.id}">stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${vinStockLabel(p.id)}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} carton${prep > 1 ? 's' : ''} (${prep*6} bout.)</span>` : ''}</div>
           </div>
           <div class="stepper">
             <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
@@ -1423,10 +1469,18 @@ function setCavePrep(id, val) {
 }
 
 function updateCaveSubtitle(id) {
+  const prep = cavePrep[id] || 0;
+  const vinP = VIN_PRODUITS.find(x => x.id === id);
+  if (vinP) {
+    const subEl = document.getElementById('cavesubvin-' + id);
+    if (!subEl) return;
+    const cls = stockClass(id);
+    subEl.innerHTML = `stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${vinStockLabel(id)}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} carton${prep > 1 ? 's' : ''} (${prep*6} bout.)</span>` : ''}`;
+    return;
+  }
   const p = produits.find(x => x.id === id);
   if (!p) return;
   const isCaisse = isCaisseProduct(p);
-  const prep = cavePrep[id] || 0;
   const row = document.getElementById('caverow-' + id);
   if (!row) return;
   const subEl = row.querySelector('.stock-sub');
@@ -1467,12 +1521,17 @@ function validerCave() {
   if (!ids.length) return;
 
   const items = ids.map(id => {
+    const vinP = VIN_PRODUITS.find(x => x.id === id);
+    if (vinP) {
+      const qty = cavePrep[id]; // cartons
+      return { nom: vinP.nom, qtyLabel: `${qty} carton${qty > 1 ? 's' : ''}`, subLabel: `${qty * 6} bouteilles` };
+    }
     const p = produits.find(x => x.id === id);
-    const isCaisse = p && (p.unite === 'caisse' || p.unite === 'carton');
+    const isCaisse = isCaisseProduct(p);
     const qty = cavePrep[id];
     const qtyLabel = isCaisse ? `${qty} bouteilles` : `${qty} ${p ? p.unite : ''}`;
     const subLabel = isCaisse ? `${Math.floor(qty / 24)} caisse${Math.floor(qty/24) > 1 ? 's' : ''}` : '';
-    return { id, nom: p ? p.nom : id, qtyLabel, subLabel };
+    return { nom: p ? p.nom : id, qtyLabel, subLabel };
   });
 
   document.getElementById('besoins-subtitle').textContent =
@@ -1492,16 +1551,20 @@ function validerCave() {
 
 function confirmerCave() {
   Object.keys(cavePrep).forEach(id => {
-    const p = produits.find(x => x.id === id);
-    if (isCaisseProduct(p)) {
-      // Soustraire en bouteilles puis reconvertir
-      let totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
-      totalBout = Math.max(0, totalBout - cavePrep[id]);
-      stock[id] = Math.floor(totalBout / 24);
-      const reste = totalBout % 24;
-      if (reste > 0) stockBout[id] = reste; else delete stockBout[id];
+    if (VIN_PRODUITS.some(v => v.id === id)) {
+      // Vins : cavePrep en cartons, stock en bouteilles
+      stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id] * 6);
     } else {
-      stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+      const p = produits.find(x => x.id === id);
+      if (isCaisseProduct(p)) {
+        let totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
+        totalBout = Math.max(0, totalBout - cavePrep[id]);
+        stock[id] = Math.floor(totalBout / 24);
+        const reste = totalBout % 24;
+        if (reste > 0) stockBout[id] = reste; else delete stockBout[id];
+      } else {
+        stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+      }
     }
   });
   cavePrep = {};
@@ -1546,6 +1609,27 @@ function openInventaire() {
         </div>`;
     }
   });
+  // Section vins
+  html += `<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.6px;padding:14px 0 8px">Vins</div>`;
+  VIN_PRODUITS.forEach(p => {
+    const totalBout = stock[p.id] || 0;
+    const cs = Math.floor(totalBout / 6);
+    const bt = totalBout % 6;
+    html += `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;margin-bottom:6px">${p.nom}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" min="0" inputmode="numeric" style="width:56px;${inputStyle}"
+                 id="inv-vcs-${p.id}" placeholder="${cs > 0 ? cs : '—'}">
+          <span style="font-size:12px;color:var(--muted)">cartons</span>
+          <span style="font-size:12px;color:var(--dim)">+</span>
+          <input type="number" min="0" max="5" inputmode="numeric" style="width:56px;${inputStyle}"
+                 id="inv-vbt-${p.id}" placeholder="${bt > 0 ? bt : '0'}">
+          <span style="font-size:12px;color:var(--muted)">bouteilles</span>
+        </div>
+      </div>`;
+  });
+
   document.getElementById('inventaire-list').innerHTML = html;
   document.getElementById('overlay-inventaire').classList.add('open');
 }
@@ -1574,6 +1658,18 @@ function saveInventaire() {
         const n = parseInt(el.value, 10);
         if (!isNaN(n) && n >= 0) stock[p.id] = n;
       }
+    }
+  });
+  // Vins
+  VIN_PRODUITS.forEach(p => {
+    const elCs = document.getElementById('inv-vcs-' + p.id);
+    const elBt = document.getElementById('inv-vbt-' + p.id);
+    const cs  = elCs && elCs.value !== '' ? parseInt(elCs.value, 10) : null;
+    const bt  = elBt && elBt.value !== '' ? parseInt(elBt.value, 10) : null;
+    if (cs !== null && !isNaN(cs) && cs >= 0) {
+      stock[p.id] = cs * 6 + (bt !== null && !isNaN(bt) && bt >= 0 ? bt % 6 : 0);
+    } else if (bt !== null && !isNaN(bt) && bt >= 0) {
+      stock[p.id] = (stock[p.id] || 0) + bt % 6;
     }
   });
   save();
