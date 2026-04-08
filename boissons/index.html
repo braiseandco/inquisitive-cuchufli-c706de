@@ -399,6 +399,9 @@
   <div class="tab" onclick="switchTab('vin')" id="tab-vin">
     Commande vin
   </div>
+  <div class="tab" onclick="switchTab('cocktail')" id="tab-cocktail">
+    Cocktailexpress
+  </div>
   <div class="tab" onclick="switchTab('historique')" id="tab-historique" style="display:none">
     Historique
   </div>
@@ -478,6 +481,18 @@
   </div>
 </div>
 
+<!-- ══════════════════════ PANEL COCKTAIL ══════════════════════ -->
+<div class="panel" id="panel-cocktail">
+  <div id="cocktail-list"></div>
+  <div style="padding:12px 16px 4px">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Message / commentaire</div>
+    <textarea id="cocktail-note" rows="2"
+      style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit"
+      placeholder="Ex : livraison avant 11h…"
+      oninput="saveCocktailNote()"></textarea>
+  </div>
+</div>
+
 <!-- ══════════════════════ PANEL HISTORIQUE ══════════════════════ -->
 <div class="panel" id="panel-historique">
   <div id="hist-list"></div>
@@ -507,6 +522,17 @@
     Commander le vin par SMS
   </button>
   <button class="btn-reset" onclick="resetVin()">Tout réinitialiser</button>
+</div>
+
+<!-- ══════════════════════ PANIER BAR COCKTAIL ══════════════════════ -->
+<div class="panier-bar" id="panier-bar-cocktail" style="display:none">
+  <div class="panier-info">
+    <span id="cocktail-articles" class="panier-empty">Aucun article sélectionné</span>
+  </div>
+  <button class="btn-send" id="btn-send-cocktail" disabled onclick="envoyerSMSCocktail()">
+    Commander par SMS — Cocktailexpress
+  </button>
+  <button class="btn-reset" onclick="resetCocktail()">Tout réinitialiser</button>
 </div>
 
 <!-- ══════════════════════ MODAL CONFIRMATION ══════════════════════ -->
@@ -761,6 +787,18 @@ const PRODUITS_DEFAUT = [
   { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',      prix:41.46, min:1 },
 ];
 
+/* ═══════════════ COCKTAILS ═══════════════ */
+const COCKTAIL_TEL = '0673544939';
+const COCKTAIL_PRODUITS = [
+  { id:'ck001', nom:'Sand Island',       min:6 },
+  { id:'ck002', nom:'Piña Colada',       min:6 },
+  { id:'ck003', nom:'Cocolada',          min:6 },
+  { id:'ck004', nom:'Sex on the Beach',  min:6 },
+];
+const COCKTAIL_EXTRAS = [
+  { id:'ck005', nom:'Verre à cocktail', unite:'carton' },
+];
+
 /* ═══════════════ VINS ═══════════════ */
 const VIN_TEL_MAIN    = '0684803816';
 const VIN_TEL_MOSCATO = '0614274109';
@@ -784,8 +822,9 @@ let stockBout = {}; // { id: qty } — bouteilles en vrac (pour produits en cais
 let stockMin  = {}; // { id: minQty }
 let settings  = { telFourn: '', email: '' };
 let historique = [];
-let commandeVin = {}; // { id: qty }
-let cavePrep    = {}; // { id: qty } — quantités à sortir de la cave
+let commandeVin      = {}; // { id: qty }
+let commandeCocktail = {}; // { id: qty } — cartons
+let cavePrep         = {}; // { id: qty } — quantités à sortir de la cave
 const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
@@ -798,7 +837,8 @@ function save() {
   localStorage.setItem('bc_stockMin',  JSON.stringify(stockMin));
   localStorage.setItem('bc_settings',  JSON.stringify(settings));
   localStorage.setItem('bc_historique', JSON.stringify(historique));
-  localStorage.setItem('bc_vin_commande', JSON.stringify(commandeVin));
+  localStorage.setItem('bc_vin_commande',      JSON.stringify(commandeVin));
+  localStorage.setItem('bc_cocktail_commande', JSON.stringify(commandeCocktail));
 }
 
 function load() {
@@ -818,7 +858,8 @@ function load() {
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
     settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '' };
     historique   = JSON.parse(localStorage.getItem('bc_historique'))    || [];
-    commandeVin  = JSON.parse(localStorage.getItem('bc_vin_commande'))  || {};
+    commandeVin      = JSON.parse(localStorage.getItem('bc_vin_commande'))      || {};
+    commandeCocktail = JSON.parse(localStorage.getItem('bc_cocktail_commande')) || {};
   } catch(e) {}
 
   if (!produits) {
@@ -863,13 +904,15 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
 
-  document.getElementById('panier-bar').style.display      = name === 'commande' ? '' : 'none';
-  document.getElementById('panier-bar-vin').style.display   = name === 'vin'      ? '' : 'none';
-  document.getElementById('panier-bar-cave').style.display  = name === 'stock'    ? '' : 'none';
+  document.getElementById('panier-bar').style.display           = name === 'commande' ? '' : 'none';
+  document.getElementById('panier-bar-vin').style.display        = name === 'vin'      ? '' : 'none';
+  document.getElementById('panier-bar-cave').style.display       = name === 'stock'    ? '' : 'none';
+  document.getElementById('panier-bar-cocktail').style.display   = name === 'cocktail' ? '' : 'none';
 
   if (name === 'stock')      renderStock();
   if (name === 'historique') renderHistorique();
   if (name === 'vin')        renderVin();
+  if (name === 'cocktail')   renderCocktail();
 }
 
 /* ═══════════════ COMMANDE ═══════════════ */
@@ -1167,6 +1210,129 @@ function saveVinNote() {
   localStorage.setItem('bc_vin_note', document.getElementById('vin-note').value);
 }
 
+/* ═══════════════ COCKTAILEXPRESS ═══════════════ */
+function renderCocktail() {
+  const list = document.getElementById('cocktail-list');
+  const allProduits = [...COCKTAIL_PRODUITS, ...COCKTAIL_EXTRAS];
+  let html = '';
+
+  // Section cocktails (par carton)
+  html += `<div class="cat-label">Cocktails</div>`;
+  COCKTAIL_PRODUITS.forEach(p => {
+    const qty = commandeCocktail[p.id] || 0;
+    html += `
+      <div class="prod-row${qty > 0 ? ' has-qty' : ''}" id="ckrow-${p.id}">
+        <div class="prod-info">
+          <div class="prod-name">${p.nom}</div>
+          <div class="prod-meta">carton de 6 bouteilles</div>
+        </div>
+        <div class="stepper">
+          <button class="s-btn minus" onclick="changeCocktailQty('${p.id}',-1)">−</button>
+          <input type="number" class="s-qty${qty > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                 id="ckqty-${p.id}" value="${qty || ''}" placeholder="0"
+                 onchange="setCocktailQty('${p.id}', this.value)"
+                 onfocus="this.select()">
+          <button class="s-btn plus" onclick="changeCocktailQty('${p.id}',1)">+</button>
+        </div>
+      </div>`;
+  });
+
+  // Section extras (verres…)
+  html += `<div class="cat-label">Accessoires</div>`;
+  COCKTAIL_EXTRAS.forEach(p => {
+    const qty = commandeCocktail[p.id] || 0;
+    html += `
+      <div class="prod-row${qty > 0 ? ' has-qty' : ''}" id="ckrow-${p.id}">
+        <div class="prod-info">
+          <div class="prod-name">${p.nom}</div>
+          <div class="prod-meta">${p.unite}</div>
+        </div>
+        <div class="stepper">
+          <button class="s-btn minus" onclick="changeCocktailQty('${p.id}',-1)">−</button>
+          <input type="number" class="s-qty${qty > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                 id="ckqty-${p.id}" value="${qty || ''}" placeholder="0"
+                 onchange="setCocktailQty('${p.id}', this.value)"
+                 onfocus="this.select()">
+          <button class="s-btn plus" onclick="changeCocktailQty('${p.id}',1)">+</button>
+        </div>
+      </div>`;
+  });
+
+  list.innerHTML = html;
+  updateCocktailBar();
+}
+
+function changeCocktailQty(id, delta) {
+  const cur = commandeCocktail[id] || 0;
+  const next = Math.max(0, cur + delta);
+  if (next === 0) delete commandeCocktail[id]; else commandeCocktail[id] = next;
+  const input = document.getElementById('ckqty-' + id);
+  if (input) { input.value = next || ''; input.classList.toggle('active', next > 0); }
+  const row = document.getElementById('ckrow-' + id);
+  if (row) row.classList.toggle('has-qty', next > 0);
+  save();
+  updateCocktailBar();
+}
+
+function setCocktailQty(id, val) {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n <= 0) delete commandeCocktail[id]; else commandeCocktail[id] = n;
+  const prep = commandeCocktail[id] || 0;
+  const input = document.getElementById('ckqty-' + id);
+  if (input) input.classList.toggle('active', prep > 0);
+  const row = document.getElementById('ckrow-' + id);
+  if (row) row.classList.toggle('has-qty', prep > 0);
+  save();
+  updateCocktailBar();
+}
+
+function updateCocktailBar() {
+  const ids = Object.keys(commandeCocktail).filter(id => commandeCocktail[id] > 0);
+  const btn  = document.getElementById('btn-send-cocktail');
+  const info = document.getElementById('cocktail-articles');
+  if (!ids.length) {
+    info.textContent = 'Aucun article sélectionné';
+    info.className = 'panier-empty';
+    btn.disabled = true;
+  } else {
+    const total = ids.reduce((s, id) => s + commandeCocktail[id], 0);
+    info.textContent = `${ids.length} article${ids.length > 1 ? 's' : ''} · ${total} carton${total > 1 ? 's' : ''}`;
+    info.className = '';
+    btn.disabled = false;
+  }
+}
+
+function resetCocktail() {
+  commandeCocktail = {};
+  save();
+  renderCocktail();
+}
+
+function saveCocktailNote() {
+  localStorage.setItem('bc_cocktail_note', document.getElementById('cocktail-note').value);
+}
+
+function envoyerSMSCocktail() {
+  const ids = Object.keys(commandeCocktail).filter(id => commandeCocktail[id] > 0);
+  if (!ids.length) return;
+
+  const now = new Date();
+  const allProduits = [...COCKTAIL_PRODUITS, ...COCKTAIL_EXTRAS];
+  const lines = ids.map(id => {
+    const p = allProduits.find(x => x.id === id);
+    const unite = (p && p.unite) ? p.unite : 'carton';
+    return `${commandeCocktail[id]}x ${p ? p.nom : id} (${unite})`;
+  });
+
+  const note = (localStorage.getItem('bc_cocktail_note') || '').trim();
+  const msg = `COMMANDE COCKTAILEXPRESS - ${now.toLocaleDateString('fr-FR')}\n\n`
+    + lines.join('\n')
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nMerci de confirmer la réception par SMS.`;
+
+  window.location.href = buildSmsUrl(COCKTAIL_TEL, msg);
+}
+
 function openConfirmVin() {
   const allIds = Object.keys(commandeVin).filter(id => commandeVin[id] > 0);
   if (!allIds.length) return;
@@ -1242,17 +1408,22 @@ function isCaisseProduct(p) {
 function isVinProduct(p) {
   return p && VIN_PRODUITS.some(v => v.id === p.id);
 }
-function vinStockLabel(id) {
+function isCocktailProduct(p) {
+  return p && COCKTAIL_PRODUITS.some(c => c.id === p.id);
+}
+function stockLabelCartons(id, size) {
   const qty = stock[id] || 0;
-  const cartons = Math.floor(qty / 6);
-  const rest = qty % 6;
+  const cartons = Math.floor(qty / size);
+  const rest = qty % size;
   if (cartons > 0 && rest > 0) return `${cartons} crt. ${rest} bout.`;
   if (cartons > 0) return `${cartons} crt.`;
   return `${qty} bout.`;
 }
+function vinStockLabel(id)      { return stockLabelCartons(id, 6); }
+function cocktailStockLabel(id) { return stockLabelCartons(id, 6); }
 
 function stockClass(id) {
-  const p = produits.find(x => x.id === id) || VIN_PRODUITS.find(x => x.id === id);
+  const p = produits.find(x => x.id === id) || VIN_PRODUITS.find(x => x.id === id) || COCKTAIL_PRODUITS.find(x => x.id === id);
   const min = stockMin[id] !== undefined ? stockMin[id] : (p ? p.min : 1);
   if (isCaisseProduct(p)) {
     const totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
@@ -1327,6 +1498,29 @@ function renderStock() {
           </div>
         </div>`;
     });
+  });
+
+  // Section Cocktails
+  html += `<div class="cat-label" style="color:var(--muted);padding-top:18px">— Cocktailexpress —</div>`;
+  COCKTAIL_PRODUITS.forEach(p => {
+    const cls  = stockClass(p.id);
+    const prep = cavePrep[p.id] || 0; // en bouteilles
+    html += `
+      <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
+        <div class="s-dot ${cls}"></div>
+        <div class="stock-info">
+          <div class="stock-name">${p.nom}</div>
+          <div class="stock-sub" id="cavesubck-${p.id}">stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${cocktailStockLabel(p.id)}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} bout.</span>` : ''}</div>
+        </div>
+        <div class="stepper">
+          <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
+          <input type="number" class="s-qty${prep > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                 id="caveqty-${p.id}" value="${prep || ''}" placeholder="0"
+                 onchange="setCavePrep('${p.id}', this.value)"
+                 onfocus="this.select()">
+          <button class="s-btn plus" onclick="changeCavePrep('${p.id}',1)">+</button>
+        </div>
+      </div>`;
   });
 
   // Section Vins
@@ -1411,6 +1605,14 @@ function setCavePrep(id, val) {
 
 function updateCaveSubtitle(id) {
   const prep = cavePrep[id] || 0;
+  const ckP = COCKTAIL_PRODUITS.find(x => x.id === id);
+  if (ckP) {
+    const subEl = document.getElementById('cavesubck-' + id);
+    if (!subEl) return;
+    const cls = stockClass(id);
+    subEl.innerHTML = `stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${cocktailStockLabel(id)}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} bout.</span>` : ''}`;
+    return;
+  }
   const vinP = VIN_PRODUITS.find(x => x.id === id);
   if (vinP) {
     const subEl = document.getElementById('cavesubvin-' + id);
@@ -1462,6 +1664,11 @@ function validerCave() {
   if (!ids.length) return;
 
   const items = ids.map(id => {
+    const ckP = COCKTAIL_PRODUITS.find(x => x.id === id);
+    if (ckP) {
+      const qty = cavePrep[id];
+      return { nom: ckP.nom, qtyLabel: `${qty} bouteille${qty > 1 ? 's' : ''}`, subLabel: '' };
+    }
     const vinP = VIN_PRODUITS.find(x => x.id === id);
     if (vinP) {
       const qty = cavePrep[id]; // cartons
@@ -1492,7 +1699,10 @@ function validerCave() {
 
 function confirmerCave() {
   Object.keys(cavePrep).forEach(id => {
-    if (VIN_PRODUITS.some(v => v.id === id)) {
+    if (COCKTAIL_PRODUITS.some(c => c.id === id)) {
+      // Cocktails : cavePrep en bouteilles, stock en bouteilles
+      stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+    } else if (VIN_PRODUITS.some(v => v.id === id)) {
       // Vins : cavePrep en cartons, stock en bouteilles
       stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id] * 6);
     } else {
@@ -1550,6 +1760,27 @@ function openInventaire() {
         </div>`;
     }
   });
+  // Section cocktails
+  html += `<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.6px;padding:14px 0 8px">Cocktailexpress</div>`;
+  COCKTAIL_PRODUITS.forEach(p => {
+    const totalBout = stock[p.id] || 0;
+    const cs = Math.floor(totalBout / 6);
+    const bt = totalBout % 6;
+    html += `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;margin-bottom:6px">${p.nom}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" min="0" inputmode="numeric" style="width:56px;${inputStyle}"
+                 id="inv-ckcrt-${p.id}" placeholder="${cs > 0 ? cs : '—'}">
+          <span style="font-size:12px;color:var(--muted)">cartons</span>
+          <span style="font-size:12px;color:var(--dim)">+</span>
+          <input type="number" min="0" max="5" inputmode="numeric" style="width:56px;${inputStyle}"
+                 id="inv-ckbt-${p.id}" placeholder="${bt > 0 ? bt : '0'}">
+          <span style="font-size:12px;color:var(--muted)">bouteilles</span>
+        </div>
+      </div>`;
+  });
+
   // Section vins
   html += `<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.6px;padding:14px 0 8px">Vins</div>`;
   VIN_PRODUITS.forEach(p => {
@@ -1599,6 +1830,18 @@ function saveInventaire() {
         const n = parseInt(el.value, 10);
         if (!isNaN(n) && n >= 0) stock[p.id] = n;
       }
+    }
+  });
+  // Cocktails
+  COCKTAIL_PRODUITS.forEach(p => {
+    const elCs = document.getElementById('inv-ckcrt-' + p.id);
+    const elBt = document.getElementById('inv-ckbt-' + p.id);
+    const cs = elCs && elCs.value !== '' ? parseInt(elCs.value, 10) : null;
+    const bt = elBt && elBt.value !== '' ? parseInt(elBt.value, 10) : null;
+    if (cs !== null && !isNaN(cs) && cs >= 0) {
+      stock[p.id] = cs * 6 + (bt !== null && !isNaN(bt) && bt >= 0 ? bt % 6 : 0);
+    } else if (bt !== null && !isNaN(bt) && bt >= 0) {
+      stock[p.id] = (stock[p.id] || 0) + bt % 6;
     }
   });
   // Vins
@@ -1731,6 +1974,8 @@ const _savedNote = localStorage.getItem('bc_note');
 if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
 const _savedVinNote = localStorage.getItem('bc_vin_note');
 if (_savedVinNote) { const _vnel = document.getElementById('vin-note'); if (_vnel) _vnel.value = _savedVinNote; }
+const _savedCkNote = localStorage.getItem('bc_cocktail_note');
+if (_savedCkNote) { const _cnel = document.getElementById('cocktail-note'); if (_cnel) _cnel.value = _savedCkNote; }
 
 // Afficher la barre commande par défaut
 document.getElementById('panier-bar').style.display = '';
