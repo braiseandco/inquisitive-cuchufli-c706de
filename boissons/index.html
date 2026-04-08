@@ -533,10 +533,9 @@
 const PRODUITS_DEFAUT = [
   // PRESSIONS
   { id:'p001', code:'011717', nom:'Fût 20L Leffe Blonde 6.6°',        cat:'Pressions',       unite:'fût',      prix:90.48  },
-  { id:'p002', code:'001182', nom:'Fût 30L Stella Artois 4.8°',        cat:'Pressions',       unite:'fût',      prix:92.07  },
   { id:'p003', code:'010028', nom:'Fût 30L Stella Artois 5.2°',        cat:'Pressions',       unite:'fût',      prix:95.61  },
-  // BIÈRES — VC commandées par caisse, VP par bouteille
-  { id:'p004', code:'001553', nom:'1664 Blonde 33cl VC',               cat:'Bières',          unite:'caisse',   prix:1.43   },
+  // BIÈRES — VC commandées par carton/caisse, VP par bouteille
+  { id:'p004', code:'001553', nom:'1664 Blonde 33cl VC',               cat:'Bières',          unite:'carton',   prix:1.43   },
   { id:'p005', code:'001108', nom:'Desperados 33cl VC',                cat:'Bières',          unite:'caisse',   prix:1.58   },
   { id:'p006', code:'011895', nom:'1664 Sans Alcool 33cl VP',          cat:'Bières',          unite:'bouteille',prix:1.20   },
   { id:'p007', code:'001413', nom:'Hoegaarden Blanche 33cl VC',        cat:'Bières',          unite:'caisse',   prix:1.43   },
@@ -552,13 +551,13 @@ const PRODUITS_DEFAUT = [
   { id:'p016', code:'002559', nom:'Fanta Orange 25cl VC',              cat:'Sodas',           unite:'caisse',   prix:0.82   },
   { id:'p017', code:'002846', nom:'Fuzetea Pêche 25cl VC',             cat:'Sodas',           unite:'caisse',   prix:0.71   },
   { id:'p018', code:'002888', nom:'Tropico Original 25cl VC',          cat:'Sodas',           unite:'caisse',   prix:0.83   },
-  { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'bouteille',prix:1.20   },
+  { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20  },
   // JUS DE FRUITS
   { id:'p020', code:'003813', nom:'Pago Ananas 20cl VC',               cat:'Jus de fruits',   unite:'caisse',   prix:0.82   },
   { id:'p021', code:'003817', nom:'Pago Orange 20cl VC',               cat:'Jus de fruits',   unite:'caisse',   prix:0.89   },
   { id:'p022', code:'003818', nom:'Pago Pomme 20cl VC',                cat:'Jus de fruits',   unite:'caisse',   prix:0.78   },
-  { id:'p023', code:'701308', nom:'Norbert Ananas 1L PET',             cat:'Jus de fruits',   unite:'bouteille',prix:1.55   },
-  { id:'p024', code:'706354', nom:'Norbert Orange 1L PET',             cat:'Jus de fruits',   unite:'bouteille',prix:1.30   },
+  { id:'p023', code:'701308', nom:'Norbert Ananas 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.55  },
+  { id:'p024', code:'706354', nom:'Norbert Orange 1L PET',             cat:'Jus de fruits',   unite:'pack de 6', prix:1.30  },
   // SIROPS & PURÉES
   { id:'p025', code:'000756', nom:'Sirop Sucre de Canne Fuego 1L',    cat:'Sirops & Purées', unite:'bouteille',prix:4.03   },
   { id:'p026', code:'003605', nom:'Sirop Menthe Verte Fuego 1L',      cat:'Sirops & Purées', unite:'bouteille',prix:3.04   },
@@ -568,15 +567,13 @@ const PRODUITS_DEFAUT = [
   { id:'p030', code:'003618', nom:'Sirop Pêche Fuego 1L',             cat:'Sirops & Purées', unite:'bouteille',prix:3.99   },
   { id:'p031', code:'003947', nom:'Purée Mangue Teisseire 1L',        cat:'Sirops & Purées', unite:'bouteille',prix:8.53   },
   { id:'p032', code:'003952', nom:'Purée Framboise Teisseire 1L',     cat:'Sirops & Purées', unite:'bouteille',prix:10.84  },
-  { id:'p033', code:'100170', nom:'Purée Fruits Rouges Monin 1L',     cat:'Sirops & Purées', unite:'bouteille',prix:9.61   },
-  { id:'p034', code:'100173', nom:'Purée Framboise Monin 1L',         cat:'Sirops & Purées', unite:'bouteille',prix:12.21  },
   // EAUX
   { id:'p035', code:'007044', nom:'Perrier 33cl VC',                   cat:'Eaux',            unite:'caisse',   prix:0.89   },
-  { id:'p036', code:'007006', nom:'Perrier 1L PET',                    cat:'Eaux',            unite:'bouteille',prix:0.88   },
-  { id:'p037', code:'007127', nom:'Abatilles Plate 1L PET',            cat:'Eaux',            unite:'bouteille',prix:0.83   },
-  { id:'p038', code:'007129', nom:'Abatilles Pétillante 1L PET',       cat:'Eaux',            unite:'bouteille',prix:0.92   },
-  { id:'p039', code:'007132', nom:'Abatilles Plate 50cl PET',          cat:'Eaux',            unite:'bouteille',prix:0.71   },
-  { id:'p040', code:'007133', nom:'Abatilles Pétillante 50cl PET',     cat:'Eaux',            unite:'bouteille',prix:0.80   },
+  { id:'p036', code:'007006', nom:'Perrier 1L PET',                    cat:'Eaux',            unite:'pack de 12',prix:0.88  },
+  { id:'p037', code:'007127', nom:'Abatilles Plate 1L PET',            cat:'Eaux',            unite:'carton',   prix:0.83   },
+  { id:'p038', code:'007129', nom:'Abatilles Pétillante 1L PET',       cat:'Eaux',            unite:'carton',   prix:0.92   },
+  { id:'p039', code:'007132', nom:'Abatilles Plate 50cl PET',          cat:'Eaux',            unite:'pack de 12',prix:0.71  },
+  { id:'p040', code:'007133', nom:'Abatilles Pétillante 50cl PET',     cat:'Eaux',            unite:'pack de 12',prix:0.80  },
   // THÉS & INFUSIONS
   { id:'p041', code:'602075', nom:"Infusions Verveine Menthe Baronny's x25", cat:"Thés & Infusions", unite:'boîte',    prix:4.69 },
   { id:'p042', code:'602094', nom:"Infusions Verveine Baronny's Diamant x25", cat:"Thés & Infusions", unite:'boîte',   prix:4.83 },
@@ -604,7 +601,6 @@ const PRODUITS_DEFAUT = [
   { id:'p062', code:'707508', nom:'Vermouth Martini Rosso 1L',        cat:'Alcools',         unite:'bouteille',prix:12.27  },
   // DIVERS
   { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',     prix:41.46  },
-  { id:'p064', code:'704234', nom:'Pailles Kraft x400',               cat:'Divers',          unite:'paquet',   prix:9.29   },
 ];
 
 /* ═══════════════ STATE ═══════════════ */
