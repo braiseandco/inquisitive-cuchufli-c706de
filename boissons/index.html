@@ -306,6 +306,13 @@
       border-radius: 10px; padding: 10px 14px; margin: 12px 16px;
       font-size: 13px; color: var(--danger);
     }
+    .btn-gratuit {
+      font-size: 11px; font-weight: 700; padding: 4px 8px;
+      border-radius: 6px; border: 1px solid var(--ok); color: var(--ok);
+      background: none; cursor: pointer; margin-left: 4px; flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .btn-gratuit.on { background: var(--ok); color: #000; }
     .sunday-badge {
       background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3);
       border-radius: 10px; padding: 8px 14px; margin: 10px 16px;
@@ -607,15 +614,18 @@ const PRODUITS_DEFAUT = [
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
 let commande  = {}; // { id: qty }
+let gratuit   = null; // id du produit marqué GRATUIT (Sprite ou Fuzetea)
 let stock     = {}; // { id: qty }
 let stockMin  = {}; // { id: minQty }
-let settings  = { telFourn: '', email: '', stockMinDefault: 6 };
+let settings  = { telFourn: '', email: '' };
 let historique = [];
+const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
 function save() {
   localStorage.setItem('bc_produits',  JSON.stringify(produits));
   localStorage.setItem('bc_commande',  JSON.stringify(commande));
+  localStorage.setItem('bc_gratuit',   gratuit || '');
   localStorage.setItem('bc_stock',     JSON.stringify(stock));
   localStorage.setItem('bc_stockMin',  JSON.stringify(stockMin));
   localStorage.setItem('bc_settings',  JSON.stringify(settings));
@@ -633,6 +643,7 @@ function load() {
     }
     produits   = JSON.parse(localStorage.getItem('bc_produits'))   || null;
     commande   = JSON.parse(localStorage.getItem('bc_commande'))   || {};
+    gratuit    = localStorage.getItem('bc_gratuit') || null;
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
     settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '' };
@@ -717,13 +728,16 @@ function renderCommande(filter) {
     html += `<div class="cat-label">${cat}</div>`;
     cats[cat].forEach(p => {
       const qty = commande[p.id] || 0;
+      const isGratuitEl = GRATUIT_IDS.includes(p.id);
+      const isGratuit   = gratuit === p.id;
       html += `
-        <div class="prod-row ${qty > 0 ? 'has-qty' : ''}" id="row-${p.id}">
+        <div class="prod-row ${qty > 0 || isGratuit ? 'has-qty' : ''}" id="row-${p.id}">
           <div class="prod-info">
             <div class="prod-name">${p.nom}</div>
             <div class="prod-meta">${p.unite} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
           </div>
           <div class="stepper">
+            ${isGratuitEl ? `<button class="btn-gratuit ${isGratuit ? 'on' : ''}" onclick="toggleGratuit('${p.id}')">GRATUIT</button>` : ''}
             <button class="s-btn minus" onclick="changeQty('${p.id}', -1)">−</button>
             <input type="number" class="s-qty ${qty > 0 ? 'active' : ''}"
                    id="qty-${p.id}" value="${qty || ''}" min="0"
@@ -803,10 +817,18 @@ function updatePanier() {
   }
 }
 
+function toggleGratuit(id) {
+  gratuit = (gratuit === id) ? null : id;
+  // Désactiver l'autre éligible si on en choisit un
+  save();
+  filterCommande();
+}
+
 function resetCommande() {
   if (!Object.keys(commande).length) return;
   if (!confirm('Réinitialiser toute la commande ?')) return;
   commande = {};
+  gratuit = null;
   save();
   document.querySelectorAll('.s-qty').forEach(inp => { inp.value = ''; inp.classList.remove('active'); });
   document.querySelectorAll('.prod-row').forEach(row => row.classList.remove('has-qty'));
@@ -847,12 +869,24 @@ function openConfirm() {
     const qty = commande[id];
     const ht  = p.prix * qty;
     totalHT += ht;
+    const tag = (gratuit === id) ? ' 🎁 GRATUIT' : '';
     linesHtml += `<div class="order-line">
-      <span>${p.nom}</span>
+      <span>${p.nom}${tag}</span>
       <span class="order-line-qty">${qty} ${p.unite}</span>
     </div>`;
-    smsLines.push(`${qty}x ${p.nom}`);
+    smsLines.push(`${qty}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
   });
+  // Ajouter gratuit si pas encore dans la commande
+  if (gratuit) {
+    const pg = produits.find(x => x.id === gratuit);
+    if (pg && !commande[gratuit]) {
+      linesHtml += `<div class="order-line">
+        <span>${pg.nom} 🎁 GRATUIT</span>
+        <span class="order-line-qty">1 ${pg.unite}</span>
+      </div>`;
+      smsLines.push(`1x ${pg.nom} (GRATUIT)`);
+    }
+  }
 
   document.getElementById('conf-lines').innerHTML = linesHtml;
   document.getElementById('conf-total').textContent = fmt(totalHT) + ' HT (hors droits, consignes et TVA)';
