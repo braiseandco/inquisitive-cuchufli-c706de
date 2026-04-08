@@ -1334,12 +1334,16 @@ function renderStock() {
       const qty = stock[p.id] || 0;
       const cls = qty === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
       const prep = cavePrep[p.id] || 0;
+      const isCaisse = p.unite === 'caisse' || p.unite === 'carton';
+      const unitLabel = isCaisse ? 'bout.' : p.unite;
+      const stockLabel = isCaisse ? `${qty} cs` : `${qty} ${p.unite}`;
+      const prepSub = isCaisse && prep > 0 ? ` = ${Math.floor(prep/24)} cs` : '';
       html += `
         <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
           <div class="s-dot ${cls}"></div>
           <div class="stock-info">
             <div class="stock-name">${p.nom}</div>
-            <div class="stock-sub">${p.unite} · stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${p.id}')">${qty}</span></div>
+            <div class="stock-sub">stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${p.id}')">${stockLabel}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${unitLabel}${prepSub}</span>` : ''}</div>
           </div>
           <div class="stepper">
             <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
@@ -1384,6 +1388,7 @@ function changeCavePrep(id, delta) {
   if (input) { input.value = next || ''; input.classList.toggle('active', next > 0); }
   const row = document.getElementById('caverow-' + id);
   if (row) row.classList.toggle('has-qty', next > 0);
+  updateCaveSubtitle(id);
   updateCaveBar();
 }
 
@@ -1395,7 +1400,24 @@ function setCavePrep(id, val) {
   if (input) input.classList.toggle('active', prep > 0);
   const row = document.getElementById('caverow-' + id);
   if (row) row.classList.toggle('has-qty', prep > 0);
+  updateCaveSubtitle(id);
   updateCaveBar();
+}
+
+function updateCaveSubtitle(id) {
+  const p = produits.find(x => x.id === id);
+  if (!p) return;
+  const isCaisse = p.unite === 'caisse' || p.unite === 'carton';
+  const prep = cavePrep[id] || 0;
+  const row = document.getElementById('caverow-' + id);
+  if (!row) return;
+  const subEl = row.querySelector('.stock-sub');
+  if (!subEl) return;
+  const cls = (stock[p.id] || 0) === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
+  const stockLabel = isCaisse ? `${stock[p.id] || 0} cs` : `${stock[p.id] || 0} ${p.unite}`;
+  const prepSub = isCaisse && prep > 0 ? ` = ${Math.floor(prep/24)} cs` : '';
+  const unitLabel = isCaisse ? 'bout.' : p.unite;
+  subEl.innerHTML = `stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${id}')">${stockLabel}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${unitLabel}${prepSub}</span>` : ''}`;
 }
 
 function updateCaveBar() {
@@ -1423,22 +1445,24 @@ function validerCave() {
   const ids = Object.keys(cavePrep).filter(id => cavePrep[id] > 0);
   if (!ids.length) return;
 
-  // Construire la liste
   const items = ids.map(id => {
     const p = produits.find(x => x.id === id);
-    return { id, nom: p ? p.nom : id, unite: p ? p.unite : '', qty: cavePrep[id] };
+    const isCaisse = p && (p.unite === 'caisse' || p.unite === 'carton');
+    const qty = cavePrep[id];
+    const qtyLabel = isCaisse ? `${qty} bouteilles` : `${qty} ${p ? p.unite : ''}`;
+    const subLabel = isCaisse ? `${Math.floor(qty / 24)} caisse${Math.floor(qty/24) > 1 ? 's' : ''}` : '';
+    return { id, nom: p ? p.nom : id, qtyLabel, subLabel };
   });
 
-  const total = items.reduce((s, i) => s + i.qty, 0);
   document.getElementById('besoins-subtitle').textContent =
-    `${items.length} produit${items.length > 1 ? 's' : ''} · ${total} unité${total > 1 ? 's' : ''}`;
+    `${items.length} produit${items.length > 1 ? 's' : ''}`;
 
   document.getElementById('besoins-list').innerHTML = items.map(i => `
     <div class="besoin-item">
-      <div class="besoin-qty-badge">${i.qty}</div>
+      <div class="besoin-qty-badge" style="width:auto;min-width:44px;padding:0 10px;font-size:16px">${i.qtyLabel}</div>
       <div>
         <div class="besoin-nom">${i.nom}</div>
-        <div class="besoin-unite">${i.unite}</div>
+        ${i.subLabel ? `<div class="besoin-unite">${i.subLabel}</div>` : ''}
       </div>
     </div>`).join('');
 
@@ -1446,9 +1470,12 @@ function validerCave() {
 }
 
 function confirmerCave() {
-  // Soustraire du stock
+  // Soustraire du stock (en caisses pour les produits au caisse/carton)
   Object.keys(cavePrep).forEach(id => {
-    stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+    const p = produits.find(x => x.id === id);
+    const isCaisse = p && (p.unite === 'caisse' || p.unite === 'carton');
+    const qty = isCaisse ? Math.floor(cavePrep[id] / 24) : cavePrep[id];
+    stock[id] = Math.max(0, (stock[id] || 0) - qty);
   });
   cavePrep = {};
   save();
