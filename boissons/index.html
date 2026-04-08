@@ -402,6 +402,9 @@
   <div class="tab" onclick="switchTab('cocktail')" id="tab-cocktail">
     Cocktailexpress
   </div>
+  <div class="tab" onclick="switchTab('cafe')" id="tab-cafe">
+    Café Richard
+  </div>
   <div class="tab" onclick="switchTab('historique')" id="tab-historique" style="display:none">
     Historique
   </div>
@@ -493,6 +496,18 @@
   </div>
 </div>
 
+<!-- ══════════════════════ PANEL CAFÉ RICHARD ══════════════════════ -->
+<div class="panel" id="panel-cafe">
+  <div id="cafe-list"></div>
+  <div style="padding:12px 16px 4px">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Message / commentaire</div>
+    <textarea id="cafe-note" rows="2"
+      style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit"
+      placeholder="Ex : livraison mardi matin…"
+      oninput="saveCafeNote()"></textarea>
+  </div>
+</div>
+
 <!-- ══════════════════════ PANEL HISTORIQUE ══════════════════════ -->
 <div class="panel" id="panel-historique">
   <div id="hist-list"></div>
@@ -533,6 +548,20 @@
     Commander par SMS — Cocktailexpress
   </button>
   <button class="btn-reset" onclick="resetCocktail()">Tout réinitialiser</button>
+</div>
+
+<!-- ══════════════════════ PANIER BAR CAFÉ ══════════════════════ -->
+<div class="panier-bar" id="panier-bar-cafe" style="display:none">
+  <div class="panier-info">
+    <span id="cafe-articles" class="panier-empty">Aucun article sélectionné</span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn-send" id="btn-send-cafe-sms" disabled onclick="envoyerCafeSMS()"
+            style="flex:1;font-size:14px">📱 SMS</button>
+    <button class="btn-send" id="btn-send-cafe-email" disabled onclick="envoyerCafeEmail()"
+            style="flex:1;font-size:14px;background:var(--surf3);color:var(--text)">✉️ Email</button>
+  </div>
+  <button class="btn-reset" onclick="resetCafe()">Tout réinitialiser</button>
 </div>
 
 <!-- ══════════════════════ MODAL CONFIRMATION ══════════════════════ -->
@@ -637,6 +666,19 @@
       <div class="settings-label">Email fournisseur (Le Bihan)</div>
       <input type="email" class="settings-field" id="set-email-fourn"
              placeholder="ex : commandes@lebihan.fr" inputmode="email">
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0"></div>
+    <div class="settings-label" style="color:var(--orange);font-weight:700">Café Richard</div>
+    <div class="settings-group">
+      <div class="settings-label">Tél portable Café Richard (SMS)</div>
+      <input type="tel" class="settings-field" id="set-cafe-tel"
+             placeholder="ex : 0612345678" inputmode="tel">
+    </div>
+    <div class="settings-group">
+      <div class="settings-label">Email Café Richard</div>
+      <input type="email" class="settings-field" id="set-cafe-email"
+             placeholder="ex : commandes@cafe-richard.fr" inputmode="email">
     </div>
 
     <button class="settings-save" onclick="saveSettings()">Enregistrer</button>
@@ -789,6 +831,21 @@ const PRODUITS_DEFAUT = [
 
 /* ═══════════════ COCKTAILS ═══════════════ */
 const COCKTAIL_TEL = '0673544939';
+
+/* ═══════════════ CAFÉ RICHARD ═══════════════ */
+const CAFE_PRODUITS = [
+  // Cave (pris à la poche)
+  { id:'cf001', nom:'Café Richard 1kg',        cat:'Café',   unite:'kg',    min:12, cave:true  },
+  { id:'cf002', nom:'Décaféiné 500g',          cat:'Café',   unite:'poche', min:2,  cave:true  },
+  // Commande uniquement
+  { id:'cf003', nom:'Darjeeling',              cat:'Thés',   unite:'boîte', cave:false },
+  { id:'cf004', nom:'Earl Grey',               cat:'Thés',   unite:'boîte', cave:false },
+  { id:'cf005', nom:'Verveine',                cat:'Thés',   unite:'boîte', cave:false },
+  { id:'cf006', nom:'Boîte de sucre',          cat:'Divers', unite:'lot',   cave:false, promo:'5+1' },
+  { id:'cf007', nom:'Chatine',                 cat:'Divers', unite:'lot',   cave:false, promo:'5+1' },
+  { id:'cf008', nom:'Tasse slim',              cat:'Tasses', unite:'boîte', cave:false },
+  { id:'cf009', nom:'Tasse slim + sous-tasse', cat:'Tasses', unite:'boîte', cave:false },
+];
 const COCKTAIL_PRODUITS = [
   { id:'ck001', nom:'Sand Island',       min:6 },
   { id:'ck002', nom:'Piña Colada',       min:6 },
@@ -820,10 +877,11 @@ let gratuit   = null; // id du produit marqué GRATUIT (Sprite ou Fuzetea)
 let stock     = {}; // { id: qty } — en caisses (ou pièces pour fûts/bouteilles)
 let stockBout = {}; // { id: qty } — bouteilles en vrac (pour produits en caisse/carton)
 let stockMin  = {}; // { id: minQty }
-let settings  = { telFourn: '', email: '' };
+let settings  = { telFourn: '', email: '', emailFourn: '', cafeTel: '', cafeEmail: '' };
 let historique = [];
 let commandeVin      = {}; // { id: qty }
 let commandeCocktail = {}; // { id: qty } — cartons
+let commandeCafe     = {}; // { id: qty }
 let cavePrep         = {}; // { id: qty } — quantités à sortir de la cave
 const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
 
@@ -839,6 +897,7 @@ function save() {
   localStorage.setItem('bc_historique', JSON.stringify(historique));
   localStorage.setItem('bc_vin_commande',      JSON.stringify(commandeVin));
   localStorage.setItem('bc_cocktail_commande', JSON.stringify(commandeCocktail));
+  localStorage.setItem('bc_cafe_commande',     JSON.stringify(commandeCafe));
 }
 
 function load() {
@@ -860,6 +919,7 @@ function load() {
     historique   = JSON.parse(localStorage.getItem('bc_historique'))    || [];
     commandeVin      = JSON.parse(localStorage.getItem('bc_vin_commande'))      || {};
     commandeCocktail = JSON.parse(localStorage.getItem('bc_cocktail_commande')) || {};
+    commandeCafe     = JSON.parse(localStorage.getItem('bc_cafe_commande'))     || {};
   } catch(e) {}
 
   if (!produits) {
@@ -908,11 +968,13 @@ function switchTab(name) {
   document.getElementById('panier-bar-vin').style.display        = name === 'vin'      ? '' : 'none';
   document.getElementById('panier-bar-cave').style.display       = name === 'stock'    ? '' : 'none';
   document.getElementById('panier-bar-cocktail').style.display   = name === 'cocktail' ? '' : 'none';
+  document.getElementById('panier-bar-cafe').style.display        = name === 'cafe'     ? '' : 'none';
 
   if (name === 'stock')      renderStock();
   if (name === 'historique') renderHistorique();
   if (name === 'vin')        renderVin();
   if (name === 'cocktail')   renderCocktail();
+  if (name === 'cafe')       renderCafe();
 }
 
 /* ═══════════════ COMMANDE ═══════════════ */
@@ -1333,6 +1395,115 @@ function envoyerSMSCocktail() {
   window.location.href = buildSmsUrl(COCKTAIL_TEL, msg);
 }
 
+/* ═══════════════ CAFÉ RICHARD ═══════════════ */
+function renderCafe() {
+  const CAT_ORDER = ['Café','Thés','Divers','Tasses'];
+  const cats = {};
+  CAFE_PRODUITS.forEach(p => { if (!cats[p.cat]) cats[p.cat] = []; cats[p.cat].push(p); });
+  const sortedCats = Object.keys(cats).sort((a,b) => {
+    const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  let html = '';
+  sortedCats.forEach(cat => {
+    html += `<div class="cat-label">${cat}</div>`;
+    cats[cat].forEach(p => {
+      const qty = commandeCafe[p.id] || 0;
+      const unitLabel = p.promo ? `lot 5+1` : p.unite;
+      html += `
+        <div class="prod-row${qty > 0 ? ' has-qty' : ''}" id="caferow-${p.id}">
+          <div class="prod-info">
+            <div class="prod-name">${p.nom}</div>
+            <div class="prod-meta">${unitLabel}${p.promo ? ' <span style="color:var(--ok);font-size:10px;font-weight:700">OFFERT</span>' : ''}</div>
+          </div>
+          <div class="stepper">
+            <button class="s-btn minus" onclick="changeCafeQty('${p.id}',-1)">−</button>
+            <input type="number" class="s-qty${qty > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                   id="cafeqty-${p.id}" value="${qty || ''}" placeholder="0"
+                   onchange="setCafeQty('${p.id}', this.value)"
+                   onfocus="this.select()">
+            <button class="s-btn plus" onclick="changeCafeQty('${p.id}',1)">+</button>
+          </div>
+        </div>`;
+    });
+  });
+
+  document.getElementById('cafe-list').innerHTML = html;
+  updateCafeBar();
+}
+
+function changeCafeQty(id, delta) {
+  const cur = commandeCafe[id] || 0;
+  const next = Math.max(0, cur + delta);
+  if (next === 0) delete commandeCafe[id]; else commandeCafe[id] = next;
+  const input = document.getElementById('cafeqty-' + id);
+  if (input) { input.value = next || ''; input.classList.toggle('active', next > 0); }
+  const row = document.getElementById('caferow-' + id);
+  if (row) row.classList.toggle('has-qty', next > 0);
+  save();
+  updateCafeBar();
+}
+
+function setCafeQty(id, val) {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n <= 0) delete commandeCafe[id]; else commandeCafe[id] = n;
+  const qty = commandeCafe[id] || 0;
+  const input = document.getElementById('cafeqty-' + id);
+  if (input) input.classList.toggle('active', qty > 0);
+  const row = document.getElementById('caferow-' + id);
+  if (row) row.classList.toggle('has-qty', qty > 0);
+  save();
+  updateCafeBar();
+}
+
+function updateCafeBar() {
+  const ids = Object.keys(commandeCafe).filter(id => commandeCafe[id] > 0);
+  const info = document.getElementById('cafe-articles');
+  const btnSms   = document.getElementById('btn-send-cafe-sms');
+  const btnEmail = document.getElementById('btn-send-cafe-email');
+  if (!ids.length) {
+    info.textContent = 'Aucun article sélectionné';
+    info.className = 'panier-empty';
+    btnSms.disabled = true;
+    btnEmail.disabled = true;
+  } else {
+    info.textContent = `${ids.length} article${ids.length > 1 ? 's' : ''}`;
+    info.className = '';
+    btnSms.disabled   = !settings.cafeTel;
+    btnEmail.disabled = !settings.cafeEmail;
+  }
+}
+
+function resetCafe() { commandeCafe = {}; save(); renderCafe(); }
+function saveCafeNote() { localStorage.setItem('bc_cafe_note', document.getElementById('cafe-note').value); }
+
+function _buildCafeMsg(now) {
+  const ids = Object.keys(commandeCafe).filter(id => commandeCafe[id] > 0);
+  const lines = ids.map(id => {
+    const p = CAFE_PRODUITS.find(x => x.id === id);
+    const unite = p && p.promo ? 'lot(s) 5+1' : (p ? p.unite : '');
+    return `${commandeCafe[id]}x ${p ? p.nom : id} (${unite})`;
+  });
+  const note = (localStorage.getItem('bc_cafe_note') || '').trim();
+  return `COMMANDE CAFÉ RICHARD - ${now.toLocaleDateString('fr-FR')}\n\n`
+    + lines.join('\n')
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nMerci de confirmer la réception.`;
+}
+
+function envoyerCafeSMS() {
+  if (!settings.cafeTel) return;
+  window.location.href = buildSmsUrl(settings.cafeTel, _buildCafeMsg(new Date()));
+}
+
+function envoyerCafeEmail() {
+  if (!settings.cafeEmail) return;
+  const now = new Date();
+  const subject = `Commande Café Richard — ${now.toLocaleDateString('fr-FR')}`;
+  window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now));
+}
+
 function openConfirmVin() {
   const allIds = Object.keys(commandeVin).filter(id => commandeVin[id] > 0);
   if (!allIds.length) return;
@@ -1423,7 +1594,7 @@ function vinStockLabel(id)      { return stockLabelCartons(id, 6); }
 function cocktailStockLabel(id) { return stockLabelCartons(id, 6); }
 
 function stockClass(id) {
-  const p = produits.find(x => x.id === id) || VIN_PRODUITS.find(x => x.id === id) || COCKTAIL_PRODUITS.find(x => x.id === id);
+  const p = produits.find(x => x.id === id) || VIN_PRODUITS.find(x => x.id === id) || COCKTAIL_PRODUITS.find(x => x.id === id) || CAFE_PRODUITS.find(x => x.id === id);
   const min = stockMin[id] !== undefined ? stockMin[id] : (p ? p.min : 1);
   if (isCaisseProduct(p)) {
     const totalBout = (stock[id] || 0) * 24 + (stockBout[id] || 0);
@@ -1498,6 +1669,32 @@ function renderStock() {
           </div>
         </div>`;
     });
+  });
+
+  // Section Café Richard (cave uniquement : café + déca)
+  const cafeCaveProduits = CAFE_PRODUITS.filter(p => p.cave);
+  html += `<div class="cat-label" style="color:var(--muted);padding-top:18px">— Café Richard —</div>`;
+  cafeCaveProduits.forEach(p => {
+    const qty  = stock[p.id] || 0;
+    const cls  = qty === 0 && (stockMin[p.id] === 0) ? 'none' : stockClass(p.id);
+    const prep = cavePrep[p.id] || 0;
+    const stockLbl = `${qty} ${p.unite}`;
+    html += `
+      <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
+        <div class="s-dot ${cls}"></div>
+        <div class="stock-info">
+          <div class="stock-name">${p.nom}</div>
+          <div class="stock-sub" id="cavesubcf-${p.id}">stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${stockLbl}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${p.unite}</span>` : ''}</div>
+        </div>
+        <div class="stepper">
+          <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
+          <input type="number" class="s-qty${prep > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                 id="caveqty-${p.id}" value="${prep || ''}" placeholder="0"
+                 onchange="setCavePrep('${p.id}', this.value)"
+                 onfocus="this.select()">
+          <button class="s-btn plus" onclick="changeCavePrep('${p.id}',1)">+</button>
+        </div>
+      </div>`;
   });
 
   // Section Cocktails
@@ -1605,6 +1802,15 @@ function setCavePrep(id, val) {
 
 function updateCaveSubtitle(id) {
   const prep = cavePrep[id] || 0;
+  const cfP = CAFE_PRODUITS.find(x => x.id === id && x.cave);
+  if (cfP) {
+    const subEl = document.getElementById('cavesubcf-' + id);
+    if (!subEl) return;
+    const cls = stockClass(id);
+    const qty = stock[id] || 0;
+    subEl.innerHTML = `stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto">${qty} ${cfP.unite}</span>${prep > 0 ? `<span style="color:var(--orange);margin-left:6px">→ ${prep} ${cfP.unite}</span>` : ''}`;
+    return;
+  }
   const ckP = COCKTAIL_PRODUITS.find(x => x.id === id);
   if (ckP) {
     const subEl = document.getElementById('cavesubck-' + id);
@@ -1664,6 +1870,11 @@ function validerCave() {
   if (!ids.length) return;
 
   const items = ids.map(id => {
+    const cfP = CAFE_PRODUITS.find(x => x.id === id && x.cave);
+    if (cfP) {
+      const qty = cavePrep[id];
+      return { nom: cfP.nom, qtyLabel: `${qty} ${cfP.unite}`, subLabel: '' };
+    }
     const ckP = COCKTAIL_PRODUITS.find(x => x.id === id);
     if (ckP) {
       const qty = cavePrep[id];
@@ -1699,7 +1910,10 @@ function validerCave() {
 
 function confirmerCave() {
   Object.keys(cavePrep).forEach(id => {
-    if (COCKTAIL_PRODUITS.some(c => c.id === id)) {
+    if (CAFE_PRODUITS.some(c => c.id === id && c.cave)) {
+      // Café : cavePrep en pouches, stock en pouches
+      stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+    } else if (COCKTAIL_PRODUITS.some(c => c.id === id)) {
       // Cocktails : cavePrep en bouteilles, stock en bouteilles
       stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
     } else if (VIN_PRODUITS.some(v => v.id === id)) {
@@ -1760,6 +1974,18 @@ function openInventaire() {
         </div>`;
     }
   });
+  // Section Café Richard
+  html += `<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.6px;padding:14px 0 8px">Café Richard</div>`;
+  CAFE_PRODUITS.filter(p => p.cave).forEach(p => {
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:13px">${p.nom}</span>
+        <input type="number" min="0" inputmode="numeric" style="width:64px;${inputStyle}"
+               id="inv-${p.id}" placeholder="${stock[p.id] !== undefined ? stock[p.id] : '—'}">
+        <span style="font-size:12px;color:var(--muted)">${p.unite}</span>
+      </div>`;
+  });
+
   // Section cocktails
   html += `<div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;letter-spacing:0.6px;padding:14px 0 8px">Cocktailexpress</div>`;
   COCKTAIL_PRODUITS.forEach(p => {
@@ -1832,6 +2058,14 @@ function saveInventaire() {
       }
     }
   });
+  // Café Richard
+  CAFE_PRODUITS.filter(p => p.cave).forEach(p => {
+    const el = document.getElementById('inv-' + p.id);
+    if (el && el.value !== '') {
+      const n = parseInt(el.value, 10);
+      if (!isNaN(n) && n >= 0) stock[p.id] = n;
+    }
+  });
   // Cocktails
   COCKTAIL_PRODUITS.forEach(p => {
     const elCs = document.getElementById('inv-ckcrt-' + p.id);
@@ -1896,9 +2130,11 @@ function saveNote() {
 
 /* ═══════════════ RÉGLAGES ═══════════════ */
 function openSettings() {
-  document.getElementById('set-tel-fourn').value   = settings.telFourn || '';
-  document.getElementById('set-email').value        = settings.email || '';
+  document.getElementById('set-tel-fourn').value   = settings.telFourn  || '';
+  document.getElementById('set-email').value        = settings.email     || '';
   document.getElementById('set-email-fourn').value  = settings.emailFourn || '';
+  document.getElementById('set-cafe-tel').value     = settings.cafeTel   || '';
+  document.getElementById('set-cafe-email').value   = settings.cafeEmail || '';
   document.getElementById('overlay-settings').classList.add('open');
 }
 
@@ -1906,6 +2142,8 @@ function saveSettings() {
   settings.telFourn   = document.getElementById('set-tel-fourn').value.trim();
   settings.email      = document.getElementById('set-email').value.trim();
   settings.emailFourn = document.getElementById('set-email-fourn').value.trim();
+  settings.cafeTel    = document.getElementById('set-cafe-tel').value.trim();
+  settings.cafeEmail  = document.getElementById('set-cafe-email').value.trim();
   save();
   document.getElementById('overlay-settings').classList.remove('open');
 }
@@ -1976,6 +2214,8 @@ const _savedVinNote = localStorage.getItem('bc_vin_note');
 if (_savedVinNote) { const _vnel = document.getElementById('vin-note'); if (_vnel) _vnel.value = _savedVinNote; }
 const _savedCkNote = localStorage.getItem('bc_cocktail_note');
 if (_savedCkNote) { const _cnel = document.getElementById('cocktail-note'); if (_cnel) _cnel.value = _savedCkNote; }
+const _savedCfNote = localStorage.getItem('bc_cafe_note');
+if (_savedCfNote) { const _cfnel = document.getElementById('cafe-note'); if (_cfnel) _cfnel.value = _savedCfNote; }
 
 // Afficher la barre commande par défaut
 document.getElementById('panier-bar').style.display = '';
