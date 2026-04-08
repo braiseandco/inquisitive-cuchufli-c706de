@@ -166,6 +166,43 @@
       color: var(--muted); font-size: 12px; cursor: pointer; padding: 6px; margin-top: 4px;
     }
 
+    /* ── ÉCRAN BESOINS ── */
+    #screen-besoins {
+      display: none; position: fixed; inset: 0;
+      background: var(--bg); z-index: 600; overflow-y: auto;
+      padding-bottom: 90px;
+    }
+    .besoins-header {
+      background: var(--surf); border-bottom: 1px solid var(--border);
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .besoins-back {
+      background: var(--surf2); border: none; color: var(--muted);
+      width: 36px; height: 36px; border-radius: 50%; font-size: 20px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .besoin-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surf);
+    }
+    .besoin-qty-badge {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--orange); color: #fff;
+      font-size: 20px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .besoin-nom { font-size: 15px; font-weight: 600; }
+    .besoin-unite { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .besoins-footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surf); border-top: 1px solid var(--border);
+      padding: 14px 16px;
+    }
+
     /* ── STOCK PANEL ── */
     .stock-header {
       padding: 10px 16px; background: var(--surf);
@@ -399,6 +436,34 @@
   </div>
   <div id="alerts-zone"></div>
   <div id="stock-list"></div>
+</div>
+
+<!-- ══════════════════════ BARRE CAVE ══════════════════════ -->
+<div class="panier-bar" id="panier-bar-cave" style="display:none">
+  <div class="panier-info">
+    <span id="cave-articles" class="panier-empty">Aucun produit sélectionné</span>
+  </div>
+  <button class="btn-send" id="btn-send-cave" disabled onclick="validerCave()">
+    Voir la liste à aller chercher
+  </button>
+  <button class="btn-reset" onclick="resetCave()">Tout effacer</button>
+</div>
+
+<!-- ══════════════════════ ÉCRAN BESOINS ══════════════════════ -->
+<div id="screen-besoins">
+  <div class="besoins-header">
+    <button class="besoins-back" onclick="closeBesoins()">←</button>
+    <div>
+      <div style="font-size:17px;font-weight:800;color:var(--orange)">À aller chercher</div>
+      <div style="font-size:11px;color:var(--muted)" id="besoins-subtitle"></div>
+    </div>
+  </div>
+  <div id="besoins-list"></div>
+  <div class="besoins-footer">
+    <button onclick="confirmerCave()" style="width:100%;background:var(--ok);color:#000;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:700;cursor:pointer">
+      Confirmer — stock mis à jour
+    </button>
+  </div>
 </div>
 
 <!-- ══════════════════════ PANEL VIN ══════════════════════ -->
@@ -716,6 +781,7 @@ let stockMin  = {}; // { id: minQty }
 let settings  = { telFourn: '', email: '' };
 let historique = [];
 let commandeVin = {}; // { id: qty }
+let cavePrep    = {}; // { id: qty } — quantités à sortir de la cave
 const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
@@ -791,8 +857,9 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
 
-  document.getElementById('panier-bar').style.display     = name === 'commande' ? '' : 'none';
-  document.getElementById('panier-bar-vin').style.display  = name === 'vin'      ? '' : 'none';
+  document.getElementById('panier-bar').style.display      = name === 'commande' ? '' : 'none';
+  document.getElementById('panier-bar-vin').style.display   = name === 'vin'      ? '' : 'none';
+  document.getElementById('panier-bar-cave').style.display  = name === 'stock'    ? '' : 'none';
 
   if (name === 'stock')      renderStock();
   if (name === 'historique') renderHistorique();
@@ -1263,24 +1330,28 @@ function renderStock() {
     cats[cat].forEach(p => {
       const qty = stock[p.id] || 0;
       const cls = qty === 0 && stockMin[p.id] === 0 ? 'none' : stockClass(p.id);
-      const min = stockMin[p.id] !== undefined ? stockMin[p.id] : (p.min || 1);
+      const prep = cavePrep[p.id] || 0;
       html += `
-        <div class="stock-row">
+        <div class="stock-row${prep > 0 ? ' has-qty' : ''}" id="caverow-${p.id}">
           <div class="s-dot ${cls}"></div>
           <div class="stock-info">
             <div class="stock-name">${p.nom}</div>
-            <div class="stock-sub">${p.unite}</div>
+            <div class="stock-sub">${p.unite} · stock : <span class="stock-qty ${cls}" style="font-size:13px;width:auto" onclick="editStock('${p.id}')">${qty}</span></div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <button class="s-btn minus" onclick="changeStock('${p.id}', -1)">−</button>
-            <span class="stock-qty ${cls}" onclick="editStock('${p.id}')">${qty}</span>
-            <button class="s-btn plus" onclick="changeStock('${p.id}', 1)">+</button>
+          <div class="stepper">
+            <button class="s-btn minus" onclick="changeCavePrep('${p.id}',-1)">−</button>
+            <input type="number" class="s-qty${prep > 0 ? ' active' : ''}" min="0" inputmode="numeric"
+                   id="caveqty-${p.id}" value="${prep || ''}" placeholder="0"
+                   onchange="setCavePrep('${p.id}', this.value)"
+                   onfocus="this.select()">
+            <button class="s-btn plus" onclick="changeCavePrep('${p.id}',1)">+</button>
           </div>
         </div>`;
     });
   });
 
   list.innerHTML = html;
+  updateCaveBar();
 }
 
 function changeStock(id, delta) {
@@ -1299,6 +1370,91 @@ function editStock(id) {
   stock[id] = n;
   save();
   renderStock();
+}
+
+/* ═══════════════ PRÉPARATION CAVE ═══════════════ */
+function changeCavePrep(id, delta) {
+  const cur = cavePrep[id] || 0;
+  const next = Math.max(0, cur + delta);
+  if (next === 0) delete cavePrep[id]; else cavePrep[id] = next;
+  const input = document.getElementById('caveqty-' + id);
+  if (input) { input.value = next || ''; input.classList.toggle('active', next > 0); }
+  const row = document.getElementById('caverow-' + id);
+  if (row) row.classList.toggle('has-qty', next > 0);
+  updateCaveBar();
+}
+
+function setCavePrep(id, val) {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n < 0) { delete cavePrep[id]; } else if (n === 0) { delete cavePrep[id]; } else { cavePrep[id] = n; }
+  const input = document.getElementById('caveqty-' + id);
+  const prep = cavePrep[id] || 0;
+  if (input) input.classList.toggle('active', prep > 0);
+  const row = document.getElementById('caverow-' + id);
+  if (row) row.classList.toggle('has-qty', prep > 0);
+  updateCaveBar();
+}
+
+function updateCaveBar() {
+  const ids = Object.keys(cavePrep).filter(id => cavePrep[id] > 0);
+  const btn = document.getElementById('btn-send-cave');
+  const info = document.getElementById('cave-articles');
+  if (ids.length === 0) {
+    info.textContent = 'Aucun produit sélectionné';
+    info.className = 'panier-empty';
+    btn.disabled = true;
+  } else {
+    const total = ids.reduce((s, id) => s + cavePrep[id], 0);
+    info.textContent = `${ids.length} produit${ids.length > 1 ? 's' : ''} · ${total} unité${total > 1 ? 's' : ''}`;
+    info.className = '';
+    btn.disabled = false;
+  }
+}
+
+function resetCave() {
+  cavePrep = {};
+  renderStock();
+}
+
+function validerCave() {
+  const ids = Object.keys(cavePrep).filter(id => cavePrep[id] > 0);
+  if (!ids.length) return;
+
+  // Construire la liste
+  const items = ids.map(id => {
+    const p = produits.find(x => x.id === id);
+    return { id, nom: p ? p.nom : id, unite: p ? p.unite : '', qty: cavePrep[id] };
+  });
+
+  const total = items.reduce((s, i) => s + i.qty, 0);
+  document.getElementById('besoins-subtitle').textContent =
+    `${items.length} produit${items.length > 1 ? 's' : ''} · ${total} unité${total > 1 ? 's' : ''}`;
+
+  document.getElementById('besoins-list').innerHTML = items.map(i => `
+    <div class="besoin-item">
+      <div class="besoin-qty-badge">${i.qty}</div>
+      <div>
+        <div class="besoin-nom">${i.nom}</div>
+        <div class="besoin-unite">${i.unite}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('screen-besoins').style.display = 'block';
+}
+
+function confirmerCave() {
+  // Soustraire du stock
+  Object.keys(cavePrep).forEach(id => {
+    stock[id] = Math.max(0, (stock[id] || 0) - cavePrep[id]);
+  });
+  cavePrep = {};
+  save();
+  closeBesoins();
+  renderStock();
+}
+
+function closeBesoins() {
+  document.getElementById('screen-besoins').style.display = 'none';
 }
 
 /* ═══════════════ INVENTAIRE ═══════════════ */
