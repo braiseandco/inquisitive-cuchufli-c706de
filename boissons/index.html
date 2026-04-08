@@ -340,6 +340,17 @@
   <button class="btn-icon" onclick="openSettings()" title="Réglages">⚙️</button>
 </div>
 
+<!-- BANNIÈRE INSTALL ANDROID -->
+<div id="install-banner" class="hidden" style="background:rgba(249,115,22,0.15);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0">
+  <span style="font-size:13px;color:var(--orange)">📲 Installer l'appli sur l'écran d'accueil</span>
+  <button onclick="triggerInstall()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Installer</button>
+</div>
+
+<!-- BANNIÈRE INSTALL iOS -->
+<div id="ios-banner" class="hidden" style="background:rgba(249,115,22,0.15);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 16px;font-size:13px;color:var(--orange);flex-shrink:0">
+  📲 Pour installer : appuyez sur <strong>⎙ Partager</strong> puis <strong>Sur l'écran d'accueil</strong>
+</div>
+
 <!-- TABS -->
 <div class="tabs">
   <div class="tab active" onclick="switchTab('commande')" id="tab-commande">
@@ -1431,6 +1442,38 @@ if (_savedVinNote) { const _vnel = document.getElementById('vin-note'); if (_vne
 
 // Afficher la barre commande par défaut
 document.getElementById('panier-bar').style.display = '';
+
+/* ═══════════════ SERVICE WORKER + INSTALL ═══════════════ */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(){});
+}
+
+// Prompt installation Android/Chrome
+let _deferredInstall = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _deferredInstall = e;
+  document.getElementById('install-banner').classList.remove('hidden');
+});
+window.addEventListener('appinstalled', function() {
+  document.getElementById('install-banner').classList.add('hidden');
+});
+function triggerInstall() {
+  if (_deferredInstall) {
+    _deferredInstall.prompt();
+    _deferredInstall.userChoice.then(function() {
+      _deferredInstall = null;
+      document.getElementById('install-banner').classList.add('hidden');
+    });
+  }
+}
+
+// Bannière iOS (Safari — pas de prompt automatique)
+const _isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const _isStandalone = window.navigator.standalone === true;
+if (_isIOS && !_isStandalone) {
+  document.getElementById('ios-banner').classList.remove('hidden');
+}
 </script>
 </body>
 </html>
