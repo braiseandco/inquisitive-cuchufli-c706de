@@ -362,6 +362,13 @@
     📅 <span id="sunday-text"></span>
   </div>
   <div id="commande-list"></div>
+  <div style="padding:12px 16px 4px">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Message / commentaire</div>
+    <textarea id="commande-note" rows="3"
+      style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit"
+      placeholder="Ex : prévoir des verres Leffe, livraison avant 11h…"
+      oninput="saveNote()"></textarea>
+  </div>
   <button class="btn-add" onclick="openAddProduct()">+ Ajouter un produit personnalisé</button>
 </div>
 
@@ -459,9 +466,9 @@
     </div>
 
     <div class="settings-group">
-      <div class="settings-label">Stock minimum par défaut</div>
-      <input type="number" class="settings-field" id="set-stock-min"
-             placeholder="ex : 6" min="0" inputmode="numeric">
+      <div class="settings-label">Email fournisseur (Le Bihan)</div>
+      <input type="email" class="settings-field" id="set-email-fourn"
+             placeholder="ex : commandes@lebihan.fr" inputmode="email">
     </div>
 
     <button class="settings-save" onclick="saveSettings()">Enregistrer</button>
@@ -647,7 +654,7 @@ function load() {
     gratuit    = localStorage.getItem('bc_gratuit') || null;
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
-    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '' };
+    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '' };
     historique = JSON.parse(localStorage.getItem('bc_historique')) || [];
   } catch(e) {}
 
@@ -681,7 +688,7 @@ function buildSmsUrl(tel, msg) {
 }
 
 function buildMailtoUrl(to, subject, body) {
-  return 'mailto:' + encodeURIComponent(to)
+  return 'mailto:' + to
     + '?subject=' + encodeURIComponent(subject)
     + '&body='    + encodeURIComponent(body);
 }
@@ -894,11 +901,16 @@ function openConfirm() {
   document.getElementById('conf-fournisseur').textContent =
     settings.telFourn ? `Le Bihan La Teste Boissons\n📞 ${settings.telFourn}` : 'Le Bihan La Teste Boissons';
 
+  // Note
+  const note = (localStorage.getItem('bc_note') || '').trim();
+
   // SMS
   const tel = settings.telFourn || '';
   const msgSms = `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
     + smsLines.join('\n')
-    + `\n\nTotal : ${ids.length} ref., env. ${fmt(totalHT)} HT\nMerci !`;
+    + `\n\nTotal : ${ids.length} ref., env. ${fmt(totalHT)} HT`
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nMerci !`;
 
   const smsBtn = document.getElementById('conf-sms-btn');
   if (tel) {
@@ -911,15 +923,19 @@ function openConfirm() {
     document.getElementById('conf-no-tel').classList.remove('hidden');
   }
 
-  // Email
-  const mailBtn  = document.getElementById('conf-mail-btn');
-  const myEmail  = settings.email || '';
+  // Email (vers mon email + email fournisseur)
+  const mailBtn     = document.getElementById('conf-mail-btn');
+  const myEmail     = settings.email || '';
+  const emailFourn  = settings.emailFourn || '';
+  const toField     = [myEmail, emailFourn].filter(Boolean).join(',');
   const mailSubject = `Commande Braise & Co — ${now.toLocaleDateString('fr-FR')}`;
   const mailBody = `Bonjour,\n\nVoici ma commande du ${now.toLocaleDateString('fr-FR')} :\n\n`
     + smsLines.join('\n')
-    + `\n\nMontant estimé HT : ${fmt(totalHT)}\n\nCordialement,\nBraise & Co`;
-  mailBtn.href = buildMailtoUrl(myEmail, mailSubject, mailBody);
-  if (!myEmail) mailBtn.style.opacity = '0.5';
+    + `\n\nMontant estimé HT : ${fmt(totalHT)}`
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nCordialement,\nBraise & Co`;
+  mailBtn.href = buildMailtoUrl(toField, mailSubject, mailBody);
+  if (!toField) mailBtn.style.opacity = '0.5';
   else mailBtn.style.opacity = '1';
 
   document.getElementById('overlay-confirm').classList.add('open');
@@ -957,6 +973,9 @@ function confirmSent() {
   // ids.forEach(id => { stock[id] = (stock[id] || 0) + commande[id]; });
 
   commande = {};
+  localStorage.removeItem('bc_note');
+  const noteEl = document.getElementById('commande-note');
+  if (noteEl) noteEl.value = '';
   save();
   filterCommande();
 }
@@ -1093,18 +1112,24 @@ function renderHistorique() {
   }).join('');
 }
 
+/* ═══════════════ NOTE COMMANDE ═══════════════ */
+function saveNote() {
+  const note = document.getElementById('commande-note').value;
+  localStorage.setItem('bc_note', note);
+}
+
 /* ═══════════════ RÉGLAGES ═══════════════ */
 function openSettings() {
-  document.getElementById('set-tel-fourn').value = settings.telFourn || '';
-  document.getElementById('set-email').value      = settings.email || '';
-  document.getElementById('set-stock-min').value  = settings.stockMinDefault || 6;
+  document.getElementById('set-tel-fourn').value   = settings.telFourn || '';
+  document.getElementById('set-email').value        = settings.email || '';
+  document.getElementById('set-email-fourn').value  = settings.emailFourn || '';
   document.getElementById('overlay-settings').classList.add('open');
 }
 
 function saveSettings() {
-  settings.telFourn       = document.getElementById('set-tel-fourn').value.trim();
-  settings.email          = document.getElementById('set-email').value.trim();
-  settings.stockMinDefault = parseInt(document.getElementById('set-stock-min').value, 10) || 6;
+  settings.telFourn   = document.getElementById('set-tel-fourn').value.trim();
+  settings.email      = document.getElementById('set-email').value.trim();
+  settings.emailFourn = document.getElementById('set-email-fourn').value.trim();
   save();
   document.getElementById('overlay-settings').classList.remove('open');
 }
@@ -1168,6 +1193,8 @@ async function updateApp() {
 load();
 renderCommande();
 updateSundayInfo();
+const _savedNote = localStorage.getItem('bc_note');
+if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
 
 // Afficher la barre commande par défaut
 document.getElementById('panier-bar').style.display = '';
