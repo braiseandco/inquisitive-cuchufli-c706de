@@ -492,7 +492,7 @@
     <span id="panier-articles" class="panier-empty">Aucun article sélectionné</span>
     <span id="panier-total" class="panier-total hidden"></span>
   </div>
-  <button class="btn-send" id="btn-send" disabled onclick="openConfirm()">
+  <button class="btn-send" id="btn-send" disabled onclick="envoyerSMS()">
     Envoyer la commande par SMS
   </button>
   <button class="btn-reset" id="btn-reset" onclick="resetCommande()">Tout réinitialiser</button>
@@ -1025,90 +1025,31 @@ function updateSundayInfo() {
 }
 
 /* ═══════════════ CONFIRMATION / SMS ═══════════════ */
-function openConfirm() {
+function envoyerSMS() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
   if (!ids.length) return;
 
   const now = new Date();
-  document.getElementById('conf-date').textContent = fmtDate(now);
-
-  // Liste produits
-  let linesHtml = '';
-  let smsLines  = [];
-  let totalHT   = 0;
+  const smsLines = [];
 
   ids.forEach(id => {
     const p = produits.find(x => x.id === id);
     if (!p) return;
-    const qty = commande[id];
-    const ht  = p.prix * qty;
-    totalHT += ht;
-    const tag = (gratuit === id) ? ' 🎁 GRATUIT' : '';
-    linesHtml += `<div class="order-line">
-      <span>${p.nom}${tag}</span>
-      <span class="order-line-qty">${qty} ${p.unite}</span>
-    </div>`;
-    smsLines.push(`${qty}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
+    smsLines.push(`${commande[id]}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
   });
-  // Ajouter gratuit si pas encore dans la commande
   if (gratuit) {
     const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) {
-      linesHtml += `<div class="order-line">
-        <span>${pg.nom} 🎁 GRATUIT</span>
-        <span class="order-line-qty">1 ${pg.unite}</span>
-      </div>`;
-      smsLines.push(`1x ${pg.nom} (GRATUIT)`);
-    }
+    if (pg && !commande[gratuit]) smsLines.push(`1x ${pg.nom} (GRATUIT)`);
   }
 
-  document.getElementById('conf-lines').innerHTML = linesHtml;
-  document.getElementById('conf-total').textContent = fmt(totalHT) + ' HT (hors droits, consignes et TVA)';
-  document.getElementById('conf-fournisseur').textContent =
-    settings.telFourn ? `Le Bihan La Teste Boissons\n📞 ${settings.telFourn}` : 'Le Bihan La Teste Boissons';
-
-  // Note
   const note = (localStorage.getItem('bc_note') || '').trim();
-
-  // SMS
-  const tel = settings.telFourn || '';
-  const msgSms = `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
+  const msg = `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
     + smsLines.join('\n')
-    + `\n\nTotal : ${ids.length} ref., env. ${fmt(totalHT)} HT`
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception de la commande par SMS.`;
 
-  const smsBtn = document.getElementById('conf-sms-btn');
-  if (tel) {
-    smsBtn.href = buildSmsUrl(tel, msgSms);
-    smsBtn.style.opacity = '1';
-    document.getElementById('conf-no-tel').classList.add('hidden');
-  } else {
-    smsBtn.href = buildSmsUrl('', msgSms);
-    smsBtn.style.opacity = '0.5';
-    document.getElementById('conf-no-tel').classList.remove('hidden');
-  }
-
-  // Email (vers mon email + email fournisseur)
-  const mailBtn     = document.getElementById('conf-mail-btn');
-  const myEmail     = settings.email || '';
-  const emailFourn  = settings.emailFourn || '';
-  const toField     = [myEmail, emailFourn].filter(Boolean).join(',');
-  const mailSubject = `Commande Braise & Co — ${now.toLocaleDateString('fr-FR')}`;
-  const mailBody = `Bonjour,\n\nVoici ma commande du ${now.toLocaleDateString('fr-FR')} :\n\n`
-    + smsLines.join('\n')
-    + `\n\nMontant estimé HT : ${fmt(totalHT)}`
-    + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nMerci de confirmer la réception de la commande par SMS ou en répondant à cet email.\n\nCordialement,\nBraise & Co`;
-  mailBtn.href = buildMailtoUrl(toField, mailSubject, mailBody);
-  if (!toField) mailBtn.style.opacity = '0.5';
-  else mailBtn.style.opacity = '1';
-
-  document.getElementById('overlay-confirm').classList.add('open');
-}
-
-function closeConfirm() {
-  document.getElementById('overlay-confirm').classList.remove('open');
+  window.location.href = buildSmsUrl(settings.telFourn || '', msg);
+  confirmSent();
 }
 
 function confirmSent() {
