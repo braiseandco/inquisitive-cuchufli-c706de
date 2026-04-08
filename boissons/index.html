@@ -481,6 +481,9 @@
 <!-- ══════════════════════ PANEL HISTORIQUE ══════════════════════ -->
 <div class="panel" id="panel-historique">
   <div id="hist-list"></div>
+  <div style="padding:16px">
+    <button onclick="closeHistorique()" style="width:100%;background:var(--surf2);border:none;color:var(--muted);padding:14px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer">Fermer l'historique</button>
+  </div>
 </div>
 
 <!-- ══════════════════════ PANIER BAR ══════════════════════ -->
@@ -1492,6 +1495,11 @@ function closeInventaire() {
 }
 
 /* ═══════════════ HISTORIQUE ═══════════════ */
+function closeHistorique() {
+  document.getElementById('tab-historique').style.display = 'none';
+  switchTab('commande');
+}
+
 function renderHistorique() {
   const el = document.getElementById('hist-list');
   if (!historique.length) {
