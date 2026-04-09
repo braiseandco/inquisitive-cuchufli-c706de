@@ -2317,7 +2317,15 @@ function saveNote() {
 
 /* ═══════════════ RÉGLAGES ═══════════════ */
 async function checkServeurLogin(force = false) {
-  if (!force && settings.serveur) return; // déjà renseigné
+  // Forcer si nouveau jour (même si un nom était déjà enregistré)
+  const today = new Date().toDateString();
+  if (!force && settings.serveur && settings.serveurDate === today) return;
+  if (!force && settings.serveur && settings.serveurDate !== today) {
+    // Nouveau jour : on efface le nom pour forcer la sélection
+    settings.serveur = '';
+    settings.serveurDate = '';
+    updateHeaderServeur();
+  }
   const overlay = document.getElementById('overlay-serveur');
   overlay.style.display = 'flex';
 
@@ -2352,6 +2360,7 @@ async function checkServeurLogin(force = false) {
 
 function confirmServeurLogin(nom) {
   settings.serveur = nom;
+  settings.serveurDate = new Date().toDateString(); // date du jour
   save();
   document.getElementById('overlay-serveur').style.display = 'none';
   updateHeaderServeur();
