@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Boissons — Braise & Co</title>
+  <title>Commande Suivi Boisson</title>
   <meta name="theme-color" content="#1a1008">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -755,6 +755,80 @@
 </div>
 
 <script>
+/* ═══════════════ SUPABASE ═══════════════ */
+const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+
+async function sbGet(key) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/boissons_kv?key=eq.${encodeURIComponent(key)}&select=value`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    const data = await r.json();
+    return data && data[0] ? data[0].value : null;
+  } catch(e) { return null; }
+}
+
+async function sbSet(key, value) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/boissons_kv`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
+    });
+  } catch(e) {}
+}
+
+async function sbInsertHistorique(row) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/boissons_historique`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(row)
+    });
+  } catch(e) {}
+}
+
+async function sbInsertCaveHistorique(row) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/boissons_cave_historique`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(row)
+    });
+  } catch(e) {}
+}
+
+async function saveToSupabase() {
+  await sbSet('main', {
+    stock, stockBout, stockMin, settings, historique,
+    commandeVin, commandeCocktail, commandeCafe
+  });
+}
+
+async function loadFromSupabase() {
+  const data = await sbGet('main');
+  if (!data) return;
+  if (data.stock)            stock            = data.stock;
+  if (data.stockBout)        stockBout        = data.stockBout;
+  if (data.stockMin)         stockMin         = data.stockMin;
+  if (data.settings)         settings         = { ...settings, ...data.settings };
+  if (data.historique)       historique       = data.historique;
+  if (data.commandeVin)      commandeVin      = data.commandeVin;
+  if (data.commandeCocktail) commandeCocktail = data.commandeCocktail;
+  if (data.commandeCafe)     commandeCafe     = data.commandeCafe;
+}
+
 /* ═══════════════════════════════════════════════════
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
    DATA_VERSION : incrémenter pour forcer reset localStorage
@@ -898,6 +972,7 @@ function save() {
   localStorage.setItem('bc_vin_commande',      JSON.stringify(commandeVin));
   localStorage.setItem('bc_cocktail_commande', JSON.stringify(commandeCocktail));
   localStorage.setItem('bc_cafe_commande',     JSON.stringify(commandeCafe));
+  saveToSupabase(); // async, sans attendre
 }
 
 function load() {
@@ -1181,8 +1256,15 @@ function confirmSent() {
   });
   if (historique.length > 50) historique.length = 50;
 
-  // Mettre à jour le stock prévu (optionnel : augmenter le stock des produits commandés)
-  // ids.forEach(id => { stock[id] = (stock[id] || 0) + commande[id]; });
+  // Tracer dans Supabase
+  const note = (localStorage.getItem('bc_note') || '').trim();
+  sbInsertHistorique({
+    type: 'lebihan',
+    date: now.toISOString(),
+    lines,
+    nb_ref: ids.length,
+    note
+  });
 
   commande = {};
   localStorage.removeItem('bc_note');
@@ -1932,6 +2014,16 @@ function confirmerCave() {
       }
     }
   });
+  // Tracer dans Supabase
+  const caveItems = Object.keys(cavePrep).map(id => {
+    const p = produits.find(x => x.id === id)
+      || VIN_PRODUITS.find(x => x.id === id)
+      || COCKTAIL_PRODUITS.find(x => x.id === id)
+      || CAFE_PRODUITS.find(x => x.id === id);
+    return { id, nom: p ? p.nom : id, qty: cavePrep[id] };
+  });
+  sbInsertCaveHistorique({ date: new Date().toISOString(), items: caveItems });
+
   cavePrep = {};
   save();
   closeBesoins();
@@ -2205,6 +2297,12 @@ async function updateApp() {
 
 /* ═══════════════ INIT ═══════════════ */
 load();
+// Charger depuis Supabase et rafraîchir l'affichage
+loadFromSupabase().then(() => {
+  renderCommande();
+  renderVin();
+  renderStock();
+});
 renderCommande();
 renderVin();
 updateSundayInfo();
@@ -2222,7 +2320,7 @@ document.getElementById('panier-bar').style.display = '';
 
 /* ═══════════════ SERVICE WORKER + INSTALL ═══════════════ */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(){});
+  navigator.serviceWorker.register('/inquisitive-cuchufli-c706de/boissons/sw.js', { scope: '/inquisitive-cuchufli-c706de/boissons/' }).catch(function(){});
 }
 
 // Prompt installation Android/Chrome
