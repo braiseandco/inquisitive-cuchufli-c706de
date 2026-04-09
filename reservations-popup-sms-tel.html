@@ -338,7 +338,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
     <div class="topbar-date" id="topbar-date">mar. 17 mars</div>
-    <a href="/relance-sms.html" title="Relance SMS clients inactifs" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,167,38,0.4);background:rgba(255,167,38,0.08);color:#ffa726;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;text-decoration:none;">💬</a>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
     <button id="btn-update" title="Vérifier les mises à jour" onclick="checkAndUpdate()" style="height:38px;border-radius:10px;border:1px solid var(--border2);background:none;color:var(--text-faint);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 10px;transition:all .2s;flex-shrink:0;">🔄 <span id="displayed-version">v?</span></button>
@@ -2269,16 +2268,12 @@ document.getElementById('btn-export-excel').onclick = async function(){
 // ── RELANCES SMS ──────────────────────────────────────────────
 async function loadRelances(){
   const content = document.getElementById('relances-content');
-  if(!content){ document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;top:0;left:0;background:red;color:white;z-index:9999;padding:20px;font-size:20px;">ERREUR: relances-content introuvable</div>'); return; }
-  content.style.background = 'red';
-  content.style.color = 'white';
-  content.style.fontSize = '18px';
-  content.innerHTML = '<div style="padding:20px;">🔴 loadRelances() appelé — chargement...</div>';
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
   try {
     const resas = await sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000');
     const map = {};
     const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 26);
+    dateLimit.setDate(dateLimit.getDate() - 29); // 30 jours (< strictement)
     for(const r of resas){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
@@ -2290,18 +2285,8 @@ async function loadRelances(){
       .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
-    // DEBUG TEMPORAIRE
-    content.innerHTML = `<div style="background:#1a1a26;border:1px solid #ff6b00;border-radius:10px;padding:12px;font-size:11px;color:#F0EDE8;margin-bottom:12px;">
-      🔍 DEBUG<br>
-      Résa récupérées : ${resas ? resas.length : 'null'}<br>
-      Clients uniques (map) : ${Object.keys(map).length}<br>
-      DateLimit : ${dateLimit.toISOString().split('T')[0]}<br>
-      Clients après filtre : ${clients.length}<br>
-      ${clients.length > 0 ? 'Premier : '+clients[0].nom+' / '+clients[0].derniere : 'Aucun après filtre'}
-    </div>` + content.innerHTML;
-
     if(clients.length === 0){
-      content.innerHTML += '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
+      content.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
       return;
     }
 
@@ -2352,7 +2337,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.7';
+const APP_VERSION = '2026-04-09.8';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
