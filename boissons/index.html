@@ -2077,7 +2077,8 @@ function confirmerCave() {
       }
     }
   });
-  // Tracer dans Supabase
+  // Tracer dans historique local + Supabase
+  const now = new Date();
   const caveItems = Object.keys(cavePrep).map(id => {
     const p = produits.find(x => x.id === id)
       || VIN_PRODUITS.find(x => x.id === id)
@@ -2085,7 +2086,17 @@ function confirmerCave() {
       || CAFE_PRODUITS.find(x => x.id === id);
     return { id, nom: p ? p.nom : id, qty: cavePrep[id] };
   });
-  sbInsertCaveHistorique({ date: new Date().toISOString(), items: caveItems, serveur: settings.serveur || '' });
+
+  historique.unshift({
+    type: 'cave',
+    date: now.toISOString(),
+    lines: caveItems.map(i => `${i.qty}x ${i.nom}`),
+    nbRef: caveItems.length,
+    serveur: settings.serveur || ''
+  });
+  if (historique.length > 100) historique.length = 100;
+
+  sbInsertCaveHistorique({ date: now.toISOString(), items: caveItems, serveur: settings.serveur || '' });
 
   cavePrep = {};
   save();
@@ -2263,15 +2274,36 @@ function closeHistorique() {
 function renderHistorique() {
   const el = document.getElementById('hist-list');
   if (!historique.length) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>Aucune commande envoyée pour l\'instant</div>';
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>Aucune entrée pour l\'instant</div>';
     return;
   }
-  el.innerHTML = historique.map(h => {
-    const d = new Date(h.date);
+
+  // Trier par date décroissante (au cas où l'ordre serait mélangé)
+  const sorted = [...historique].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  el.innerHTML = sorted.map(h => {
+    const d    = new Date(h.date);
+    const isCave = h.type === 'cave';
+    const dateStr = d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
+                  + ' à ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const serveurTag = h.serveur
+      ? `<span style="color:var(--orange);font-weight:700">${h.serveur}</span>`
+      : '<span style="color:var(--muted)">?</span>';
+    const typeTag = isCave
+      ? `<span style="background:rgba(48,209,88,.15);color:var(--ok);font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px">CAVE</span>`
+      : `<span style="background:rgba(249,115,22,.15);color:var(--orange);font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px">COMMANDE</span>`;
+    const summary = isCave
+      ? `${h.nbRef} article${h.nbRef > 1 ? 's' : ''}`
+      : `${h.nbRef} réf. · ${fmt(h.totalHT)} HT`;
+
     return `
       <div class="hist-item">
-        <div class="hist-date">${d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })} à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}${h.serveur ? ` · <span style="color:var(--orange);font-weight:700">${h.serveur}</span>` : ''}</div>
-        <div class="hist-summary">${h.nbRef} référence${h.nbRef>1?'s':''} · ${fmt(h.totalHT)} HT</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          ${typeTag}
+          <span style="font-size:12px;color:var(--muted)">${dateStr}</span>
+          ${serveurTag}
+        </div>
+        <div class="hist-summary">${summary}</div>
         <div class="hist-detail">${h.lines.join(', ')}</div>
       </div>`;
   }).join('');
