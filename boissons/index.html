@@ -523,7 +523,11 @@
     <span id="panier-total" class="panier-total hidden"></span>
   </div>
   <button class="btn-send" id="btn-send" disabled onclick="envoyerSMS()">
-    Envoyer la commande par SMS
+    📨 Commander par SMS
+  </button>
+  <button class="btn-send" id="btn-send-email" disabled onclick="envoyerLebihanEmail()"
+          style="background:var(--surf3);font-size:13px">
+    ✉️ Commander par email
   </button>
   <button class="btn-reset" id="btn-reset" onclick="resetCommande()">Tout réinitialiser</button>
 </div>
@@ -1151,14 +1155,16 @@ function updatePanier() {
 
   const articlesEl = document.getElementById('panier-articles');
   const totalEl    = document.getElementById('panier-total');
-  const btnSend    = document.getElementById('btn-send');
-  const badge      = document.getElementById('badge-commande');
+  const btnSend      = document.getElementById('btn-send');
+  const btnSendEmail = document.getElementById('btn-send-email');
+  const badge        = document.getElementById('badge-commande');
 
   if (ids.length === 0) {
     articlesEl.textContent = 'Aucun article sélectionné';
     articlesEl.className = 'panier-empty';
     totalEl.classList.add('hidden');
     btnSend.disabled = true;
+    btnSendEmail.disabled = true;
     badge.classList.add('hidden');
   } else {
     articlesEl.textContent = `${ids.length} réf. · ${nbArticles} unité${nbArticles > 1 ? 's' : ''}`;
@@ -1166,6 +1172,7 @@ function updatePanier() {
     totalEl.textContent = fmt(totalHT) + ' HT';
     totalEl.classList.remove('hidden');
     btnSend.disabled = false;
+    btnSendEmail.disabled = !(settings.emailFourn || settings.email);
     badge.textContent = ids.length;
     badge.classList.remove('hidden');
   }
@@ -1229,6 +1236,34 @@ function envoyerSMS() {
     + `\n\nMerci de confirmer la réception de la commande par SMS.`;
 
   window.location.href = buildSmsUrl(settings.telFourn || '', msg);
+  confirmSent();
+}
+
+function _buildLebihanMsg(now) {
+  const ids = Object.keys(commande).filter(id => commande[id] > 0);
+  const lines = [];
+  ids.forEach(id => {
+    const p = produits.find(x => x.id === id);
+    if (!p) return;
+    lines.push(`${commande[id]}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
+  });
+  if (gratuit) {
+    const pg = produits.find(x => x.id === gratuit);
+    if (pg && !commande[gratuit]) lines.push(`1x ${pg.nom} (GRATUIT)`);
+  }
+  const note = (localStorage.getItem('bc_note') || '').trim();
+  return `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
+    + lines.join('\n')
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nMerci de confirmer la réception de la commande.`;
+}
+
+function envoyerLebihanEmail() {
+  const dest = settings.emailFourn || settings.email;
+  if (!dest) return;
+  const now = new Date();
+  const subject = `Commande Le Bihan — Braise & Co — ${now.toLocaleDateString('fr-FR')}`;
+  window.location.href = buildMailtoUrl(dest, subject, _buildLebihanMsg(now));
   confirmSent();
 }
 
