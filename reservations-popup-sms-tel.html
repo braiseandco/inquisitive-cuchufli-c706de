@@ -2268,7 +2268,11 @@ document.getElementById('btn-export-excel').onclick = async function(){
 // ── RELANCES SMS ──────────────────────────────────────────────
 async function loadRelances(){
   const content = document.getElementById('relances-content');
-  content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
+  if(!content){ document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;top:0;left:0;background:red;color:white;z-index:9999;padding:20px;font-size:20px;">ERREUR: relances-content introuvable</div>'); return; }
+  content.style.background = 'red';
+  content.style.color = 'white';
+  content.style.fontSize = '18px';
+  content.innerHTML = '<div style="padding:20px;">🔴 loadRelances() appelé — chargement...</div>';
   try {
     const resas = await sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000');
     const map = {};
@@ -2347,7 +2351,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.5';
+const APP_VERSION = '2026-04-09.6';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
