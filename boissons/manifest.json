@@ -3,13 +3,13 @@
   "name": "Commande Suivi Boisson",
   "short_name": "Suivi Boisson",
   "description": "Commandes et suivi stock boissons — Braise & Co",
-  "start_url": "/inquisitive-cuchufli-c706de/boissons/",
-  "scope": "/inquisitive-cuchufli-c706de/boissons/",
+  "start_url": "/boissons/",
+  "scope": "/boissons/",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#1a1008",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/boissons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/boissons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

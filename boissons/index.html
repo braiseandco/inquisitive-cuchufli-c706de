@@ -2320,7 +2320,7 @@ document.getElementById('panier-bar').style.display = '';
 
 /* ═══════════════ SERVICE WORKER + INSTALL ═══════════════ */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/inquisitive-cuchufli-c706de/boissons/sw.js', { scope: '/inquisitive-cuchufli-c706de/boissons/' }).catch(function(){});
+  navigator.serviceWorker.register('/boissons/sw.js', { scope: '/boissons/' }).catch(function(){});
 }
 
 // Prompt installation Android/Chrome

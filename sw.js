@@ -29,6 +29,7 @@ self.addEventListener('activate', function(e) {
 self.addEventListener('fetch', function(e) {
   var url = e.request.url;
   if (url.includes('/planning/')) return;
+  if (url.includes('/boissons/')) return;
   if (url.includes('supabase') || url.includes('fonts.googleapis') || url.includes('cdnjs') || url.includes('qrserver')) {
     e.respondWith(fetch(e.request, {cache: 'no-store'}));
     return;
