@@ -1395,6 +1395,7 @@ document.getElementById('btn-resa-save').onclick=async function(){
   if(!nom){setErr('nom','Nom requis');ok=false;}
   if(!pax||pax<1){setErr('pax','Nombre requis');ok=false;}
   if(!telVal){setErr('tel','Téléphone requis');ok=false;}
+  else if(!/^\d{10}$/.test(telVal.replace(/\s/g,''))){setErr('tel','10 chiffres requis');ok=false;}
   if(!date){setErr('date','Date requise');ok=false;}
   if(!heure){setErr('heure','Heure requise');ok=false;}
   if(!ok)return;

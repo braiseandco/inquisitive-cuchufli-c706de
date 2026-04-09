@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#ff6b00">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Relance SMS">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Braise &amp; Co — Relance SMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;
+  --accent:#FF6B00;--accent2:#FFa500;--accent3:#FFD700;
+  --red:#e53935;--green:#43a047;
+  --text:#F0EDE8;--text-dim:rgba(240,237,232,0.5);--text-faint:rgba(240,237,232,0.22);
+  --border:rgba(255,107,0,0.15);--border2:rgba(255,107,0,0.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{min-height:100%;background:var(--bg);font-family:'Raleway',sans-serif;color:var(--text);}
+
+.app{display:flex;flex-direction:column;min-height:100vh;}
+
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.topbar-logo{font-family:'Cinzel',serif;font-size:16px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.topbar-sub{font-size:11px;color:var(--text-faint);margin-top:1px;}
+.topbar-refresh{margin-left:auto;width:36px;height:36px;border-radius:10px;border:1px solid var(--border2);background:none;color:var(--accent);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+.content{flex:1;padding:16px;}
+
+.badge-count{display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;}
+
+.client-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;transition:opacity .3s;}
+.client-card.effaced{opacity:0.4;pointer-events:none;}
+
+.client-name{font-weight:800;font-size:17px;color:var(--text);margin-bottom:3px;}
+.client-tel{font-size:15px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;}
+.client-meta{font-size:11px;color:var(--text-faint);margin-bottom:14px;}
+
+.btn-sms{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;}
+
+.btn-efface{display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;}
+.btn-efface.visible{display:block;}
+
+.empty{text-align:center;padding:60px 20px;color:var(--text-faint);}
+.empty-icon{font-size:52px;display:block;margin-bottom:14px;}
+.empty-title{font-size:16px;font-weight:700;color:var(--text-dim);margin-bottom:6px;}
+
+.loader{text-align:center;padding:50px 20px;color:var(--text-faint);font-size:14px;}
+
+.preview-sms{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:10px;display:none;}
+.preview-sms.visible{display:block;}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 22px;border-radius:30px;font-size:13px;font-weight:700;transition:transform .25s ease;z-index:9999;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinning{animation:spin .7s linear infinite;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div>
+      <div class="topbar-logo">Braise &amp; Co</div>
+      <div class="topbar-sub">💬 Relance SMS — inactifs +30 jours</div>
+    </div>
+    <button class="topbar-refresh" id="btn-refresh" title="Actualiser" onclick="init()">🔄</button>
+  </div>
+  <div class="content" id="content">
+    <div class="loader">⏳ Chargement des clients…</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL = "https://ugyrrnqpapeagpuocwob.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go";
+const DELAI_JOURS = 30;
+
+async function sbFetch(path) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, {
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function sbPatch(path, body) {
+  const r = await fetch(SB_URL + '/rest/v1/' + path, {
+    method: 'PATCH',
+    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function fmtDate(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function buildSms(nom) {
+  const nomPropre = (nom || '').trim();
+  const salut = nomPropre ? `Bonjour ${nomPropre},` : 'Bonjour,';
+  return `${salut} ça fait un moment qu'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez cette semaine, on vous offre votre apéro ! (un seul apéro par table) 🔥`;
+}
+
+async function effacer(tel, cardEl) {
+  const btn = cardEl.querySelector('.btn-efface');
+  btn.textContent = '⏳ Effacement…';
+  btn.disabled = true;
+  try {
+    await sbPatch('reservations?telephone=eq.' + encodeURIComponent(tel), { telephone: null });
+    cardEl.classList.add('effaced');
+    cardEl.querySelector('.client-tel').textContent = '🗑 Coordonnées effacées';
+    cardEl.querySelector('.client-tel').style.color = 'var(--text-faint)';
+    toast('Coordonnées effacées ✓');
+  } catch (e) {
+    btn.textContent = '🗑 Effacer les coordonnées';
+    btn.disabled = false;
+    toast('Erreur — réessaie');
+  }
+}
+
+function onSmsClick(cardEl) {
+  setTimeout(() => {
+    cardEl.querySelector('.btn-efface').classList.add('visible');
+  }, 800);
+}
+
+async function init() {
+  const content = document.getElementById('content');
+  const btnR = document.getElementById('btn-refresh');
+  content.innerHTML = '<div class="loader">⏳ Chargement des clients…</div>';
+  btnR.classList.add('spinning');
+  try {
+    // Fetch toutes les réservations avec tel valide (on exclut les null côté serveur)
+    const resas = await sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000');
+
+    const map = {};
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - DELAI_JOURS);
+
+    for (const r of resas) {
+      const tel = (r.telephone || '').replace(/\s/g, '');
+      // Ignorer les numéros vides, trop courts, ou factices (0000...)
+      if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if (!map[tel]) {
+        map[tel] = { tel, nom: r.nom, derniere: r.date, nb: 0 };
+      }
+      map[tel].nb++;
+      if (r.date > map[tel].derniere) {
+        map[tel].derniere = r.date;
+        map[tel].nom = r.nom;
+      }
+    }
+
+    // Garder uniquement ceux sans visite depuis DELAI_JOURS jours
+    const clients = Object.values(map)
+      .filter(c => new Date(c.derniere + 'T12:00:00') < dateLimit)
+      .sort((a, b) => a.derniere.localeCompare(b.derniere));
+
+    btnR.classList.remove('spinning');
+
+    if (clients.length === 0) {
+      content.innerHTML = `
+        <div class="empty">
+          <span class="empty-icon">🎉</span>
+          <div class="empty-title">Aucun client à relancer</div>
+          Tous vos clients sont venus<br>dans les ${DELAI_JOURS} derniers jours !
+        </div>`;
+      return;
+    }
+
+    let html = `<div><span class="badge-count">📋 ${clients.length} client${clients.length > 1 ? 's' : ''} à relancer</span></div>`;
+
+    for (const c of clients) {
+      const msg = buildSms(c.nom);
+      const smsHref = 'sms:' + c.tel + '?body=' + encodeURIComponent(msg);
+      const cardId = 'card-' + c.tel.replace(/\D/g, '');
+      html += `
+        <div class="client-card" id="${cardId}">
+          <div class="client-name">👤 ${c.nom ? esc(c.nom) : '(sans nom)'}</div>
+          <div class="client-tel">📞 ${esc(c.tel)}</div>
+          <div class="client-meta">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb > 1 ? 's' : ''}</div>
+          <div class="preview-sms" id="prev-${cardId}">${esc(msg)}</div>
+          <a class="btn-sms" href="${smsHref}" onclick="onSmsClick(document.getElementById('${cardId}'))">
+            💬 Ouvrir le SMS
+          </a>
+          <button class="btn-efface" onclick="effacer('${c.tel}', document.getElementById('${cardId}'))">
+            🗑 Effacer les coordonnées
+          </button>
+        </div>`;
+    }
+
+    content.innerHTML = html;
+
+  } catch (e) {
+    btnR.classList.remove('spinning');
+    content.innerHTML = '<div class="empty">❌ Erreur de chargement<br><small>' + e.message + '</small></div>';
+    console.error(e);
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

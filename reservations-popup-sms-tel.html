@@ -338,6 +338,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="topbar-sub">Gestion des réservations</div>
     </div>
     <div class="topbar-date" id="topbar-date">mar. 17 mars</div>
+    <a href="/relance-sms.html" title="Relance SMS clients inactifs" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,167,38,0.4);background:rgba(255,167,38,0.08);color:#ffa726;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;text-decoration:none;">💬</a>
     <button id="btn-import-mail" title="Importer les réservations depuis Gmail" style="width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:rgba(255,107,0,0.07);color:var(--accent);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📧</button>
     <button id="btn-export-excel" title="Exporter les réservations du mois" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(67,160,71,0.4);background:rgba(67,160,71,0.08);color:#81c784;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;">📊</button>
     <button id="btn-update" title="Vérifier les mises à jour" onclick="checkAndUpdate()" style="height:38px;border-radius:10px;border:1px solid var(--border2);background:none;color:var(--text-faint);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 10px;transition:all .2s;flex-shrink:0;">🔄 <span id="displayed-version">v?</span></button>
@@ -347,6 +348,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tabs">
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
+    <button class="tab" data-screen="relances">💬 Relances</button>
   </div>
 
   <!-- ══ SCREEN: RESERVATIONS ══ -->
@@ -613,6 +615,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
+<!-- ══ SCREEN: RELANCES SMS ══ -->
+<div class="screen" id="screen-relances">
+  <div style="flex:1;overflow-y:auto;padding:16px;" id="relances-content">
+    <div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>
+  </div>
+</div>
+
 <!-- ══ MODAL IMPORT MAIL ══ -->
 <div class="overlay" id="modal-import" style="z-index:3000;">
   <div class="modal" style="max-height:80vh;overflow-y:auto;">
@@ -746,6 +755,8 @@ document.querySelectorAll('.tab').forEach(tab=>{
         document.querySelectorAll('.stab[data-plan-service]').forEach(b=>b.classList.toggle('active',b.dataset.planService===planService));
       }
       loadPlan();
+    } else if(this.dataset.screen==='relances'){
+      loadRelances();
     } else {
       loadResas();
     }
@@ -1377,6 +1388,7 @@ document.getElementById('btn-resa-save').onclick=async function(){
   if(!nom){setErr('nom','Nom requis');ok=false;}
   if(!pax||pax<1){setErr('pax','Nombre requis');ok=false;}
   if(!telVal){setErr('tel','Téléphone requis');ok=false;}
+  else if(!/^\d{10}$/.test(telVal.replace(/\s/g,''))){setErr('tel','10 chiffres requis');ok=false;}
   if(!date){setErr('date','Date requise');ok=false;}
   if(!heure){setErr('heure','Heure requise');ok=false;}
   if(!ok)return;
@@ -2252,6 +2264,77 @@ document.getElementById('btn-export-excel').onclick = async function(){
     console.error(e);
   }
 };
+
+// ── RELANCES SMS ──────────────────────────────────────────────
+async function loadRelances(){
+  const content = document.getElementById('relances-content');
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
+  try {
+    const resas = await sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000');
+    const map = {};
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - 30);
+    for(const r of resas){
+      const tel = (r.telephone||'').replace(/\s/g,'');
+      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0};
+      map[tel].nb++;
+      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; }
+    }
+    const clients = Object.values(map)
+      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
+      .sort((a,b) => a.derniere.localeCompare(b.derniere));
+
+    if(clients.length === 0){
+      content.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
+      return;
+    }
+
+    const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+    const buildSms = nom => {
+      const n = (nom||'').trim();
+      return (n ? 'Bonjour '+n+',' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez cette semaine, on vous offre votre apéro ! (un seul apéro par table) 🔥';
+    };
+
+    let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
+
+    for(const c of clients){
+      const msg = buildSms(c.nom);
+      const smsHref = 'sms:'+c.tel+'?body='+encodeURIComponent(msg);
+      const cid = 'rc-'+c.tel.replace(/\D/g,'');
+      html += `<div id="${cid}" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">
+        <div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 ${esc(c.nom||'(sans nom)')}</div>
+        <div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="${cid}-tel">📞 ${esc(c.tel)}</div>
+        <div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb>1?'s':''}</div>
+        <a href="${smsHref}" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="document.getElementById('${cid}-efface').style.display='block'">💬 Envoyer la relance SMS</a>
+        <button id="${cid}-efface" onclick="relanceEffacer('${c.tel}','${cid}')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>
+      </div>`;
+    }
+    content.innerHTML = html;
+  } catch(e){
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">❌ Erreur de chargement</div>';
+    console.error(e);
+  }
+}
+
+async function relanceEffacer(tel, cid){
+  const btn = document.getElementById(cid+'-efface');
+  btn.textContent = '⏳ Effacement…';
+  btn.disabled = true;
+  try{
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH',body:JSON.stringify({telephone:null})});
+    const card = document.getElementById(cid);
+    card.style.opacity = '0.4';
+    card.style.pointerEvents = 'none';
+    document.getElementById(cid+'-tel').textContent = '🗑 Coordonnées effacées';
+    document.getElementById(cid+'-tel').style.color = 'var(--text-faint)';
+    toast('Coordonnées effacées ✓','ok');
+  } catch(e){
+    btn.textContent = '🗑 Effacer les coordonnées';
+    btn.disabled = false;
+    toast('Erreur — réessaie','ko');
+  }
+}
 
 // ── MISE À JOUR ───────────────────────────────────────────────
 const APP_VERSION = '2026-04-02.1';
