@@ -2285,8 +2285,18 @@ async function loadRelances(){
       .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
+    // DEBUG TEMPORAIRE
+    content.innerHTML = `<div style="background:#1a1a26;border:1px solid #ff6b00;border-radius:10px;padding:12px;font-size:11px;color:#F0EDE8;margin-bottom:12px;">
+      🔍 DEBUG<br>
+      Résa récupérées : ${resas ? resas.length : 'null'}<br>
+      Clients uniques (map) : ${Object.keys(map).length}<br>
+      DateLimit : ${dateLimit.toISOString().split('T')[0]}<br>
+      Clients après filtre : ${clients.length}<br>
+      ${clients.length > 0 ? 'Premier : '+clients[0].nom+' / '+clients[0].derniere : 'Aucun après filtre'}
+    </div>` + content.innerHTML;
+
     if(clients.length === 0){
-      content.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
+      content.innerHTML += '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
       return;
     }
 
@@ -2337,7 +2347,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.4';
+const APP_VERSION = '2026-04-09.5';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
