@@ -411,6 +411,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="plan-canvas" id="plan-canvas" style="width:900px;height:700px;"></div>
     </div>
   </div>
+
+  <!-- ══ SCREEN: RELANCES SMS ══ -->
+  <div class="screen" id="screen-relances">
+    <div style="flex:1;overflow-y:auto;padding:16px;" id="relances-content">
+      <div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>
+    </div>
+  </div>
+
 </div>
 
 <!-- FAB -->
@@ -612,13 +620,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="btn-cancel" id="edit-table-cancel">Annuler</button>
       <button class="btn-primary" id="edit-table-save">💾 Sauvegarder</button>
     </div>
-  </div>
-</div>
-
-<!-- ══ SCREEN: RELANCES SMS ══ -->
-<div class="screen" id="screen-relances">
-  <div style="flex:1;overflow-y:auto;padding:16px;" id="relances-content">
-    <div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>
   </div>
 </div>
 
@@ -2351,7 +2352,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.6';
+const APP_VERSION = '2026-04-09.7';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
