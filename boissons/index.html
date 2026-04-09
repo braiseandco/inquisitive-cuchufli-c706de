@@ -368,14 +368,30 @@
 </head>
 <body>
 
+<!-- ══════════════════════ MODAL CHOIX SERVEUR (BLOQUANT) ══════════════════════ -->
+<div id="overlay-serveur" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;gap:24px">
+  <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:48px;width:auto;object-fit:contain">
+  <div style="text-align:center">
+    <div class="serveur-overlay-title" style="font-size:20px;font-weight:800;color:var(--orange);margin-bottom:6px">Qui utilise la tablette ?</div>
+    <div class="serveur-overlay-sub" style="font-size:14px;color:var(--muted)">Sélectionne ton prénom pour continuer</div>
+  </div>
+  <div id="serveur-login-btns" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:320px">
+    <span style="font-size:13px;color:var(--muted)">Chargement…</span>
+  </div>
+  <button id="serveur-cancel-btn" type="button" onclick="document.getElementById('overlay-serveur').style.display='none'" style="display:none;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:8px 16px">Annuler</button>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="header-logo">
     <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:36px;width:auto;object-fit:contain;display:block">
     <div class="header-sub">Gestion Boissons</div>
-    <div id="header-serveur" style="font-size:11px;color:var(--orange);font-weight:700;margin-top:1px;display:none"></div>
+    <div id="header-serveur" onclick="openServeurSwitch()" style="font-size:11px;color:var(--orange);font-weight:700;margin-top:1px;display:none;cursor:pointer"></div>
   </div>
-  <button class="btn-icon" onclick="openSettings()" title="Réglages">⚙️</button>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn-icon" id="btn-serveur-login" onclick="openServeurSwitch()" title="Choisir le serveur" style="display:none">👤</button>
+    <button class="btn-icon" onclick="openSettings()" title="Réglages">⚙️</button>
+  </div>
 </div>
 
 <!-- BANNIÈRE INSTALL ANDROID -->
@@ -2268,16 +2284,70 @@ function saveNote() {
 }
 
 /* ═══════════════ RÉGLAGES ═══════════════ */
+async function checkServeurLogin(force = false) {
+  if (!force && settings.serveur) return; // déjà renseigné
+  const overlay = document.getElementById('overlay-serveur');
+  overlay.style.display = 'flex';
+
+  // Titre dynamique
+  const titleEl = overlay.querySelector('.serveur-overlay-title');
+  const subEl   = overlay.querySelector('.serveur-overlay-sub');
+  if (titleEl) titleEl.textContent = force ? 'Changer de serveur' : 'Qui utilise la tablette ?';
+  if (subEl)   subEl.textContent   = force ? 'Sélectionne ton prénom' : 'Sélectionne ton prénom pour continuer';
+
+  const btnsEl = document.getElementById('serveur-login-btns');
+  const current = settings.serveur || '';
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&order=display_order.asc,name.asc`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    const emps = await r.json();
+    btnsEl.innerHTML = emps.map(e => {
+      const isActive = e.name === current;
+      return `<button type="button" onclick="confirmServeurLogin('${e.name.replace(/'/g, "\\'")}')"
+        style="background:${isActive ? 'var(--orange)' : 'var(--surf2)'};border:1px solid ${isActive ? 'var(--orange)' : 'var(--border)'};border-radius:12px;padding:14px 20px;font-size:16px;font-weight:700;color:${isActive ? '#fff' : 'var(--text)'};cursor:pointer;min-width:120px">
+        ${e.name}
+      </button>`;
+    }).join('');
+  } catch(e) {
+    btnsEl.innerHTML = '<input type="text" id="serveur-login-input" placeholder="Ton prénom" style="background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:16px;color:var(--text);outline:none;width:100%;max-width:280px"><br><button type="button" onclick="confirmServeurLoginManual()" style="margin-top:12px;background:var(--orange);border:none;border-radius:10px;padding:12px 24px;font-size:16px;font-weight:700;color:#fff;cursor:pointer">Continuer</button>';
+  }
+
+  // Bouton annuler uniquement si déjà un serveur (mode switch)
+  const cancelBtn = document.getElementById('serveur-cancel-btn');
+  if (cancelBtn) cancelBtn.style.display = force ? 'block' : 'none';
+}
+
+function confirmServeurLogin(nom) {
+  settings.serveur = nom;
+  save();
+  document.getElementById('overlay-serveur').style.display = 'none';
+  updateHeaderServeur();
+}
+
+function confirmServeurLoginManual() {
+  const val = (document.getElementById('serveur-login-input')?.value || '').trim();
+  if (!val) return;
+  confirmServeurLogin(val);
+}
+
 function updateHeaderServeur() {
   const el = document.getElementById('header-serveur');
+  const btn = document.getElementById('btn-serveur-login');
   if (!el) return;
   const nom = settings.serveur || '';
   if (nom) {
-    el.textContent = nom;
+    el.textContent = '👤 ' + nom;
     el.style.display = 'block';
+    if (btn) btn.style.display = 'none';
   } else {
     el.style.display = 'none';
+    if (btn) btn.style.display = 'flex';
   }
+}
+
+function openServeurSwitch() {
+  checkServeurLogin(true);
 }
 
 async function openSettings() {
@@ -2396,6 +2466,7 @@ renderCommande();
 renderVin();
 updateSundayInfo();
 updateHeaderServeur();
+checkServeurLogin();
 const _savedNote = localStorage.getItem('bc_note');
 if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
 const _savedVinNote = localStorage.getItem('bc_vin_note');
