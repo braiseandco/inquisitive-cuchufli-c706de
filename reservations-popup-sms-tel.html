@@ -347,7 +347,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tabs">
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
-    <button class="tab" data-screen="relances">💬 Relances</button>
+    <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
   </div>
 
   <!-- ══ SCREEN: RESERVATIONS ══ -->
@@ -2293,7 +2293,10 @@ async function loadRelances(){
     const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
     const buildSms = nom => {
       const n = (nom||'').trim();
-      return (n ? 'Bonjour '+n+',' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez cette semaine, présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
+      const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
+      return (n ? 'Bonjour '+n+',' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
     };
 
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
@@ -2337,7 +2340,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.10';
+const APP_VERSION = '2026-04-09.11';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -2360,6 +2363,29 @@ async function checkAndUpdate(){
 document.getElementById('displayed-version').textContent = APP_VERSION;
 loadResas(); // affichage rapide (sans noms de tables)
 getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // rechargement avec noms corrects
+
+// ── BADGE RELANCES ────────────────────────────────────────────
+async function checkRelancesBadge(){
+  try {
+    const resas = await sbFetch('reservations?select=telephone,date&order=date.desc&limit=2000');
+    const map = {};
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - 29);
+    for(const r of resas){
+      const tel = (r.telephone||'').replace(/\s/g,'');
+      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!map[tel] || r.date > map[tel]) map[tel] = r.date;
+    }
+    const nb = Object.values(map).filter(d => new Date(d+'T12:00:00') < dateLimit).length;
+    const tab = document.getElementById('tab-relances');
+    if(nb > 0){
+      tab.innerHTML = '💬 Relances <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
+    } else {
+      tab.textContent = '💬 Relances';
+    }
+  } catch(e){}
+}
+checkRelancesBadge();
 initPolling();
 
 // Toggle tables libres detail panel
