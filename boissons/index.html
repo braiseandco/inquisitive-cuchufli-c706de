@@ -373,6 +373,7 @@
   <div class="header-logo">
     <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:36px;width:auto;object-fit:contain;display:block">
     <div class="header-sub">Gestion Boissons</div>
+    <div id="header-serveur" style="font-size:11px;color:var(--orange);font-weight:700;margin-top:1px;display:none"></div>
   </div>
   <button class="btn-icon" onclick="openSettings()" title="Réglages">⚙️</button>
 </div>
@@ -653,6 +654,15 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title">Réglages</div>
+
+    <div class="settings-group">
+      <div class="settings-label">Qui utilise la tablette ?</div>
+      <div id="serveur-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+      <input type="text" class="settings-field" id="set-serveur"
+             placeholder="Sélectionner ou saisir un prénom" autocomplete="off">
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0"></div>
 
     <div class="settings-group">
       <div class="settings-label">Numéro fournisseur (Le Bihan La Teste)</div>
@@ -994,7 +1004,7 @@ function load() {
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockBout  = JSON.parse(localStorage.getItem('bc_stockBout'))  || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
-    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '' };
+    settings   = JSON.parse(localStorage.getItem('bc_settings'))  || { telFourn: '', email: '', emailFourn: '', serveur: '' };
     historique   = JSON.parse(localStorage.getItem('bc_historique'))    || [];
     commandeVin      = JSON.parse(localStorage.getItem('bc_vin_commande'))      || {};
     commandeCocktail = JSON.parse(localStorage.getItem('bc_cocktail_commande')) || {};
@@ -1287,7 +1297,8 @@ function confirmSent() {
     date: now.toISOString(),
     lines,
     totalHT,
-    nbRef: ids.length
+    nbRef: ids.length,
+    serveur: settings.serveur || ''
   });
   if (historique.length > 50) historique.length = 50;
 
@@ -1298,7 +1309,8 @@ function confirmSent() {
     date: now.toISOString(),
     lines,
     nb_ref: ids.length,
-    note
+    note,
+    serveur: settings.serveur || ''
   });
 
   commande = {};
@@ -2057,7 +2069,7 @@ function confirmerCave() {
       || CAFE_PRODUITS.find(x => x.id === id);
     return { id, nom: p ? p.nom : id, qty: cavePrep[id] };
   });
-  sbInsertCaveHistorique({ date: new Date().toISOString(), items: caveItems });
+  sbInsertCaveHistorique({ date: new Date().toISOString(), items: caveItems, serveur: settings.serveur || '' });
 
   cavePrep = {};
   save();
@@ -2242,7 +2254,7 @@ function renderHistorique() {
     const d = new Date(h.date);
     return `
       <div class="hist-item">
-        <div class="hist-date">${d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })} à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="hist-date">${d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })} à ${d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}${h.serveur ? ` · <span style="color:var(--orange);font-weight:700">${h.serveur}</span>` : ''}</div>
         <div class="hist-summary">${h.nbRef} référence${h.nbRef>1?'s':''} · ${fmt(h.totalHT)} HT</div>
         <div class="hist-detail">${h.lines.join(', ')}</div>
       </div>`;
@@ -2256,22 +2268,64 @@ function saveNote() {
 }
 
 /* ═══════════════ RÉGLAGES ═══════════════ */
-function openSettings() {
-  document.getElementById('set-tel-fourn').value   = settings.telFourn  || '';
+function updateHeaderServeur() {
+  const el = document.getElementById('header-serveur');
+  if (!el) return;
+  const nom = settings.serveur || '';
+  if (nom) {
+    el.textContent = nom;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function openSettings() {
+  document.getElementById('set-serveur').value      = settings.serveur   || '';
+  document.getElementById('set-tel-fourn').value    = settings.telFourn  || '';
   document.getElementById('set-email').value        = settings.email     || '';
   document.getElementById('set-email-fourn').value  = settings.emailFourn || '';
   document.getElementById('set-cafe-tel').value     = settings.cafeTel   || '';
   document.getElementById('set-cafe-email').value   = settings.cafeEmail || '';
   document.getElementById('overlay-settings').classList.add('open');
+
+  // Charger les employés depuis Supabase (planning)
+  const btnsEl = document.getElementById('serveur-btns');
+  btnsEl.innerHTML = '<span style="font-size:12px;color:var(--muted)">Chargement…</span>';
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&order=display_order.asc,name.asc`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    const emps = await r.json();
+    const current = settings.serveur || '';
+    btnsEl.innerHTML = emps.map(e => {
+      const active = e.name === current ? 'background:var(--orange);color:#fff;' : 'background:var(--surf2);color:var(--text);';
+      return `<button type="button" style="${active}border:none;border-radius:8px;padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer;" onclick="selectServeur('${e.name.replace(/'/g, "\\'")}')">${e.name}</button>`;
+    }).join('');
+  } catch(e) {
+    btnsEl.innerHTML = '<span style="font-size:12px;color:var(--muted)">Impossible de charger les employés</span>';
+  }
+}
+
+function selectServeur(nom) {
+  document.getElementById('set-serveur').value = nom;
+  // Mettre à jour l'état actif des boutons
+  document.querySelectorAll('#serveur-btns button').forEach(btn => {
+    const isActive = btn.textContent === nom;
+    btn.style.background = isActive ? 'var(--orange)' : 'var(--surf2)';
+    btn.style.color = isActive ? '#fff' : 'var(--text)';
+  });
 }
 
 function saveSettings() {
+  settings.serveur    = document.getElementById('set-serveur').value.trim();
   settings.telFourn   = document.getElementById('set-tel-fourn').value.trim();
   settings.email      = document.getElementById('set-email').value.trim();
   settings.emailFourn = document.getElementById('set-email-fourn').value.trim();
   settings.cafeTel    = document.getElementById('set-cafe-tel').value.trim();
   settings.cafeEmail  = document.getElementById('set-cafe-email').value.trim();
   save();
+  updateHeaderServeur();
   document.getElementById('overlay-settings').classList.remove('open');
 }
 
@@ -2341,6 +2395,7 @@ loadFromSupabase().then(() => {
 renderCommande();
 renderVin();
 updateSundayInfo();
+updateHeaderServeur();
 const _savedNote = localStorage.getItem('bc_note');
 if (_savedNote) { const _nel = document.getElementById('commande-note'); if (_nel) _nel.value = _savedNote; }
 const _savedVinNote = localStorage.getItem('bc_vin_note');
