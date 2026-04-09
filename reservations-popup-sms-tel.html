@@ -2273,7 +2273,7 @@ async function loadRelances(){
     const resas = await sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000');
     const map = {};
     const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 27);
+    dateLimit.setDate(dateLimit.getDate() - 26);
     for(const r of resas){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
@@ -2337,7 +2337,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-09.2';
+const APP_VERSION = '2026-04-09.3';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
