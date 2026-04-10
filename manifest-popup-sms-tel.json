@@ -4,7 +4,7 @@
   "short_name": "Résa SMS Tél",
   "description": "Réservations Braise & Co — Notification SMS téléphone (Option B)",
   "start_url": "/reservations-popup-sms-tel.html",
-  "scope": "/",
+  "scope": "/reservations-popup-sms-tel.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",

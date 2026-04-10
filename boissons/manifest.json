@@ -3,7 +3,7 @@
   "name": "Commande Suivi Boisson",
   "short_name": "Suivi Boisson",
   "description": "Commandes et suivi stock boissons — Braise & Co",
-  "start_url": "/boissons/",
+  "start_url": "/boissons/index.html",
   "scope": "/boissons/",
   "display": "standalone",
   "background_color": "#0f0f0f",

@@ -4,7 +4,7 @@
   "short_name": "Résa Tél",
   "description": "Gestion des réservations Braise & Co (version téléphone)",
   "start_url": "/reservations-tel.html",
-  "scope": "/",
+  "scope": "/reservations-tel.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",
