@@ -160,7 +160,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .schedule-check{display:none;}
 .day-toggle{padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;border:1px solid var(--border2);transition:all .15s;letter-spacing:.5px;}
 .day-toggle.on{background:rgba(67,160,71,.15);color:#a5d6a7;border-color:rgba(67,160,71,.4);}
-.day-toggle.off{background:rgba(229,57,53,.1);color:#ef9a9a;border-color:rgba(229,57,53,.3);}
+.day-toggle.off,.day-toggle.repos{background:rgba(120,120,120,.15);color:#9e9e9e;border-color:rgba(120,120,120,.3);}
+.day-toggle.absent{background:rgba(255,152,0,.15);color:#ffcc80;border-color:rgba(255,152,0,.4);}
+.day-toggle.arret{background:rgba(229,57,53,.15);color:#ef9a9a;border-color:rgba(229,57,53,.4);}
 .time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
 .sep{color:var(--text-faint);}
 
@@ -425,6 +427,68 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
 
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">📧 Rapport email automatique</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Envoi automatique chaque <strong>dimanche à 20h</strong> sur <span id="settingEmailDisplay" style="color:var(--accent2)">…</span></p>
+      <div class="form-group">
+        <label class="form-label">Email du manager</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="email" id="settingEmail" placeholder="votre@email.fr" style="flex:1">
+          <button class="btn-primary" style="flex-shrink:0;padding:0 14px" onclick="saveEmailSetting()">Sauver</button>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:4px;background:rgba(46,125,50,.2);border:1px solid rgba(46,125,50,.4);color:#a5d6a7" onclick="sendTestEmail()">📨 Envoyer le rapport maintenant</button>
+      <div id="emailSendStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
+    </div>
+
+    <!-- ── Rapport personnalisé par GAS ── -->
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">📋 Rapport personnalisé</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px">Sélectionnez une période et des employés, puis envoyez un récapitulatif par email (horaires + signatures). Nécessite l'URL de votre Google Apps Script.</p>
+
+      <div class="form-group">
+        <label class="form-label">URL Google Apps Script (webhook)</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="url" id="gasWebhookUrl" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1;font-size:11px">
+          <button class="btn-primary" style="flex-shrink:0;padding:0 14px" onclick="saveGasUrl()">Sauver</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Période</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setCustomPeriod('week')">Cette semaine</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setCustomPeriod('month')">Ce mois</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setCustomPeriod('year')">Cette année</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setCustomPeriod('lastyear')">Année passée</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="form-input" type="date" id="customRptFrom" style="flex:1">
+          <span style="color:var(--text-dim);font-size:12px">→</span>
+          <input class="form-input" type="date" id="customRptTo" style="flex:1">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" style="margin-bottom:6px">Employés</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="selectAllCustomEmps(true)">Tous</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="selectAllCustomEmps(false)">Aucun</button>
+        </div>
+        <div id="customRptEmpList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;padding:4px 0"></div>
+      </div>
+
+      <button class="btn-primary" style="width:100%;margin-top:4px" onclick="sendCustomReport()">📨 Envoyer le rapport personnalisé</button>
+      <div id="customRptStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
+    </div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">🔄 Mise à jour de l'application</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Force le rechargement de la dernière version de l'appli (vide le cache).</p>
+      <button class="btn-primary" style="width:100%;background:rgba(255,152,0,.15);border:1px solid rgba(255,152,0,.4);color:#ffcc80" onclick="updateApp()">🔄 Mettre à jour l'application</button>
+      <div id="updateStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
+    </div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
       <div class="section-title" style="margin-bottom:8px">Sauvegarde des données</div>
       <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Exporte toutes les données (plannings, horaires, signatures) en fichier JSON. À faire régulièrement pour archivage sur 5 ans.</p>
       <button class="btn-primary" style="width:100%;background:rgba(30,136,229,.2);border:1px solid rgba(30,136,229,.4);color:#90caf9" onclick="exportAllData()">💾 Exporter toutes les données</button>
@@ -511,14 +575,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <h3 id="overrideTitle">Modifier journée</h3>
     <div class="override-opts">
       <div class="ov-opt selected" id="ov-present" onclick="selectOv('present')">Présent</div>
-      <div class="ov-opt" id="ov-absent" onclick="selectOv('absent')">Absent</div>
       <div class="ov-opt" id="ov-vacation" onclick="selectOv('vacation')">Congé</div>
     </div>
+    <p style="font-size:11px;color:var(--text2);margin:4px 0 8px;">Pour Absent/Malade : cliquez sur le bouton du service concerné (matin ou soir) pour choisir son statut.</p>
     <div id="ovTimeFields">
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label class="form-label" style="margin:0">Horaires du matin</label>
-          <button type="button" class="day-toggle on" id="ovMornToggle" onclick="toggleOvMorn()">TRAVAILLE</button>
+          <button type="button" class="day-toggle on" id="ovMornToggle" data-state="on" onclick="cycleOvMorn()">TRAVAILLE</button>
         </div>
         <div id="ovMornFields">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -536,7 +600,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div id="ovEveningSection" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 8px;">
           <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent3);font-weight:700;">🌙 Service du soir</span>
-          <button type="button" class="day-toggle on" id="ovEveToggle" onclick="toggleOvEve()">TRAVAILLE</button>
+          <button type="button" class="day-toggle on" id="ovEveToggle" data-state="on" onclick="cycleOvEve()">TRAVAILLE</button>
         </div>
         <div id="ovEveFields">
           <div class="form-group">
@@ -610,7 +674,9 @@ function fmtHours(s) {
 
 // Calcule les heures travaillées d'une journée (retourne un float en heures)
 function calcDayHours(row) {
-  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation' || row.status === 'arret') return 0;
+  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation') return 0;
+  // Malade (arret) sans heures renseignées = 0h ; avec heures = on compte ce qui a été travaillé
+  if (row.status === 'arret' && !row.start_time) return 0;
   const t = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
   const midnight = s => t(s) === 0 ? 1440 : t(s);
   // Pause repas 30min auto, sauf si embauche à 12h00 ou 19h30
@@ -789,7 +855,17 @@ async function openSign(empId) {
       else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absent'; }
       else if (ov.status === 'arret')    { cls = 'absent';   badgeHtml = '<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d">Arrêt</span>'; info = 'Arrêt maladie'; }
       else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
-      else { info = ov.start_time ? fmtHours(ov) : '—'; }
+      else {
+        // Afficher les états par service si présents
+        const ms = ov.morn_status, es = ov.eve_status;
+        const badges = [];
+        if (ms === 'absent') badges.push('<span class="day-badge absent" style="font-size:9px">Matin absent</span>');
+        else if (ms === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Matin malade</span>');
+        if (es === 'absent') badges.push('<span class="day-badge absent" style="font-size:9px">Soir absent</span>');
+        else if (es === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Soir malade</span>');
+        badgeHtml = badges.join(' ');
+        info = ov.start_time ? fmtHours(ov) : (ms && ms !== 'on' ? '' : '—');
+      }
     } else if (sched && !sched.is_off && sched.start_time) {
       info = fmtHours(sched);
     } else {
@@ -841,8 +917,15 @@ async function openDaySign(empId, dateS, dayIdx) {
   initDaySigCanvas();
 }
 
+// Ouvre la signature depuis la vue manager emp-week (retour vers emp-week après)
+function openDaySignMgr(empId, dateS, dayIdx) {
+  sigReturnToEmpWeek = true;
+  openDaySign(empId, dateS, dayIdx);
+}
+
 // ── Signature journalière ──
 let currentSignDate = null;
+let sigReturnToEmpWeek = false; // true quand signature déclenchée depuis la vue manager emp-week
 let sigDayCtx = null, sigDayDrawing = false, sigDayHasMark = false;
 
 function initDaySigCanvas() {
@@ -921,7 +1004,15 @@ async function submitDaySignature() {
       headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
     });
     toast('Signature enregistrée !');
-    setTimeout(() => openSign(currentEmpId), 600);
+    setTimeout(() => {
+      if (sigReturnToEmpWeek) {
+        sigReturnToEmpWeek = false;
+        showScreen('emp-week');
+        loadEmpWeek();
+      } else {
+        openSign(currentEmpId);
+      }
+    }, 600);
   } catch(e) {
     toast('Erreur : ' + e.message);
   }
@@ -1112,14 +1203,17 @@ async function loadEmpWeek() {
     }
     const totalStr = dayH > 0 ? `<span style="font-weight:700;color:var(--accent2);font-size:14px">${dayH.toFixed(1).replace('.0','')}h</span>` : '';
     const border = isToday ? 'var(--accent)' : 'var(--border)';
-    const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation';
+    const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation' && row.status !== 'arret';
     const sigData = sigByDate[ds];
     const sigBlock = sigData
       ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:8px">
            <span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Signé</span>
            <img src="${sigData}" style="height:38px;max-width:180px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigData}')">
          </div>`
-      : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:10px;color:var(--text-faint);font-style:italic">Non signé</div>` : '');
+      : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;display:flex;align-items:center;justify-content:space-between">
+           <span style="font-size:10px;color:var(--text-faint);font-style:italic">Non signé</span>
+           <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="event.stopPropagation();openDaySignMgr('${empId}','${ds}',${dn-1})">✍️ Faire signer</button>
+         </div>` : '');
     return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer">
       <div style="display:flex;align-items:center;gap:12px">
         <div style="width:48px;flex-shrink:0;text-align:center">
@@ -1404,10 +1498,22 @@ async function loadPlanningTab() {
       if (col.closed) return `<td class="wt-repos" style="opacity:.5">Repos</td>`;
       if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
       if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
-      if (ov.status === 'absent')     return `<td class="wt-absent" ${click}>Absent</td>`;
-      if (ov.status === 'arret')      return `<td class="wt-arret" ${click}>Arrêt</td>`;
       if (ov.status === 'vacation')   return `<td class="wt-conge" ${click}>Congé</td>`;
-      if (col.svc === 'morn' || col.svc === 'day') {
+      // Déterminer l'état effectif par service (nouveau: morn_status/eve_status, fallback: ancien status global)
+      const isMorn = col.svc === 'morn' || col.svc === 'day';
+      const svcState = isMorn
+        ? (ov.morn_status || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : 'on'))
+        : (ov.eve_status  || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : 'on'));
+      const badgeMalade = `<div style="font-size:9px;color:#ffb74d;font-weight:700;margin-top:2px">🤒 Malade</div>`;
+      if (svcState === 'absent') return `<td class="wt-absent" ${click}>Absent</td>`;
+      if (svcState === 'arret') {
+        const hasTime = isMorn ? ov.start_time : ov.evening_start;
+        if (isMorn && ov.start_time) return `<td class="wt-arret" ${click}>${fmtCell(ov.start_time, ov.break_start, ov.break_end, ov.end_time)}${badgeMalade}</td>`;
+        if (!isMorn && ov.evening_start) return `<td class="wt-arret" ${click}>${fmtCell(ov.evening_start, ov.evening_break_start, ov.evening_break_end, ov.evening_end)}${badgeMalade}</td>`;
+        return `<td class="wt-arret" ${click}>🤒 Malade</td>`;
+      }
+      if (svcState === 'repos') return `<td class="wt-repos" ${click}>Repos</td>`;
+      if (isMorn) {
         if (!ov.start_time) return `<td class="wt-repos" ${click}>Repos</td>`;
         return `<td ${click}>${fmtCell(ov.start_time, ov.break_start, ov.break_end, ov.end_time)}</td>`;
       } else {
@@ -1441,11 +1547,16 @@ function printPlanningReportForDate() {
 async function loadSettingsTab() {
   const today = new Date();
   document.getElementById('reportWeekDate').value = dateStr(getMonday(today));
+  // Dates par défaut pour le rapport personnalisé : 1er du mois → aujourd'hui
+  document.getElementById('customRptFrom').value = dateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+  document.getElementById('customRptTo').value = dateStr(today);
+  loadSettings();
   // Remplir le sélecteur employé
   if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
   const sel = document.getElementById('reportEmpSelect');
   sel.innerHTML = '<option value="">— Choisir —</option>' +
     employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  buildCustomRptEmps();
   // Afficher les 8 dernières semaines
   const list = document.getElementById('recentWeeksList');
   let html = '<div style="font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Semaines récentes</div>';
@@ -1523,29 +1634,35 @@ async function printEmpReport() {
       const tdArret   = `<td style="color:#e65100;text-align:center;font-weight:700;font-size:10px">Arrêt</td>`;
       const tdVacance = `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
 
+      // Helper: cellule pour un service selon son état
+      const svcCell = (state, startT, endT, brkS, brkE, isEve) => {
+        const effState = state || (startT ? 'on' : 'repos');
+        if (effState === 'absent') return tdAbsent;
+        if (effState === 'arret')  return tdArret;
+        if (effState === 'repos')  return tdRepos;
+        if (!startT) return tdRepos;
+        const mins = isEve
+          ? calcSvc(startT, brkS, brkE, endT)
+          : calcSvc(startT, brkS, brkE, endT);
+        weekTotal += mins;
+        return `<td style="text-align:center;font-size:10px">${fmtT(startT)}-${fmtT(endT)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`;
+      };
       // Vendredi (i=4) et Samedi (i=5) : deux colonnes séparées midi + soir
       if (i === 4 || i === 5) {
         if (!ov || ov.status === 'off')    { cellArr.push(tdRepos, tdRepos); return; }
-        if (ov.status === 'absent')        { cellArr.push(tdAbsent, tdAbsent); return; }
-        if (ov.status === 'arret')         { cellArr.push(tdArret, tdArret); return; }
         if (ov.status === 'vacation')      { cellArr.push(tdVacance, tdVacance); return; }
-        const mMins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
-        const eMins = calcSvc(ov.evening_start, ov.evening_break_start, ov.evening_break_end, ov.evening_end);
-        weekTotal += mMins + eMins;
-        const tdM = ov.start_time
-          ? `<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mMins/60).toFixed(1).replace('.0','')}h</span></td>`
-          : tdRepos;
-        const tdE = ov.evening_start
-          ? `<td style="text-align:center;font-size:10px">${fmtT(ov.evening_start)}-${fmtT(ov.evening_end)}<br><span style="color:#e53935;font-weight:700">${(eMins/60).toFixed(1).replace('.0','')}h</span></td>`
-          : tdRepos;
+        const tdM = svcCell(ov.morn_status, ov.start_time, ov.end_time, ov.break_start, ov.break_end, false);
+        const tdE = svcCell(ov.eve_status, ov.evening_start, ov.evening_end, ov.evening_break_start, ov.evening_break_end, true);
         cellArr.push(tdM, tdE);
         return;
       }
       // Autres jours : une seule colonne
       if (!ov || ov.status === 'off')    { cellArr.push(tdRepos); return; }
-      if (ov.status === 'absent')        { cellArr.push(tdAbsent); return; }
-      if (ov.status === 'arret')         { cellArr.push(tdArret); return; }
       if (ov.status === 'vacation')      { cellArr.push(tdVacance); return; }
+      // Utiliser morn_status si disponible, sinon backward-compat via status
+      const effMornState = ov.morn_status || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : null);
+      if (effMornState === 'absent') { cellArr.push(tdAbsent); return; }
+      if (effMornState === 'arret')  { cellArr.push(tdArret);  return; }
       const mins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
       weekTotal += mins;
       cellArr.push(`<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`);
@@ -1735,7 +1852,9 @@ async function openOverride(empId, dateS, dayIdx) {
     const ov    = Array.isArray(ovRes)    ? ovRes[0]    : null;
     const sched = Array.isArray(schedRes) ? schedRes[0] : null;
 
-    selectOv(ov ? ov.status : 'present');
+    // Déterminer le statut global (present ou vacation)
+    const globalStatus = (ov && ov.status === 'vacation') ? 'vacation' : 'present';
+    selectOv(globalStatus);
     const st = (v, fb) => v ? String(v).slice(0,5) : fb;
     document.getElementById('ovStart').value      = st(ov?.start_time  || sched?.start_time,  '09:00');
     document.getElementById('ovBreakStart').value = st(ov?.break_start || sched?.break_start, '12:00');
@@ -1744,20 +1863,37 @@ async function openOverride(empId, dateS, dayIdx) {
     document.getElementById('ovNote').value       = ov?.note || '';
 
     const hasEvening = (dayIdx === 4 || dayIdx === 5);
-    // Morning repos: override présent mais pas d'heure de début
-    const mornRepos = ov && ov.status === 'present' && !ov.start_time;
-    const togM = document.getElementById('ovMornToggle');
-    togM.textContent = mornRepos ? 'REPOS' : 'TRAVAILLE';
-    togM.className = 'day-toggle ' + (mornRepos ? 'off' : 'on');
-    document.getElementById('ovMornFields').style.display = mornRepos ? 'none' : '';
+
+    // Déterminer le statut matin (backward-compat: si morn_status absent, déduire depuis l'ancien comportement)
+    let mornState = 'on';
+    if (ov) {
+      if (ov.morn_status) {
+        mornState = ov.morn_status; // 'on','repos','absent','arret'
+      } else if (ov.status === 'absent') {
+        mornState = 'absent';
+      } else if (ov.status === 'arret' && !ov.start_time) {
+        mornState = 'arret';
+      } else if ((ov.status === 'present' || ov.status === 'arret') && !ov.start_time) {
+        mornState = 'repos';
+      }
+    }
+    setToggleState(document.getElementById('ovMornToggle'), document.getElementById('ovMornFields'), mornState);
+
     document.getElementById('ovEveningSection').style.display = hasEvening ? '' : 'none';
     if (hasEvening) {
-      // Evening repos: override présent mais pas d'heure soir
-      const eveRepos = ov && ov.status === 'present' && !ov.evening_start;
-      const togE = document.getElementById('ovEveToggle');
-      togE.textContent = eveRepos ? 'REPOS' : 'TRAVAILLE';
-      togE.className = 'day-toggle ' + (eveRepos ? 'off' : 'on');
-      document.getElementById('ovEveFields').style.display = eveRepos ? 'none' : '';
+      let eveState = 'on';
+      if (ov) {
+        if (ov.eve_status) {
+          eveState = ov.eve_status;
+        } else if (ov.status === 'absent') {
+          eveState = 'absent';
+        } else if (ov.status === 'arret' && !ov.evening_start) {
+          eveState = 'arret';
+        } else if ((ov.status === 'present' || ov.status === 'arret') && !ov.evening_start) {
+          eveState = 'repos';
+        }
+      }
+      setToggleState(document.getElementById('ovEveToggle'), document.getElementById('ovEveFields'), eveState);
       document.getElementById('ovEveningStart').value      = st(ov?.evening_start       || sched?.evening_start,       '18:00');
       document.getElementById('ovEveningBreakStart').value = st(ov?.evening_break_start || sched?.evening_break_start, '19:00');
       document.getElementById('ovEveningBreakEnd').value   = st(ov?.evening_break_end   || sched?.evening_break_end,   '19:30');
@@ -1772,24 +1908,35 @@ async function openOverride(empId, dateS, dayIdx) {
 
 function selectOv(status) {
   currentOvStatus = status;
-  ['present','absent','vacation'].forEach(s => {
+  ['present','vacation'].forEach(s => {
     document.getElementById('ov-'+s).classList.toggle('selected', s===status);
   });
-  document.getElementById('ovTimeFields').style.display = status==='present' ? '' : 'none';
+  document.getElementById('ovTimeFields').style.display = status === 'vacation' ? 'none' : '';
 }
-function toggleOvMorn() {
+
+// Helper: applique un état (on/repos/absent/arret) à un toggle + son bloc de champs
+function setToggleState(togEl, fieldsEl, state) {
+  const labels = { on: 'TRAVAILLE', repos: 'REPOS', absent: 'ABSENT', arret: 'MALADE' };
+  togEl.textContent = labels[state] || 'TRAVAILLE';
+  togEl.dataset.state = state;
+  togEl.className = 'day-toggle ' + state;
+  if (fieldsEl) fieldsEl.style.display = (state === 'on') ? '' : 'none';
+}
+
+// Cycle: TRAVAILLE → REPOS → ABSENT → MALADE → TRAVAILLE
+function cycleOvMorn() {
   const tog = document.getElementById('ovMornToggle');
-  const off = tog.classList.contains('off');
-  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
-  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
-  document.getElementById('ovMornFields').style.display = off ? '' : 'none';
+  const states = ['on','repos','absent','arret'];
+  const cur = tog.dataset.state || 'on';
+  const next = states[(states.indexOf(cur) + 1) % states.length];
+  setToggleState(tog, document.getElementById('ovMornFields'), next);
 }
-function toggleOvEve() {
+function cycleOvEve() {
   const tog = document.getElementById('ovEveToggle');
-  const off = tog.classList.contains('off');
-  tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
-  tog.className = 'day-toggle ' + (off ? 'on' : 'off');
-  document.getElementById('ovEveFields').style.display = off ? '' : 'none';
+  const states = ['on','repos','absent','arret'];
+  const cur = tog.dataset.state || 'on';
+  const next = states[(states.indexOf(cur) + 1) % states.length];
+  setToggleState(tog, document.getElementById('ovEveFields'), next);
 }
 
 async function saveOverride() {
@@ -1797,20 +1944,31 @@ async function saveOverride() {
     if (!overrideTarget) { toast('Erreur : cible manquante'); return; }
     const {empId, date, dayIdx} = overrideTarget;
     const hasEvening = (dayIdx === 4 || dayIdx === 5);
-    const present = currentOvStatus === 'present';
-    const mornOff = present && document.getElementById('ovMornToggle').classList.contains('off');
-    const eveOff  = present && hasEvening && document.getElementById('ovEveToggle').classList.contains('off');
+    const isVacation = currentOvStatus === 'vacation';
+
+    const mornState = isVacation ? 'on' : (document.getElementById('ovMornToggle').dataset.state || 'on');
+    const eveState  = (isVacation || !hasEvening) ? 'on' : (document.getElementById('ovEveToggle').dataset.state || 'on');
+
+    // Dériver le statut global pour rétrocompatibilité
+    // Si congé → vacation ; sinon present (les détails sont dans morn_status/eve_status)
+    let globalStatus = isVacation ? 'vacation' : 'present';
+
+    const mornWorks = mornState === 'on';
+    const eveWorks  = eveState === 'on';
+
     const body = {
       employee_id: empId, date,
-      status: currentOvStatus,
-      start_time:  (present && !mornOff) ? document.getElementById('ovStart').value      : null,
-      break_start: (present && !mornOff) ? document.getElementById('ovBreakStart').value : null,
-      break_end:   (present && !mornOff) ? document.getElementById('ovBreakEnd').value   : null,
-      end_time:    (present && !mornOff) ? document.getElementById('ovEnd').value        : null,
-      evening_start:       (present && hasEvening && !eveOff) ? document.getElementById('ovEveningStart').value      : null,
-      evening_break_start: (present && hasEvening && !eveOff) ? document.getElementById('ovEveningBreakStart').value : null,
-      evening_break_end:   (present && hasEvening && !eveOff) ? document.getElementById('ovEveningBreakEnd').value   : null,
-      evening_end:         (present && hasEvening && !eveOff) ? document.getElementById('ovEveningEnd').value        : null,
+      status: globalStatus,
+      morn_status: isVacation ? null : mornState,
+      eve_status:  (isVacation || !hasEvening) ? null : eveState,
+      start_time:  (!isVacation && mornWorks) ? document.getElementById('ovStart').value      : null,
+      break_start: (!isVacation && mornWorks) ? document.getElementById('ovBreakStart').value : null,
+      break_end:   (!isVacation && mornWorks) ? document.getElementById('ovBreakEnd').value   : null,
+      end_time:    (!isVacation && mornWorks) ? document.getElementById('ovEnd').value        : null,
+      evening_start:       (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningStart').value      : null,
+      evening_break_start: (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningBreakStart').value : null,
+      evening_break_end:   (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningBreakEnd').value   : null,
+      evening_end:         (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningEnd').value        : null,
       note: document.getElementById('ovNote').value || null
     };
     await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(body),
@@ -2133,11 +2291,158 @@ async function exportAllData() {
 async function loadSettings() {
   const rows = await GET('settings?select=*');
   const email = rows.find(r=>r.key==='manager_email');
-  if (email) document.getElementById('settingEmail').value = email.value;
+  const val = email?.value || '';
+  document.getElementById('settingEmail').value = val;
+  document.getElementById('settingEmailDisplay').textContent = val || '(non configuré)';
+  const gasRow = rows.find(r => r.key === 'gas_webhook_url');
+  if (gasRow?.value) document.getElementById('gasWebhookUrl').value = gasRow.value;
 }
 async function saveSetting(key, value) {
   await sb(`settings?key=eq.${key}`, {method:'PATCH', body: JSON.stringify({value}), headers:{'Prefer':'return=representation'}});
   toast('Enregistré !');
+}
+async function saveEmailSetting() {
+  const val = document.getElementById('settingEmail').value.trim();
+  if (!val) { toast('Entrez un email'); return; }
+  try {
+    await sb('settings?on_conflict=key', {method:'POST', body: JSON.stringify({key:'manager_email', value: val}),
+      headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+    document.getElementById('settingEmailDisplay').textContent = val;
+    toast('Email enregistré !');
+  } catch(e) { toast('Erreur : ' + e.message); }
+}
+async function updateApp() {
+  const status = document.getElementById('updateStatus');
+  status.textContent = '⏳ Mise à jour en cours…';
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update();
+    }
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    status.textContent = '✅ Cache vidé — rechargement…';
+    setTimeout(() => location.reload(true), 800);
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+  }
+}
+
+async function sendTestEmail() {
+  const status = document.getElementById('emailSendStatus');
+  status.textContent = '⏳ Envoi en cours…';
+  try {
+    const r = await fetch(`${SB_URL}/functions/v1/send-planning-report`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${SB_KEY}`},
+      body: JSON.stringify({})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      status.textContent = '✅ Rapport envoyé avec succès !';
+      toast('Email envoyé !');
+    } else {
+      status.textContent = '❌ ' + (data.error || JSON.stringify(data));
+    }
+  } catch(e) {
+    status.textContent = '❌ Erreur : ' + e.message;
+  }
+}
+
+// ── GAS webhook URL ──
+async function saveGasUrl() {
+  const val = document.getElementById('gasWebhookUrl').value.trim();
+  if (!val) { toast('Entrez une URL GAS'); return; }
+  try {
+    await sb('settings?on_conflict=key', {method:'POST', body: JSON.stringify({key:'gas_webhook_url', value: val}),
+      headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+    toast('URL GAS enregistrée !');
+  } catch(e) { toast('Erreur : ' + e.message); }
+}
+
+// ── Custom report employees checkboxes ──
+function buildCustomRptEmps() {
+  const container = document.getElementById('customRptEmpList');
+  if (!container) return;
+  if (!employees.length) { container.innerHTML = '<span style="color:var(--text-faint);font-size:12px">Aucun employé chargé</span>'; return; }
+  container.innerHTML = employees.map(e => `
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
+      <input type="checkbox" id="crpt_${e.id}" value="${e.id}" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+      <span style="font-size:13px">${e.name}</span>
+    </label>
+  `).join('');
+}
+
+function selectAllCustomEmps(all) {
+  employees.forEach(e => {
+    const cb = document.getElementById('crpt_' + e.id);
+    if (cb) cb.checked = all;
+  });
+}
+
+function setCustomPeriod(preset) {
+  const today = new Date();
+  let from, to;
+  if (preset === 'week') {
+    from = getMonday(today);
+    to   = today;
+  } else if (preset === 'month') {
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+    to   = today;
+  } else if (preset === 'year') {
+    from = new Date(today.getFullYear(), 0, 1);
+    to   = new Date(today.getFullYear(), 11, 31);
+  } else if (preset === 'lastyear') {
+    from = new Date(today.getFullYear() - 1, 0, 1);
+    to   = new Date(today.getFullYear() - 1, 11, 31);
+  }
+  document.getElementById('customRptFrom').value = dateStr(from);
+  document.getElementById('customRptTo').value   = dateStr(to);
+}
+
+async function sendCustomReport() {
+  const status = document.getElementById('customRptStatus');
+
+  // Get GAS URL from DB
+  const rows = await GET('settings?select=*');
+  const gasRow = rows.find(r => r.key === 'gas_webhook_url');
+  const gasUrl = gasRow?.value || document.getElementById('gasWebhookUrl').value.trim();
+  if (!gasUrl) { status.textContent = '❌ Aucune URL Google Apps Script configurée'; return; }
+
+  const from = document.getElementById('customRptFrom').value;
+  const to   = document.getElementById('customRptTo').value;
+  if (!from || !to) { toast('Sélectionnez une période'); return; }
+  if (from > to) { toast('La date de début doit être avant la fin'); return; }
+
+  const selEmps = employees.filter(e => {
+    const cb = document.getElementById('crpt_' + e.id);
+    return cb && cb.checked;
+  });
+  if (!selEmps.length) { toast('Sélectionnez au moins un employé'); return; }
+
+  status.textContent = '⏳ Envoi en cours…';
+
+  const params = new URLSearchParams({
+    action: 'custom',
+    employee_ids: selEmps.map(e => e.id).join(','),
+    date_from: from,
+    date_to: to
+  });
+
+  try {
+    const r = await fetch(`${gasUrl}?${params.toString()}`);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { data = {ok: r.ok, raw: text}; }
+    if (data.ok) {
+      status.textContent = '✅ Rapport envoyé avec succès !';
+      toast('Rapport envoyé !');
+    } else {
+      status.textContent = '❌ ' + (data.error || text || 'Erreur inconnue');
+    }
+  } catch(e) {
+    status.textContent = '❌ Erreur : ' + e.message;
+  }
 }
 
 // ══════════════════════════════════════
