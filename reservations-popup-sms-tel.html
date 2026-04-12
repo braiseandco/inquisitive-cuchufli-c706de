@@ -2296,14 +2296,14 @@ async function loadRelances(){
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + 7);
       const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
-      return (n ? 'Bonjour '+n+',' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
+      return (n ? 'Bonjour '+n+' (désolé si votre nom est mal orthographié),' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
     };
 
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
 
     for(const c of clients){
       const msg = buildSms(c.nom);
-      const smsHref = 'sms:'+c.tel+'?body='+encodeURIComponent(msg);
+      const smsHref = buildSmsUrl(c.tel, msg);
       const cid = 'rc-'+c.tel.replace(/\D/g,'');
       html += `<div id="${cid}" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">
         <div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 ${esc(c.nom||'(sans nom)')}</div>
@@ -2441,11 +2441,20 @@ async function checkConfirmedResas(){
   }catch(e){ console.log('SMS polling error:', e); }
 }
 
+function encodeSmsBody(text){
+  // N'encode que les caractères qui cassent l'URL, laisse accents/emoji intacts
+  return Array.from(text).map(c => {
+    if ('&#+%=?'.includes(c)) return encodeURIComponent(c);
+    if (c === ' ') return '%20';
+    return c;
+  }).join('');
+}
+
 function buildSmsUrl(telephone, msg){
   // iOS : &body=  |  Android/autres : ?body=
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const sep = isIOS ? '&' : '?';
-  return 'sms:'+telephone+sep+'body='+encodeURIComponent(msg);
+  return 'sms:'+telephone+sep+'body='+encodeSmsBody(msg);
 }
 
 let _smsCurrentResaId = null;

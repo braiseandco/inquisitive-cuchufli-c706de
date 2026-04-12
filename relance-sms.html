@@ -108,6 +108,21 @@ function fmtDate(d) {
   return new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function encodeSmsBody(text) {
+  // N'encode que les caractères qui cassent l'URL, laisse accents/emoji intacts
+  return Array.from(text).map(c => {
+    if ('&#+%=?'.includes(c)) return encodeURIComponent(c);
+    if (c === ' ') return '%20';
+    return c;
+  }).join('');
+}
+
+function buildSmsUrl(tel, msg) {
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const sep = isIOS ? '&' : '?';
+  return 'sms:' + tel + sep + 'body=' + encodeSmsBody(msg);
+}
+
 function buildSms(nom) {
   const nomPropre = (nom || '').trim();
   const salut = nomPropre ? `Bonjour ${nomPropre},` : 'Bonjour,';
@@ -185,7 +200,7 @@ async function init() {
 
     for (const c of clients) {
       const msg = buildSms(c.nom);
-      const smsHref = 'sms:' + c.tel + '?body=' + encodeURIComponent(msg);
+      const smsHref = buildSmsUrl(c.tel, msg);
       const cardId = 'card-' + c.tel.replace(/\D/g, '');
       html += `
         <div class="client-card" id="${cardId}">
