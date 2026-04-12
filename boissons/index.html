@@ -1056,6 +1056,19 @@ function buildSmsUrl(tel, msg) {
   return 'sms:' + tel + sep + 'body=' + encodeURIComponent(msg);
 }
 
+function ouvrirSms(tel, msg) {
+  // Copie le message dans le presse-papiers (compatible tous les Android)
+  if (navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
+  // Toast temporaire
+  const d = document.createElement('div');
+  d.textContent = '📋 Message copié — collez dans le SMS';
+  d.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e1e1e;color:#fff;padding:10px 22px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+  // Ouvre l'appli SMS sans body (évite la troncature Samsung/AOSP)
+  window.location.href = 'sms:' + tel;
+}
+
 function buildMailtoUrl(to, subject, body) {
   return 'mailto:' + to
     + '?subject=' + encodeURIComponent(subject)
@@ -1261,7 +1274,7 @@ function envoyerSMS() {
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception de la commande par SMS.`;
 
-  window.location.href = buildSmsUrl(settings.telFourn || '', msg);
+  ouvrirSms(settings.telFourn || '', msg);
   confirmSent();
 }
 
@@ -1537,7 +1550,7 @@ function envoyerSMSCocktail() {
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception par SMS.`;
 
-  window.location.href = buildSmsUrl(COCKTAIL_TEL, msg);
+  ouvrirSms(COCKTAIL_TEL, msg);
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1639,7 +1652,7 @@ function _buildCafeMsg(now) {
 
 function envoyerCafeSMS() {
   if (!settings.cafeTel) return;
-  window.location.href = buildSmsUrl(settings.cafeTel, _buildCafeMsg(new Date()));
+  ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date()));
 }
 
 function envoyerCafeEmail() {
@@ -1678,7 +1691,9 @@ function openConfirmVin() {
     const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
     const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
-    document.getElementById('conf-vin-sms-main').href = buildSmsUrl(VIN_TEL_MAIN, msg);
+    const btnVinMain = document.getElementById('conf-vin-sms-main');
+    btnVinMain.href = '#';
+    btnVinMain.onclick = (e) => { e.preventDefault(); ouvrirSms(VIN_TEL_MAIN, msg); };
     mainSection.classList.remove('hidden');
   } else {
     mainSection.classList.add('hidden');
@@ -1689,7 +1704,9 @@ function openConfirmVin() {
     const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
     const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
-    document.getElementById('conf-vin-sms-moscato').href = buildSmsUrl(VIN_TEL_MOSCATO, msg);
+    const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
+    btnVinMoscato.href = '#';
+    btnVinMoscato.onclick = (e) => { e.preventDefault(); ouvrirSms(VIN_TEL_MOSCATO, msg); };
     moscatoSection.classList.remove('hidden');
   } else {
     moscatoSection.classList.add('hidden');
