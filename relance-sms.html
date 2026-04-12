@@ -146,7 +146,9 @@ async function effacer(tel, cardEl) {
   }
 }
 
-function onSmsClick(cardEl) {
+function onSmsClick(tel, msg, cardEl) {
+  if (navigator.clipboard) navigator.clipboard.writeText(msg).catch(() => {});
+  toast('📋 Message copié — collez dans le SMS');
   setTimeout(() => {
     cardEl.querySelector('.btn-efface').classList.add('visible');
   }, 800);
@@ -200,7 +202,7 @@ async function init() {
 
     for (const c of clients) {
       const msg = buildSms(c.nom);
-      const smsHref = buildSmsUrl(c.tel, msg);
+      const smsHref = 'sms:' + c.tel;
       const cardId = 'card-' + c.tel.replace(/\D/g, '');
       html += `
         <div class="client-card" id="${cardId}">
@@ -208,7 +210,7 @@ async function init() {
           <div class="client-tel">📞 ${esc(c.tel)}</div>
           <div class="client-meta">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb > 1 ? 's' : ''}</div>
           <div class="preview-sms" id="prev-${cardId}">${esc(msg)}</div>
-          <a class="btn-sms" href="${smsHref}" onclick="onSmsClick(document.getElementById('${cardId}'))">
+          <a class="btn-sms" href="${smsHref}" onclick="onSmsClick('${c.tel}', document.getElementById('prev-${cardId}').textContent, document.getElementById('${cardId}'))">
             💬 Ouvrir le SMS
           </a>
           <button class="btn-efface" onclick="effacer('${c.tel}', document.getElementById('${cardId}'))">

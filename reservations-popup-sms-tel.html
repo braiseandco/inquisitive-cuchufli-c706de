@@ -2303,13 +2303,12 @@ async function loadRelances(){
 
     for(const c of clients){
       const msg = buildSms(c.nom);
-      const smsHref = buildSmsUrl(c.tel, msg);
       const cid = 'rc-'+c.tel.replace(/\D/g,'');
       html += `<div id="${cid}" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">
         <div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 ${esc(c.nom||'(sans nom)')}</div>
         <div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="${cid}-tel">📞 ${esc(c.tel)}</div>
         <div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb>1?'s':''}</div>
-        <a href="${smsHref}" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="document.getElementById('${cid}-efface').style.display='block'">💬 Envoyer la relance SMS</a>
+        <a href="sms:${c.tel}" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="if(navigator.clipboard)navigator.clipboard.writeText(${JSON.stringify(msg)}).catch(()=>{}); document.getElementById('${cid}-efface').style.display='block'; toast('📋 Message copié — collez dans le SMS','ok');">💬 Envoyer la relance SMS</a>
         <button id="${cid}-efface" onclick="relanceEffacer('${c.tel}','${cid}')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>
       </div>`;
     }
@@ -2340,7 +2339,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-10.1';
+const APP_VERSION = '2026-04-12.1';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
