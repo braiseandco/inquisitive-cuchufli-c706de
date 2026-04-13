@@ -1,10 +1,24 @@
 // Service Worker — Commande Suivi Boisson
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'boissons-v1';
+const CACHE = 'boissons-v2';
+const STATIC_ASSETS = [
+  '/boissons/index.html',
+  '/boissons/manifest.json',
+  '/boissons/icon-192.png',
+  '/boissons/icon-192-maskable.png',
+  '/boissons/icon-512.png',
+  '/boissons/icon-512-maskable.png'
+];
 
 self.addEventListener('install', function(e) {
-  self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then(function(cache) {
+      return cache.addAll(STATIC_ASSETS);
+    }).then(function() {
+      return self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', function(e) {
