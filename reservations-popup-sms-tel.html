@@ -2296,7 +2296,7 @@ async function loadRelances(){
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + 7);
       const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
-      return (n ? 'Bonjour '+n+' (désolé si votre nom est mal orthographié),' : 'Bonjour,')+' ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
+      return 'Bonjour, ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14';
     };
 
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
@@ -2347,7 +2347,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-13.1';
+const APP_VERSION = '2026-04-13.2';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
