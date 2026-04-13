@@ -1,7 +1,7 @@
 // Service Worker — Braise & Co (apps principales)
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'braise-v9';
+const CACHE = 'braise-v10';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();
@@ -31,6 +31,11 @@ self.addEventListener('fetch', function(e) {
   if (url.includes('/planning/')) return;
   if (url.includes('/boissons/')) return;
   if (url.includes('supabase') || url.includes('fonts.googleapis') || url.includes('cdnjs') || url.includes('qrserver')) {
+    e.respondWith(fetch(e.request, {cache: 'no-store'}));
+    return;
+  }
+  // version.json ne doit jamais être mis en cache (sert à la détection de mise à jour)
+  if (url.includes('version.json')) {
     e.respondWith(fetch(e.request, {cache: 'no-store'}));
     return;
   }
