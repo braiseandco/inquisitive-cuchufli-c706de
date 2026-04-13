@@ -2501,8 +2501,13 @@ document.querySelectorAll('.overlay').forEach(ov => {
 /* ═══════════════ MISE À JOUR APP ═══════════════ */
 async function updateApp() {
   if ('serviceWorker' in navigator) {
+    // Forcer l'activation du SW en attente s'il existe
     const regs = await navigator.serviceWorker.getRegistrations();
-    for (const r of regs) await r.unregister();
+    for (const r of regs) {
+      if (r.waiting) r.waiting.postMessage({ type: 'SKIP_WAITING' });
+      await r.update();
+      await r.unregister();
+    }
   }
   if ('caches' in window) {
     const keys = await caches.keys();
