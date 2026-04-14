@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080">
+<title>Publication Cochon de Lait — Braise &amp; Co</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Raleway:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    width:1080px;
+    height:1080px;
+    overflow:hidden;
+    font-family:'Raleway',sans-serif;
+    background:#0a0502;
+  }
+
+  .canvas{
+    width:1080px;
+    height:1080px;
+    position:relative;
+    overflow:hidden;
+    background: radial-gradient(ellipse at 50% 80%, #3a1200 0%, #1a0800 40%, #0a0300 100%);
+  }
+
+  /* ── FOND FLAMMES / BRAISES ── */
+  .bg-glow{
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 100%, rgba(255,80,0,0.55) 0%, transparent 70%),
+      radial-gradient(ellipse 80% 30% at 50% 95%, rgba(255,140,0,0.3) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 20% at 30% 90%, rgba(255,60,0,0.25) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 20% at 70% 88%, rgba(255,100,0,0.2) 0%, transparent 50%);
+  }
+
+  /* Particules braises */
+  .ember{
+    position:absolute;
+    border-radius:50%;
+    background:radial-gradient(circle, #ffcc44, #ff6600, transparent);
+    animation:float linear infinite;
+    opacity:0;
+  }
+  @keyframes float{
+    0%{opacity:0;transform:translateY(0) scale(1);}
+    10%{opacity:1;}
+    80%{opacity:0.6;}
+    100%{opacity:0;transform:translateY(-400px) scale(0.3);}
+  }
+
+  /* ── TEXTURE GRUNGE ── */
+  .noise{
+    position:absolute;
+    inset:0;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity:0.06;
+    mix-blend-mode:overlay;
+  }
+
+  /* ── COCHON VISUEL (grand cercle central) ── */
+  .pig-circle{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-52%);
+    width:680px;
+    height:680px;
+    border-radius:50%;
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 60%, rgba(200,80,10,0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 100% 100% at 50% 50%, rgba(30,10,0,0.6) 30%, transparent 100%);
+    border:2px solid rgba(255,120,0,0.08);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+
+  /* Simuler l'assiette / plat */
+  .pig-plate{
+    width:580px;
+    height:440px;
+    border-radius:50%;
+    background:
+      radial-gradient(ellipse 80% 70% at 48% 52%,
+        #c45a12 0%,
+        #8b3a0a 20%,
+        #6b2a06 40%,
+        #4a1a02 65%,
+        #1a0800 100%
+      );
+    box-shadow:
+      inset 0 -40px 80px rgba(255,80,0,0.4),
+      inset 0 40px 60px rgba(0,0,0,0.7),
+      0 0 120px rgba(255,80,0,0.3),
+      0 0 60px rgba(255,140,0,0.2);
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  /* Texture "peau croustillante" */
+  .skin-texture{
+    position:absolute;
+    inset:15%;
+    border-radius:45%;
+    background:
+      repeating-conic-gradient(
+        from 0deg at 50% 48%,
+        rgba(180,70,10,0.6) 0deg 8deg,
+        rgba(140,50,5,0.4) 8deg 16deg,
+        rgba(200,90,15,0.5) 16deg 24deg
+      ),
+      radial-gradient(ellipse 90% 80% at 50% 45%,
+        #d4641a 0%,
+        #a84010 30%,
+        #7a2a08 60%,
+        #4a1502 100%
+      );
+    box-shadow:
+      inset 0 -20px 40px rgba(0,0,0,0.5),
+      inset 0 10px 20px rgba(255,120,0,0.2);
+  }
+
+  /* Highlight brillant */
+  .skin-shine{
+    position:absolute;
+    top:18%;
+    left:28%;
+    width:44%;
+    height:28%;
+    border-radius:50%;
+    background:radial-gradient(ellipse, rgba(255,180,80,0.35) 0%, transparent 70%);
+    transform:rotate(-15deg);
+  }
+
+  /* ── OVERLAY DÉGRADÉ HAUT → BAS ── */
+  .overlay-top{
+    position:absolute;
+    top:0; left:0; right:0;
+    height:260px;
+    background:linear-gradient(to bottom, rgba(5,2,0,0.85) 0%, transparent 100%);
+  }
+  .overlay-bottom{
+    position:absolute;
+    bottom:0; left:0; right:0;
+    height:360px;
+    background:linear-gradient(to top, rgba(5,2,0,0.95) 0%, rgba(5,2,0,0.7) 50%, transparent 100%);
+  }
+
+  /* ── LOGO ── */
+  .logo{
+    position:absolute;
+    top:44px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:0;
+  }
+  .logo img{
+    width:220px;
+    filter:drop-shadow(0 0 24px rgba(255,100,0,0.6)) drop-shadow(0 2px 8px rgba(0,0,0,0.9));
+  }
+
+  /* ── BADGE ÉVÉNEMENT ── */
+  .badge{
+    position:absolute;
+    top:50px;
+    right:54px;
+    z-index:10;
+    background:linear-gradient(135deg, #ff5500, #ff8800);
+    color:#fff;
+    font-family:'Cinzel',serif;
+    font-size:11px;
+    font-weight:900;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:8px 16px;
+    border-radius:4px;
+    box-shadow:0 0 20px rgba(255,80,0,0.5), 0 4px 12px rgba(0,0,0,0.5);
+    transform:rotate(2deg);
+  }
+
+  /* ── CONTENU PRINCIPAL ── */
+  .content{
+    position:absolute;
+    bottom:0; left:0; right:0;
+    padding:0 64px 52px;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    gap:0;
+  }
+
+  /* Dates */
+  .dates{
+    display:flex;
+    gap:24px;
+    margin-bottom:18px;
+    align-items:center;
+  }
+  .date-pill{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,140,0,0.4);
+    border-radius:40px;
+    padding:8px 22px;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:#ffaa44;
+  }
+  .date-sep{
+    color:rgba(255,140,0,0.4);
+    font-size:20px;
+    font-weight:300;
+  }
+
+  /* Titre principal */
+  .title{
+    font-family:'Cinzel',serif;
+    font-size:80px;
+    font-weight:900;
+    line-height:0.9;
+    letter-spacing:-1px;
+    background:linear-gradient(180deg, #ffffff 0%, #ffcc88 40%, #ff8800 100%);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+    text-shadow:none;
+    margin-bottom:4px;
+    filter:drop-shadow(0 4px 20px rgba(255,80,0,0.4));
+  }
+  .title-sub{
+    font-family:'Cinzel',serif;
+    font-size:30px;
+    font-weight:700;
+    letter-spacing:8px;
+    text-transform:uppercase;
+    color:#ff8822;
+    margin-bottom:24px;
+    text-shadow:0 0 30px rgba(255,100,0,0.5);
+  }
+
+  /* Séparateur */
+  .divider{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:22px;
+    width:100%;
+    max-width:500px;
+  }
+  .divider-line{
+    flex:1;
+    height:1px;
+    background:linear-gradient(to right, transparent, rgba(255,140,0,0.5), transparent);
+  }
+  .divider-icon{
+    font-size:18px;
+  }
+
+  /* Concours */
+  .concours-box{
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,140,0,0.25);
+    border-radius:12px;
+    padding:16px 28px;
+    margin-bottom:28px;
+    max-width:640px;
+  }
+  .concours-title{
+    font-size:12px;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    color:#ff8822;
+    font-weight:800;
+    margin-bottom:8px;
+  }
+  .concours-text{
+    font-size:18px;
+    font-weight:700;
+    color:#fff;
+    line-height:1.4;
+  }
+  .concours-text span{
+    color:#ffcc44;
+    font-weight:900;
+  }
+  .concours-note{
+    font-size:11px;
+    color:rgba(255,255,255,0.4);
+    margin-top:6px;
+    letter-spacing:1px;
+    font-style:italic;
+  }
+
+  /* Footer infos */
+  .footer-info{
+    display:flex;
+    gap:32px;
+    align-items:center;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .info-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:rgba(255,255,255,0.6);
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:0.5px;
+  }
+  .info-item .icon{
+    font-size:14px;
+    opacity:0.7;
+  }
+  .info-dot{
+    width:3px;
+    height:3px;
+    border-radius:50%;
+    background:rgba(255,140,0,0.4);
+  }
+
+  /* ── BANDES LATÉRALES DÉCORATIVES ── */
+  .deco-left, .deco-right{
+    position:absolute;
+    top:0;bottom:0;
+    width:4px;
+    background:linear-gradient(to bottom, transparent 0%, rgba(255,80,0,0.4) 30%, rgba(255,140,0,0.6) 60%, transparent 100%);
+    z-index:10;
+  }
+  .deco-left{left:32px;}
+  .deco-right{right:32px;}
+
+</style>
+</head>
+<body>
+<div class="canvas">
+
+  <!-- Fond -->
+  <div class="bg-glow"></div>
+  <div class="noise"></div>
+
+  <!-- Visuel cochon -->
+  <div class="pig-circle">
+    <div class="pig-plate">
+      <div class="skin-texture"></div>
+      <div class="skin-shine"></div>
+    </div>
+  </div>
+
+  <!-- Overlays dégradés -->
+  <div class="overlay-top"></div>
+  <div class="overlay-bottom"></div>
+
+  <!-- Déco latérale -->
+  <div class="deco-left"></div>
+  <div class="deco-right"></div>
+
+  <!-- Logo -->
+  <div class="logo">
+    <img src="images/logo-blanc.png" alt="Braise &amp; Co">
+  </div>
+
+  <!-- Badge -->
+  <div class="badge">Événement spécial</div>
+
+  <!-- Contenu principal -->
+  <div class="content">
+
+    <!-- Dates -->
+    <div class="dates">
+      <div class="date-pill">Vendredi soir</div>
+      <div class="date-sep">&amp;</div>
+      <div class="date-pill">Dimanche midi</div>
+    </div>
+
+    <!-- Titre -->
+    <div class="title">Cochon</div>
+    <div class="title">de Lait</div>
+    <div class="title-sub">À Volonté</div>
+
+    <!-- Séparateur -->
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-icon">🔥</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <!-- Concours -->
+    <div class="concours-box">
+      <div class="concours-title">Jeu — Gagnez votre apéritif</div>
+      <div class="concours-text">
+        <span>Taguez 2 personnes</span> en commentaire<br>
+        + <span>Partagez</span> cette publication<br>
+        = <span>1 apéro offert !</span> 🥂
+      </div>
+      <div class="concours-note">Un seul apéro par réservation</div>
+    </div>
+
+    <!-- Infos restaurant -->
+    <div class="footer-info">
+      <div class="info-item">
+        <span class="icon">📍</span>
+        <span>174 bis Av. de la Côte d'Argent, Biganos</span>
+      </div>
+      <div class="info-dot"></div>
+      <div class="info-item">
+        <span class="icon">📞</span>
+        <span>09 86 12 97 14</span>
+      </div>
+      <div class="info-dot"></div>
+      <div class="info-item">
+        <span class="icon">🌐</span>
+        <span>www.braiseandco-biganos.fr</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>
