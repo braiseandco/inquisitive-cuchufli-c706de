@@ -903,41 +903,35 @@ document.getElementById('btn-save-thursday').onclick=async function(){
   btn.disabled=false;btn.textContent='Enregistrer';
 };
 
-// SMS inscription — deux boutons iPhone / Android
+// SMS inscription — lien vers page client dédiée (pas d'installation PWA côté client)
 (function(){
-  const LIEN = 'https://app.braiseandco.fr/carte-fidelite.html?action=inscription';
-  const MSG_IOS = `Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ${LIEN}
+  function buildLien(tel){
+    const base = 'https://app.braiseandco.fr/fidelite/inscription.html';
+    return tel ? base + '?tel=' + encodeURIComponent(tel) : base;
+  }
+  function buildMsg(tel){
+    return 'Bonjour ! Braise & Co vous offre une carte fidélité 🔥\n\nInscrivez-vous ici (2 min) :\n' + buildLien(tel) + '\n\nÀ très bientôt ! 🎁';
+  }
 
-Pour installer l'app sur votre iPhone : ouvrez ce lien avec Safari, puis appuyez sur ⬆️ en bas → "Sur l'écran d'accueil" → "Ajouter". Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁`;
-  const MSG_ANDROID = `Bonjour ! Voici votre carte fidélité Braise & Co 🔥 : ${LIEN}
-
-Pour installer l'app : ouvrez ce lien depuis Chrome, créez votre carte, puis touchez le bouton "Installer l'app" qui apparaît. Pensez à accepter les notifications pour recevoir nos offres ! Vous retrouverez votre carte directement depuis l'icône 🎁`;
-
-  function sendSMS(msg){
-    const tel = document.getElementById('sms-tel-input').value.replace(/\s/g,'').trim();
+  function sendSMS(inputId){
+    const tel = document.getElementById(inputId).value.replace(/\s/g,'').trim();
     if(!tel){toast('Numéro manquant','ko');return;}
+    const msg = buildMsg(tel);
+    if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
     window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent(msg);
-    if(navigator.clipboard) setTimeout(()=>navigator.clipboard.writeText(tel).then(()=>toast('📱 '+tel+' copié','ok')).catch(()=>{}), 500);
   }
 
   document.getElementById('btn-send-sms-iphone').addEventListener('click', function(e){
-    e.preventDefault(); sendSMS(MSG_IOS);
+    e.preventDefault(); sendSMS('sms-tel-input');
   });
   document.getElementById('btn-send-sms-android').addEventListener('click', function(e){
-    e.preventDefault(); sendSMS(MSG_ANDROID);
+    e.preventDefault(); sendSMS('sms-tel-input');
   });
-  // Boutons staff (écran sl) — même logique, input différent
-  function sendStaffSMS(msg){
-    const tel = document.getElementById('staff-sms-tel').value.replace(/\s/g,'').trim();
-    if(!tel){toast('Numéro manquant','ko');return;}
-    window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent(msg);
-    if(navigator.clipboard) setTimeout(()=>navigator.clipboard.writeText(tel).then(()=>toast('📱 '+tel+' copié','ok')).catch(()=>{}), 500);
-  }
   document.getElementById('btn-staff-sms-iphone').addEventListener('click', function(e){
-    e.preventDefault(); sendStaffSMS(MSG_IOS);
+    e.preventDefault(); sendSMS('staff-sms-tel');
   });
   document.getElementById('btn-staff-sms-android').addEventListener('click', function(e){
-    e.preventDefault(); sendStaffSMS(MSG_ANDROID);
+    e.preventDefault(); sendSMS('staff-sms-tel');
   });
 })();
 

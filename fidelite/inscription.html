@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<!-- Pas de manifest PWA → pas d'installation sur le tel du client -->
+<title>Carte Fidélité — Braise & Co</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;color:#F0EDE8;overflow-x:hidden;}
+
+/* ── HEADER ── */
+.header{text-align:center;padding:40px 24px 28px;}
+.logo-flame{font-size:48px;display:block;margin-bottom:8px;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+.brand{font-family:'Cinzel',serif;font-size:22px;font-weight:900;background:linear-gradient(135deg,#FF6B00,#FFA500,#FFD700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;}
+.tagline{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(240,237,232,0.4);margin-top:6px;}
+
+/* ── CARD ── */
+.card{background:#141414;border:1px solid rgba(255,107,0,0.2);border-radius:20px;padding:28px 24px;margin:0 16px 20px;max-width:420px;margin-left:auto;margin-right:auto;}
+.card-title{font-family:'Cinzel',serif;font-size:15px;color:#FFA500;margin-bottom:6px;letter-spacing:1px;}
+.card-desc{font-size:13px;color:rgba(240,237,232,0.55);line-height:1.6;}
+
+/* ── FORM ── */
+.form-wrap{padding:0 16px 40px;max-width:420px;margin:0 auto;}
+.field{margin-bottom:18px;}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#FF6B00;margin-bottom:7px;}
+.field input{width:100%;padding:15px 16px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;color:#F0EDE8;font-family:'Raleway',sans-serif;font-size:16px;outline:none;transition:border-color .2s;-webkit-appearance:none;}
+.field input:focus{border-color:#FF6B00;background:#1f1a12;}
+.field input.err{border-color:#e53935;}
+.field input::placeholder{color:#444;}
+.field .err-msg{font-size:12px;color:#ef9a9a;margin-top:5px;display:none;}
+.field .err-msg.show{display:block;}
+.optional{font-size:10px;color:rgba(240,237,232,0.3);font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;}
+
+.btn-submit{display:block;width:100%;padding:18px;background:linear-gradient(135deg,#FF4500,#FF6B00,#FFA500);border:none;border-radius:14px;font-family:'Raleway',sans-serif;font-size:16px;font-weight:900;color:#000;cursor:pointer;letter-spacing:1px;box-shadow:0 0 24px rgba(255,107,0,0.4);transition:opacity .2s;margin-top:8px;}
+.btn-submit:active{opacity:.85;}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed;}
+
+.privacy{display:flex;gap:10px;align-items:flex-start;background:rgba(255,107,0,0.05);border:1px solid rgba(255,107,0,0.12);border-radius:12px;padding:14px;margin-bottom:20px;font-size:12px;color:rgba(240,237,232,0.4);line-height:1.5;}
+
+/* ── SUCCÈS ── */
+#screen-success{display:none;text-align:center;padding:60px 24px 40px;max-width:420px;margin:0 auto;}
+#screen-success.active{display:block;}
+#screen-form.hidden{display:none;}
+.success-icon{font-size:64px;margin-bottom:16px;animation:pop .4s ease-out;}
+@keyframes pop{0%{transform:scale(0);}80%{transform:scale(1.15);}100%{transform:scale(1);}}
+.success-title{font-family:'Cinzel',serif;font-size:24px;font-weight:900;background:linear-gradient(135deg,#FF6B00,#FFD700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px;}
+.success-msg{font-size:14px;color:rgba(240,237,232,0.6);line-height:1.7;margin-bottom:32px;}
+
+.loyalty-preview{background:linear-gradient(135deg,#1a0a00,#2a1200);border:1px solid rgba(255,107,0,0.35);border-radius:18px;padding:24px;margin-bottom:28px;}
+.lp-name{font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:#FFA500;margin-bottom:4px;}
+.lp-sub{font-size:12px;color:rgba(240,237,232,0.4);letter-spacing:1px;margin-bottom:20px;}
+.stamps-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;}
+.stamp{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,107,0,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;background:#111;}
+.stamp.filled{background:linear-gradient(135deg,#FF4500,#FF6B00);border-color:#FF6B00;box-shadow:0 0 10px rgba(255,107,0,0.5);}
+.lp-info{font-size:12px;color:rgba(240,237,232,0.5);line-height:1.6;}
+
+.stamp-count-info{background:rgba(255,107,0,0.08);border:1px solid rgba(255,107,0,0.2);border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:rgba(240,237,232,0.7);line-height:1.5;}
+.stamp-count-info strong{color:#FFA500;}
+
+/* ── DÉJÀ INSCRIT ── */
+#screen-exists{display:none;text-align:center;padding:60px 24px 40px;max-width:420px;margin:0 auto;}
+#screen-exists.active{display:block;}
+
+/* ── LOADER ── */
+.loader{display:none;text-align:center;padding:20px;color:rgba(240,237,232,0.4);font-size:14px;}
+.loader.show{display:block;}
+</style>
+</head>
+<body>
+
+<div id="screen-form">
+  <div class="header">
+    <span class="logo-flame">🔥</span>
+    <div class="brand">Braise & Co</div>
+    <div class="tagline">Programme fidélité</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🎁 Votre carte fidélité gratuite</div>
+    <div class="card-desc">Cumulez des passages et profitez de récompenses exclusives : apéro offert, dessert offert, et bien plus encore !</div>
+  </div>
+
+  <div class="form-wrap">
+    <div class="field">
+      <label>Prénom <span style="color:#e53935">*</span></label>
+      <input type="text" id="f-prenom" placeholder="Marie" autocomplete="given-name">
+      <div class="err-msg" id="err-prenom">Prénom requis</div>
+    </div>
+    <div class="field">
+      <label>Nom <span style="color:#e53935">*</span></label>
+      <input type="text" id="f-nom" placeholder="Dupont" autocomplete="family-name">
+      <div class="err-msg" id="err-nom">Nom requis</div>
+    </div>
+    <div class="field">
+      <label>Téléphone <span style="color:#e53935">*</span></label>
+      <input type="tel" id="f-tel" placeholder="06 12 34 56 78" autocomplete="tel" inputmode="numeric">
+      <div class="err-msg" id="err-tel">Numéro invalide</div>
+    </div>
+    <div class="field">
+      <label>Email <span class="optional">(facultatif)</span></label>
+      <input type="email" id="f-email" placeholder="marie.dupont@email.com" autocomplete="email">
+      <div class="err-msg" id="err-email">Email invalide</div>
+    </div>
+
+    <div class="privacy">
+      <span>🔒</span>
+      <span>Vos données sont utilisées uniquement pour votre carte fidélité Braise & Co et ne sont jamais partagées.</span>
+    </div>
+
+    <button class="btn-submit" id="btn-submit">🔥 Créer ma carte fidélité</button>
+    <div class="loader" id="loader">Inscription en cours…</div>
+  </div>
+</div>
+
+<!-- ── DÉJÀ INSCRIT ── -->
+<div id="screen-exists">
+  <div class="success-icon">✅</div>
+  <div class="success-title">Déjà inscrit !</div>
+  <div class="success-msg" id="exists-msg">Ce numéro est déjà dans notre programme fidélité. Présentez votre numéro de téléphone à la caisse lors de votre prochaine visite !</div>
+</div>
+
+<!-- ── SUCCÈS ── -->
+<div id="screen-success">
+  <div class="success-icon">🎉</div>
+  <div class="success-title">Bienvenue !</div>
+  <div class="success-msg">Votre carte fidélité est créée. Présentez simplement votre numéro de téléphone à la caisse lors de vos prochaines visites.</div>
+
+  <div class="loyalty-preview">
+    <div class="lp-name" id="lp-name">Marie Dupont</div>
+    <div class="lp-sub">Membre fidélité · 0 passage</div>
+    <div class="stamps-row" id="stamps-row"></div>
+    <div class="lp-info">Collectez <strong style="color:#FFA500;">10 passages</strong> pour gagner votre première récompense 🎁</div>
+  </div>
+
+  <div class="stamp-count-info">
+    💡 Pas besoin d'appli ! Donnez simplement votre <strong>numéro de téléphone</strong> à la caisse et votre passage est validé automatiquement.
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://ipnuwxirmfumxsguudvi.supabase.co';
+const SB_KEY = 'sb_publishable_iIxaYsXCZMBekFbl8596zQ_z7ENQ9n1';
+
+// Pré-remplir le téléphone depuis l'URL (?tel=...)
+const urlTel = new URLSearchParams(window.location.search).get('tel') || '';
+if(urlTel) document.getElementById('f-tel').value = urlTel.replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+
+async function sbFetch(path, opts={}){
+  const res = await fetch(SB_URL+'/rest/v1/'+path, {
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':opts.prefer||'',...(opts.headers||{})},
+    ...opts
+  });
+  if(!res.ok){ const e=await res.text(); throw new Error(e); }
+  const t = await res.text(); return t ? JSON.parse(t) : null;
+}
+
+function genId(){
+  return 'cl_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+
+function cleanTel(v){ return v.replace(/\s/g,'').trim(); }
+
+function show(id){ document.getElementById(id).classList.add('active'); }
+function hide(id){ document.getElementById(id).classList.add('hidden'); }
+
+function buildStamps(n, total=10){
+  const row = document.getElementById('stamps-row');
+  row.innerHTML = '';
+  for(let i=0;i<total;i++){
+    const s = document.createElement('div');
+    s.className = 'stamp' + (i<n?' filled':'');
+    s.textContent = i<n ? '🔥' : '';
+    row.appendChild(s);
+  }
+}
+
+document.getElementById('btn-submit').addEventListener('click', async function(){
+  const prenom = document.getElementById('f-prenom').value.trim();
+  const nom    = document.getElementById('f-nom').value.trim();
+  const tel    = cleanTel(document.getElementById('f-tel').value);
+  const email  = document.getElementById('f-email').value.trim();
+
+  // Validation
+  let ok = true;
+  ['prenom','nom','tel','email'].forEach(f => {
+    document.getElementById('f-'+f).classList.remove('err');
+    document.getElementById('err-'+f).classList.remove('show');
+  });
+
+  if(!prenom){ document.getElementById('f-prenom').classList.add('err'); document.getElementById('err-prenom').classList.add('show'); ok=false; }
+  if(!nom){ document.getElementById('f-nom').classList.add('err'); document.getElementById('err-nom').classList.add('show'); ok=false; }
+  if(!tel || tel.length < 9){ document.getElementById('f-tel').classList.add('err'); document.getElementById('err-tel').classList.add('show'); ok=false; }
+  if(email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)){ document.getElementById('f-email').classList.add('err'); document.getElementById('err-email').classList.add('show'); ok=false; }
+
+  if(!ok) return;
+
+  const btn = document.getElementById('btn-submit');
+  const loader = document.getElementById('loader');
+  btn.disabled = true;
+  loader.classList.add('show');
+
+  try {
+    // Vérifier si le numéro existe déjà
+    const existing = await sbFetch('clients?tel=eq.'+encodeURIComponent(tel)+'&select=id,prenom,nom');
+    if(existing && existing.length > 0){
+      hide('screen-form');
+      const c = existing[0];
+      document.getElementById('exists-msg').textContent = (c.prenom||'') + ' ' + (c.nom||'') + ', ce numéro est déjà dans notre programme fidélité. Présentez votre numéro de téléphone à la caisse lors de votre prochaine visite !';
+      show('screen-exists');
+      return;
+    }
+
+    // Créer le client
+    await sbFetch('clients', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: JSON.stringify({
+        id: genId(),
+        prenom, nom, email: email||null, tel,
+        stamps: 0,
+        total_stamps: 0,
+        rewards_used: 0,
+        apero_pending: false,
+        apero_used: 0,
+        visits: []
+      })
+    });
+
+    // Succès
+    hide('screen-form');
+    document.getElementById('lp-name').textContent = prenom + ' ' + nom;
+    buildStamps(0);
+    show('screen-success');
+
+  } catch(e) {
+    console.error(e);
+    btn.disabled = false;
+    loader.classList.remove('show');
+    alert('Une erreur est survenue. Veuillez réessayer.');
+  }
+});
+</script>
+</body>
+</html>
