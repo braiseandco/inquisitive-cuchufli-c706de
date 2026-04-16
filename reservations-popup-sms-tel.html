@@ -2413,12 +2413,14 @@ async function loadRouletteGains(){
     } catch(_){}
 
     const fmtDate = d => new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+    window._rouletteMsgs = {};
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
       const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co)';
       const smsHref = buildSmsUrl(esc(g.telephone), msg);
       const gid = 'gain-'+g.id;
+      window._rouletteMsgs[gid] = msg;
       const employe = envoisMap[g.telephone];
       html += `<div id="${gid}" style="background:var(--bg2);border:1px solid rgba(201,168,76,0.35);border-radius:14px;padding:16px;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -2454,6 +2456,8 @@ function cadeauEmoji(cadeau){
 }
 
 async function rouletteGainMarquerEnvoye(gainId, gid){
+  if(window._rouletteMsgs && window._rouletteMsgs[gid] && navigator.clipboard)
+    navigator.clipboard.writeText(window._rouletteMsgs[gid]).catch(()=>{});
   // Le href de l'<a> ouvre déjà l'appli SMS — ici on marque juste comme envoyé
   try {
     await sbFetch('roulette_gains?id=eq.'+gainId, {method:'PATCH', body:JSON.stringify({sms_envoye:true})});
@@ -2490,6 +2494,7 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   localStorage.setItem('roulette_employe', employe);
 
   const msg = '🎰 Braise & Co vous invite à jouer à notre roulette et tenter de gagner un cadeau offert lors de votre prochaine visite 🎁\n\nhttps://app.braiseandco.fr/roulette/\n\nÀ très bientôt chez Braise & Co ! 🔥';
+  if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   window.location.href = buildSmsUrl(tel, msg);
 
   // Enregistrer l'envoi dans Supabase
@@ -2526,7 +2531,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-16.2';
+const APP_VERSION = '2026-04-16.3';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -2689,6 +2694,8 @@ function envoyerNotifSms(r){
 
 // ── Gestion boutons SMS modal ──────────────────────────────
 document.getElementById('sms-btn-open').addEventListener('click', async function(){
+  const msgText = document.getElementById('sms-msg-text').textContent;
+  if(navigator.clipboard && msgText) navigator.clipboard.writeText(msgText).catch(()=>{});
   document.getElementById('sms-overlay').classList.remove('open');
   if(_smsCurrentResaId){
     await updateResa(_smsCurrentResaId, {sms_envoye:true});
