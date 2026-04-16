@@ -2415,12 +2415,11 @@ async function loadRouletteGains(){
     } catch(_){}
 
     const fmtDate = d => new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
-    // Stocker les messages dans un objet global pour éviter les problèmes d'apostrophes dans onclick
-    window._rouletteMsgs = {};
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
-      window._rouletteMsgs[g.id] = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥';
+      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥';
+      const smsHref = buildSmsUrl(esc(g.telephone), msg);
       const gid = 'gain-'+g.id;
       const employe = envoisMap[g.telephone];
       html += `<div id="${gid}" style="background:var(--bg2);border:1px solid rgba(201,168,76,0.35);border-radius:14px;padding:16px;margin-bottom:10px;">
@@ -2434,7 +2433,7 @@ async function loadRouletteGains(){
         </div>
         <div style="font-size:13px;color:var(--text-faint);margin-bottom:${employe?'6px':'12px'};">📞 ${esc(g.telephone)}</div>
         ${employe ? `<div style="font-size:12px;color:#888;margin-bottom:12px;">👤 Proposé par <strong style="color:var(--text-dim);">${esc(employe)}</strong></div>` : ''}
-        <a href="#" onclick="rouletteGainSmsClick(${g.id},'${gid}','${esc(g.telephone)}')"
+        <a href="${smsHref}" onclick="rouletteGainMarquerEnvoye(${g.id},'${gid}')"
           style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,#c9a84c,#f0d080);color:#000;font-weight:900;font-size:14px;border-radius:12px;text-decoration:none;">
           🎁 Envoyer le SMS cadeau
         </a>
@@ -2456,11 +2455,8 @@ function cadeauEmoji(cadeau){
   return '🎁';
 }
 
-async function rouletteGainSmsClick(gainId, gid, tel){
-  const msg = (window._rouletteMsgs || {})[gainId] || '';
-  // Ouvre l'appli SMS avec numéro + message pré-remplis
-  window.location.href = buildSmsUrl(tel, msg);
-  // Marque comme envoyé dans Supabase
+async function rouletteGainMarquerEnvoye(gainId, gid){
+  // Le href de l'<a> ouvre déjà l'appli SMS — ici on marque juste comme envoyé
   try {
     await sbFetch('roulette_gains?id=eq.'+gainId, {method:'PATCH', body:JSON.stringify({sms_envoye:true})});
     const card = document.getElementById(gid);
