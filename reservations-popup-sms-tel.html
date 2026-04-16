@@ -2651,6 +2651,7 @@ function encodeSmsBody(text){
   return Array.from(text).map(c => {
     if ('&#+%=?'.includes(c)) return encodeURIComponent(c);
     if (c === ' ') return '%20';
+    if (c === '\n') return '%0A';
     return c;
   }).join('');
 }
