@@ -452,7 +452,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           🎰 Braise &amp; Co vous invite à jouer ! Laissez-nous un avis Google ou TripAdvisor, puis tournez la roulette pour gagner un cadeau offert lors de votre prochaine visite 🎁<br><br>
           ⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review<br>
           🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490...<br><br>
-          🎰 Roulette : https://braiseandcobiganos.fr/roulette/<br><br>
+          🎰 Roulette : https://app.braiseandco.fr/roulette/<br><br>
           À très bientôt chez Braise &amp; Co ! 🔥
         </div>
       </div>
@@ -2491,7 +2491,7 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   // Mémoriser le prénom pour les prochains envois
   localStorage.setItem('roulette_employe', employe);
 
-  const msg = 'Laissez-nous un avis Google ou TripAdvisor ⭐ Et tentez votre chance sur notre roulette pour gagner un cadeau 🎁 — jeu ouvert à tous !\n\n⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review\n🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490-Braise_Co_Biganos-Biganos_Gironde_Nouvelle_Aquitaine.html\n\n🎰 Roulette : https://braiseandcobiganos.fr/roulette/\n\nÀ très bientôt chez Braise & Co ! 🔥';
+  const msg = 'Laissez-nous un avis Google ou TripAdvisor ⭐ Et tentez votre chance sur notre roulette pour gagner un cadeau 🎁 — jeu ouvert à tous !\n\n⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review\n🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490-Braise_Co_Biganos-Biganos_Gironde_Nouvelle_Aquitaine.html\n\n🎰 Roulette : https://app.braiseandco.fr/roulette/\n\nÀ très bientôt chez Braise & Co ! 🔥';
   window.location.href = buildSmsUrl(tel, msg);
 
   // Enregistrer l'envoi dans Supabase
