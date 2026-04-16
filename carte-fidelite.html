@@ -670,14 +670,14 @@ async function openCard(id,from){
     const btn=document.getElementById('btn-checkin');
     if(mealRw){
       document.getElementById('next-info').innerHTML='';
-      btn.textContent='🍽️ Repas offert — Appeler le staff';
+      btn.textContent='🍽️ Valider le repas offert';
       btn.style.background='linear-gradient(135deg,#7B2D00,#B34700)';
-      btn.disabled=true;
+      btn.disabled=false;
     } else if(aperoRw){
       document.getElementById('next-info').innerHTML='';
-      btn.textContent='🍹 Apéro offert — Appeler le staff';
+      btn.textContent='🍹 Valider l\'apéro offert';
       btn.style.background='linear-gradient(135deg,#1a4d2e,#2d7a4a)';
-      btn.disabled=true;
+      btn.disabled=false;
     } else {
       const nextMile=inCycle<APERO_STAMP?APERO_STAMP:MAX_STAMPS;
       const rem=nextMile-inCycle;
