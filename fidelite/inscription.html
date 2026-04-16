@@ -68,6 +68,7 @@ html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;co
 /* ── LOADER ── */
 .loader{display:none;text-align:center;padding:20px;color:rgba(240,237,232,0.4);font-size:14px;}
 .loader.show{display:block;}
+.hidden{display:none!important;}
 </style>
 </head>
 <body>
@@ -125,9 +126,8 @@ html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;co
 <!-- ── SUCCÈS ── -->
 <div id="screen-success">
   <div style="text-align:center;margin-bottom:20px;">
-    <div style="font-size:38px;margin-bottom:4px;">🔥</div>
-    <div style="font-family:'Cinzel',serif;font-size:20px;font-weight:900;color:#fff;letter-spacing:3px;">BRAISE & CO</div>
-    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-top:4px;">Programme fidélité</div>
+    <img src="/icon-192.png" alt="Braise & Co" style="width:100px;height:100px;mix-blend-mode:screen;margin-bottom:6px;">
+    <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.35);">Programme fidélité</div>
   </div>
   <div class="success-title">Bienvenue !</div>
   <div class="success-msg">Votre carte fidélité est créée. Présentez simplement votre numéro de téléphone à la caisse lors de vos prochaines visites.</div>
@@ -142,6 +142,11 @@ html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;co
   <div class="stamp-count-info">
     💡 Pas besoin d'appli ! Donnez simplement votre <strong>numéro de téléphone</strong> à la caisse et votre passage est validé automatiquement.
   </div>
+
+  <div style="background:rgba(255,107,0,0.06);border:1px solid rgba(255,107,0,0.15);border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:rgba(240,237,232,0.55);line-height:1.6;display:flex;gap:10px;align-items:flex-start;">
+    <span>📱</span>
+    <span>Surveillez vos SMS — Braise & Co peut vous envoyer des cadeaux et offres exclusives par SMS de temps en temps !</span>
+  </div>
 </div>
 
 <script>
@@ -151,6 +156,16 @@ const SB_KEY = 'sb_publishable_iIxaYsXCZMBekFbl8596zQ_z7ENQ9n1';
 // Pré-remplir le téléphone depuis l'URL (?tel=...)
 const urlTel = new URLSearchParams(window.location.search).get('tel') || '';
 if(urlTel) document.getElementById('f-tel').value = urlTel.replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+
+// Aperçu succès (?preview=success)
+if(new URLSearchParams(window.location.search).get('preview')==='success'){
+  window.addEventListener('load', function(){
+    document.getElementById('screen-form').classList.add('hidden');
+    document.getElementById('screen-success').classList.add('active');
+    document.getElementById('lp-name').textContent = 'Marie Dupont';
+    buildStamps(0);
+  });
+}
 
 async function sbFetch(path, opts={}){
   const res = await fetch(SB_URL+'/rest/v1/'+path, {
