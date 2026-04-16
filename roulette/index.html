@@ -484,17 +484,37 @@ document.getElementById('btn-spin').addEventListener('click', function() {
 });
 
 // ── RÉSULTAT ─────────────────────────────────────────────────
+function genId() {
+  return 'roulette_' + Math.random().toString(36).slice(2, 10);
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 async function showResult() {
   const nom = window._clientNom || '';
   const tel = window._clientTel || '';
 
   showScreen('screen-loading');
 
+  // Enregistrer le gain roulette
   await sbInsert('roulette_gains', {
     nom: nom,
     telephone: tel,
     cadeau: selectedPrize.label,
     sms_envoye: false
+  });
+
+  // Ajouter dans reservations pour apparaître dans Relances J+30
+  await sbInsert('reservations', {
+    id: genId(),
+    nom: nom,
+    telephone: tel,
+    date: todayStr(),
+    heure: '12:00',
+    notes: '🎰 Roulette — ' + selectedPrize.label,
+    statut: 'confirmee'
   });
 
   localStorage.setItem('roulette_played_' + tel, '1');
