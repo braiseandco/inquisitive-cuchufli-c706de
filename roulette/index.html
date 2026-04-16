@@ -507,6 +507,7 @@ async function showResult() {
   });
 
   // Ajouter dans reservations pour apparaître dans Relances J+30
+  // sms_envoye:true pour éviter le popup SMS de confirmation dans l'app résa
   await sbInsert('reservations', {
     id: genId(),
     nom: nom,
@@ -514,7 +515,8 @@ async function showResult() {
     date: todayStr(),
     heure: '12:00',
     notes: '🎰 Roulette — ' + selectedPrize.label,
-    statut: 'confirmee'
+    statut: 'confirmee',
+    sms_envoye: true
   });
 
   localStorage.setItem('roulette_played_' + tel, '1');
