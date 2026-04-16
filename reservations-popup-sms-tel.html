@@ -348,6 +348,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
     <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
+    <button class="tab" data-screen="roulette">🎰 Roulette</button>
   </div>
 
   <!-- ══ SCREEN: RESERVATIONS ══ -->
@@ -415,6 +416,47 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="screen" id="screen-relances">
     <div style="flex:1;overflow-y:auto;padding:16px;" id="relances-content">
       <div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: ROULETTE ══ -->
+  <div class="screen" id="screen-roulette">
+    <div style="flex:1;overflow-y:auto;padding:20px;">
+
+      <!-- Envoi lien jeu -->
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:20px;margin-bottom:20px;">
+        <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--accent);margin-bottom:4px;">🎰 Envoyer le jeu au client</div>
+        <div style="font-size:12px;color:var(--text-faint);margin-bottom:16px;">Entrez le numéro du client, puis envoyez le SMS avec les liens avis + roulette.</div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);display:block;margin-bottom:6px;">Numéro de téléphone client</label>
+          <input id="roulette-tel-input" type="tel" placeholder="06 12 34 56 78"
+            style="width:100%;padding:13px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:16px;outline:none;">
+        </div>
+        <button id="btn-send-roulette"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;font-family:'Raleway',sans-serif;font-size:15px;font-weight:900;color:#000;cursor:pointer;">
+          📨 Ouvrir SMS pré-rempli
+        </button>
+      </div>
+
+      <!-- Aperçu du SMS -->
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;">Aperçu du SMS envoyé</div>
+        <div style="font-size:13px;color:var(--text-dim);line-height:1.7;">
+          🎰 Braise &amp; Co vous invite à jouer ! Laissez-nous un avis Google ou TripAdvisor, puis tournez la roulette pour gagner un cadeau offert lors de votre prochaine visite 🎁<br><br>
+          ⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review<br>
+          🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490...<br><br>
+          🎰 Roulette : https://braiseandcobiganos.fr/roulette<br><br>
+          À très bientôt chez Braise &amp; Co ! 🔥
+        </div>
+      </div>
+
+      <!-- Gagnants à contacter -->
+      <div style="border-top:1px solid var(--border);padding-top:20px;">
+        <div style="font-family:'Cinzel',serif;font-size:15px;color:#c9a84c;margin-bottom:4px;">🎁 Cadeaux à confirmer</div>
+        <div style="font-size:12px;color:var(--text-faint);margin-bottom:16px;">Clients ayant joué — SMS cadeau non encore envoyé.</div>
+        <div id="roulette-gains-list"><div style="text-align:center;padding:20px;color:var(--text-faint);">⏳ Chargement…</div></div>
+      </div>
+
     </div>
   </div>
 
@@ -757,6 +799,9 @@ document.querySelectorAll('.tab').forEach(tab=>{
       loadPlan();
     } else if(this.dataset.screen==='relances'){
       loadRelances();
+    } else if(this.dataset.screen==='roulette'){
+      loadRouletteGains();
+      startRoulettePolling();
     } else {
       loadResas();
     }
@@ -2319,6 +2364,88 @@ async function loadRelances(){
     console.error(e);
   }
 }
+
+let _roulettePollingTimer = null;
+function startRoulettePolling(){
+  stopRoulettePolling();
+  _roulettePollingTimer = setInterval(()=>{
+    if(document.getElementById('screen-roulette').classList.contains('active')){
+      loadRouletteGains();
+    } else {
+      stopRoulettePolling();
+    }
+  }, 30000);
+}
+function stopRoulettePolling(){
+  if(_roulettePollingTimer){ clearInterval(_roulettePollingTimer); _roulettePollingTimer = null; }
+}
+
+async function loadRouletteGains(){
+  const list = document.getElementById('roulette-gains-list');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint);">⏳ Chargement…</div>';
+  try {
+    const gains = await sbFetch('roulette_gains?sms_envoye=eq.false&order=created_at.desc&select=*');
+    if(!gains || gains.length === 0){
+      list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-faint);font-size:13px;">✅ Aucun cadeau en attente</div>';
+      return;
+    }
+    const fmtDate = d => new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+    let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
+    for(const g of gains){
+      const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
+      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥';
+      const gid = 'gain-'+g.id;
+      html += `<div id="${gid}" style="background:var(--bg2);border:1px solid rgba(201,168,76,0.35);border-radius:14px;padding:16px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:26px;">${cadeauEmoji(g.cadeau)}</span>
+          <div style="flex:1;">
+            <div style="font-weight:900;font-size:15px;color:var(--text);">${esc(g.nom||'(sans nom)')}</div>
+            <div style="font-size:12px;color:#c9a84c;font-weight:700;">${esc(g.cadeau)}</div>
+          </div>
+          <div style="font-size:11px;color:#555;">${fmtDate(g.created_at)}</div>
+        </div>
+        <div style="font-size:13px;color:var(--text-faint);margin-bottom:12px;">📞 ${esc(g.telephone)}</div>
+        <a href="#" onclick="rouletteGainSmsClick(${g.id},'${gid}','${esc(g.telephone)}','${esc(msg)}')"
+          style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,#c9a84c,#f0d080);color:#000;font-weight:900;font-size:14px;border-radius:12px;text-decoration:none;">
+          🎁 Envoyer le SMS cadeau
+        </a>
+      </div>`;
+    }
+    list.innerHTML = html;
+  } catch(e){
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint);">❌ Erreur de chargement</div>';
+    console.error(e);
+  }
+}
+
+function cadeauEmoji(cadeau){
+  if(!cadeau) return '🎁';
+  if(cadeau.includes('Café')) return '☕';
+  if(cadeau.includes('Digestif')) return '🥃';
+  if(cadeau.includes('Apéro')) return '🍹';
+  if(cadeau.includes('Dessert')) return '🍮';
+  return '🎁';
+}
+
+async function rouletteGainSmsClick(gainId, gid, tel, msg){
+  // Ouvre l'appli SMS avec numéro + message pré-remplis
+  window.location.href = buildSmsUrl(tel, msg);
+  // Marque comme envoyé dans Supabase
+  try {
+    await sbFetch('roulette_gains?id=eq.'+gainId, {method:'PATCH', body:JSON.stringify({sms_envoye:true})});
+    const card = document.getElementById(gid);
+    if(card){ card.style.opacity='0.4'; card.style.pointerEvents='none'; }
+    toast('🎁 SMS cadeau envoyé ✓','ok');
+  } catch(e){ console.error(e); }
+}
+
+// ── ROULETTE TAB — Bouton envoi SMS jeu ──────────────────────
+document.getElementById('btn-send-roulette').addEventListener('click', function(){
+  const tel = document.getElementById('roulette-tel-input').value.replace(/\s/g,'').trim();
+  if(!tel || tel.length < 10){ toast('Numéro invalide','ko'); return; }
+  const msg = 'Laissez-nous un avis Google ou TripAdvisor ⭐ Et tentez votre chance sur notre roulette pour gagner un cadeau 🎁 — jeu ouvert à tous !\n\n⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review\n🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490-Braise_Co_Biganos-Biganos_Gironde_Nouvelle_Aquitaine.html\n\n🎰 Roulette : https://braiseandcobiganos.fr/roulette\n\nÀ très bientôt chez Braise & Co ! 🔥';
+  window.location.href = buildSmsUrl(tel, msg);
+});
 
 function relanceSmsClick(cid, tel){
   const msg = document.getElementById(cid+'-msg').textContent;

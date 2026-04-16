@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Roulette — Braise & Co">
+<link rel="manifest" href="manifest.json">
+<title>Roulette — Braise & Co</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;color:#fff;overflow-x:hidden;}
+
+/* ── ÉCRANS ── */
+.screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:28px 20px;text-align:center;}
+.screen.active{display:flex;}
+
+/* ── HEADER ── */
+.logo{width:80px;height:auto;margin-bottom:4px;}
+.logo-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#555;margin-bottom:32px;}
+
+/* ── CARTE ── */
+.card{background:#141414;border:1px solid #2a2a2a;border-radius:20px;padding:28px 24px;width:100%;max-width:400px;margin-bottom:20px;}
+.card-title{font-family:'Cinzel',serif;font-size:17px;color:#c9a84c;margin-bottom:8px;}
+.card-text{font-size:14px;color:#aaa;line-height:1.6;}
+
+/* ── BOUTONS AVIS ── */
+.btn-review{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:400px;padding:16px;border:none;border-radius:14px;font-family:'Raleway',sans-serif;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;margin-bottom:12px;transition:opacity .2s;}
+.btn-google{background:linear-gradient(135deg,#4285F4,#34A853);color:#fff;}
+.btn-tripadvisor{background:linear-gradient(135deg,#00aa6c,#007a4d);color:#fff;}
+.btn-review:active{opacity:.8;}
+.btn-review img{width:22px;height:22px;border-radius:4px;}
+
+/* ── BOUTON PRINCIPAL ── */
+.btn-main{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:400px;padding:18px;background:linear-gradient(135deg,#c9a84c,#f0d080);border:none;border-radius:14px;font-family:'Raleway',sans-serif;font-size:16px;font-weight:900;color:#000;cursor:pointer;margin-bottom:12px;transition:opacity .2s;letter-spacing:.5px;}
+.btn-main:active{opacity:.85;}
+.btn-main:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── FORMULAIRE ── */
+.form-group{width:100%;max-width:400px;margin-bottom:14px;text-align:left;}
+.form-label{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:6px;display:block;}
+.form-input{width:100%;padding:14px 16px;background:#1a1a1a;border:1px solid #333;border-radius:12px;color:#fff;font-family:'Raleway',sans-serif;font-size:16px;outline:none;transition:border-color .2s;}
+.form-input:focus{border-color:#c9a84c;}
+.form-input::placeholder{color:#444;}
+
+/* ── ROULETTE ── */
+.wheel-wrap{position:relative;width:300px;height:300px;margin:0 auto 28px;}
+.wheel-pointer{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:32px;z-index:10;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
+canvas#wheel{border-radius:50%;box-shadow:0 0 40px rgba(201,168,76,.25);}
+
+.btn-spin{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:400px;padding:20px;background:linear-gradient(135deg,#c9a84c,#f0d080);border:none;border-radius:14px;font-family:'Cinzel',serif;font-size:18px;font-weight:900;color:#000;cursor:pointer;margin-bottom:12px;transition:opacity .2s;letter-spacing:1px;box-shadow:0 0 30px rgba(201,168,76,.3);}
+.btn-spin:active{opacity:.85;}
+.btn-spin:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── RÉSULTAT ── */
+.prize-badge{background:#141414;border:2px solid #c9a84c;border-radius:20px;padding:28px 24px;width:100%;max-width:400px;margin-bottom:24px;}
+.prize-emoji{font-size:56px;margin-bottom:12px;}
+.prize-label{font-family:'Cinzel',serif;font-size:22px;color:#c9a84c;font-weight:900;margin-bottom:8px;}
+.prize-sub{font-size:14px;color:#aaa;line-height:1.6;}
+.badge-validity{background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:10px;padding:10px 16px;font-size:13px;color:#c9a84c;margin-bottom:20px;width:100%;max-width:400px;}
+
+/* ── DÉJÀ JOUÉ ── */
+.played-icon{font-size:60px;margin-bottom:16px;}
+.played-title{font-family:'Cinzel',serif;font-size:22px;color:#c9a84c;margin-bottom:8px;}
+.played-text{font-size:14px;color:#aaa;line-height:1.6;max-width:300px;}
+
+/* ── LOADING ── */
+.spinner{width:40px;height:40px;border:3px solid #222;border-top-color:#c9a84c;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.notice{font-size:12px;color:#555;margin-top:8px;max-width:360px;}
+</style>
+</head>
+<body>
+
+<!-- ══ ÉCRAN 1 : AVIS ══ -->
+<div class="screen active" id="screen-avis">
+  <img class="logo" src="/images/logo-blanc.png" alt="Braise & Co">
+  <div class="logo-sub">Biganos — Bassin d'Arcachon</div>
+
+  <div class="card">
+    <div class="card-title">🎰 Gagnez un cadeau !</div>
+    <div class="card-text">Merci d'avance pour votre avis Google ou TripAdvisor (voir les deux) ⭐ Et tentez votre chance sur notre roulette pour gagner un cadeau 🎁 — jeu ouvert à tous !</div>
+  </div>
+
+  <a class="btn-review btn-google" href="https://g.page/r/CZrjBPCOGVmhEBM/review" target="_blank" id="btn-google">
+    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+    Laisser un avis Google
+  </a>
+
+  <a class="btn-review btn-tripadvisor" href="https://www.tripadvisor.fr/UserReview-g1067663-d11434490-Braise_Co_Biganos-Biganos_Gironde_Nouvelle_Aquitaine.html" target="_blank" id="btn-tripadvisor">
+    <svg width="20" height="20" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#00aa6c"/><text x="50" y="65" font-size="50" text-anchor="middle" fill="white">🦉</text></svg>
+    Laisser un avis TripAdvisor
+  </a>
+
+  <button class="btn-main" id="btn-avis-fait" disabled>
+    ✅ J'ai laissé mon avis — Jouer !
+  </button>
+  <p class="notice">Le bouton se débloque après avoir cliqué sur une plateforme d'avis.</p>
+</div>
+
+<!-- ══ ÉCRAN 2 : INFOS CLIENT ══ -->
+<div class="screen" id="screen-infos">
+  <img class="logo" src="/images/logo-blanc.png" alt="Braise & Co">
+  <div class="logo-sub">Merci pour votre avis !</div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title">🎁 Presque là !</div>
+    <div class="card-text">Renseignez votre prénom et numéro pour recevoir votre cadeau si vous gagnez.</div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="input-nom">Votre nom et prénom</label>
+    <input class="form-input" id="input-nom" type="text" placeholder="Ex : Sophie Martin" autocomplete="name">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="input-tel">Votre numéro de téléphone</label>
+    <input class="form-input" id="input-tel" type="tel" placeholder="06 12 34 56 78" autocomplete="tel">
+  </div>
+
+  <button class="btn-main" id="btn-jouer">🎰 Tourner la roulette !</button>
+  <p class="notice">Votre numéro ne sera utilisé que pour vous envoyer votre cadeau.</p>
+</div>
+
+<!-- ══ ÉCRAN 3 : ROULETTE ══ -->
+<div class="screen" id="screen-roulette">
+  <img class="logo" src="/images/logo-blanc.png" alt="Braise & Co">
+  <div class="logo-sub">Tentez votre chance !</div>
+
+  <div class="wheel-wrap">
+    <div class="wheel-pointer">▼</div>
+    <canvas id="wheel" width="300" height="300"></canvas>
+  </div>
+
+  <button class="btn-spin" id="btn-spin">🎰 Tourner !</button>
+  <p class="notice">Bonne chance !</p>
+</div>
+
+<!-- ══ ÉCRAN 4 : RÉSULTAT ══ -->
+<div class="screen" id="screen-resultat">
+  <img class="logo" src="/images/logo-blanc.png" alt="Braise & Co">
+  <div class="logo-sub">Félicitations !</div>
+
+  <div class="prize-badge">
+    <div class="prize-emoji" id="result-emoji"></div>
+    <div class="prize-label" id="result-label"></div>
+    <div class="prize-sub">offert lors de votre prochaine visite</div>
+  </div>
+
+  <div class="badge-validity">
+    🗓 Offre valable 30 jours<br>
+    <span style="font-size:12px;color:#a07820;font-weight:400;">Vous allez recevoir un SMS de confirmation avec votre cadeau. À très bientôt au Braise & Co !</span>
+  </div>
+</div>
+
+<!-- ══ ÉCRAN : DÉJÀ JOUÉ ══ -->
+<div class="screen" id="screen-deja">
+  <div class="played-icon">🎰</div>
+  <div class="played-title">Déjà joué !</div>
+  <div class="played-text">Vous avez déjà participé à notre jeu. Votre cadeau est en route — à très bientôt chez Braise & Co !</div>
+</div>
+
+<!-- ══ ÉCRAN : CHARGEMENT ══ -->
+<div class="screen" id="screen-loading">
+  <div class="spinner"></div>
+  <div style="color:#888;font-size:14px;">Enregistrement en cours…</div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const SB_URL = "https://ugyrrnqpapeagpuocwob.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go";
+
+const PRIZES = [
+  { label: "Café offert",     emoji: "☕", weight: 50 },
+  { label: "Digestif offert", emoji: "🥃", weight: 20 },
+  { label: "Apéro offert",    emoji: "🍹", weight: 20 },
+  { label: "Dessert offert",  emoji: "🍮", weight: 10 },
+];
+
+// ── 12 SECTEURS VISUELS ─────────────────────────────────────
+// Chaque lot apparaît 3 fois — jamais deux identiques côte à côte
+const N_SECTORS = 12;
+const SECTOR_ANGLE = 2 * Math.PI / N_SECTORS;
+const VISUAL_SECTORS = [0, 1, 2, 3, 0, 2, 3, 1, 0, 3, 1, 2];
+
+const startAngles = [];
+for (let i = 0; i <= N_SECTORS; i++) startAngles.push(i * SECTOR_ANGLE - Math.PI / 2);
+
+const sectorColors = [
+  ['#d4a843','#a07820'],   // Café — or
+  ['#a0522d','#5c2a0a'],   // Digestif — brun
+  ['#2e7d52','#145230'],   // Apéro — vert forêt
+  ['#c0392b','#7b1a1a'],   // Dessert — rouge profond
+];
+
+// ── UTILITAIRES ─────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+async function sbInsert(table, data) {
+  const r = await fetch(SB_URL + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(data)
+  });
+  return r.ok;
+}
+
+async function sbCheckPlayed(tel) {
+  const r = await fetch(SB_URL + '/rest/v1/roulette_gains?telephone=eq.' + encodeURIComponent(tel) + '&select=id&limit=1', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+  const d = await r.json();
+  return Array.isArray(d) && d.length > 0;
+}
+
+function selectPrize() {
+  const total = PRIZES.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  for (const p of PRIZES) { r -= p.weight; if (r <= 0) return p; }
+  return PRIZES[0];
+}
+
+// ── CHARGEMENT LOGO ─────────────────────────────────────────
+window._logoImg = new Image();
+window._logoImg.onload = () => drawWheel(currentRotation);
+window._logoImg.src = '/images/logo-blanc.png';
+
+// ── CANVAS ──────────────────────────────────────────────────
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const cx = 150, cy = 150, radius = 145;
+
+// ── DESSIN ROULETTE ─────────────────────────────────────────
+function drawWheel(rotation) {
+  ctx.clearRect(0, 0, 300, 300);
+
+  // Ombre portée
+  ctx.save();
+  ctx.shadowColor = 'rgba(201,168,76,0.45)';
+  ctx.shadowBlur = 32;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+  ctx.fillStyle = '#111';
+  ctx.fill();
+  ctx.restore();
+
+  // 12 secteurs avec dégradés
+  for (let i = 0; i < N_SECTORS; i++) {
+    const pi = VISUAL_SECTORS[i];
+    const start = startAngles[i] + rotation;
+    const end   = startAngles[i + 1] + rotation;
+    const mid   = (start + end) / 2;
+
+    const gx = cx + Math.cos(mid) * radius * 0.5;
+    const gy = cy + Math.sin(mid) * radius * 0.5;
+    const grad = ctx.createRadialGradient(gx, gy, 0, cx, cy, radius);
+    grad.addColorStop(0, sectorColors[pi][0]);
+    grad.addColorStop(1, sectorColors[pi][1]);
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius - 8, start, end);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Séparateurs dorés fins (12)
+  for (let i = 0; i < N_SECTORS; i++) {
+    const angle = startAngles[i] + rotation;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * (radius - 8), cy + Math.sin(angle) * (radius - 8));
+    ctx.strokeStyle = 'rgba(201,168,76,0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Anneau extérieur doré
+  const rimGrad = ctx.createLinearGradient(cx - radius, cy, cx + radius, cy);
+  rimGrad.addColorStop(0,   '#f0d080');
+  rimGrad.addColorStop(0.3, '#c9a84c');
+  rimGrad.addColorStop(0.7, '#f0d080');
+  rimGrad.addColorStop(1,   '#a07820');
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 1, 0, 2 * Math.PI);
+  ctx.strokeStyle = rimGrad;
+  ctx.lineWidth = 10;
+  ctx.stroke();
+
+  // Points décoratifs sur l'anneau
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * 2 * Math.PI + rotation;
+    const rr = radius - 5;
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, 2 * Math.PI);
+    ctx.fillStyle = i % 2 === 0 ? '#fff' : '#c9a84c';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Emoji + 1er mot du label dans chaque secteur
+  for (let i = 0; i < N_SECTORS; i++) {
+    const pi = VISUAL_SECTORS[i];
+    const p  = PRIZES[pi];
+    const start = startAngles[i] + rotation;
+    const end   = startAngles[i + 1] + rotation;
+    const mid   = (start + end) / 2;
+
+    // Emoji près du bord
+    ctx.save();
+    ctx.translate(cx + Math.cos(mid) * (radius - 24), cy + Math.sin(mid) * (radius - 24));
+    ctx.font = '13px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.emoji, 0, 0);
+    ctx.restore();
+
+    // Mot court au milieu
+    ctx.save();
+    ctx.translate(cx + Math.cos(mid) * (radius * 0.56), cy + Math.sin(mid) * (radius * 0.56));
+    ctx.rotate(mid + Math.PI / 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(p.label.split(' ')[0], 0, 0);
+    ctx.restore();
+  }
+
+  // Hub central
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 30, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+  ctx.restore();
+
+  const hubGrad = ctx.createLinearGradient(cx - 30, cy - 30, cx + 30, cy + 30);
+  hubGrad.addColorStop(0, '#f0d080');
+  hubGrad.addColorStop(0.5, '#a07820');
+  hubGrad.addColorStop(1, '#f0d080');
+  ctx.beginPath();
+  ctx.arc(cx, cy, 30, 0, 2 * Math.PI);
+  ctx.strokeStyle = hubGrad;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  if (window._logoImg && window._logoImg.complete) {
+    const lw = 44, lh = lw * (window._logoImg.naturalHeight / window._logoImg.naturalWidth);
+    ctx.drawImage(window._logoImg, cx - lw / 2, cy - lh / 2, lw, lh);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('B&C', cx, cy);
+  }
+}
+
+// ── FLAMMES ──────────────────────────────────────────────────
+let flames = [];
+
+function spawnFlames() {
+  const count = 4 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * 2 * Math.PI;
+    const spd   = 0.8 + Math.random() * 1.6;
+    flames.push({
+      x: cx + Math.cos(angle) * (radius - 6),
+      y: cy + Math.sin(angle) * (radius - 6),
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - (0.6 + Math.random() * 1.6),
+      size: 9 + Math.random() * 13,
+      alpha: 0.85 + Math.random() * 0.15,
+      life: 0,
+      maxLife: 22 + Math.floor(Math.random() * 22)
+    });
+  }
+}
+
+function updateFlames() {
+  for (const f of flames) {
+    f.x  += f.vx;
+    f.y  += f.vy;
+    f.vy -= 0.13;
+    f.vx *= 0.97;
+    f.life++;
+    f.alpha = Math.max(0, (1 - f.life / f.maxLife) * 0.9);
+    f.size  *= 0.96;
+  }
+  flames = flames.filter(f => f.life < f.maxLife);
+}
+
+function drawFlames() {
+  for (const f of flames) {
+    const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.size);
+    grad.addColorStop(0,    `rgba(255,235,80,${f.alpha})`);
+    grad.addColorStop(0.35, `rgba(255,110,0,${(f.alpha * 0.8).toFixed(3)})`);
+    grad.addColorStop(0.7,  `rgba(200,25,0,${(f.alpha * 0.4).toFixed(3)})`);
+    grad.addColorStop(1,    'rgba(150,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.size, 0, 2 * Math.PI);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+}
+
+// ── SPIN ─────────────────────────────────────────────────────
+let spinning = false;
+let currentRotation = 0;
+let selectedPrize = null;
+
+drawWheel(0);
+
+document.getElementById('btn-spin').addEventListener('click', function() {
+  if (spinning) return;
+  spinning = true;
+  this.disabled = true;
+
+  selectedPrize = selectPrize();
+
+  // Choisir aléatoirement un des 3 secteurs visuels correspondant au lot
+  const prizeIdx = PRIZES.indexOf(selectedPrize);
+  const matching = VISUAL_SECTORS.reduce((acc, v, i) => { if (v === prizeIdx) acc.push(i); return acc; }, []);
+  const pickedSector = matching[Math.floor(Math.random() * matching.length)];
+  const sectorMid = (startAngles[pickedSector] + startAngles[pickedSector + 1]) / 2;
+  const targetAngle = -Math.PI / 2 - sectorMid;
+  const extraTurns = (6 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
+  const totalRotation = extraTurns + targetAngle - (currentRotation % (2 * Math.PI));
+
+  const duration = 5000;
+  const startTime = performance.now();
+  const startRot = currentRotation;
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function animate(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    currentRotation = startRot + totalRotation * easeOut(t);
+
+    // Flammes plus denses au début, s'amenuisent vers la fin
+    if (t < 0.85) spawnFlames();
+    updateFlames();
+    drawWheel(currentRotation);
+    drawFlames();
+
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Laisser les dernières flammes s'éteindre
+      function fadeOut() {
+        if (flames.length === 0) { spinning = false; drawWheel(currentRotation); showResult(); return; }
+        updateFlames();
+        drawWheel(currentRotation);
+        drawFlames();
+        requestAnimationFrame(fadeOut);
+      }
+      fadeOut();
+    }
+  }
+  requestAnimationFrame(animate);
+});
+
+// ── RÉSULTAT ─────────────────────────────────────────────────
+async function showResult() {
+  const nom = window._clientNom || '';
+  const tel = window._clientTel || '';
+
+  showScreen('screen-loading');
+
+  await sbInsert('roulette_gains', {
+    nom: nom,
+    telephone: tel,
+    cadeau: selectedPrize.label,
+    sms_envoye: false
+  });
+
+  localStorage.setItem('roulette_played_' + tel, '1');
+
+  document.getElementById('result-emoji').textContent = selectedPrize.emoji;
+  document.getElementById('result-label').textContent = selectedPrize.label;
+  showScreen('screen-resultat');
+}
+
+// ── ÉCRAN AVIS ───────────────────────────────────────────────
+let avisClicked = false;
+
+['btn-google', 'btn-tripadvisor'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function() {
+    if (!avisClicked) {
+      avisClicked = true;
+      setTimeout(() => {
+        document.getElementById('btn-avis-fait').disabled = false;
+      }, 2000);
+    }
+  });
+});
+
+document.getElementById('btn-avis-fait').addEventListener('click', function() {
+  showScreen('screen-infos');
+});
+
+// ── ÉCRAN INFOS ──────────────────────────────────────────────
+document.getElementById('btn-jouer').addEventListener('click', async function() {
+  const nom = document.getElementById('input-nom').value.trim();
+  const tel = document.getElementById('input-tel').value.replace(/\s/g, '').trim();
+
+  if (!nom) { document.getElementById('input-nom').focus(); return; }
+  if (!tel || tel.length < 10) { document.getElementById('input-tel').focus(); return; }
+
+  if (localStorage.getItem('roulette_played_' + tel)) { showScreen('screen-deja'); return; }
+
+  showScreen('screen-loading');
+  const alreadyPlayed = await sbCheckPlayed(tel);
+  if (alreadyPlayed) {
+    localStorage.setItem('roulette_played_' + tel, '1');
+    showScreen('screen-deja');
+    return;
+  }
+
+  window._clientNom = nom;
+  window._clientTel = tel;
+  showScreen('screen-roulette');
+});
+</script>
+</body>
+</html>
