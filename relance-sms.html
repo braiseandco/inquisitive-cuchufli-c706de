@@ -80,6 +80,25 @@ const SB_URL = "https://ugyrrnqpapeagpuocwob.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go";
 const DELAI_JOURS = 30;
 
+// Carte fidélité — Supabase séparé
+const SB_FID_URL = "https://ipnuwxirmfumxsguudvi.supabase.co";
+const SB_FID_KEY = "sb_publishable_iIxaYsXCZMBekFbl8596zQ_z7ENQ9n1";
+
+async function sbFetchFidelite(path) {
+  const r = await fetch(SB_FID_URL + '/rest/v1/' + path, {
+    headers: { apikey: SB_FID_KEY, Authorization: 'Bearer ' + SB_FID_KEY }
+  });
+  if (!r.ok) throw new Error('Fidélité HTTP ' + r.status);
+  return r.json();
+}
+
+function normaliseTel(t) {
+  t = (t || '').replace(/[\s.\-\(\)]/g, '');
+  if (t.startsWith('+33')) t = '0' + t.slice(3);
+  else if (t.startsWith('0033')) t = '0' + t.slice(4);
+  return t;
+}
+
 async function sbFetch(path) {
   const r = await fetch(SB_URL + '/rest/v1/' + path, {
     headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY }
@@ -160,8 +179,11 @@ async function init() {
   content.innerHTML = '<div class="loader">⏳ Chargement des clients…</div>';
   btnR.classList.add('spinning');
   try {
-    // Fetch toutes les réservations avec tel valide (on exclut les null côté serveur)
-    const resas = await sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000');
+    // Fetch réservations + clients fidélité en parallèle
+    const [resas, fideliteClients] = await Promise.all([
+      sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000'),
+      sbFetchFidelite('clients?select=tel,prenom,nom,last_visit,created_at,stamps&limit=2000').catch(e => { console.warn('Fidélité fetch failed:', e); return []; })
+    ]);
 
     const map = {};
     const dateLimit = new Date();
@@ -169,15 +191,35 @@ async function init() {
 
     for (const r of resas) {
       const tel = (r.telephone || '').replace(/\s/g, '');
-      // Ignorer les numéros vides, trop courts, ou factices (0000...)
       if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
       if (!map[tel]) {
-        map[tel] = { tel, nom: r.nom, derniere: r.date, nb: 0 };
+        map[tel] = { tel, nom: r.nom, derniere: r.date, nb: 0, source: 'resa' };
       }
       map[tel].nb++;
       if (r.date > map[tel].derniere) {
         map[tel].derniere = r.date;
         map[tel].nom = r.nom;
+      }
+    }
+
+    // Fusionner les clients fidélité
+    for (const f of fideliteClients) {
+      const tel = normaliseTel(f.tel);
+      if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      const nom = ((f.prenom || '') + ' ' + (f.nom || '')).trim();
+      // Date de dernière activité : last_visit sinon created_at
+      const derniereRaw = f.last_visit || f.created_at;
+      const derniere = derniereRaw ? derniereRaw.slice(0, 10) : null;
+      if (!derniere) continue;
+      if (map[tel]) {
+        // Déjà dans les resas → garder la date la plus récente
+        if (derniere > map[tel].derniere) {
+          map[tel].derniere = derniere;
+          map[tel].nom = nom || map[tel].nom;
+        }
+        map[tel].source = 'both';
+      } else {
+        map[tel] = { tel, nom, derniere, nb: f.stamps || 0, source: 'fidelite' };
       }
     }
 
@@ -206,16 +248,14 @@ async function init() {
       const cardId = 'card-' + c.tel.replace(/\D/g, '');
       html += `
         <div class="client-card" id="${cardId}">
-          <div class="client-name">👤 ${c.nom ? esc(c.nom) : '(sans nom)'}</div>
+          <div class="client-name">👤 ${c.nom ? esc(c.nom) : '(sans nom)'}${c.source === 'fidelite' ? ' <span style="font-size:11px;background:rgba(255,107,0,0.15);border:1px solid rgba(255,107,0,0.4);color:#FFA500;padding:2px 8px;border-radius:10px;font-weight:700;vertical-align:middle;">🎁 Fidélité</span>' : ''}</div>
           <div class="client-tel">📞 ${esc(c.tel)}</div>
-          <div class="client-meta">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb > 1 ? 's' : ''}</div>
+          <div class="client-meta">Dernière activité : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.source === 'fidelite' ? c.nb + ' tampon' + (c.nb > 1 ? 's' : '') : c.nb + ' résa' + (c.nb > 1 ? 's' : '')}</div>
           <div class="preview-sms" id="prev-${cardId}">${esc(msg)}</div>
           <a class="btn-sms" href="${smsHref}" onclick="onSmsClick('${c.tel}', document.getElementById('prev-${cardId}').textContent, document.getElementById('${cardId}'))">
             💬 Ouvrir le SMS
           </a>
-          <button class="btn-efface" onclick="effacer('${c.tel}', document.getElementById('${cardId}'))">
-            🗑 Effacer les coordonnées
-          </button>
+          ${c.source !== 'fidelite' ? `<button class="btn-efface" onclick="effacer('${c.tel}', document.getElementById('${cardId}'))">🗑 Effacer les coordonnées</button>` : ''}
         </div>`;
     }
 
