@@ -348,7 +348,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
     <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
-    <button class="tab" data-screen="roulette">🎰 Roulette</button>
+    <button class="tab" data-screen="roulette" id="tab-roulette">🎰 Roulette</button>
   </div>
 
   <!-- ══ SCREEN: RESERVATIONS ══ -->
@@ -427,6 +427,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:20px;margin-bottom:20px;">
         <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--accent);margin-bottom:4px;">🎰 Envoyer le jeu au client</div>
         <div style="font-size:12px;color:var(--text-faint);margin-bottom:16px;">Entrez le numéro du client, puis envoyez le SMS avec les liens avis + roulette.</div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);display:block;margin-bottom:6px;">Qui a récupéré le numéro ?</label>
+          <select id="roulette-employe-input"
+            style="width:100%;padding:13px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;color:var(--text);font-family:'Raleway',sans-serif;font-size:16px;outline:none;appearance:none;">
+            <option value="">— Choisir —</option>
+          </select>
+        </div>
         <div style="margin-bottom:12px;">
           <label style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);display:block;margin-bottom:6px;">Numéro de téléphone client</label>
           <input id="roulette-tel-input" type="tel" placeholder="06 12 34 56 78"
@@ -800,6 +807,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     } else if(this.dataset.screen==='relances'){
       loadRelances();
     } else if(this.dataset.screen==='roulette'){
+      loadRouletteEmployes();
       loadRouletteGains();
       startRoulettePolling();
     } else {
@@ -2385,16 +2393,33 @@ async function loadRouletteGains(){
   list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint);">⏳ Chargement…</div>';
   try {
     const gains = await sbFetch('roulette_gains?sms_envoye=eq.false&order=created_at.desc&select=*');
+    const tabBtn = document.getElementById('tab-roulette');
     if(!gains || gains.length === 0){
+      if(tabBtn) tabBtn.innerHTML = '🎰 Roulette';
       list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-faint);font-size:13px;">✅ Aucun cadeau en attente</div>';
       return;
     }
+    if(tabBtn) tabBtn.innerHTML = '🎰 Roulette <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+gains.length+'</span>';
+
+    // Récupérer les envois pour afficher le prénom de l'employé
+    const tels = gains.map(g => g.telephone);
+    let envoisMap = {};
+    try {
+      const envois = await sbFetch('roulette_envois?telephone=in.(' + tels.map(t => encodeURIComponent(t)).join(',') + ')&order=created_at.desc&select=telephone,employe');
+      if(Array.isArray(envois)){
+        for(const e of envois){
+          if(!envoisMap[e.telephone]) envoisMap[e.telephone] = e.employe;
+        }
+      }
+    } catch(_){}
+
     const fmtDate = d => new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
       const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥';
       const gid = 'gain-'+g.id;
+      const employe = envoisMap[g.telephone];
       html += `<div id="${gid}" style="background:var(--bg2);border:1px solid rgba(201,168,76,0.35);border-radius:14px;padding:16px;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span style="font-size:26px;">${cadeauEmoji(g.cadeau)}</span>
@@ -2404,7 +2429,8 @@ async function loadRouletteGains(){
           </div>
           <div style="font-size:11px;color:#555;">${fmtDate(g.created_at)}</div>
         </div>
-        <div style="font-size:13px;color:var(--text-faint);margin-bottom:12px;">📞 ${esc(g.telephone)}</div>
+        <div style="font-size:13px;color:var(--text-faint);margin-bottom:${employe?'6px':'12px'};">📞 ${esc(g.telephone)}</div>
+        ${employe ? `<div style="font-size:12px;color:#888;margin-bottom:12px;">👤 Proposé par <strong style="color:var(--text-dim);">${esc(employe)}</strong></div>` : ''}
         <a href="#" onclick="rouletteGainSmsClick(${g.id},'${gid}','${esc(g.telephone)}','${esc(msg)}')"
           style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,#c9a84c,#f0d080);color:#000;font-weight:900;font-size:14px;border-radius:12px;text-decoration:none;">
           🎁 Envoyer le SMS cadeau
@@ -2439,12 +2465,40 @@ async function rouletteGainSmsClick(gainId, gid, tel, msg){
   } catch(e){ console.error(e); }
 }
 
+// ── ROULETTE TAB — Chargement liste employés ─────────────────
+async function loadRouletteEmployes(){
+  const sel = document.getElementById('roulette-employe-input');
+  try {
+    const emps = await sbFetch('employees?select=id,name&order=display_order.asc,name.asc');
+    const saved = localStorage.getItem('roulette_employe');
+    sel.innerHTML = '<option value="">— Choisir —</option>' +
+      (Array.isArray(emps) ? emps.map(e =>
+        `<option value="${esc(e.name)}"${e.name===saved?' selected':''}>${esc(e.name)}</option>`
+      ).join('') : '');
+  } catch(_){
+    sel.innerHTML = '<option value="">— Erreur chargement —</option>';
+  }
+}
+
 // ── ROULETTE TAB — Bouton envoi SMS jeu ──────────────────────
-document.getElementById('btn-send-roulette').addEventListener('click', function(){
+
+document.getElementById('btn-send-roulette').addEventListener('click', async function(){
+  const employe = document.getElementById('roulette-employe-input').value.trim();
   const tel = document.getElementById('roulette-tel-input').value.replace(/\s/g,'').trim();
+  if(!employe){ toast('Renseignez votre prénom','ko'); document.getElementById('roulette-employe-input').focus(); return; }
   if(!tel || tel.length < 10){ toast('Numéro invalide','ko'); return; }
+
+  // Mémoriser le prénom pour les prochains envois
+  localStorage.setItem('roulette_employe', employe);
+
   const msg = 'Laissez-nous un avis Google ou TripAdvisor ⭐ Et tentez votre chance sur notre roulette pour gagner un cadeau 🎁 — jeu ouvert à tous !\n\n⭐ Google : https://g.page/r/CZrjBPCOGVmhEBM/review\n🦉 TripAdvisor : https://www.tripadvisor.fr/UserReview-g1067663-d11434490-Braise_Co_Biganos-Biganos_Gironde_Nouvelle_Aquitaine.html\n\n🎰 Roulette : https://braiseandcobiganos.fr/roulette\n\nÀ très bientôt chez Braise & Co ! 🔥';
   window.location.href = buildSmsUrl(tel, msg);
+
+  // Enregistrer l'envoi dans Supabase
+  try {
+    await sbFetch('roulette_envois', {method:'POST', body:JSON.stringify({telephone:tel, employe:employe})});
+    document.getElementById('roulette-tel-input').value = '';
+  } catch(e){ console.error('roulette_envois insert:', e); }
 });
 
 function relanceSmsClick(cid, tel){
@@ -2520,6 +2574,23 @@ async function checkRelancesBadge(){
   } catch(e){}
 }
 checkRelancesBadge();
+
+// ── BADGE ROULETTE ────────────────────────────────────────────
+async function checkRouletteBadge(){
+  try {
+    const gains = await sbFetch('roulette_gains?sms_envoye=eq.false&select=id');
+    const nb = Array.isArray(gains) ? gains.length : 0;
+    const tab = document.getElementById('tab-roulette');
+    if(!tab) return;
+    if(nb > 0){
+      tab.innerHTML = '🎰 Roulette <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
+    } else {
+      tab.innerHTML = '🎰 Roulette';
+    }
+  } catch(e){}
+}
+checkRouletteBadge();
+
 initPolling();
 
 // Toggle tables libres detail panel
