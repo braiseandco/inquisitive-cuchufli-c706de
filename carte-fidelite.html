@@ -759,10 +759,6 @@ async function sendRelanceEmail(c, btn){
   setTimeout(()=>{btn.disabled=false;btn.textContent='📧';},3000);
 }
 
-async function loadAdmin(){
-  loadAdminSms();
-}
-
 // ── SMS MARKETING ADMIN ──────────────────────────────────────────────────────
 const SMS_MKT = [
   {key:'sms1',label:'SMS Côte de bœuf',msg:'Cette semaine, c\'est côte de bœuf à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥'},
@@ -774,6 +770,10 @@ function smsSendable(sentAt, lastVisit){
   if(!sentAt) return true;
   if(!lastVisit) return false;
   return new Date(lastVisit) > new Date(sentAt);
+}
+
+async function loadAdmin(){
+  loadAdminSms();
 }
 
 async function loadAdminSms(){
@@ -820,7 +820,7 @@ async function loadAdminSms(){
         btnsWrap.appendChild(btn);
       });
     });
-  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:11px;">Erreur : '+e.message+'</div>';}
+  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:13px;">Erreur de chargement</div>';}
 }
 
 // PUSH NOTIFICATIONS
