@@ -16,7 +16,6 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 html,body{height:100%;overflow:hidden;background:#000;}
 body{font-family:'Raleway',sans-serif;color:var(--text);}
-#fire-canvas{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:0;pointer-events:none;}
 .screen{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;flex-direction:column;overflow:hidden;z-index:10;}
 .screen.active{display:flex;}
 .scroll-zone{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:24px;}
@@ -224,7 +223,6 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 #parrain-banner strong{color:#ffd600;}
 </style></head><body>
 <div id="ie-warning">⚠️ Ce navigateur n'est pas compatible. Veuillez ouvrir cette page dans <strong>Google Chrome</strong> ou <strong>Samsung Internet récent</strong> pour installer l'application.</div>
-<canvas id="fire-canvas"></canvas>
 <div class="loader" id="loader"><div class="spinner"></div><div class="loader-text">Chargement...</div></div>
 <div class="toast" id="toast"></div>
 <div class="overlay" id="modal-staff"><div class="modal"><div class="modal-title">📱 Recherche client</div><div class="modal-desc">Code serveur</div><div class="field-group"><label class="field-label">PIN</label><input type="password" class="field-input" id="staff-pin-input" placeholder="••••" maxlength="4" inputmode="numeric"></div><div class="modal-btns"><button class="btn-mcancel" id="btn-staff-cancel">Annuler</button><button class="btn-mok" id="btn-staff-ok">Accéder</button></div></div></div><div class="overlay" id="modal-admin"><div class="modal"><div class="modal-title">🔐 Espace admin</div><div class="modal-desc">Entrez le code d'accès administrateur</div><div class="field-group"><label class="field-label">Code d'accès</label><input type="password" class="field-input" id="admin-pw" placeholder="••••" maxlength="10"></div><div class="modal-btns"><button class="btn-mcancel" id="btn-modal-cancel">Annuler</button><button class="btn-mok" id="btn-modal-ok">Accéder</button></div></div></div>
@@ -292,24 +290,6 @@ function toast(msg,type){const el=document.getElementById('toast');el.textConten
 function showLoader(v){document.getElementById('loader').classList.toggle('show',v);}
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');}
 
-// Fire
-(function(){
-  const cv=document.getElementById('fire-canvas'),ctx=cv.getContext('2d');
-  let W,H,pp=[];
-  function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
-  resize();window.addEventListener('resize',resize);
-  const C=[[255,20,0],[255,60,0],[255,100,0],[255,150,0],[255,200,0],[255,230,100]];
-  function rnd(a,b){return a+Math.random()*(b-a);}
-  class P{
-    constructor(){this.r();}
-    r(){this.x=rnd(0,W);this.y=H+rnd(0,40);this.vx=rnd(-0.4,0.4);this.vy=rnd(-2.5,-1.2);this.sz=rnd(4,18);this.al=rnd(0.5,0.9);this.l=0;this.ml=rnd(80,180);this.ci=0;}
-    u(){this.l++;this.x+=this.vx+Math.sin(this.l*0.05)*0.3;this.y+=this.vy;this.vy*=0.995;this.sz*=0.993;const p=this.l/this.ml;this.ci=Math.min(Math.floor(p*C.length),C.length-1);this.al=(1-p)*0.75;if(this.l>=this.ml||this.sz<1)this.r();}
-    d(){const[r,g,b]=C[this.ci];const g2=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.sz);g2.addColorStop(0,'rgba('+r+','+g+','+b+','+this.al+')');g2.addColorStop(1,'rgba('+r+','+g+','+b+',0)');ctx.beginPath();ctx.arc(this.x,this.y,this.sz,0,Math.PI*2);ctx.fillStyle=g2;ctx.fill();}
-  }
-  for(let i=0;i<120;i++){const p=new P();p.l=Math.floor(Math.random()*p.ml);pp.push(p);}
-  function anim(){ctx.clearRect(0,0,W,H);const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#000');bg.addColorStop(0.7,'#050100');bg.addColorStop(1,'#0a0200');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation='screen';pp.forEach(p=>{p.u();p.d();});ctx.globalCompositeOperation='source-over';requestAnimationFrame(anim);}
-  anim();
-})();
 
 function drawQR(canvas,text){
   const ctx=canvas.getContext('2d'),sz=canvas.width;
@@ -351,8 +331,7 @@ async function checkMobileView(){
   safeStorage.setItem('my_carte_id',cid);
   document.getElementById('mobile-view').classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('fire-canvas').style.opacity='0.35';
-  try{
+    try{
     showLoader(true);const c=await getById(cid);showLoader(false);
     if(!c){document.getElementById('mobile-view').innerHTML='<div style="text-align:center;padding:60px 24px;color:var(--text-faint)"><div style="font-size:48px">😕</div><br>Carte introuvable</div>';return true;}
     renderMobileCard(c);
@@ -364,8 +343,7 @@ async function checkMobileView(){
 async function loadMobileCard(id, from){
   document.getElementById('mobile-view').classList.add('active');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('fire-canvas').style.opacity='0.35';
-  const CACHE_KEY='cached_card_'+id;
+    const CACHE_KEY='cached_card_'+id;
   let c=null,offline=false;
   try{
     showLoader(true);
