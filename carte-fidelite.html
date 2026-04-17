@@ -780,7 +780,7 @@ async function loadAdminSms(){
   const box = document.getElementById('admin-sms-list');
   if(!box) return;
   try{
-    const clients = await sbFetch('clients?select=id,prenom,nom,tel,last_visit,sms1_sent_at,sms2_sent_at,sms3_sent_at&order=created_at.asc&limit=500');
+    const clients = await sbFetch('clients?select=id,prenom,nom,tel,last_visit,created_at,sms1_sent_at,sms2_sent_at,sms3_sent_at&order=created_at.asc&limit=500');
     if(!clients||!clients.length){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-faint);font-size:13px;">Aucun client inscrit</div>';return;}
     box.innerHTML='';
     clients.forEach(c=>{
