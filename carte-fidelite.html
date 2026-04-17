@@ -297,7 +297,7 @@ async function updateApp(){
     const keys=await caches.keys();
     for(const k of keys) await caches.delete(k);
   }catch(e){}
-  window.location.reload(true);
+  window.location.replace(window.location.pathname + '?v=' + Date.now());
 }
 function showLoader(v){document.getElementById('loader').classList.toggle('show',v);}
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');}
@@ -736,7 +736,7 @@ async function validatePin(){
 }
 document.getElementById('modal-pin').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 
-document.getElementById('btn-admin-back').onclick=()=>window.location.reload();
+document.getElementById('btn-admin-back').onclick=()=>window.location.replace(window.location.pathname);
 document.getElementById('btn-modal-cancel').onclick=()=>document.getElementById('modal-admin').classList.remove('open');
 document.getElementById('btn-modal-ok').onclick=checkPw;
 document.getElementById('admin-pw').addEventListener('keydown',e=>{if(e.key==='Enter')checkPw();});
@@ -820,7 +820,7 @@ async function loadAdminSms(){
         btnsWrap.appendChild(btn);
       });
     });
-  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:13px;">Erreur de chargement</div>';}
+  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:11px;">'+e.message+'</div>';}
 }
 
 // PUSH NOTIFICATIONS
