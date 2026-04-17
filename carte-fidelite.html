@@ -465,7 +465,7 @@ function renderMobileCard(c){ window.currentMobileClient = c;
   }
   document.getElementById('btn-welcome-sms').onclick=sendWelcomeSMS;
   document.getElementById('welcome-tel').addEventListener('keydown',function(e){if(e.key==='Enter')sendWelcomeSMS();});
-document.getElementById('welcome-tel').addEventListener('input',function(){if(this.value==='2013'){this.value='';document.getElementById('admin-pw').value='';document.getElementById('modal-admin').classList.add('open');}});
+document.getElementById('welcome-tel').addEventListener('input',function(){if(this.value==='2013'){this.value='';loadAdmin();go('sa');}});
 })();
 (function(){
   async function doWelcomeLookup(){
