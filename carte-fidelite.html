@@ -820,7 +820,7 @@ async function loadAdminSms(){
         btnsWrap.appendChild(btn);
       });
     });
-  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:13px;">Erreur de chargement</div>';}
+  }catch(e){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--error);font-size:11px;">Erreur : '+e.message+'</div>';}
 }
 
 // PUSH NOTIFICATIONS
