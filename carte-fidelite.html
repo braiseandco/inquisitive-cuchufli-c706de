@@ -247,8 +247,6 @@ body{font-family:'Raleway',sans-serif;color:var(--text);}
 <div id="mv-offer-body" style="font-size:14px;color:#fff;line-height:1.6;margin-bottom:14px;"></div>
 <div style="font-size:11px;color:rgba(255,214,0,0.7);font-weight:700;letter-spacing:2px;text-transform:uppercase;border-top:1px solid rgba(255,214,0,0.25);padding-top:12px;">📲 À montrer au staff pour en bénéficier</div>
 </div>
-<button id="btn-enable-notif" style="display:none;max-width:420px;width:100%;margin-top:10px;padding:14px;border-radius:14px;border:1px solid rgba(255,100,0,0.4);background:rgba(255,100,0,0.08);color:var(--accent);font-family:Raleway,sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;">🔔 Activer les notifications — ☕ Café offert !</button>
-<div id="notif-ok-badge" style="display:none;max-width:420px;width:100%;margin-top:10px;padding:10px;text-align:center;font-size:12px;color:rgba(100,200,100,0.7);">🔔 Notifications activées</div>
 <div id="notif-msg-box" style="display:none;max-width:420px;width:100%;margin-top:18px;background:rgba(255,100,0,0.12);border:1px solid rgba(255,100,0,0.35);border-radius:14px;padding:16px 18px;text-align:left"><div id="notif-msg-title" style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire3);font-weight:700;margin-bottom:6px"></div><div id="notif-msg-body" style="font-size:13px;color:var(--text-dim);line-height:1.6"></div></div>
 </div></div>
 <script>
@@ -401,26 +399,6 @@ function renderMobileCard(c){ window.currentMobileClient = c;
       offerBox.style.display = 'none';
     }
   }
-  // Vérifier état notifications et afficher bouton si besoin
-  setTimeout(async()=>{
-    const btnN=document.getElementById('btn-enable-notif');
-    const okBadge=document.getElementById('notif-ok-badge');
-    if(!btnN) return;
-    if(!('Notification' in window)||!('serviceWorker' in navigator)){btnN.style.display='none';return;}
-    if(Notification.permission==='granted'){
-      // Vérifie si subscription existe
-      try{
-        const sw=await navigator.serviceWorker.ready;
-        const sub=await sw.pushManager.getSubscription();
-        if(sub){okBadge.style.display='block';btnN.style.display='none';}
-        else{btnN.style.display='block';okBadge.style.display='none';}
-      }catch(e){btnN.style.display='block';}
-    } else if(Notification.permission==='denied'){
-      btnN.style.display='none'; // On peut rien faire si refusé
-    } else {
-      btnN.style.display='block'; okBadge.style.display='none';
-    }
-  }, 800);
   const inCycle=c.stamps%MAX_STAMPS;
   const lvls=['Nouveau','Régulier','Fidèle','VIP','Ambassadeur'];
   document.getElementById('mv-name').textContent=c.prenom+' '+(c.nom||'').toUpperCase();
@@ -514,7 +492,7 @@ function renderMobileCard(c){ window.currentMobileClient = c;
       var results=await searchClients(digits);
       showLoader(false);
       if(!results||!results.length){document.getElementById('welcome-lookup-err').style.display='block';return;}
-      loadMobileCard(results[0].id);
+      openCard(results[0].id,'sw');
     }catch(e){showLoader(false);toast('Erreur de connexion','ko');}
   }
   document.getElementById('btn-welcome-lookup').onclick=doWelcomeLookup;
@@ -700,6 +678,8 @@ document.getElementById('btn-checkin').onclick=async function(){
     const inCycleNow=c.stamps%MAX_STAMPS;
     if(c.stamps>0&&inCycleNow===0){showLoader(false);toast('Repas offert en attente de validation staff 🍽️','ko');showRewardScreen(c,'meal');return;}
     if(c.apero_pending){showLoader(false);toast('Apéro offert en attente de validation staff 🍹','ko');showRewardScreen(c,'apero');return;}
+    const today=new Date().toISOString().slice(0,10);
+    if(c.last_visit&&c.last_visit.slice(0,10)===today){showLoader(false);toast('Tampon déjà ajouté aujourd\'hui 🔥','ko');return;}
     const visits=Array.isArray(c.visits)?c.visits:[];
     // Effacer l'offre active si présente
     const offerClear = c.active_offer ? {active_offer:null} : {};
@@ -1268,33 +1248,6 @@ function closeResaModal(){
 }
 
 var _btnResaCard = document.getElementById('btn-resa-card'); if(_btnResaCard) _btnResaCard.addEventListener('click',openResaModal);
-document.getElementById('btn-enable-notif').addEventListener('click', async function(){
-  const savedId = safeStorage.getItem('my_carte_id');
-  this.textContent='⏳ Activation...'; this.disabled=true;
-  const ok = await subscribePush(savedId);
-  if(ok){
-    this.style.display='none';
-    document.getElementById('notif-ok-badge').style.display='block';
-    toast('🔔 Notifications activées !','ok');
-    // Café offert à la première activation des notifications
-    if(!safeStorage.getItem('notif-cafe-offered') && savedId){
-      safeStorage.setItem('notif-cafe-offered','1');
-      const cafeOffer={title:'☕ Café offert !',body:'Merci d\'avoir activé les notifications ! Présentez cette carte au staff lors de votre prochaine visite.',sent_at:new Date().toISOString()};
-      sbFetch('clients?id=eq.'+savedId,{method:'PATCH',body:JSON.stringify({active_offer:cafeOffer})}).catch(()=>{});
-      const offerBox=document.getElementById('mv-offer-box');
-      if(offerBox){
-        document.getElementById('mv-offer-title').textContent=cafeOffer.title;
-        document.getElementById('mv-offer-body').textContent=cafeOffer.body;
-        offerBox.style.display='block';
-        offerBox.scrollIntoView({behavior:'smooth',block:'center'});
-      }
-      setTimeout(()=>toast('☕ Un café vous est offert ! À montrer au staff','ok'),1200);
-    }
-  } else {
-    this.textContent='🔔 Activer les notifications — ☕ Café offert !'; this.disabled=false;
-    toast('Notifications refusées ou non supportées','ko');
-  }
-});
 async function saveAperoChoice(choice){
   const savedId=safeStorage.getItem('my_carte_id');
   if(!savedId)return;
