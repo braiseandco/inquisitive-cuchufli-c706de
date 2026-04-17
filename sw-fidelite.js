@@ -1,7 +1,7 @@
 // Service Worker — Carte Fidélité Braise & Co
 // Dédié uniquement à carte-fidelite.html
 
-const CACHE = 'fidelite-v6';
+const CACHE = 'fidelite-v7';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();
