@@ -736,7 +736,7 @@ async function sbFetch(path,opts={}){
     const t=await res.text();return t?JSON.parse(t):null;
   }catch(e){clearTimeout(tid);throw e;}
 }
-const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc&id=not.like.roulette_%25');
+const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
 const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
 const getElements=()=>sbFetch('elements_salle?select=*');
@@ -1065,7 +1065,7 @@ async function loadResas(highlightId, silent=false){
     else if(currentService==='soir')resas=resas.filter(r=>r.heure>='14:00');
     // Filter out cancelled + entrées roulette
     resas=resas.filter(r=>r.statut!=='annulee'&&r.statut!=='annulé'&&r.statut!=='no-show');
-    resas=resas.filter(r=>!r.id.startsWith('roulette_'));
+    resas=resas.filter(r=>!r.id.startsWith('roulette_')&&!r.id.startsWith('fid_'));
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
