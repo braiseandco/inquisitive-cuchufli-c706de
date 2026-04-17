@@ -2493,7 +2493,7 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   // Mémoriser le prénom pour les prochains envois
   localStorage.setItem('roulette_employe', employe);
 
-  const msg = '🎰 Braise & Co vous offre un cadeau à gagner !\n\nLaissez-nous un avis Google (2 min), puis recliquez sur ce lien pour tourner la roulette 🎁\n\nhttps://app.braiseandco.fr/roulette/\n\nMerci et à très bientôt ! 🔥';
+  const msg = '🎰 Braise & Co vous offre un cadeau à gagner !\n\nLaissez-nous un avis Google ou TripAdvisor (voir les deux), puis recliquez au besoin sur le lien de ce SMS pour tourner la roulette et gagner votre cadeau !\n\nhttps://app.braiseandco.fr/roulette/\n\nMerci et à très bientôt ! 🔥';
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   window.location.href = buildSmsUrl(tel, msg);
 
