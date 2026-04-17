@@ -529,13 +529,18 @@ async function showResult() {
 // ── ÉCRAN AVIS ───────────────────────────────────────────────
 let avisClicked = false;
 
+// Restaurer l'état si le client revient après avoir quitté pour laisser un avis
+if (localStorage.getItem('roulette_avis_clicked')) {
+  avisClicked = true;
+  document.getElementById('btn-avis-fait').disabled = false;
+}
+
 ['btn-google', 'btn-tripadvisor'].forEach(id => {
   document.getElementById(id).addEventListener('click', function() {
     if (!avisClicked) {
       avisClicked = true;
-      setTimeout(() => {
-        document.getElementById('btn-avis-fait').disabled = false;
-      }, 2000);
+      localStorage.setItem('roulette_avis_clicked', '1');
+      document.getElementById('btn-avis-fait').disabled = false;
     }
   });
 });
@@ -562,6 +567,7 @@ document.getElementById('btn-jouer').addEventListener('click', async function() 
     return;
   }
 
+  localStorage.removeItem('roulette_avis_clicked');
   window._clientNom = nom;
   window._clientTel = tel;
   showScreen('screen-roulette');
