@@ -759,24 +759,17 @@ async function sendRelanceEmail(c, btn){
   setTimeout(()=>{btn.disabled=false;btn.textContent='📧';},3000);
 }
 
-// ── SMS MARKETING ADMIN ──────────────────────────────────────────────────────
-const SMS_MKT = [
-  {key:'sms1',label:'SMS Côte de bœuf',msg:'Cette semaine, c\'est côte de bœuf à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥'},
-  {key:'sms2',label:'SMS Cochon de lait',msg:'Cette semaine, c\'est cochon de lait à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥'},
-  {key:'sms3',label:'SMS Semaine',msg:'Venez cette semaine au Braise & Co (vendredi soir et dimanche midi), on vous offre votre apéritif ! (un seul apéritif par réservation) 🔥'},
-];
-
-function smsSendable(sentAt, lastVisit){
-  if(!sentAt) return true;
-  if(!lastVisit) return false;
-  return new Date(lastVisit) > new Date(sentAt);
-}
-
 async function loadAdmin(){
   loadAdminSms();
 }
 
 async function loadAdminSms(){
+  const SMS_MKT = [
+    {key:'sms1',label:'SMS Côte de bœuf',msg:'Cette semaine, c'est côte de bœuf à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥'},
+    {key:'sms2',label:'SMS Cochon de lait',msg:'Cette semaine, c'est cochon de lait à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥'},
+    {key:'sms3',label:'SMS Semaine',msg:'Venez cette semaine au Braise & Co (vendredi soir et dimanche midi), on vous offre votre apéritif ! (un seul apéritif par réservation) 🔥'},
+  ];
+  const smsSendable=(sentAt,lastVisit)=>{if(!sentAt)return true;if(!lastVisit)return false;return new Date(lastVisit)>new Date(sentAt);};
   const box = document.getElementById('admin-sms-list');
   if(!box) return;
   try{
