@@ -736,7 +736,7 @@ async function validatePin(){
 }
 document.getElementById('modal-pin').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 
-document.getElementById('btn-admin-back').onclick=()=>go('sw');
+document.getElementById('btn-admin-back').onclick=()=>window.location.reload();
 document.getElementById('btn-modal-cancel').onclick=()=>document.getElementById('modal-admin').classList.remove('open');
 document.getElementById('btn-modal-ok').onclick=checkPw;
 document.getElementById('admin-pw').addEventListener('keydown',e=>{if(e.key==='Enter')checkPw();});
