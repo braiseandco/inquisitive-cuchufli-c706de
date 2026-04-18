@@ -2375,8 +2375,9 @@ async function loadRelances(){
         window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
         html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
           +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-          +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
-          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;">📲 Envoyer SMS bienvenue</a>'
+          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
+          +'<button id="'+cid+'-efface" onclick="relanceEffacer(\''+c.tel+'\',\''+cid+'\')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>'
           +'</div>';
       }
       if(clients.length > 0){
@@ -2565,6 +2566,8 @@ function j1SmsClick(cid, tel){
     btn.style.pointerEvents = 'none';
     btn.textContent = '✅ SMS envoyé';
   }
+  const efface = document.getElementById(cid+'-efface');
+  if(efface) efface.style.display = 'block';
   toast('📋 Message copié — collez dans le SMS','ok');
 }
 
