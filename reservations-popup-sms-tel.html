@@ -2327,9 +2327,13 @@ async function loadRelances(){
     hier.setDate(hier.getDate() - 1);
     const hierStr = dateStr(hier);
 
+    const sixMoisAvant = new Date();
+    sixMoisAvant.setMonth(sixMoisAvant.getMonth() - 6);
+    const sixMoisStr = dateStr(sixMoisAvant);
+
     const [resasHier, resas] = await Promise.all([
       sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
-      sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000')
+      sbFetch('reservations?select=telephone,nom,date&date=gte.'+sixMoisStr+'&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
     // ── J+1 : dédupliquer par téléphone ──────────────────────
@@ -2591,7 +2595,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-18.2';
+const APP_VERSION = '2026-04-19.1';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
