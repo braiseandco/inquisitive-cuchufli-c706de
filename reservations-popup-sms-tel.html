@@ -2322,11 +2322,30 @@ async function loadRelances(){
   const content = document.getElementById('relances-content');
   content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
   try {
-    const resas = await sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000');
+    // ── Fetch J+1 et J+30 en parallèle ───────────────────────
+    const hier = new Date();
+    hier.setDate(hier.getDate() - 1);
+    const hierStr = dateStr(hier);
+
+    const [resasHier, resas] = await Promise.all([
+      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
+      sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000')
+    ]);
+
+    // ── J+1 : dédupliquer par téléphone ──────────────────────
+    const mapHier = {};
+    for(const r of (resasHier||[])){
+      const tel = (r.telephone||'').replace(/\s/g,'');
+      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!mapHier[tel]) mapHier[tel] = {tel, nom: r.nom};
+    }
+    const clientsHier = Object.values(mapHier);
+
+    // ── J+30 : inactifs depuis 30 jours ──────────────────────
     const map = {};
     const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 29); // 30 jours (< strictement)
-    for(const r of resas){
+    dateLimit.setDate(dateLimit.getDate() - 29);
+    for(const r of (resas||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
       if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0};
@@ -2337,34 +2356,58 @@ async function loadRelances(){
       .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
-    if(clients.length === 0){
+    if(clientsHier.length === 0 && clients.length === 0){
       content.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
       return;
     }
 
+    window._j1Msgs = {};
     const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-    const buildSms = nom => {
-      const n = (nom||'').trim();
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + 7);
-      const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
-      return 'Bonjour, ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14. A très bientôt !';
-    };
+    let html = '';
 
-    let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
-
-    for(const c of clients){
-      const msg = buildSms(c.nom);
-      const cid = 'rc-'+c.tel.replace(/\D/g,'');
-      html += `<div id="${cid}" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">
-        <div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 ${esc(c.nom||'(sans nom)')}</div>
-        <div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="${cid}-tel">📞 ${esc(c.tel)}</div>
-        <div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : ${fmtDate(c.derniere)} &nbsp;·&nbsp; ${c.nb} résa${c.nb>1?'s':''}</div>
-        <span id="${cid}-msg" style="display:none;">${esc(msg)}</span>
-        <a href="sms:${c.tel}" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick('${cid}','${c.tel}')">💬 Envoyer la relance SMS</a>
-        <button id="${cid}-efface" onclick="relanceEffacer('${c.tel}','${cid}')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>
-      </div>`;
+    // ── Section J+1 ──────────────────────────────────────────
+    if(clientsHier.length > 0){
+      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 Visites d\'hier</div>';
+      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
+      for(const c of clientsHier){
+        const cid = 'j1-'+c.tel.replace(/\D/g,'');
+        const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
+        window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
+        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
+          +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;">📲 Envoyer SMS bienvenue</a>'
+          +'</div>';
+      }
+      if(clients.length > 0){
+        html += '<div style="height:1px;background:var(--border);margin:20px 0;"></div>';
+      }
     }
+
+    // ── Section J+30 ─────────────────────────────────────────
+    if(clients.length > 0){
+      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">💬 Relances J+30</div>';
+      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
+      const buildSms = () => {
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + 7);
+        const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
+        return 'Bonjour, ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14. A très bientôt !';
+      };
+      for(const c of clients){
+        const msg = buildSms();
+        const cid = 'rc-'+c.tel.replace(/\D/g,'');
+        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
+          +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="'+cid+'-tel">📞 '+esc(c.tel)+'</div>'
+          +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
+          +'<span id="'+cid+'-msg" style="display:none;">'+esc(msg)+'</span>'
+          +'<a href="sms:'+c.tel+'" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\')">💬 Envoyer la relance SMS</a>'
+          +'<button id="'+cid+'-efface" onclick="relanceEffacer(\''+c.tel+'\',\''+cid+'\')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>'
+          +'</div>';
+      }
+    }
+
     content.innerHTML = html;
   } catch(e){
     content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">❌ Erreur de chargement</div>';
@@ -2508,6 +2551,20 @@ function relanceSmsClick(cid, tel){
   const msg = document.getElementById(cid+'-msg').textContent;
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   document.getElementById(cid+'-efface').style.display = 'block';
+  toast('📋 Message copié — collez dans le SMS','ok');
+}
+
+function j1SmsClick(cid, tel){
+  const msg = (window._j1Msgs && window._j1Msgs[cid]) || '';
+  if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
+  const btn = document.getElementById(cid+'-btn');
+  if(btn){
+    btn.style.background = 'rgba(76,175,80,0.15)';
+    btn.style.color = '#4CAF70';
+    btn.style.border = '1px solid #4CAF70';
+    btn.style.pointerEvents = 'none';
+    btn.textContent = '✅ SMS envoyé';
+  }
   toast('📋 Message copié — collez dans le SMS','ok');
 }
 
