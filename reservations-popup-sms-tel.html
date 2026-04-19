@@ -2333,7 +2333,7 @@ async function loadRelances(){
 
     const [resasHier, resas] = await Promise.all([
       sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
-      sbFetch('reservations?select=telephone,nom,date&date=gte.'+sixMoisStr+'&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25')
+      sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
     // ── J+1 : dédupliquer par téléphone ──────────────────────
@@ -2345,19 +2345,20 @@ async function loadRelances(){
     }
     const clientsHier = Object.values(mapHier);
 
-    // ── J+30 : inactifs depuis 30 jours ──────────────────────
+    // ── J+30 : inactifs depuis 30 jours, relance non encore envoyée ──
     const map = {};
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of (resas||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
-      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0};
+      // order=date.desc : premier enregistrement = le plus récent
+      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0, relance_envoye: r.relance_mois_envoye || false};
       map[tel].nb++;
-      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; }
+      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; map[tel].relance_envoye = r.relance_mois_envoye || false; }
     }
     const clients = Object.values(map)
-      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
+      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit && !c.relance_envoye)
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
     if(clientsHier.length === 0 && clients.length === 0){
@@ -2552,11 +2553,14 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   } catch(e){ console.error('roulette_envois insert:', e); }
 });
 
-function relanceSmsClick(cid, tel){
+async function relanceSmsClick(cid, tel){
   const msg = document.getElementById(cid+'-msg').textContent;
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   document.getElementById(cid+'-efface').style.display = 'block';
   toast('📋 Message copié — collez dans le SMS','ok');
+  try {
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
+  } catch(e){ console.error('relance mark:', e); }
 }
 
 function j1SmsClick(cid, tel){
