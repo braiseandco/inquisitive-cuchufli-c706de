@@ -2712,7 +2712,7 @@ async function checkConfirmedResas(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const confirmed = await sbFetch(
-      'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&select=*'
+      'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&id=not.like.roulette_%25&id=not.like.fid_%25&select=*'
     );
     if(!confirmed || confirmed.length === 0) return;
     const nouvelles = confirmed.filter(r => !smsNotifiedIds.has(r.id));
