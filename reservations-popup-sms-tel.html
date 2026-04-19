@@ -2332,7 +2332,7 @@ async function loadRelances(){
     const sixMoisStr = dateStr(sixMoisAvant);
 
     const [resasHier, resas] = await Promise.all([
-      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
+      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&sms_envoye=eq.false&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
@@ -2382,7 +2382,6 @@ async function loadRelances(){
           +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
           +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
           +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
-          +'<button id="'+cid+'-efface" onclick="relanceEffacer(\''+c.tel+'\',\''+cid+'\')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>'
           +'</div>';
       }
       if(clients.length > 0){
@@ -2569,20 +2568,21 @@ async function relanceSmsClick(cid, tel){
   } catch(e){ console.error('relance mark:', e); }
 }
 
-function j1SmsClick(cid, tel){
+async function j1SmsClick(cid, tel){
   const msg = (window._j1Msgs && window._j1Msgs[cid]) || '';
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   const btn = document.getElementById(cid+'-btn');
   if(btn){
     btn.style.background = 'rgba(76,175,80,0.15)';
-    btn.style.color = '#4CAF70';
-    btn.style.border = '1px solid #4CAF70';
+    btn.style.color = '#4CAF50';
+    btn.style.border = '1px solid #4CAF50';
     btn.style.pointerEvents = 'none';
     btn.textContent = '✅ SMS envoyé';
   }
-  const efface = document.getElementById(cid+'-efface');
-  if(efface) efface.style.display = 'block';
   toast('📋 Message copié — collez dans le SMS','ok');
+  try {
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+dateStr(new Date(Date.now()-86400000)), {method:'PATCH', body:JSON.stringify({sms_envoye:true})});
+  } catch(e){ console.error('j1 mark:', e); }
 }
 
 async function relanceEffacer(tel, cid){
