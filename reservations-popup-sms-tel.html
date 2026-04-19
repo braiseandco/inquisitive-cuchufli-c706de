@@ -2408,8 +2408,7 @@ async function loadRelances(){
           +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="'+cid+'-tel">📞 '+esc(c.tel)+'</div>'
           +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
           +'<span id="'+cid+'-msg" style="display:none;">'+esc(msg)+'</span>'
-          +'<a href="sms:'+c.tel+'" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\')">💬 Envoyer la relance SMS</a>'
-          +'<button id="'+cid+'-efface" onclick="relanceEffacer(\''+c.tel+'\',\''+cid+'\')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\')">💬 Envoyer la relance SMS</a>'
           +'</div>';
       }
     }
@@ -2556,8 +2555,15 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
 async function relanceSmsClick(cid, tel){
   const msg = document.getElementById(cid+'-msg').textContent;
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
-  document.getElementById(cid+'-efface').style.display = 'block';
   toast('📋 Message copié — collez dans le SMS','ok');
+  const btn = document.getElementById(cid+'-btn');
+  if(btn){
+    btn.style.background = 'rgba(76,175,80,0.15)';
+    btn.style.color = '#4CAF70';
+    btn.style.border = '1px solid #4CAF70';
+    btn.style.pointerEvents = 'none';
+    btn.textContent = '✅ Relance envoyée';
+  }
   try {
     await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
   } catch(e){ console.error('relance mark:', e); }
