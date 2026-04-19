@@ -2332,7 +2332,7 @@ async function loadRelances(){
     const sixMoisStr = dateStr(sixMoisAvant);
 
     const [resasHier, resas] = await Promise.all([
-      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&sms_envoye=eq.false&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
+      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&bienvenue_envoye=eq.false&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
@@ -2581,7 +2581,7 @@ async function j1SmsClick(cid, tel){
   }
   toast('📋 Message copié — collez dans le SMS','ok');
   try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+dateStr(new Date(Date.now()-86400000)), {method:'PATCH', body:JSON.stringify({sms_envoye:true})});
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+dateStr(new Date(Date.now()-86400000)), {method:'PATCH', body:JSON.stringify({bienvenue_envoye:true})});
   } catch(e){ console.error('j1 mark:', e); }
 }
 
