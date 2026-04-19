@@ -1,0 +1,14 @@
+{
+  "name": "Carousel Instagram — Braise & Co",
+  "short_name": "Carousel B&C",
+  "description": "Crée des visuels Instagram pour Braise & Co",
+  "start_url": "/carousel/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

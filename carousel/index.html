@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Carousel — Braise & Co">
+<link rel="manifest" href="manifest.json">
+<title>Carousel Instagram — Braise & Co</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;color:#fff;overflow-x:hidden;}
+
+.screen{display:none;flex-direction:column;align-items:center;min-height:100vh;padding:28px 20px 40px;}
+.screen.active{display:flex;}
+
+/* ── HEADER ── */
+.logo{width:70px;height:auto;margin-bottom:4px;}
+.logo-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#555;margin-bottom:28px;}
+.page-title{font-family:'Cinzel',serif;font-size:20px;color:#c9a84c;margin-bottom:6px;text-align:center;}
+.page-sub{font-size:13px;color:#666;margin-bottom:28px;text-align:center;}
+
+/* ── BOUTONS ── */
+.btn-main{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:400px;padding:18px;background:linear-gradient(135deg,#c9a84c,#f0d080);border:none;border-radius:14px;font-family:'Raleway',sans-serif;font-size:16px;font-weight:900;color:#000;cursor:pointer;margin-bottom:12px;transition:opacity .2s;letter-spacing:.5px;}
+.btn-main:active{opacity:.85;}
+.btn-main:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:400px;padding:16px;background:transparent;border:1px solid #333;border-radius:14px;font-family:'Raleway',sans-serif;font-size:15px;font-weight:700;color:#888;cursor:pointer;margin-bottom:12px;transition:all .2s;}
+.btn-ghost:active{border-color:#c9a84c;color:#c9a84c;}
+.btn-small{padding:10px 20px;background:linear-gradient(135deg,#c9a84c,#f0d080);border:none;border-radius:10px;font-family:'Raleway',sans-serif;font-size:13px;font-weight:900;color:#000;cursor:pointer;transition:opacity .2s;}
+.btn-small:active{opacity:.8;}
+.btn-small-ghost{padding:10px 20px;background:transparent;border:1px solid #333;border-radius:10px;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;color:#888;cursor:pointer;transition:all .2s;}
+.btn-small-ghost:active{border-color:#c9a84c;color:#c9a84c;}
+.btn-danger{padding:10px 20px;background:transparent;border:1px solid #5a2020;border-radius:10px;font-family:'Raleway',sans-serif;font-size:13px;font-weight:700;color:#c04040;cursor:pointer;transition:all .2s;}
+.btn-danger:active{background:#5a2020;}
+
+/* ── CARD ── */
+.card{background:#141414;border:1px solid #2a2a2a;border-radius:20px;padding:24px;width:100%;max-width:400px;margin-bottom:16px;}
+.card-title{font-family:'Cinzel',serif;font-size:15px;color:#c9a84c;margin-bottom:10px;}
+
+/* ── FORM ── */
+.form-group{width:100%;max-width:400px;margin-bottom:14px;text-align:left;}
+.form-label{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#666;margin-bottom:6px;display:block;}
+.form-input{width:100%;padding:13px 15px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;color:#fff;font-family:'Raleway',sans-serif;font-size:15px;outline:none;transition:border-color .2s;resize:none;}
+.form-input:focus{border-color:#c9a84c;}
+.form-input::placeholder{color:#3a3a3a;}
+
+/* ── TEMPLATES GRID ── */
+.templates-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:400px;margin-bottom:24px;}
+.tpl-card{background:#141414;border:2px solid #2a2a2a;border-radius:16px;padding:16px;cursor:pointer;transition:all .2s;text-align:center;}
+.tpl-card.selected{border-color:#c9a84c;background:#1a1500;}
+.tpl-card:active{opacity:.8;}
+.tpl-emoji{font-size:28px;margin-bottom:8px;}
+.tpl-name{font-size:12px;font-weight:700;color:#aaa;letter-spacing:.5px;}
+.tpl-card.selected .tpl-name{color:#c9a84c;}
+
+/* ── SLIDE PREVIEW (canvas wrapper) ── */
+.preview-wrap{width:100%;max-width:400px;margin-bottom:20px;position:relative;}
+.preview-wrap canvas{width:100%;height:auto;border-radius:16px;display:block;box-shadow:0 0 40px rgba(201,168,76,.15);}
+.slide-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:16px;}
+.slide-dot{width:8px;height:8px;border-radius:50%;background:#2a2a2a;cursor:pointer;transition:all .2s;}
+.slide-dot.active{background:#c9a84c;transform:scale(1.3);}
+.slide-counter{font-size:12px;color:#555;letter-spacing:1px;}
+
+/* ── SLIDES LIST ── */
+.slides-row{display:flex;gap:10px;width:100%;max-width:400px;overflow-x:auto;padding-bottom:8px;margin-bottom:20px;scrollbar-width:none;}
+.slides-row::-webkit-scrollbar{display:none;}
+.slide-thumb{flex:0 0 72px;height:72px;border-radius:10px;border:2px solid #2a2a2a;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.slide-thumb canvas{width:100%;height:100%;}
+.slide-thumb.active{border-color:#c9a84c;}
+.slide-thumb .thumb-num{position:absolute;bottom:3px;right:5px;font-size:9px;font-weight:700;color:rgba(255,255,255,.5);}
+.slide-thumb.add-slide{background:#141414;display:flex;align-items:center;justify-content:center;font-size:22px;color:#333;}
+.slide-thumb.add-slide:active{border-color:#c9a84c;color:#c9a84c;}
+
+/* ── EXPORT GRID ── */
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:400px;margin-bottom:24px;}
+.export-item{background:#141414;border:1px solid #2a2a2a;border-radius:14px;padding:12px;text-align:center;}
+.export-item canvas{width:100%;height:auto;border-radius:8px;display:block;margin-bottom:10px;}
+.export-item .export-label{font-size:11px;color:#555;margin-bottom:8px;}
+
+/* ── MISC ── */
+.divider{width:100%;max-width:400px;height:1px;background:#1e1e1e;margin:20px 0;}
+.tag{display:inline-block;padding:4px 10px;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.3);border-radius:20px;font-size:11px;color:#c9a84c;margin-bottom:16px;}
+.row-btns{display:flex;gap:10px;width:100%;max-width:400px;justify-content:flex-end;margin-bottom:16px;}
+.spinner{width:36px;height:36px;border:3px solid #222;border-top-color:#c9a84c;border-radius:50%;animation:spin .8s linear infinite;margin:20px auto;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- ══ ÉCRAN 1 : ACCUEIL ══ -->
+<div class="screen active" id="screen-home">
+  <img src="/images/logo.png" class="logo" alt="Braise & Co" onerror="this.style.display='none'">
+  <div class="logo-sub">Braise &amp; Co</div>
+
+  <div class="tag">✦ Instagram</div>
+  <h1 class="page-title">Carousel Design</h1>
+  <p class="page-sub">Crée des visuels professionnels<br>pour tes posts Instagram.</p>
+
+  <div class="card" style="text-align:center;margin-bottom:28px;">
+    <div style="font-size:48px;margin-bottom:12px;">🖼️</div>
+    <div class="card-title">Comment ça marche ?</div>
+    <p style="font-size:13px;color:#888;line-height:1.7;">
+      1. Choisis un modèle<br>
+      2. Personnalise le texte<br>
+      3. Ajoute jusqu'à 10 slides<br>
+      4. Télécharge chaque image
+    </p>
+  </div>
+
+  <button class="btn-main" onclick="startNew()">✦ Créer un carousel</button>
+  <button class="btn-ghost" onclick="goTo('screen-export-only')" id="btn-view-last" style="display:none">Reprendre le dernier</button>
+</div>
+
+<!-- ══ ÉCRAN 2 : TEMPLATE ══ -->
+<div class="screen" id="screen-template">
+  <div class="logo-sub" style="margin-bottom:20px;">Braise &amp; Co</div>
+  <h1 class="page-title">Choisir un modèle</h1>
+  <p class="page-sub">Pour la slide <span id="tpl-slide-num">1</span></p>
+
+  <div class="templates-grid" id="tpl-grid">
+    <!-- injected by JS -->
+  </div>
+
+  <div id="tpl-preview-wrap" class="preview-wrap" style="display:none;">
+    <canvas id="tpl-preview-canvas"></canvas>
+  </div>
+
+  <button class="btn-main" id="btn-tpl-next" onclick="confirmTemplate()" disabled>Choisir ce modèle →</button>
+  <button class="btn-ghost" onclick="goTo('screen-editor')">← Retour</button>
+</div>
+
+<!-- ══ ÉCRAN 3 : ÉDITEUR ══ -->
+<div class="screen" id="screen-editor">
+  <div class="logo-sub" style="margin-bottom:16px;">Braise &amp; Co</div>
+  <h1 class="page-title" id="editor-title">Slide 1</h1>
+
+  <!-- Miniatures des slides -->
+  <div class="slides-row" id="slides-row"></div>
+
+  <!-- Preview principale -->
+  <div class="preview-wrap">
+    <canvas id="main-canvas"></canvas>
+  </div>
+
+  <!-- Champs d'édition -->
+  <div id="editor-fields" style="width:100%;max-width:400px;"></div>
+
+  <div class="row-btns">
+    <button class="btn-danger" id="btn-del-slide" onclick="deleteCurrentSlide()">Supprimer</button>
+  </div>
+
+  <button class="btn-main" onclick="goTo('screen-export')">Exporter le carousel →</button>
+  <button class="btn-ghost" onclick="goTo('screen-home')">← Accueil</button>
+</div>
+
+<!-- ══ ÉCRAN 4 : EXPORT ══ -->
+<div class="screen" id="screen-export">
+  <div class="logo-sub" style="margin-bottom:16px;">Braise &amp; Co</div>
+  <h1 class="page-title">Télécharger</h1>
+  <p class="page-sub">Appuie sur chaque slide pour la sauvegarder.</p>
+  <div class="export-grid" id="export-grid"></div>
+  <button class="btn-main" onclick="downloadAll()">⬇ Tout télécharger</button>
+  <button class="btn-ghost" onclick="goTo('screen-editor')">← Modifier</button>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   DONNÉES & ÉTAT
+══════════════════════════════════════ */
+const TEMPLATES = [
+  {
+    id: 'signature',
+    name: 'Signature',
+    emoji: '🔥',
+    fields: [
+      {key:'titre', label:'Titre principal', placeholder:'Nos Grillades', maxlen:30},
+      {key:'sous_titre', label:'Sous-titre', placeholder:'Au feu de bois, à volonté', maxlen:50},
+      {key:'detail', label:'Détail (bas)', placeholder:'Biganos — Bassin d\'Arcachon', maxlen:50}
+    ],
+    defaults: {titre:'Nos Grillades', sous_titre:'Au feu de bois, à volonté', detail:'Biganos — Bassin d\'Arcachon'}
+  },
+  {
+    id: 'formule',
+    name: 'Formule',
+    emoji: '🍽️',
+    fields: [
+      {key:'label', label:'Label formule', placeholder:'FORMULE MIDI', maxlen:25},
+      {key:'prix', label:'Prix', placeholder:'16,90€', maxlen:12},
+      {key:'contenu', label:'Ce qui est inclus', placeholder:'Grillades à volonté + boisson', maxlen:60},
+      {key:'jours', label:'Jours / horaires', placeholder:'Du mardi au vendredi', maxlen:40}
+    ],
+    defaults: {label:'FORMULE MIDI', prix:'16,90€', contenu:'Grillades à volonté + boisson', jours:'Du mardi au vendredi midi'}
+  },
+  {
+    id: 'evenement',
+    name: 'Événement',
+    emoji: '📅',
+    fields: [
+      {key:'date', label:'Date', placeholder:'SAMEDI 26 AVRIL', maxlen:25},
+      {key:'titre', label:'Titre événement', placeholder:'Soirée Spéciale', maxlen:35},
+      {key:'detail', label:'Détail', placeholder:'À partir de 19h — Sur réservation', maxlen:60}
+    ],
+    defaults: {date:'SAMEDI 26 AVRIL', titre:'Soirée Spéciale', detail:'À partir de 19h — Sur réservation'}
+  },
+  {
+    id: 'citation',
+    name: 'Avis client',
+    emoji: '⭐',
+    fields: [
+      {key:'texte', label:'Texte de l\'avis', placeholder:'Une viande parfaitement grillée, un accueil chaleureux...', maxlen:150, multiline:true},
+      {key:'auteur', label:'Prénom client', placeholder:'Marie G.', maxlen:30},
+      {key:'source', label:'Source', placeholder:'Google', maxlen:20}
+    ],
+    defaults: {texte:'Une viande parfaitement grillée, un accueil chaleureux. On reviendra !', auteur:'Marie G.', source:'Google'}
+  },
+  {
+    id: 'annonce',
+    name: 'Annonce',
+    emoji: '📢',
+    fields: [
+      {key:'titre', label:'Titre', placeholder:'Nouvelle Carte d\'Été', maxlen:35},
+      {key:'body', label:'Message', placeholder:'Découvrez nos nouvelles spécialités dès maintenant.', maxlen:100, multiline:true},
+      {key:'cta', label:'Call-to-action', placeholder:'Réservez votre table !', maxlen:40}
+    ],
+    defaults: {titre:'Nouvelle Carte d\'Été', body:'Découvrez nos nouvelles spécialités dès maintenant.', cta:'Réservez votre table !'}
+  },
+  {
+    id: 'plat',
+    name: 'Plat vedette',
+    emoji: '🥩',
+    fields: [
+      {key:'nom', label:'Nom du plat', placeholder:'Côte de Bœuf', maxlen:30},
+      {key:'desc', label:'Description', placeholder:'Grillée au feu de bois, servie rosée', maxlen:70},
+      {key:'badge', label:'Badge (optionnel)', placeholder:'Le coup de cœur du chef', maxlen:35}
+    ],
+    defaults: {nom:'Côte de Bœuf', desc:'Grillée au feu de bois, servie rosée', badge:'Le coup de cœur du chef'}
+  }
+];
+
+let slides = []; // [{tplId, data}, ...]
+let currentSlideIdx = 0;
+let selectedTplId = null;
+let fontsReady = false;
+
+document.fonts.ready.then(() => { fontsReady = true; refreshAll(); });
+
+/* ══════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════ */
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+  if (id === 'screen-editor') refreshEditor();
+  if (id === 'screen-export') buildExportGrid();
+  if (id === 'screen-template') buildTplGrid();
+}
+
+function startNew() {
+  slides = [{tplId: 'signature', data: {...TEMPLATES[0].defaults}}];
+  currentSlideIdx = 0;
+  goTo('screen-editor');
+}
+
+/* ══════════════════════════════════════
+   ÉCRAN TEMPLATE
+══════════════════════════════════════ */
+function buildTplGrid() {
+  const grid = document.getElementById('tpl-grid');
+  document.getElementById('tpl-slide-num').textContent = currentSlideIdx + 1;
+  selectedTplId = null;
+  document.getElementById('btn-tpl-next').disabled = true;
+  document.getElementById('tpl-preview-wrap').style.display = 'none';
+
+  grid.innerHTML = TEMPLATES.map(t => `
+    <div class="tpl-card" id="tpl-${t.id}" onclick="selectTemplate('${t.id}')">
+      <div class="tpl-emoji">${t.emoji}</div>
+      <div class="tpl-name">${t.name}</div>
+    </div>
+  `).join('');
+}
+
+function selectTemplate(id) {
+  selectedTplId = id;
+  document.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('tpl-'+id).classList.add('selected');
+  document.getElementById('btn-tpl-next').disabled = false;
+
+  const tpl = TEMPLATES.find(t => t.id === id);
+  const wrap = document.getElementById('tpl-preview-wrap');
+  wrap.style.display = 'block';
+  const cv = document.getElementById('tpl-preview-canvas');
+  renderSlide(cv, tpl.id, tpl.defaults, 600);
+}
+
+function confirmTemplate() {
+  if (!selectedTplId) return;
+  const tpl = TEMPLATES.find(t => t.id === selectedTplId);
+  // preserve existing data if same template, else use defaults
+  if (slides[currentSlideIdx]) {
+    if (slides[currentSlideIdx].tplId !== selectedTplId) {
+      slides[currentSlideIdx] = {tplId: selectedTplId, data: {...tpl.defaults}};
+    }
+  }
+  goTo('screen-editor');
+}
+
+/* ══════════════════════════════════════
+   ÉCRAN ÉDITEUR
+══════════════════════════════════════ */
+function refreshEditor() {
+  const slide = slides[currentSlideIdx];
+  if (!slide) return;
+  const tpl = TEMPLATES.find(t => t.id === slide.tplId);
+
+  document.getElementById('editor-title').textContent = `Slide ${currentSlideIdx+1} / ${slides.length}`;
+  document.getElementById('btn-del-slide').style.display = slides.length > 1 ? 'block' : 'none';
+
+  // champs
+  const fields = document.getElementById('editor-fields');
+  fields.innerHTML = tpl.fields.map(f => `
+    <div class="form-group">
+      <label class="form-label">${f.label}</label>
+      ${f.multiline
+        ? `<textarea class="form-input" rows="3" maxlength="${f.maxlen}" placeholder="${f.placeholder}" oninput="updateField('${f.key}', this.value)">${slide.data[f.key]||''}</textarea>`
+        : `<input class="form-input" type="text" maxlength="${f.maxlen}" placeholder="${f.placeholder}" value="${escHtml(slide.data[f.key]||'')}" oninput="updateField('${f.key}', this.value)">`
+      }
+    </div>
+  `).join('') + `
+    <button class="btn-ghost" style="margin-bottom:12px;" onclick="openTemplateChooser()">⟳ Changer de modèle</button>
+    <button class="btn-ghost" onclick="addSlide()">＋ Ajouter une slide</button>
+  `;
+
+  // miniatures
+  buildSlideThumbs();
+
+  // canvas principal
+  renderSlide(document.getElementById('main-canvas'), slide.tplId, slide.data, 600);
+}
+
+function buildSlideThumbs() {
+  const row = document.getElementById('slides-row');
+  row.innerHTML = slides.map((s, i) => `
+    <div class="slide-thumb ${i===currentSlideIdx?'active':''}" onclick="switchSlide(${i})">
+      <canvas id="thumb-${i}"></canvas>
+      <span class="thumb-num">${i+1}</span>
+    </div>
+  `).join('') + `<div class="slide-thumb add-slide" onclick="addSlide()">＋</div>`;
+
+  slides.forEach((s, i) => {
+    const cv = document.getElementById('thumb-'+i);
+    if (cv) renderSlide(cv, s.tplId, s.data, 150);
+  });
+}
+
+function switchSlide(i) {
+  currentSlideIdx = i;
+  refreshEditor();
+}
+
+function updateField(key, val) {
+  slides[currentSlideIdx].data[key] = val;
+  const slide = slides[currentSlideIdx];
+  renderSlide(document.getElementById('main-canvas'), slide.tplId, slide.data, 600);
+  const thumb = document.getElementById('thumb-'+currentSlideIdx);
+  if (thumb) renderSlide(thumb, slide.tplId, slide.data, 150);
+}
+
+function addSlide() {
+  if (slides.length >= 10) { alert('Maximum 10 slides.'); return; }
+  const tpl = TEMPLATES[0];
+  slides.push({tplId: tpl.id, data: {...tpl.defaults}});
+  currentSlideIdx = slides.length - 1;
+  openTemplateChooser();
+}
+
+function deleteCurrentSlide() {
+  if (slides.length <= 1) return;
+  slides.splice(currentSlideIdx, 1);
+  currentSlideIdx = Math.min(currentSlideIdx, slides.length - 1);
+  refreshEditor();
+}
+
+function openTemplateChooser() {
+  goTo('screen-template');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ══════════════════════════════════════
+   EXPORT
+══════════════════════════════════════ */
+function buildExportGrid() {
+  const grid = document.getElementById('export-grid');
+  grid.innerHTML = slides.map((s,i) => `
+    <div class="export-item">
+      <canvas id="export-cv-${i}"></canvas>
+      <div class="export-label">Slide ${i+1}</div>
+      <button class="btn-small" onclick="downloadSlide(${i})">⬇ Télécharger</button>
+    </div>
+  `).join('');
+  slides.forEach((s,i) => {
+    const cv = document.getElementById('export-cv-'+i);
+    if (cv) renderSlide(cv, s.tplId, s.data, 600);
+  });
+}
+
+function downloadSlide(i) {
+  const s = slides[i];
+  const cv = document.createElement('canvas');
+  renderSlide(cv, s.tplId, s.data, 1080);
+  const link = document.createElement('a');
+  link.download = `braise-co-slide-${i+1}.png`;
+  link.href = cv.toDataURL('image/png');
+  link.click();
+}
+
+function downloadAll() {
+  slides.forEach((s,i) => {
+    setTimeout(() => downloadSlide(i), i * 300);
+  });
+}
+
+function refreshAll() {
+  const mc = document.getElementById('main-canvas');
+  const slide = slides[currentSlideIdx];
+  if (mc && slide) renderSlide(mc, slide.tplId, slide.data, 600);
+  buildSlideThumbs();
+}
+
+/* ══════════════════════════════════════
+   RENDU CANVAS
+══════════════════════════════════════ */
+function renderSlide(canvas, tplId, data, size) {
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const d = data || {};
+
+  // dispatch
+  const renders = {
+    signature: renderSignature,
+    formule:   renderFormule,
+    evenement: renderEvenement,
+    citation:  renderCitation,
+    annonce:   renderAnnonce,
+    plat:      renderPlat
+  };
+  (renders[tplId] || renderSignature)(ctx, d, size);
+}
+
+/* ── helpers canvas ── */
+function bg(ctx, size, c1, c2, radial) {
+  let grad;
+  if (radial) {
+    grad = ctx.createRadialGradient(size*.5, size*.45, 0, size*.5, size*.5, size*.7);
+  } else {
+    grad = ctx.createLinearGradient(0, 0, 0, size);
+  }
+  grad.addColorStop(0, c1);
+  grad.addColorStop(1, c2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+}
+
+function goldLine(ctx, size, y, w) {
+  const x = (size - w) / 2;
+  const grad = ctx.createLinearGradient(x, 0, x+w, 0);
+  grad.addColorStop(0, 'rgba(201,168,76,0)');
+  grad.addColorStop(.3, '#c9a84c');
+  grad.addColorStop(.7, '#f0d080');
+  grad.addColorStop(1, 'rgba(201,168,76,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, Math.max(2, size*0.003));
+}
+
+function drawText(ctx, text, x, y, font, color, align, maxW, lineH) {
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = align || 'center';
+  if (maxW && ctx.measureText(text).width > maxW) {
+    // word wrap
+    const words = String(text).split(' ');
+    let line = '';
+    let cy = y;
+    for (const w of words) {
+      const test = line ? line+' '+w : w;
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line, x, cy);
+        line = w;
+        cy += (lineH || parseInt(font)*1.3);
+      } else { line = test; }
+    }
+    ctx.fillText(line, x, cy);
+    return cy;
+  } else {
+    ctx.fillText(String(text||''), x, y);
+    return y;
+  }
+}
+
+function brandMark(ctx, size) {
+  ctx.font = `700 ${Math.round(size*.022)}px Raleway,sans-serif`;
+  ctx.fillStyle = 'rgba(201,168,76,0.55)';
+  ctx.textAlign = 'center';
+  ctx.fillText('BRAISE & CO', size/2, size - size*.04);
+}
+
+function emberDots(ctx, size, count, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha || 0.15;
+  const seeds = [0.12,0.87,0.34,0.61,0.45,0.78,0.23,0.9,0.55,0.07,0.67,0.39];
+  for (let i=0; i<count; i++) {
+    const x = (seeds[i*2 % seeds.length] + i*.137) % 1 * size;
+    const y = (seeds[(i*2+1) % seeds.length] + i*.113) % 1 * size;
+    const r = (2 + (i%4)) * size/600;
+    ctx.fillStyle = i%3===0 ? '#f0d080' : '#c9a84c';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r, fill) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+/* ── TEMPLATE: Signature ── */
+function renderSignature(ctx, d, size) {
+  bg(ctx, size, '#0a0a0a', '#1a0800', true);
+  emberDots(ctx, size, 12, 0.18);
+
+  const P = size/600;
+
+  // top accent
+  goldLine(ctx, size, size*.08, size*.4);
+
+  // logo text top
+  ctx.font = `700 ${Math.round(14*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = 'rgba(201,168,76,0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText('BRAISE & CO', size/2, size*.07);
+
+  // titre
+  ctx.save();
+  ctx.shadowColor = 'rgba(201,168,76,.3)';
+  ctx.shadowBlur = 30*P;
+  const titreSize = Math.min(96*P, size*.14);
+  const lastY = drawText(ctx, d.titre||'', size/2, size*.45, `900 ${Math.round(titreSize)}px Cinzel,serif`, '#ffffff', 'center', size*.82, titreSize*1.2);
+  ctx.restore();
+
+  // ligne or
+  goldLine(ctx, size, lastY + 28*P, size*.55);
+
+  // sous-titre
+  drawText(ctx, d.sous_titre||'', size/2, lastY + 65*P, `600 ${Math.round(18*P)}px Raleway,sans-serif`, '#c9a84c', 'center', size*.78, 24*P);
+
+  // detail bas
+  ctx.font = `400 ${Math.round(13*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.detail||'', size/2, size*.93);
+
+  goldLine(ctx, size, size*.92, size*.35);
+}
+
+/* ── TEMPLATE: Formule ── */
+function renderFormule(ctx, d, size) {
+  bg(ctx, size, '#0d0800', '#1a0e00');
+
+  const P = size/600;
+
+  // warm glow left
+  const glow = ctx.createRadialGradient(size*.15, size*.5, 0, size*.15, size*.5, size*.6);
+  glow.addColorStop(0, 'rgba(201,120,30,0.12)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0,0,size,size);
+
+  // badge label
+  roundRect(ctx, size*.08, size*.1, size*.4, size*.08, 8*P, 'rgba(201,168,76,.15)');
+  ctx.strokeStyle = 'rgba(201,168,76,.4)';
+  ctx.lineWidth = 1*P;
+  ctx.beginPath();
+  ctx.roundRect?.(size*.08, size*.1, size*.4, size*.08, 8*P) ||
+    (() => {roundRect(ctx, size*.08, size*.1, size*.4, size*.08, 8*P, 'rgba(0,0,0,0)'); ctx.stroke();})();
+  ctx.stroke();
+  ctx.font = `700 ${Math.round(13*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = '#c9a84c';
+  ctx.textAlign = 'left';
+  ctx.fillText(d.label||'FORMULE', size*.12, size*.155);
+
+  // prix grand
+  ctx.save();
+  ctx.shadowColor = 'rgba(240,208,128,.4)';
+  ctx.shadowBlur = 40*P;
+  ctx.font = `900 ${Math.round(120*P)}px Cinzel,serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.prix||'', size/2, size*.52);
+  ctx.restore();
+
+  // contenu
+  goldLine(ctx, size, size*.57, size*.6);
+  drawText(ctx, d.contenu||'', size/2, size*.65, `600 ${Math.round(17*P)}px Raleway,sans-serif`, '#e8e8e8', 'center', size*.8, 24*P);
+
+  // jours
+  ctx.font = `400 ${Math.round(13*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = 'rgba(201,168,76,0.65)';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.jours||'', size/2, size*.82);
+
+  brandMark(ctx, size);
+}
+
+/* ── TEMPLATE: Événement ── */
+function renderEvenement(ctx, d, size) {
+  bg(ctx, size, '#05080d', '#0a1020');
+  emberDots(ctx, size, 8, 0.12);
+
+  const P = size/600;
+
+  // big date block
+  ctx.font = `900 ${Math.round(52*P)}px Cinzel,serif`;
+  ctx.fillStyle = '#c9a84c';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.date||'', size/2, size*.38);
+
+  goldLine(ctx, size, size*.42, size*.5);
+
+  // titre
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,.15)';
+  ctx.shadowBlur = 20*P;
+  drawText(ctx, d.titre||'', size/2, size*.55, `900 ${Math.round(62*P)}px Cinzel,serif`, '#ffffff', 'center', size*.82, 72*P);
+  ctx.restore();
+
+  goldLine(ctx, size, size*.65, size*.4);
+
+  // detail
+  drawText(ctx, d.detail||'', size/2, size*.73, `400 ${Math.round(15*P)}px Raleway,sans-serif`, 'rgba(255,255,255,0.65)', 'center', size*.78, 22*P);
+
+  brandMark(ctx, size);
+}
+
+/* ── TEMPLATE: Citation ── */
+function renderCitation(ctx, d, size) {
+  bg(ctx, size, '#0a0a0a', '#0f0800');
+
+  const P = size/600;
+
+  // gros guillemets déco
+  ctx.font = `900 ${Math.round(180*P)}px Cinzel,serif`;
+  ctx.fillStyle = 'rgba(201,168,76,0.06)';
+  ctx.textAlign = 'left';
+  ctx.fillText('"', size*.04, size*.45);
+
+  // étoiles
+  ctx.font = `400 ${Math.round(24*P)}px sans-serif`;
+  ctx.fillStyle = '#c9a84c';
+  ctx.textAlign = 'center';
+  ctx.fillText('★★★★★', size/2, size*.22);
+
+  // texte avis
+  const lh = 26*P;
+  ctx.font = `400 ${Math.round(17*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = '#e0e0e0';
+  ctx.textAlign = 'center';
+  const words = String(d.texte||'').split(' ');
+  let line='', y=size*.33, lines=[];
+  for (const w of words) {
+    const t = line ? line+' '+w : w;
+    if (ctx.measureText(t).width > size*.78 && line) { lines.push(line); line=w; } else { line=t; }
+  }
+  lines.push(line);
+  lines.forEach(l => { ctx.fillText(l, size/2, y); y+=lh; });
+
+  goldLine(ctx, size, y+10*P, size*.4);
+
+  // auteur
+  ctx.font = `700 ${Math.round(15*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = '#c9a84c';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.auteur||'', size/2, y+38*P);
+
+  // source
+  ctx.font = `400 ${Math.round(12*P)}px Raleway,sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.fillText(d.source||'', size/2, y+58*P);
+
+  brandMark(ctx, size);
+}
+
+/* ── TEMPLATE: Annonce ── */
+function renderAnnonce(ctx, d, size) {
+  bg(ctx, size, '#080808', '#120800');
+  emberDots(ctx, size, 6, 0.1);
+
+  const P = size/600;
+
+  goldLine(ctx, size, size*.15, size*.3);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(201,168,76,.35)';
+  ctx.shadowBlur = 25*P;
+  drawText(ctx, d.titre||'', size/2, size*.32, `900 ${Math.round(54*P)}px Cinzel,serif`, '#c9a84c', 'center', size*.82, 62*P);
+  ctx.restore();
+
+  goldLine(ctx, size, size*.42, size*.3);
+
+  const lastY = drawText(ctx, d.body||'', size/2, size*.54, `400 ${Math.round(17*P)}px Raleway,sans-serif`, 'rgba(255,255,255,0.75)', 'center', size*.78, 26*P);
+
+  // CTA badge
+  if (d.cta) {
+    const cw = ctx.measureText(d.cta).width + 48*P;
+    const cx = (size-cw)/2;
+    roundRect(ctx, cx, lastY+24*P, cw, 44*P, 10*P, 'rgba(201,168,76,0.12)');
+    ctx.strokeStyle = 'rgba(201,168,76,.5)';
+    ctx.lineWidth = 1.5*P;
+    ctx.beginPath();
+    ctx.roundRect?.(cx, lastY+24*P, cw, 44*P, 10*P);
+    ctx.stroke();
+    ctx.font = `700 ${Math.round(15*P)}px Raleway,sans-serif`;
+    ctx.fillStyle = '#c9a84c';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.cta, size/2, lastY+52*P);
+  }
+
+  brandMark(ctx, size);
+}
+
+/* ── TEMPLATE: Plat vedette ── */
+function renderPlat(ctx, d, size) {
+  bg(ctx, size, '#0a0500', '#1a0800', true);
+  emberDots(ctx, size, 10, 0.2);
+
+  const P = size/600;
+
+  // badge chef
+  if (d.badge) {
+    roundRect(ctx, (size-.6*size)/2, size*.1, size*.6, size*.07, 8*P, 'rgba(201,168,76,.12)');
+    ctx.font = `600 ${Math.round(12*P)}px Raleway,sans-serif`;
+    ctx.fillStyle = '#c9a84c';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.badge, size/2, size*.147);
+  }
+
+  goldLine(ctx, size, size*.22, size*.5);
+
+  // nom plat
+  ctx.save();
+  ctx.shadowColor = 'rgba(240,208,128,.4)';
+  ctx.shadowBlur = 40*P;
+  drawText(ctx, d.nom||'', size/2, size*.42, `900 ${Math.round(80*P)}px Cinzel,serif`, '#ffffff', 'center', size*.84, 92*P);
+  ctx.restore();
+
+  goldLine(ctx, size, size*.55, size*.45);
+
+  // desc
+  drawText(ctx, d.desc||'', size/2, size*.65, `400 ${Math.round(16*P)}px Raleway,sans-serif`, 'rgba(255,255,255,0.7)', 'center', size*.78, 24*P);
+
+  // fire emoji déco
+  ctx.font = `${Math.round(36*P)}px serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('🔥', size/2, size*.84);
+
+  brandMark(ctx, size);
+}
+
+/* ══════════════════════════════════════
+   INIT
+══════════════════════════════════════ */
+(function init() {
+  // check if saved carousel
+  try {
+    const saved = localStorage.getItem('bc_carousel');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.length) {
+        document.getElementById('btn-view-last').style.display = 'flex';
+      }
+    }
+  } catch(e) {}
+})();
+
+// sauvegarde auto
+setInterval(() => {
+  if (slides.length) {
+    try { localStorage.setItem('bc_carousel', JSON.stringify(slides)); } catch(e) {}
+  }
+}, 3000);
+</script>
+
+<!-- Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/carousel/sw.js');
+}
+</script>
+
+</body>
+</html>
