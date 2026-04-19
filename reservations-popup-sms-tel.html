@@ -2137,7 +2137,7 @@ async function initPolling(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
-    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow);
+    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow+'&id=not.like.roulette_%25&id=not.like.fid_%25');
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
   }catch(e){}
   setInterval(checkNewResas, 30000);
@@ -2149,7 +2149,7 @@ async function checkNewResas(){
     const since = lastPollTime;
     lastPollTime = new Date().toISOString();
     const newOnes = await sbFetch(
-      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc'
+      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
     );
     if(newOnes && newOnes.length > 0){
       // Filtrer les IDs déjà notifiés
@@ -2632,16 +2632,16 @@ getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // recharg
 // ── BADGE RELANCES ────────────────────────────────────────────
 async function checkRelancesBadge(){
   try {
-    const resas = await sbFetch('reservations?select=telephone,date&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25');
+    const resas = await sbFetch('reservations?select=telephone,date,relance_mois_envoye&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25');
     const map = {};
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of resas){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
-      if(!map[tel] || r.date > map[tel]) map[tel] = r.date;
+      if(!map[tel] || r.date > map[tel].date) map[tel] = {date: r.date, envoye: !!r.relance_mois_envoye};
     }
-    const nb = Object.values(map).filter(d => new Date(d+'T12:00:00') < dateLimit).length;
+    const nb = Object.values(map).filter(c => new Date(c.date+'T12:00:00') < dateLimit && !c.envoye).length;
     const tab = document.getElementById('tab-relances');
     if(nb > 0){
       tab.innerHTML = '💬 Relances <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
