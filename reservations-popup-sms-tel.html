@@ -2632,7 +2632,7 @@ getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // recharg
 // ── BADGE RELANCES ────────────────────────────────────────────
 async function checkRelancesBadge(){
   try {
-    const resas = await sbFetch('reservations?select=telephone,date&order=date.desc&limit=2000');
+    const resas = await sbFetch('reservations?select=telephone,date&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25');
     const map = {};
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - 29);
