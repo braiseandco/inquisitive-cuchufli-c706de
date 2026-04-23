@@ -2407,7 +2407,7 @@ async function loadRelances(){
           +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="'+cid+'-tel">📞 '+esc(c.tel)+'</div>'
           +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
           +'<span id="'+cid+'-msg" style="display:none;">'+esc(msg)+'</span>'
-          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\')">💬 Envoyer la relance SMS</a>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\',\''+c.derniere+'\')">💬 Envoyer la relance SMS</a>'
           +'</div>';
       }
     }
@@ -2464,7 +2464,7 @@ async function loadRouletteGains(){
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
-      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co)';
+      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co) Offre valable 30 jours.';
       const smsHref = buildSmsUrl(esc(g.telephone), msg);
       const gid = 'gain-'+g.id;
       window._rouletteMsgs[gid] = msg;
@@ -2551,7 +2551,7 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   } catch(e){ console.error('roulette_envois insert:', e); }
 });
 
-async function relanceSmsClick(cid, tel){
+async function relanceSmsClick(cid, tel, date){
   const msg = document.getElementById(cid+'-msg').textContent;
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   toast('📋 Message copié — collez dans le SMS','ok');
@@ -2564,7 +2564,7 @@ async function relanceSmsClick(cid, tel){
     btn.textContent = '✅ Relance envoyée';
   }
   try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+encodeURIComponent(date), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
   } catch(e){ console.error('relance mark:', e); }
 }
 
