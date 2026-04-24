@@ -2137,7 +2137,7 @@ async function initPolling(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
-    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow);
+    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow+'&id=not.like.roulette_%25&id=not.like.fid_%25');
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
   }catch(e){}
   setInterval(checkNewResas, 30000);
@@ -2149,7 +2149,7 @@ async function checkNewResas(){
     const since = lastPollTime;
     lastPollTime = new Date().toISOString();
     const newOnes = await sbFetch(
-      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc'
+      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
     );
     if(newOnes && newOnes.length > 0){
       // Filtrer les IDs déjà notifiés
@@ -2327,9 +2327,13 @@ async function loadRelances(){
     hier.setDate(hier.getDate() - 1);
     const hierStr = dateStr(hier);
 
+    const sixMoisAvant = new Date();
+    sixMoisAvant.setMonth(sixMoisAvant.getMonth() - 6);
+    const sixMoisStr = dateStr(sixMoisAvant);
+
     const [resasHier, resas] = await Promise.all([
-      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
-      sbFetch('reservations?select=telephone,nom,date&order=date.desc&limit=2000')
+      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&bienvenue_envoye=eq.false&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
+      sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
     // ── J+1 : dédupliquer par téléphone ──────────────────────
@@ -2341,19 +2345,20 @@ async function loadRelances(){
     }
     const clientsHier = Object.values(mapHier);
 
-    // ── J+30 : inactifs depuis 30 jours ──────────────────────
+    // ── J+30 : inactifs depuis 30 jours, relance non encore envoyée ──
     const map = {};
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of (resas||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
-      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0};
+      // order=date.desc : premier enregistrement = le plus récent
+      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0, relance_envoye: r.relance_mois_envoye || false};
       map[tel].nb++;
-      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; }
+      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; map[tel].relance_envoye = r.relance_mois_envoye || false; }
     }
     const clients = Object.values(map)
-      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit)
+      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit && !c.relance_envoye)
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
     if(clientsHier.length === 0 && clients.length === 0){
@@ -2375,8 +2380,8 @@ async function loadRelances(){
         window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
         html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
           +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-          +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
-          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;">📲 Envoyer SMS bienvenue</a>'
+          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
           +'</div>';
       }
       if(clients.length > 0){
@@ -2402,8 +2407,7 @@ async function loadRelances(){
           +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="'+cid+'-tel">📞 '+esc(c.tel)+'</div>'
           +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
           +'<span id="'+cid+'-msg" style="display:none;">'+esc(msg)+'</span>'
-          +'<a href="sms:'+c.tel+'" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\')">💬 Envoyer la relance SMS</a>'
-          +'<button id="'+cid+'-efface" onclick="relanceEffacer(\''+c.tel+'\',\''+cid+'\')" style="display:none;width:100%;padding:11px;background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.35);color:#ef9a9a;font-weight:700;font-size:13px;border-radius:12px;cursor:pointer;">🗑 Effacer les coordonnées</button>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\',\''+c.derniere+'\')">💬 Envoyer la relance SMS</a>'
           +'</div>';
       }
     }
@@ -2460,7 +2464,7 @@ async function loadRouletteGains(){
     let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
-      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co)';
+      const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co) Offre valable 30 jours.';
       const smsHref = buildSmsUrl(esc(g.telephone), msg);
       const gid = 'gain-'+g.id;
       window._rouletteMsgs[gid] = msg;
@@ -2547,25 +2551,38 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   } catch(e){ console.error('roulette_envois insert:', e); }
 });
 
-function relanceSmsClick(cid, tel){
+async function relanceSmsClick(cid, tel, date){
   const msg = document.getElementById(cid+'-msg').textContent;
   if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
-  document.getElementById(cid+'-efface').style.display = 'block';
   toast('📋 Message copié — collez dans le SMS','ok');
-}
-
-function j1SmsClick(cid, tel){
-  const msg = (window._j1Msgs && window._j1Msgs[cid]) || '';
-  if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
   const btn = document.getElementById(cid+'-btn');
   if(btn){
     btn.style.background = 'rgba(76,175,80,0.15)';
     btn.style.color = '#4CAF70';
     btn.style.border = '1px solid #4CAF70';
     btn.style.pointerEvents = 'none';
+    btn.textContent = '✅ Relance envoyée';
+  }
+  try {
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+encodeURIComponent(date), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
+  } catch(e){ console.error('relance mark:', e); }
+}
+
+async function j1SmsClick(cid, tel){
+  const msg = (window._j1Msgs && window._j1Msgs[cid]) || '';
+  if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
+  const btn = document.getElementById(cid+'-btn');
+  if(btn){
+    btn.style.background = 'rgba(76,175,80,0.15)';
+    btn.style.color = '#4CAF50';
+    btn.style.border = '1px solid #4CAF50';
+    btn.style.pointerEvents = 'none';
     btn.textContent = '✅ SMS envoyé';
   }
   toast('📋 Message copié — collez dans le SMS','ok');
+  try {
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+dateStr(new Date(Date.now()-86400000)), {method:'PATCH', body:JSON.stringify({bienvenue_envoye:true})});
+  } catch(e){ console.error('j1 mark:', e); }
 }
 
 async function relanceEffacer(tel, cid){
@@ -2588,7 +2605,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-18.1';
+const APP_VERSION = '2026-04-19.1';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -2615,16 +2632,16 @@ getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // recharg
 // ── BADGE RELANCES ────────────────────────────────────────────
 async function checkRelancesBadge(){
   try {
-    const resas = await sbFetch('reservations?select=telephone,date&order=date.desc&limit=2000');
+    const resas = await sbFetch('reservations?select=telephone,date,relance_mois_envoye&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25');
     const map = {};
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of resas){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
-      if(!map[tel] || r.date > map[tel]) map[tel] = r.date;
+      if(!map[tel] || r.date > map[tel].date) map[tel] = {date: r.date, envoye: !!r.relance_mois_envoye};
     }
-    const nb = Object.values(map).filter(d => new Date(d+'T12:00:00') < dateLimit).length;
+    const nb = Object.values(map).filter(c => new Date(c.date+'T12:00:00') < dateLimit && !c.envoye).length;
     const tab = document.getElementById('tab-relances');
     if(nb > 0){
       tab.innerHTML = '💬 Relances <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
@@ -2695,7 +2712,7 @@ async function checkConfirmedResas(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const confirmed = await sbFetch(
-      'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&select=*'
+      'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&id=not.like.roulette_%25&id=not.like.fid_%25&select=*'
     );
     if(!confirmed || confirmed.length === 0) return;
     const nouvelles = confirmed.filter(r => !smsNotifiedIds.has(r.id));

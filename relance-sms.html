@@ -181,7 +181,7 @@ async function init() {
   try {
     // Fetch réservations + clients fidélité en parallèle
     const [resas, fideliteClients] = await Promise.all([
-      sbFetch('reservations?select=telephone,nom,date&telephone=not.is.null&order=date.desc&limit=2000'),
+      sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&telephone=not.is.null&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetchFidelite('clients?select=tel,prenom,nom,last_visit,created_at,stamps&limit=2000').catch(e => { console.warn('Fidélité fetch failed:', e); return []; })
     ]);
 
@@ -193,12 +193,13 @@ async function init() {
       const tel = (r.telephone || '').replace(/\s/g, '');
       if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
       if (!map[tel]) {
-        map[tel] = { tel, nom: r.nom, derniere: r.date, nb: 0, source: 'resa' };
+        map[tel] = { tel, nom: r.nom, derniere: r.date, nb: 0, source: 'resa', relance_envoye: r.relance_mois_envoye || false };
       }
       map[tel].nb++;
       if (r.date > map[tel].derniere) {
         map[tel].derniere = r.date;
         map[tel].nom = r.nom;
+        map[tel].relance_envoye = r.relance_mois_envoye || false;
       }
     }
 
@@ -223,9 +224,9 @@ async function init() {
       }
     }
 
-    // Garder uniquement ceux sans visite depuis DELAI_JOURS jours
+    // Garder uniquement ceux sans visite depuis DELAI_JOURS jours et sans relance déjà envoyée
     const clients = Object.values(map)
-      .filter(c => new Date(c.derniere + 'T12:00:00') < dateLimit)
+      .filter(c => new Date(c.derniere + 'T12:00:00') < dateLimit && !c.relance_envoye)
       .sort((a, b) => a.derniere.localeCompare(b.derniere));
 
     btnR.classList.remove('spinning');

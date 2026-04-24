@@ -649,8 +649,8 @@ async function sbFetch(path,opts={}){
     const t=await res.text();return t?JSON.parse(t):null;
   }catch(e){clearTimeout(tid);throw e;}
 }
-const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc');
-const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
+const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
+const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
 const getElements=()=>sbFetch('elements_salle?select=*');
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
@@ -2047,7 +2047,7 @@ async function initPolling(){
   try{
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
-    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow);
+    const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow+'&id=not.like.roulette_%25&id=not.like.fid_%25');
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
   }catch(e){}
   setInterval(checkNewResas, 30000);
@@ -2059,7 +2059,7 @@ async function checkNewResas(){
     const since = lastPollTime;
     lastPollTime = new Date().toISOString();
     const newOnes = await sbFetch(
-      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc'
+      'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
     );
     if(newOnes && newOnes.length > 0){
       // Filtrer les IDs déjà notifiés
@@ -2189,7 +2189,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
     const now = new Date();
     const debut = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const fin   = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
-    const resas = await sbFetch('reservations?date=gte.'+debut+'&date=lte.'+fin+'&order=date.asc,heure.asc&select=*');
+    const resas = await sbFetch('reservations?date=gte.'+debut+'&date=lte.'+fin+'&order=date.asc,heure.asc&select=*&id=not.like.roulette_%25&id=not.like.fid_%25');
     showLoader(false);
     if(!resas || resas.length === 0){
       toast('Aucune réservation ce mois-ci','ko'); return;
