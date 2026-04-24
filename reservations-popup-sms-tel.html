@@ -737,7 +737,7 @@ async function sbFetch(path,opts={}){
   }catch(e){clearTimeout(tid);throw e;}
 }
 const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
-const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc');
+const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
 const getElements=()=>sbFetch('elements_salle?select=*');
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
