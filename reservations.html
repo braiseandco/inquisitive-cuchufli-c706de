@@ -1020,8 +1020,9 @@ async function loadResas(highlightId, silent=false){
     // filter service
     if(currentService==='midi')resas=resas.filter(r=>r.heure<'14:00');
     else if(currentService==='soir')resas=resas.filter(r=>r.heure>='14:00');
-    // Filter out cancelled
+    // Filter out cancelled + roulette/fidélité entries
     resas=resas.filter(r=>r.statut!=='annulee'&&r.statut!=='annulé'&&r.statut!=='no-show');
+    resas=resas.filter(r=>!r.id.startsWith('roulette_')&&!r.id.startsWith('fid_'));
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
