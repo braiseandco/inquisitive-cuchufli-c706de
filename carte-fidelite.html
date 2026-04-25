@@ -476,7 +476,7 @@ function renderMobileCard(c){ window.currentMobileClient = c;
     document.getElementById('welcome-tel').style.borderColor='';
     localStorage.setItem('roulette_employe',employe);
     var fidLink='https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(tel);
-    var msg="Suite à votre passage, Braise & Co vous remercie d'avoir accepté de mettre un avis Google ou TripAdvisor 😊\n\n🎰 Tentez de gagner un cadeau en jouant à notre roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Inscrivez-vous à notre carte fidélité (2 min) :\n"+fidLink+"\n\nBonne chance et à très bientôt ! 🎁";
+    var msg="Suite à votre passage, Braise & Co vous remercie d'avoir accepté de mettre un avis Google ou TripAdvisor 😊\n\n🎰 Tentez de gagner un cadeau en jouant à notre roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Inscrivez-vous à notre carte fidélité (2 min) :\n"+fidLink+"\n\n📲 Suivez-nous sur les réseaux :\nInstagram → https://www.instagram.com/braiseandco/\nFacebook → https://www.facebook.com/braiseandcobiganos\n\nBonne chance et à très bientôt ! 🎁";
     if(navigator.clipboard)navigator.clipboard.writeText(msg).catch(function(){});
     try{ await sbResaFetch('roulette_envois',{method:'POST',body:JSON.stringify({telephone:tel,employe:employe})}); }catch(e){ console.error('roulette_envois insert:',e); }
     try{
