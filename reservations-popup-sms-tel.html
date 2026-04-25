@@ -2564,7 +2564,7 @@ async function relanceSmsClick(cid, tel, date){
     btn.textContent = '✅ Relance envoyée';
   }
   try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+encodeURIComponent(date), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+encodeURIComponent(date), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true, telephone:null})});
   } catch(e){ console.error('relance mark:', e); }
 }
 
