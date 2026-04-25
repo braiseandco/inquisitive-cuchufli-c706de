@@ -675,7 +675,7 @@ const updateElement=(id,d)=>sbFetch('elements_salle?id=eq.'+id,{method:'PATCH',p
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
 function fmtDateShort(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});}
-function todayStr(){return new Date().toISOString().slice(0,10);}
+function todayStr(){return dateStr(new Date());}
 function dateStr(d){const p=s=>s.toString().padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return dateStr(d);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
