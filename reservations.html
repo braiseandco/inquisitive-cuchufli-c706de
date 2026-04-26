@@ -992,23 +992,24 @@ function getMergedWith(table){
   return null;
 }
 
-async function autoDefuseTables(){
-  const merged = allTables.filter(t=>getMergedWith(t));
+async function autoDefuseTables(targetDate){
+  // Défusionne uniquement les tables dont la fusion_date est différente de la date affichée
+  const merged = allTables.filter(t=>getMergedWith(t) && t.fusion_date !== targetDate);
   for(const table of merged){
     const partnerNumero = parseInt(getMergedWith(table));
     const partner = allTables.find(t=>t.numero===partnerNumero && t.id!==table.id && t.x_pos<=-400);
     const partnerCap = partner ? partner.capacite : Math.floor(table.capacite/2);
     const origCap = partner ? (table.capacite - partnerCap) : Math.ceil(table.capacite/2);
     try{
-      await updateTable(table.id,{capacite:origCap,merged_with:null,capacite_origine:null,forme:'rectangle'});
-      if(partner) await updateTable(partner.id,{x_pos:(table.x_pos||80)+160,y_pos:table.y_pos||80,merged_with:null,capacite_origine:null});
+      await updateTable(table.id,{capacite:origCap,merged_with:null,capacite_origine:null,forme:'rectangle',fusion_date:null});
+      if(partner) await updateTable(partner.id,{x_pos:(table.x_pos||80)+160,y_pos:table.y_pos||80,merged_with:null,capacite_origine:null,fusion_date:null});
     }catch(e){ console.error('autoDefuse error',e); }
   }
   if(merged.length) await getTables().then(t=>{allTables=t||[];});
 }
 
-document.getElementById('plan-prev-day').onclick=async()=>{await autoDefuseTables();planDate=addDays(planDate,-1);updatePlanDateLabel();loadPlan();};
-document.getElementById('plan-next-day').onclick=async()=>{await autoDefuseTables();planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
+document.getElementById('plan-prev-day').onclick=async()=>{planDate=addDays(planDate,-1);updatePlanDateLabel();loadPlan();};
+document.getElementById('plan-next-day').onclick=async()=>{planDate=addDays(planDate,1);updatePlanDateLabel();loadPlan();};
 updatePlanDateLabel();
 
 // ── LOAD RESERVATIONS ─────────────────────────────────────────
@@ -1477,6 +1478,7 @@ async function loadPlan(){
     [allTables, allElements] = await Promise.all([getTables(), getElements()]);
     allTables  = allTables  || [];
     allElements= allElements|| [];
+    await autoDefuseTables(planDate);
     const resas = await getResas(planDate) || [];
     showLoader(false);
     const filtered = planService==='midi' ? resas.filter(r=>r.heure<'14:00') : resas.filter(r=>r.heure>='14:00');
@@ -1698,7 +1700,7 @@ function setupTableInteractions(el, table, allVisible){
           try{
             const newCap = (src.capacite||4)+(table.capacite||4);
             const partnerNum = String(table.numero);
-            await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), merged_with:partnerNum, capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos});
+            await updateTable(srcId,{capacite:newCap, numero:Math.min(src.numero,table.numero), merged_with:partnerNum, capacite_origine:src.capacite||4, x_pos:table.x_pos, y_pos:table.y_pos, fusion_date:planDate});
             await updateTable(table.id,{x_pos:-500, y_pos:-500, capacite_origine:table.capacite||4});
             showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
           }catch(e){showLoader(false);toast('Erreur: '+e.message,'ko');}
@@ -1742,7 +1744,8 @@ function setupTableInteractions(el, table, allVisible){
             numero: Math.min(table.numero,tgt.numero),
             merged_with: partnerNum2,
             capacite_origine: table.capacite||4,
-            x_pos: tgt.x_pos, y_pos: tgt.y_pos
+            x_pos: tgt.x_pos, y_pos: tgt.y_pos,
+            fusion_date: planDate
           });
           await updateTable(tgt.id,{x_pos:-500, y_pos:-500, capacite_origine: tgt.capacite||4});
           showLoader(false); toast('Tables fusionnées ✓','ok'); loadPlan();
@@ -2088,7 +2091,8 @@ document.getElementById('tp-defuse').onclick = async function(){
       capacite: origCap,
       forme: 'rectangle',
       merged_with: null,
-      capacite_origine: null
+      capacite_origine: null,
+      fusion_date: null
     });
 
     // Repositionner la table partenaire juste à côté
@@ -2097,7 +2101,8 @@ document.getElementById('tp-defuse').onclick = async function(){
         x_pos: (table.x_pos || 80) + 160,
         y_pos: table.y_pos || 80,
         merged_with: null,
-        capacite_origine: null
+        capacite_origine: null,
+        fusion_date: null
       });
     }
 
