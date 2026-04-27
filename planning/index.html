@@ -388,6 +388,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
       <button class="btn-add" style="background:rgba(30,136,229,.15);color:#90caf9;border:1px solid rgba(30,136,229,.3);padding:10px 14px" onclick="openEditWeek()">✏️ Modifier</button>
+      <button class="btn-add" style="width:100%;margin-top:4px;background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.4);padding:12px 14px;font-size:13px" onclick="openSmsPlanningModal()">📱 Envoyer le planning par SMS</button>
     </div>
     <div id="planningBlocks"></div>
   </div>
@@ -555,6 +556,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <input class="form-input" type="text" id="empNameInput" placeholder="Ex: Marie Dupont">
     </div>
     <div class="form-group">
+      <label class="form-label">Téléphone</label>
+      <input class="form-input" type="tel" id="empPhoneInput" placeholder="Ex: 06 12 34 56 78">
+    </div>
+    <div class="form-group">
       <label class="form-label">Couleur</label>
       <div class="color-picker-row" id="colorPicker"></div>
     </div>
@@ -641,6 +646,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal('modalSchedule')">Annuler</button>
       <button class="btn-primary" onclick="saveSchedule()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL SMS PLANNING ═══ -->
+<div class="modal-overlay" id="modalSmsPlan">
+  <div class="modal" style="max-width:480px;max-height:88vh;overflow-y:auto;">
+    <h3>📱 Planning par SMS</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:8px;">
+      <button class="week-nav-btn" onclick="changeSmsWeek(-1)">‹</button>
+      <div id="smsWeekLabel" style="font-size:12px;font-weight:700;color:var(--text-dim);text-align:center;flex:1"></div>
+      <button class="week-nav-btn" onclick="changeSmsWeek(1)">›</button>
+    </div>
+    <div id="smsPlanList"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-secondary" onclick="closeModal('modalSmsPlan')">Fermer</button>
     </div>
   </div>
 </div>
@@ -1079,7 +1100,7 @@ function loadEmpCards() {
       <div class="emp-card-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
       <div style="flex:1">
         <div class="emp-card-name">${e.name}</div>
-        <div class="emp-card-sub">Voir le planning →</div>
+        <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
       <button class="btn-del" onclick="event.stopPropagation();deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
     </div>
@@ -1244,6 +1265,7 @@ async function deleteEmployee(id, name) {
 // ── Add employee ──
 function openAddEmployee() {
   document.getElementById('empNameInput').value = '';
+  document.getElementById('empPhoneInput').value = '';
   buildColorPicker('modalEmployee', COLORS[0]);
   buildScheduleGrid('scheduleGrid', null);
   openModal('modalEmployee');
@@ -1354,7 +1376,8 @@ function toggleEve(dayNum) {
 async function saveEmployee() {
   const name = document.getElementById('empNameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
-  const [emp] = await POST('employees', {name, color: selectedColor});
+  const phone = document.getElementById('empPhoneInput').value.trim().replace(/\s/g,'') || null;
+  const [emp] = await POST('employees', {name, color: selectedColor, phone});
   // Save schedules
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
@@ -2910,6 +2933,107 @@ async function confirmImport() {
     btnConfirm.disabled = false;
     btnConfirm.textContent = '✓ Importer';
   }
+}
+
+// ══════════════════════════════════════
+//  SMS PLANNING
+// ══════════════════════════════════════
+let smsWeek = null;
+
+async function openSmsPlanningModal() {
+  const nextMonday = getMonday(new Date());
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  smsWeek = nextMonday;
+  openModal('modalSmsPlan');
+  await loadSmsPlanList();
+}
+
+function changeSmsWeek(dir) {
+  smsWeek = new Date(smsWeek);
+  smsWeek.setDate(smsWeek.getDate() + dir * 7);
+  loadSmsPlanList();
+}
+
+async function loadSmsPlanList() {
+  const dates = weekDates(smsWeek);
+  const weekStart = dateStr(dates[0]);
+  const weekEnd   = dateStr(dates[6]);
+  document.getElementById('smsWeekLabel').textContent = fmtWeek(smsWeek);
+  document.getElementById('smsPlanList').innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:20px">Chargement…</div>';
+
+  const [allScheds, allOverrides] = await Promise.all([
+    GET('schedules?select=*'),
+    GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
+  ]);
+
+  const schedsMap = {};
+  allScheds.forEach(s => {
+    if (!schedsMap[s.employee_id]) schedsMap[s.employee_id] = {};
+    schedsMap[s.employee_id][s.day_of_week] = s;
+  });
+  const ovMap = {};
+  allOverrides.forEach(o => {
+    if (!ovMap[o.employee_id]) ovMap[o.employee_id] = {};
+    ovMap[o.employee_id][o.date] = o;
+  });
+
+  const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const monday = dates[0], sunday = dates[6];
+  const weekStr = `du ${monday.getDate()}/${String(monday.getMonth()+1).padStart(2,'0')} au ${sunday.getDate()}/${String(sunday.getMonth()+1).padStart(2,'0')}`;
+
+  const cards = employees.map(emp => {
+    const schedsByDay = schedsMap[emp.id] || {};
+    const ovsByDate   = ovMap[emp.id]    || {};
+
+    const lines = dates.map((d, i) => {
+      const dayNum   = i + 1;
+      const ds       = dateStr(d);
+      const ov       = ovsByDate[ds];
+      const sched    = schedsByDay[dayNum];
+      const dayLabel = dayNames[i] + ' ' + String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+
+      if (ov) {
+        if (ov.status === 'off')      return dayLabel + ' : Repos';
+        if (ov.status === 'vacation') return dayLabel + ' : Congé';
+        if (ov.status === 'absent')   return dayLabel + ' : Absent';
+        if (ov.status === 'arret')    return dayLabel + ' : Arrêt maladie';
+        if (ov.start_time) {
+          let h = ov.start_time.slice(0,5) + '-' + ov.end_time.slice(0,5);
+          if (ov.evening_start) h += ' / ' + ov.evening_start.slice(0,5) + '-' + ov.evening_end.slice(0,5);
+          return dayLabel + ' : ' + h;
+        }
+        return dayLabel + ' : Repos';
+      } else if (sched && !sched.is_off && sched.start_time) {
+        let h = sched.start_time.slice(0,5) + '-' + sched.end_time.slice(0,5);
+        if (sched.evening_start) h += ' / ' + sched.evening_start.slice(0,5) + '-' + sched.evening_end.slice(0,5);
+        return dayLabel + ' : ' + h;
+      } else {
+        return dayLabel + ' : Repos';
+      }
+    });
+
+    const smsText = `Bonjour ${emp.name},\nTon planning ${weekStr} :\n${lines.join('\n')}\n— Braise & Co 🔥`;
+    const phone   = emp.phone ? '+33' + emp.phone.replace(/\s/g,'').slice(1) : null;
+    const smsHref = phone ? `sms:${phone}?body=${encodeURIComponent(smsText)}` : null;
+
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:36px;height:36px;border-radius:50%;background:${emp.color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex-shrink:0">${emp.name.charAt(0)}</div>
+          <div>
+            <div style="font-size:13px;font-weight:700">${emp.name}</div>
+            <div style="font-size:11px;color:var(--text-faint)">${emp.phone || 'Pas de téléphone'}</div>
+          </div>
+        </div>
+        ${smsHref
+          ? `<a href="${smsHref}" style="background:var(--green);color:#fff;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap">📱 Envoyer</a>`
+          : '<span style="font-size:11px;color:var(--text-faint)">Pas de tél</span>'}
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.9;white-space:pre-line">${lines.join('\n')}</div>
+    </div>`;
+  });
+
+  document.getElementById('smsPlanList').innerHTML = cards.join('');
 }
 
 // ══════════════════════════════════════
