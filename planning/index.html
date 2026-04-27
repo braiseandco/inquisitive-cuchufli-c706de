@@ -785,6 +785,19 @@ function fmtWeek(monday) {
 }
 
 // ══════════════════════════════════════
+//  SERVICE UTILS
+// ══════════════════════════════════════
+function getCurrentService() {
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const mins = h * 60 + m;
+  const dow = now.getDay(); // 0=dim, 5=ven, 6=sam
+  if (mins >= 15*60 && mins < 16*60) return 'midi';
+  if ((dow === 5 || dow === 6) && mins >= 22*60+30 && mins < 23*60+30) return 'soir';
+  return null;
+}
+
+// ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
 let employees = [];
@@ -856,14 +869,18 @@ async function openSign(empId) {
   const [scheds, overrides, dailySigs] = await Promise.all([
     GET(`schedules?employee_id=eq.${empId}&select=*`),
     GET(`weekly_overrides?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=*`),
-    GET(`daily_signatures?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=date`)
+    GET(`daily_signatures?employee_id=eq.${empId}&date=gte.${weekStart}&date=lte.${dateStr(dates[6])}&select=date,service`)
   ]);
 
   const schedMap = {};
   scheds.forEach(s => schedMap[s.day_of_week] = s);
   const ovMap = {};
   overrides.forEach(o => ovMap[o.date] = o);
-  const signedDates = new Set(dailySigs.map(s => s.date));
+  const sigMap = {};
+  dailySigs.forEach(s => {
+    if (!sigMap[s.date]) sigMap[s.date] = new Set();
+    sigMap[s.date].add(s.service || 'midi');
+  });
 
   let gridHtml = dates.map((d, i) => {
     const dayNum = i + 1;
@@ -897,11 +914,25 @@ async function openSign(empId) {
     }
 
     const isWorked = !cls;
+    const isToday = ds === today;
+    const sigServices = sigMap[ds] || new Set();
     let actionHtml = '';
-    if (signedDates.has(ds)) {
+    if (isToday && isWorked) {
+      const service = getCurrentService();
+      const midiOk = sigServices.has('midi');
+      const soirOk = sigServices.has('soir');
+      let badges = '';
+      if (midiOk) badges += '<span class="day-signed">✓ Midi</span> ';
+      if (soirOk) badges += '<span class="day-signed">✓ Soir</span>';
+      if (!service) {
+        actionHtml = badges || '<span style="font-size:10px;color:var(--text-faint)">Hors fenêtre</span>';
+      } else if (sigServices.has(service)) {
+        actionHtml = badges;
+      } else {
+        actionHtml = badges + `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i},'${service}')">Signer ${service}</button>`;
+      }
+    } else if (sigServices.size > 0) {
       actionHtml = '<span class="day-signed">✓ Signé</span>';
-    } else if (isWorked) {
-      actionHtml = `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i})">Signer</button>`;
     }
 
     return `<div class="day-row ${cls}">
@@ -922,9 +953,10 @@ async function openSign(empId) {
   showScreen('sign');
 }
 
-async function openDaySign(empId, dateS, dayIdx) {
+async function openDaySign(empId, dateS, dayIdx, service) {
   currentEmpId = empId;
   currentSignDate = dateS;
+  currentSignService = service || getCurrentService() || 'midi';
   const emp = employees.find(e => e.id === empId);
   document.getElementById('signDayEmpName').textContent = emp.name;
   document.getElementById('signDayDate').textContent = DAYS[dayIdx] + ' ' + fmtDate(new Date(dateS + 'T12:00'));
@@ -942,13 +974,14 @@ async function openDaySign(empId, dateS, dayIdx) {
 }
 
 // Ouvre la signature depuis la vue manager emp-week (retour vers emp-week après)
-function openDaySignMgr(empId, dateS, dayIdx) {
+function openDaySignMgr(empId, dateS, dayIdx, service) {
   sigReturnToEmpWeek = true;
-  openDaySign(empId, dateS, dayIdx);
+  openDaySign(empId, dateS, dayIdx, service);
 }
 
 // ── Signature journalière ──
 let currentSignDate = null;
+let currentSignService = 'midi';
 let sigReturnToEmpWeek = false; // true quand signature déclenchée depuis la vue manager emp-week
 let sigDayCtx = null, sigDayDrawing = false, sigDayHasMark = false;
 
@@ -1022,9 +1055,9 @@ async function submitDaySignature() {
   ctx.fillText(stamp, canvas.width - 4, canvas.height - 2);
   const data = canvas.toDataURL('image/png');
   try {
-    await sb('daily_signatures?on_conflict=employee_id,date', {
+    await sb('daily_signatures?on_conflict=employee_id,date,service', {
       method: 'POST',
-      body: JSON.stringify({employee_id: currentEmpId, date: currentSignDate, signature_data: data}),
+      body: JSON.stringify({employee_id: currentEmpId, date: currentSignDate, service: currentSignService, signature_data: data}),
       headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
     });
     toast('Signature enregistrée !');
@@ -1177,7 +1210,10 @@ async function loadEmpWeek() {
   const ovMap = {};
   overrides.forEach(o => ovMap[o.date] = o);
   const sigByDate = {};
-  dailySigs.forEach(s => sigByDate[s.date] = s.signature_data);
+  dailySigs.forEach(s => {
+    if (!sigByDate[s.date]) sigByDate[s.date] = {};
+    sigByDate[s.date][s.service || 'midi'] = s.signature_data;
+  });
 
   const fmtT = t => { if (!t) return ''; const [h,m] = t.slice(0,5).split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const calcSvc = (s, bs, be, e) => {
@@ -1228,15 +1264,19 @@ async function loadEmpWeek() {
     const totalStr = dayH > 0 ? `<span style="font-weight:700;color:var(--accent2);font-size:14px">${dayH.toFixed(1).replace('.0','')}h</span>` : '';
     const border = isToday ? 'var(--accent)' : 'var(--border)';
     const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation' && row.status !== 'arret';
-    const sigData = sigByDate[ds];
-    const sigBlock = sigData
-      ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:8px">
-           <span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Signé</span>
-           <img src="${sigData}" style="height:38px;max-width:180px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigData}')">
+    const sigServices = sigByDate[ds] || {};
+    const hasMidi = !!sigServices['midi'];
+    const hasSoir = !!sigServices['soir'];
+    const hasSig  = hasMidi || hasSoir;
+    const mgrService = getCurrentService() || 'midi';
+    const sigBlock = hasSig
+      ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px">
+           ${hasMidi ? `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Midi</span><img src="${sigServices['midi']}" style="height:32px;max-width:140px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('Midi ${DNAMES[dn]}','${sigServices['midi']}')"></div>` : ''}
+           ${hasSoir ? `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Soir</span><img src="${sigServices['soir']}" style="height:32px;max-width:140px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('Soir ${DNAMES[dn]}','${sigServices['soir']}')"></div>` : ''}
          </div>`
       : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;display:flex;align-items:center;justify-content:space-between">
            <span style="font-size:10px;color:var(--text-faint);font-style:italic">Non signé</span>
-           <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="event.stopPropagation();openDaySignMgr('${empId}','${ds}',${dn-1})">✍️ Faire signer</button>
+           <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="event.stopPropagation();openDaySignMgr('${empId}','${ds}',${dn-1},'${mgrService}')">✍️ Faire signer</button>
          </div>` : '');
     return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer">
       <div style="display:flex;align-items:center;gap:12px">
