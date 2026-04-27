@@ -2260,4 +2260,97 @@ document.addEventListener('click', function(e){
     document.getElementById('stat-dispo-detail').style.display='none';
   }
 });
+
+
+// ── ALARME SIGNATURES ──────────────────────────────────────────
+(function(){
+  const SB_URL_P = 'https://ugyrrnqpapeagpuocwob.supabase.co';
+  const SB_KEY_P = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+  const DAYS_MAP = [7,1,2,3,4,5,6]; // JS getDay() → day_of_week (lun=1)
+
+  // Bannière HTML
+  const banner = document.createElement('div');
+  banner.id = 'sig-alarm';
+  banner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#e53935;color:#fff;padding:14px 16px;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.4);';
+  banner.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <div style="flex:1;">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px;">⏰ Rappel signatures</div>
+        <div id="sig-alarm-names" style="font-size:13px;opacity:.9;line-height:1.6;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+        <a href="./planning/" style="background:#fff;color:#e53935;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;text-align:center;display:block;">Ouvrir Planning</a>
+        <button onclick="document.getElementById('sig-alarm').style.display='none';localStorage.setItem('sig-alarm-dismissed',Date.now());" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;">Ignorer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(banner);
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function dayOfWeek() {
+    return DAYS_MAP[new Date().getDay()]; // 1=lun … 7=dim
+  }
+
+  function currentService() {
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes();
+    const mins = h * 60 + m;
+    if (mins >= 15*60 && mins < 16*60) return 'midi';
+    if (mins >= 22*60+30 && mins < 23*60+30) return 'soir';
+    return null;
+  }
+
+  async function sbGet(path) {
+    const r = await fetch(SB_URL_P + '/rest/v1/' + path, {
+      headers: {'apikey': SB_KEY_P, 'Authorization': 'Bearer ' + SB_KEY_P}
+    });
+    return r.ok ? r.json() : [];
+  }
+
+  async function checkSignatures() {
+    const service = currentService();
+    if (!service) return;
+
+    // Ne pas re-afficher dans les 45 min après avoir ignoré
+    const dismissed = parseInt(localStorage.getItem('sig-alarm-dismissed') || '0');
+    if (Date.now() - dismissed < 45 * 60 * 1000) return;
+
+    const today = todayStr();
+    const dow = dayOfWeek();
+
+    // Employés qui travaillent aujourd'hui
+    const [scheds, overrides, sigs] = await Promise.all([
+      sbGet(`schedules?day_of_week=eq.${dow}&is_off=eq.false&select=employee_id`),
+      sbGet(`weekly_overrides?date=eq.${today}&select=employee_id,status`),
+      sbGet(`daily_signatures?date=eq.${today}&service=eq.${service}&select=employee_id`)
+    ]);
+
+    // Overrides actifs (absent, repos, vacation, arret = pas là)
+    const absent = new Set(overrides.filter(o => ['off','absent','vacation','arret'].includes(o.status)).map(o => o.employee_id));
+    // Qui travaille = a un horaire ce jour ET pas absent
+    const working = scheds.map(s => s.employee_id).filter(id => !absent.has(id));
+    // Pour le soir, uniquement ven/sam (dow 5 ou 6)
+    if (service === 'soir' && dow !== 5 && dow !== 6) return;
+
+    const signed = new Set(sigs.map(s => s.employee_id));
+    const unsigned = working.filter(id => !signed.has(id));
+    if (!unsigned.length) { banner.style.display = 'none'; return; }
+
+    // Récupérer les noms
+    const emps = await sbGet(`employees?id=in.(${unsigned.join(',')})&select=name`);
+    const names = emps.map(e => e.name).join(', ');
+    const label = service === 'midi' ? 'service du midi' : 'service du soir';
+    document.getElementById('sig-alarm-names').textContent =
+      `${unsigned.length} employé(s) n'ont pas signé le ${label} : ${names}`;
+    banner.style.display = 'block';
+  }
+
+  // Vérification toutes les minutes
+  checkSignatures();
+  setInterval(checkSignatures, 60 * 1000);
+})();
+
 </script></body></html>
