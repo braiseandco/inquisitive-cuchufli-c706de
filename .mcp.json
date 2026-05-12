@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "higgsfield": {
+      "command": "bun",
+      "args": ["run", "./higgsfield-mcp/src/index.ts"],
+      "env": {}
+    }
+  }
+}

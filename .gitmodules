@@ -1,0 +1,3 @@
+[submodule "higgsfield-mcp"]
+	path = higgsfield-mcp
+	url = https://github.com/jfikrat/higgsfield-mcp.git
