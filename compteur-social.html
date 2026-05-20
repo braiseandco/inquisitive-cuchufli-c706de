@@ -270,7 +270,7 @@
   </div>
 
   <!-- FOOTER -->
-  <div id="footer">BRAISE &amp; CO BIGANOS · app.braiseandco.com</div>
+  <div id="footer">BRAISE &amp; CO BIGANOS · app.braiseandco.fr</div>
 
 </div>
 
@@ -289,31 +289,32 @@
   <div class="panel">
     <div class="panel-title">⚙️ Réglages</div>
 
+    <div class="hint">Mets à jour les chiffres depuis l'app de chaque réseau, puis reviens ici pour les saisir. À faire 1 fois par semaine.</div>
+
     <div>
-      <div class="section-head">Facebook &amp; Instagram — automatique</div>
+      <div class="section-head">Facebook</div>
       <div class="field">
-        <label>ID de la Page Facebook</label>
-        <input id="cfg-page-id" type="text" inputmode="numeric" placeholder="ex : 123456789012345">
-      </div>
-      <div class="field">
-        <label>Token d'accès (Page Access Token)</label>
-        <input id="cfg-token" type="password" placeholder="EAAxxxxxxx…">
-      </div>
-      <div class="hint">
-        <strong>Comment obtenir le token :</strong><br>
-        1. Aller sur <strong>developers.facebook.com/tools/explorer</strong><br>
-        2. Sélectionner votre Application → votre Page Braise &amp; Co<br>
-        3. Cocher les permissions <em>pages_show_list</em> et <em>instagram_basic</em><br>
-        4. Cliquer « Générer un token d'accès » → copier et coller ici
+        <label>Nombre d'abonnés</label>
+        <input id="cfg-fb" type="number" inputmode="numeric" placeholder="ex : 2 400">
       </div>
     </div>
 
     <div class="divider"></div>
 
     <div>
-      <div class="section-head">TikTok — manuel</div>
+      <div class="section-head">Instagram</div>
       <div class="field">
-        <label>Nombre d'abonnés TikTok (à mettre à jour à la main)</label>
+        <label>Nombre d'abonnés</label>
+        <input id="cfg-ig" type="number" inputmode="numeric" placeholder="ex : 1 800">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="section-head">TikTok</div>
+      <div class="field">
+        <label>Nombre d'abonnés</label>
         <input id="cfg-tiktok" type="number" inputmode="numeric" placeholder="ex : 1 250">
       </div>
     </div>
@@ -327,19 +328,17 @@
 
 <script>
 /* ── CONFIG ── */
-const INTERVAL_MS = 10 * 60 * 1000; // 10 min
-
 function getConfig() {
   return {
-    pageId : localStorage.getItem('bc_page_id')  || '',
-    token  : localStorage.getItem('bc_token')     || '',
+    fb     : parseInt(localStorage.getItem('bc_fb')     || '0', 10),
+    ig     : parseInt(localStorage.getItem('bc_ig')     || '0', 10),
     tiktok : parseInt(localStorage.getItem('bc_tiktok') || '0', 10),
   };
 }
-function saveConfig({ pageId, token, tiktok }) {
-  localStorage.setItem('bc_page_id', pageId);
-  localStorage.setItem('bc_token',   token);
-  localStorage.setItem('bc_tiktok',  tiktok);
+function saveConfig({ fb, ig, tiktok }) {
+  localStorage.setItem('bc_fb',     fb);
+  localStorage.setItem('bc_ig',     ig);
+  localStorage.setItem('bc_tiktok', tiktok);
 }
 
 /* ── MODAL ── */
@@ -353,16 +352,16 @@ document.getElementById('logo-tap').addEventListener('click', () => {
 
 function openModal() {
   const c = getConfig();
-  document.getElementById('cfg-page-id').value = c.pageId;
-  document.getElementById('cfg-token').value   = c.token;
-  document.getElementById('cfg-tiktok').value  = c.tiktok || '';
+  document.getElementById('cfg-fb').value     = c.fb     || '';
+  document.getElementById('cfg-ig').value     = c.ig     || '';
+  document.getElementById('cfg-tiktok').value = c.tiktok || '';
   document.getElementById('modal').classList.add('open');
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 function saveAndRefresh() {
   saveConfig({
-    pageId : document.getElementById('cfg-page-id').value.trim(),
-    token  : document.getElementById('cfg-token').value.trim(),
+    fb     : parseInt(document.getElementById('cfg-fb').value,     10) || 0,
+    ig     : parseInt(document.getElementById('cfg-ig').value,     10) || 0,
     tiktok : parseInt(document.getElementById('cfg-tiktok').value, 10) || 0,
   });
   closeModal();
@@ -409,93 +408,45 @@ function pulse(cardId, cls) {
   setTimeout(() => el.classList.remove(cls), 1300);
 }
 
-/* ── API ── */
-async function fetchMeta(pageId, token) {
-  const r = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}?fields=fan_count,instagram_business_account&access_token=${token}`
-  );
-  if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message || `HTTP ${r.status}`); }
-  return r.json();
-}
-async function fetchIg(igId, token) {
-  const r = await fetch(
-    `https://graph.facebook.com/v21.0/${igId}?fields=followers_count&access_token=${token}`
-  );
-  if (!r.ok) throw new Error(`IG HTTP ${r.status}`);
-  return r.json();
-}
-
-/* ── MAIN REFRESH ── */
-async function refresh() {
+/* ── REFRESH (manuel) ── */
+function refresh() {
   const c = getConfig();
-  setDot('loading');
-  setStatus('Actualisation…');
+  const vide = 'Appuyer 5× sur le logo';
 
-  /* TikTok (always manual) */
+  if (c.fb > 0) {
+    animateTo(document.getElementById('fb-num'), c.fb);
+    pulse('card-fb', 'pulse-fb');
+    setNote('fb-note', '');
+  } else {
+    document.getElementById('fb-num').textContent = '—';
+    setNote('fb-note', vide, 'warn');
+  }
+
+  if (c.ig > 0) {
+    animateTo(document.getElementById('ig-num'), c.ig);
+    pulse('card-ig', 'pulse-ig');
+    setNote('ig-note', '');
+  } else {
+    document.getElementById('ig-num').textContent = '—';
+    setNote('ig-note', vide, 'warn');
+  }
+
   if (c.tiktok > 0) {
     animateTo(document.getElementById('tt-num'), c.tiktok);
     pulse('card-tt', 'pulse-tt');
-    setNote('tt-note', 'Mise à jour manuelle');
+    setNote('tt-note', '');
   } else {
     document.getElementById('tt-num').textContent = '—';
-    setNote('tt-note', 'Appuyer 5× sur le logo → Réglages', 'warn');
+    setNote('tt-note', vide, 'warn');
   }
 
-  if (!c.pageId || !c.token) {
-    setDot('error');
-    setStatus('Token manquant — appuyer 5× sur le logo');
-    ['fb-num', 'ig-num'].forEach(id => document.getElementById(id).textContent = '—');
-    setNote('fb-note', 'À configurer', 'warn');
-    setNote('ig-note', 'À configurer', 'warn');
-    return;
-  }
-
-  try {
-    const meta = await fetchMeta(c.pageId, c.token);
-
-    /* Facebook */
-    if (meta.fan_count != null) {
-      animateTo(document.getElementById('fb-num'), meta.fan_count);
-      localStorage.setItem('bc_cache_fb', meta.fan_count);
-      pulse('card-fb', 'pulse-fb');
-      setNote('fb-note', '', 'ok');
-    }
-
-    /* Instagram */
-    if (meta.instagram_business_account?.id) {
-      const ig = await fetchIg(meta.instagram_business_account.id, c.token);
-      if (ig.followers_count != null) {
-        animateTo(document.getElementById('ig-num'), ig.followers_count);
-        localStorage.setItem('bc_cache_ig', ig.followers_count);
-        pulse('card-ig', 'pulse-ig');
-        setNote('ig-note', '', 'ok');
-      }
-    } else {
-      document.getElementById('ig-num').textContent = '—';
-      setNote('ig-note', 'Lier Instagram à la Page Facebook', 'warn');
-    }
-
-    const now = new Date();
-    setDot('ok');
-    setStatus(`Mis à jour à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
-
-  } catch (err) {
-    setDot('error');
-    setStatus('Erreur API — vérifier le token');
-
-    /* Fallback: cached values */
-    const cacheFb = localStorage.getItem('bc_cache_fb');
-    const cacheIg = localStorage.getItem('bc_cache_ig');
-    if (cacheFb) { animateTo(document.getElementById('fb-num'), parseInt(cacheFb)); setNote('fb-note', '⚠ Données en cache', 'warn'); }
-    if (cacheIg) { animateTo(document.getElementById('ig-num'), parseInt(cacheIg)); setNote('ig-note', '⚠ Données en cache', 'warn'); }
-
-    console.error('[Braise Compteur]', err.message);
-  }
+  const now = new Date();
+  setDot('ok');
+  setStatus(`Mis à jour le ${now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
 }
 
 /* ── INIT ── */
 refresh();
-setInterval(refresh, INTERVAL_MS);
 
 /* Fullscreen + orientation lock on first tap */
 function goFullscreen() {
