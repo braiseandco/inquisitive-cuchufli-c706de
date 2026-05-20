@@ -6,6 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Braise & Co — Nos Abonnés</title>
+  <link rel="manifest" href="manifest-compteur.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -119,6 +120,21 @@
       flex-shrink: 0; text-align: center;
       font-size: 11px; color: #2a2a2a; letter-spacing: 1px;
     }
+
+    /* ── PORTRAIT WARNING ── */
+    #portrait-warn {
+      display: none;
+      position: fixed; inset: 0; z-index: 999;
+      background: #0b0b0b;
+      flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    }
+    #portrait-warn svg { opacity: .5; animation: rotate-hint 2s ease-in-out infinite; }
+    @keyframes rotate-hint {
+      0%,100% { transform: rotate(0deg); }
+      50%      { transform: rotate(90deg); }
+    }
+    #portrait-warn p { font-size: 16px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+    @media (orientation: portrait) { #portrait-warn { display: flex; } }
 
     /* ── MODAL ── */
     #modal {
@@ -238,6 +254,16 @@
   <!-- FOOTER -->
   <div id="footer">BRAISE &amp; CO BIGANOS · app.braiseandco.com</div>
 
+</div>
+
+<!-- PORTRAIT WARNING -->
+<div id="portrait-warn">
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+    <rect x="12" y="4" width="40" height="56" rx="6" stroke="#666" stroke-width="3"/>
+    <path d="M28 52h8" stroke="#666" stroke-width="3" stroke-linecap="round"/>
+    <path d="M44 32 L54 32 M54 32 L50 28 M54 32 L50 36" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <p>Tournez la tablette</p>
 </div>
 
 <!-- SETTINGS MODAL -->
@@ -452,6 +478,15 @@ async function refresh() {
 /* ── INIT ── */
 refresh();
 setInterval(refresh, INTERVAL_MS);
+
+/* Fullscreen + orientation lock on first tap */
+function goFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+  if (req) req.call(el).catch(() => {});
+  if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+}
+document.addEventListener('click', goFullscreen, { once: true });
 
 /* Keep screen on (tablet) */
 if ('wakeLock' in navigator) {
