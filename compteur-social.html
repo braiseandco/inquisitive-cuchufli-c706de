@@ -164,6 +164,67 @@
     #settings-btn:active{background:rgba(255,255,255,.18)}
     #settings-btn svg{width:20px;height:20px;fill:rgba(255,255,255,.55)}
 
+    /* ── REFRESH BTN ── */
+    #refresh-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s,transform .3s;flex-shrink:0;margin-right:8px}
+    #refresh-btn:active{background:rgba(255,255,255,.18)}
+    #refresh-btn svg{width:20px;height:20px;stroke:rgba(255,255,255,.55);fill:none}
+    #refresh-btn.spinning svg{animation:spin-once .7s ease-out}
+    @keyframes spin-once{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .header-actions{display:flex;align-items:center;gap:0}
+
+    /* ── SLIDES ── */
+    #counters{flex:1;position:relative;overflow:hidden;min-height:0}
+    #slides-track{display:flex;height:100%;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform}
+    .slide{flex:0 0 100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;padding:16px 24px}
+    .slide-bg{position:absolute;inset:0;border-radius:20px;opacity:1}
+    .slide.fb-slide .slide-bg{background:radial-gradient(ellipse at 50% 30%,rgba(24,119,242,.18) 0%,rgba(24,119,242,.06) 50%,transparent 80%);border:1px solid rgba(24,119,242,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(24,119,242,.15)}
+    .slide.ig-slide .slide-bg{background:radial-gradient(ellipse at 50% 30%,rgba(221,42,123,.18) 0%,rgba(245,133,41,.08) 50%,transparent 80%);border:1px solid rgba(221,42,123,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(221,42,123,.15)}
+    .slide.tt-slide .slide-bg{background:radial-gradient(ellipse at 50% 30%,rgba(105,201,208,.14) 0%,rgba(105,201,208,.06) 50%,transparent 80%);border:1px solid rgba(105,201,208,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(105,201,208,.12)}
+
+    /* slide top glow bar */
+    .slide::after{content:'';position:absolute;top:0;left:15%;right:15%;height:2px;border-radius:999px;pointer-events:none}
+    .slide.fb-slide::after{background:linear-gradient(90deg,transparent,var(--fb),transparent);animation:bar-glow 3s ease-in-out infinite}
+    .slide.ig-slide::after{background:linear-gradient(90deg,transparent,var(--ig-b),transparent);animation:bar-glow 3s ease-in-out infinite .5s}
+    .slide.tt-slide::after{background:linear-gradient(90deg,transparent,var(--tt),transparent);animation:bar-glow 3s ease-in-out infinite 1s}
+
+    .slide-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
+    .slide-icon{width:64px;height:64px;filter:drop-shadow(0 4px 20px currentColor)}
+    .slide-platform{font-size:14px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--muted)}
+    .slide-number{
+      font-family:'Bebas Neue',Impact,sans-serif;
+      font-size:clamp(100px,18vw,200px);
+      line-height:.9;letter-spacing:-3px;
+      animation:num-fire 2.4s ease-in-out infinite;
+    }
+    .slide.fb-slide .slide-number{color:var(--fb);text-shadow:0 0 60px rgba(24,119,242,.8),0 0 120px rgba(24,119,242,.3)}
+    .slide.ig-slide .slide-number{
+      background:linear-gradient(135deg,var(--ig-a),var(--ig-b));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      animation:num-fire-ig 2.6s ease-in-out infinite;
+    }
+    .slide.tt-slide .slide-number{color:var(--tt);text-shadow:0 0 60px rgba(105,201,208,.8),0 0 120px rgba(105,201,208,.3)}
+    .slide-label{font-size:12px;font-weight:700;letter-spacing:6px;text-transform:uppercase;color:var(--muted)}
+    .slide-cta{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(26px,4vw,44px);letter-spacing:3px;margin-top:6px;text-align:center}
+    .slide.fb-slide .slide-cta{color:var(--fb);text-shadow:0 0 30px rgba(24,119,242,.5)}
+    .slide.ig-slide .slide-cta{background:linear-gradient(135deg,#F58529,#DD2A7B);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .slide.tt-slide .slide-cta{color:var(--tt);text-shadow:0 0 30px rgba(105,201,208,.5)}
+    .slide-sub{font-size:clamp(11px,1.4vw,14px);color:var(--muted);letter-spacing:3px;text-transform:uppercase;text-align:center}
+    .slide-note{font-size:11px;color:rgba(255,255,255,.25);text-align:center;min-height:16px}
+    .slide-note.warn{color:#f59e0b}
+
+    /* slide pulse animations */
+    @keyframes pulse-fb{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(24,119,242,.15)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 160px rgba(24,119,242,.7)}}
+    @keyframes pulse-ig{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(221,42,123,.15)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 160px rgba(221,42,123,.7)}}
+    @keyframes pulse-tt{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(105,201,208,.12)}50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 160px rgba(105,201,208,.6)}}
+    .slide.fb-slide.pulse-fb .slide-bg{animation:pulse-fb 1.2s ease}
+    .slide.ig-slide.pulse-ig .slide-bg{animation:pulse-ig 1.2s ease}
+    .slide.tt-slide.pulse-tt .slide-bg{animation:pulse-tt 1.2s ease}
+
+    /* ── SLIDE DOTS ── */
+    #slide-dots{flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:10px;padding:4px 0}
+    .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.18);cursor:pointer;transition:background .3s,transform .3s}
+    .dot.active{background:var(--fire);transform:scale(1.35);box-shadow:0 0 10px rgba(249,115,22,.6)}
+
     /* ── UPDATE TOAST ── */
     #update-toast{display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid var(--fire);border-radius:14px;padding:10px 18px;z-index:300;align-items:center;gap:12px;box-shadow:0 4px 28px rgba(249,115,22,.4);white-space:nowrap}
     #update-toast.show{display:flex}
@@ -193,8 +254,13 @@
         <span class="live-text">Live</span>
         <span class="live-time" id="status-text">—</span>
       </div>
+      <div class="header-actions">
+      <div id="refresh-btn" onclick="manualRefresh()" title="Mettre à jour">
+        <svg viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </div>
       <div id="settings-btn" onclick="openModal()" title="Réglages">
         <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zm7.43-2.92c.04-.34.07-.68.07-1.08s-.03-.74-.07-1.08l2.31-1.81a.55.55 0 0 0 .13-.7l-2.19-3.78a.55.55 0 0 0-.67-.24l-2.73 1.1a8.07 8.07 0 0 0-1.87-1.08l-.41-2.9A.54.54 0 0 0 14 1h-4a.54.54 0 0 0-.54.46l-.41 2.9a8.07 8.07 0 0 0-1.87 1.08L4.45 4.35a.55.55 0 0 0-.67.24L1.59 8.37a.54.54 0 0 0 .13.7l2.31 1.81C4.03 11.26 4 11.61 4 12s.03.74.07 1.08l-2.31 1.81a.55.55 0 0 0-.13.7l2.19 3.78a.55.55 0 0 0 .67.24l2.73-1.1c.59.43 1.22.79 1.87 1.08l.41 2.9c.07.26.3.45.54.45h4c.26 0 .47-.19.54-.46l.41-2.9a8.07 8.07 0 0 0 1.87-1.08l2.73 1.1c.25.09.52 0 .67-.24l2.19-3.78a.54.54 0 0 0-.13-.7l-2.31-1.8z"/></svg>
+      </div>
       </div>
     </div>
   </div>
@@ -205,63 +271,90 @@
     <div class="tag-sub">Événements · Promotions · Bons plans — Suivez-nous !</div>
   </div>
 
-  <!-- COUNTERS -->
+  <!-- COUNTERS (slides) -->
   <div id="counters">
+    <div id="slides-track">
 
-    <div class="card facebook" id="card-fb">
-      <svg class="card-icon" viewBox="0 0 56 56" fill="none"><rect width="56" height="56" rx="14" fill="#1877F2"/>
-        <path d="M38 28H31V21C31 19.9 31.9 19 33 19H36V13H31C27.1 13 24 16.1 24 20V28H18V34H24V50H31V34H36.5L38 28Z" fill="#fff"/></svg>
-      <div class="card-platform">Facebook</div>
-      <div class="card-number" id="fb-num">—</div>
-      <div class="card-label">abonnés</div>
-      <div class="card-note" id="fb-note"></div>
+      <!-- FACEBOOK -->
+      <div class="slide fb-slide" id="card-fb">
+        <div class="slide-bg"></div>
+        <div class="slide-inner">
+          <svg class="slide-icon" viewBox="0 0 56 56" fill="none"><rect width="56" height="56" rx="14" fill="#1877F2"/>
+            <path d="M38 28H31V21C31 19.9 31.9 19 33 19H36V13H31C27.1 13 24 16.1 24 20V28H18V34H24V50H31V34H36.5L38 28Z" fill="#fff"/></svg>
+          <div class="slide-platform">Facebook</div>
+          <div class="slide-number" id="fb-num">—</div>
+          <div class="slide-label">abonnés</div>
+          <div class="slide-cta">Likez notre page !</div>
+          <div class="slide-sub">Restez connectés · Bons plans · Événements</div>
+          <div class="slide-note" id="fb-note"></div>
+        </div>
+      </div>
+
+      <!-- INSTAGRAM -->
+      <div class="slide ig-slide" id="card-ig">
+        <div class="slide-bg"></div>
+        <div class="slide-inner">
+          <svg class="slide-icon" viewBox="0 0 56 56" fill="none">
+            <defs><linearGradient id="ig" x1="0" y1="56" x2="56" y2="0"><stop offset="0%" stop-color="#FFC107"/><stop offset="45%" stop-color="#F44336"/><stop offset="100%" stop-color="#9C27B0"/></linearGradient></defs>
+            <rect width="56" height="56" rx="14" fill="url(#ig)"/>
+            <rect x="14" y="14" width="28" height="28" rx="9" stroke="#fff" stroke-width="2.8" fill="none"/>
+            <circle cx="28" cy="28" r="7" stroke="#fff" stroke-width="2.8" fill="none"/>
+            <circle cx="38.5" cy="17.5" r="2.5" fill="#fff"/>
+          </svg>
+          <div class="slide-platform">Instagram</div>
+          <div class="slide-number" id="ig-num">—</div>
+          <div class="slide-label">abonnés</div>
+          <div class="slide-cta">Suivez-nous sur Instagram !</div>
+          <div class="slide-sub">Photos · Reels · Coulisses du restaurant</div>
+          <div class="slide-note" id="ig-note"></div>
+        </div>
+      </div>
+
+      <!-- TIKTOK -->
+      <div class="slide tt-slide" id="card-tt">
+        <div class="slide-bg"></div>
+        <div class="slide-inner">
+          <svg class="slide-icon" viewBox="0 0 56 56" fill="none"><rect width="56" height="56" rx="14" fill="#010101"/>
+            <path d="M38 16C38.6 20 41.2 22.5 45 23V28.5C42 28.5 39.5 27.3 38 25.5V36C38 41.5 33.8 46 28 46C22.2 46 18 41.5 18 36C18 30.5 22.2 26 28 26C28.7 26 29.4 26.1 30 26.3V32C29.3 31.8 28.7 31.7 28 31.7C25.2 31.7 23 33.6 23 36C23 38.4 25.2 40.3 28 40.3C30.8 40.3 33 38.4 33 36V16H38Z" fill="white"/>
+            <path d="M39 16C39.6 20 42.2 22.5 46 23" stroke="#69C9D0" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M18.5 36C18.5 30.5 22.7 26.5 28.5 26.5" stroke="#EE1D52" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </svg>
+          <div class="slide-platform">TikTok</div>
+          <div class="slide-number" id="tt-num">—</div>
+          <div class="slide-label">abonnés</div>
+          <div class="slide-cta">On est sur TikTok !</div>
+          <div class="slide-sub">Abonnez-vous · Secrets du grill · En coulisses</div>
+          <div class="slide-note" id="tt-note"></div>
+        </div>
+      </div>
+
     </div>
+  </div>
 
-    <div class="card instagram" id="card-ig">
-      <svg class="card-icon" viewBox="0 0 56 56" fill="none">
-        <defs><linearGradient id="ig" x1="0" y1="56" x2="56" y2="0"><stop offset="0%" stop-color="#FFC107"/><stop offset="45%" stop-color="#F44336"/><stop offset="100%" stop-color="#9C27B0"/></linearGradient></defs>
-        <rect width="56" height="56" rx="14" fill="url(#ig)"/>
-        <rect x="14" y="14" width="28" height="28" rx="9" stroke="#fff" stroke-width="2.8" fill="none"/>
-        <circle cx="28" cy="28" r="7" stroke="#fff" stroke-width="2.8" fill="none"/>
-        <circle cx="38.5" cy="17.5" r="2.5" fill="#fff"/>
-      </svg>
-      <div class="card-platform">Instagram</div>
-      <div class="card-number" id="ig-num">—</div>
-      <div class="card-label">abonnés</div>
-      <div class="card-note" id="ig-note"></div>
-    </div>
-
-    <div class="card tiktok" id="card-tt">
-      <svg class="card-icon" viewBox="0 0 56 56" fill="none"><rect width="56" height="56" rx="14" fill="#010101"/>
-        <path d="M38 16C38.6 20 41.2 22.5 45 23V28.5C42 28.5 39.5 27.3 38 25.5V36C38 41.5 33.8 46 28 46C22.2 46 18 41.5 18 36C18 30.5 22.2 26 28 26C28.7 26 29.4 26.1 30 26.3V32C29.3 31.8 28.7 31.7 28 31.7C25.2 31.7 23 33.6 23 36C23 38.4 25.2 40.3 28 40.3C30.8 40.3 33 38.4 33 36V16H38Z" fill="white"/>
-        <path d="M39 16C39.6 20 42.2 22.5 46 23" stroke="#69C9D0" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <path d="M18.5 36C18.5 30.5 22.7 26.5 28.5 26.5" stroke="#EE1D52" stroke-width="2" fill="none" stroke-linecap="round"/>
-      </svg>
-      <div class="card-platform">TikTok</div>
-      <div class="card-number" id="tt-num">—</div>
-      <div class="card-label">abonnés</div>
-      <div class="card-note" id="tt-note"></div>
-    </div>
-
+  <!-- SLIDE DOTS -->
+  <div id="slide-dots">
+    <div class="dot active" onclick="goToSlide(0)"></div>
+    <div class="dot" onclick="goToSlide(1)"></div>
+    <div class="dot" onclick="goToSlide(2)"></div>
   </div>
 
   <!-- BANNER -->
   <div id="banner">
     <div class="banner-msg active">
       <div class="banner-main">Demandez au barman notre carte de fidélité !</div>
-      <div class="banner-sub">Cumulez des points à chaque visite</div>
+      <div class="banner-sub">Cumulez des points à chaque visite · Programme Braise &amp; Co</div>
     </div>
     <div class="banner-msg">
-      <div class="banner-main">Gagnez des récompenses et des repas offerts !</div>
-      <div class="banner-sub">Programme fidélité Braise &amp; Co</div>
+      <div class="banner-main">Likez, suivez, abonnez-vous — c'est gratuit !</div>
+      <div class="banner-sub">Facebook · Instagram · TikTok · @braiseandco</div>
     </div>
     <div class="banner-msg">
-      <div class="banner-main">Suivez-nous et soyez les premiers informés !</div>
-      <div class="banner-sub">Événements · Promotions · Bons plans</div>
-    </div>
-    <div class="banner-msg">
-      <div class="banner-main">Réservez votre table en ligne !</div>
+      <div class="banner-main">Réservez votre table en ligne, c'est simple !</div>
       <div class="banner-sub">www.braiseandco-biganos.fr · Disponible 24h/24</div>
+    </div>
+    <div class="banner-msg">
+      <div class="banner-main">Gagnez des repas offerts avec la fidélité !</div>
+      <div class="banner-sub">Chaque visite compte · Demandez votre carte au comptoir</div>
     </div>
   </div>
 
@@ -334,7 +427,7 @@ function parseRaw(s){return parseInt(String(s).replace(/\D/g,''),10)||0}
 function fmt(n){if(n>=1000000)return(n/1000000).toFixed(1).replace('.',',')+' M';if(n>=10000)return Math.round(n/1000)+'k';return n.toLocaleString('fr-FR')}
 
 /* ── STATUS ── */
-function setNote(id,txt,cls=''){const el=document.getElementById(id);el.textContent=txt;el.className='card-note'+(cls?' '+cls:'')}
+function setNote(id,txt,cls=''){const el=document.getElementById(id);el.textContent=txt;el.className='slide-note'+(cls?' '+cls:'')}
 function pulse(cardId,cls){const el=document.getElementById(cardId);el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),1300)}
 
 /* ── REFRESH ── */
@@ -348,6 +441,36 @@ function refresh(){
   else{document.getElementById('tt-num').textContent='—';setNote('tt-note',vide,'warn')}
   const now=new Date();
   document.getElementById('status-text').textContent=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ── SLIDES ── */
+let slideIndex=0,slideTimer=null;
+const SLIDE_COUNT=3,SLIDE_DELAY=7000;
+function goToSlide(idx){
+  slideIndex=((idx%SLIDE_COUNT)+SLIDE_COUNT)%SLIDE_COUNT;
+  document.getElementById('slides-track').style.transform=`translateX(-${slideIndex*100}%)`;
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===slideIndex));
+  resetSlideTimer();
+}
+function resetSlideTimer(){clearInterval(slideTimer);slideTimer=setInterval(()=>goToSlide(slideIndex+1),SLIDE_DELAY)}
+resetSlideTimer();
+(function(){
+  const el=document.getElementById('counters');
+  let x0=null;
+  el.addEventListener('touchstart',e=>{x0=e.touches[0].clientX},{passive:true});
+  el.addEventListener('touchend',e=>{
+    if(x0===null)return;
+    const dx=e.changedTouches[0].clientX-x0;x0=null;
+    if(Math.abs(dx)>40)goToSlide(slideIndex+(dx<0?1:-1));
+  });
+})();
+
+/* ── MANUAL REFRESH ── */
+function manualRefresh(){
+  const btn=document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  btn.addEventListener('animationend',()=>btn.classList.remove('spinning'),{once:true});
+  fetchFromSupabase();
 }
 
 /* ── BANNER ROTATION ── */
