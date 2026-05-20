@@ -112,6 +112,26 @@
     .card-note.warn { color: #f59e0b; }
     .card-note.ok   { color: #22c55e; }
 
+    /* ── BANNER ── */
+    #banner {
+      flex-shrink: 0; text-align: center; padding: 6px 0; position: relative; height: 52px;
+    }
+    .banner-msg {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      opacity: 0; transition: opacity 1s ease;
+    }
+    .banner-msg.active { opacity: 1; }
+    .banner-main {
+      font-family: 'Bebas Neue', Impact, sans-serif;
+      font-size: clamp(20px, 2.8vw, 30px);
+      color: var(--accent); letter-spacing: 2px;
+    }
+    .banner-sub {
+      font-size: clamp(11px, 1.4vw, 14px);
+      color: var(--muted); letter-spacing: 3px; text-transform: uppercase;
+    }
+
     /* ── FOOTER ── */
     #footer {
       flex-shrink: 0; text-align: center;
@@ -267,6 +287,26 @@
       <div class="card-note" id="tt-note">Mise à jour manuelle</div>
     </div>
 
+  </div>
+
+  <!-- BANNER -->
+  <div id="banner">
+    <div class="banner-msg active">
+      <div class="banner-main">Demandez au barman notre carte de fidélité !</div>
+      <div class="banner-sub">Cumulez des points à chaque visite</div>
+    </div>
+    <div class="banner-msg">
+      <div class="banner-main">Gagnez des récompenses et des repas offerts !</div>
+      <div class="banner-sub">Programme fidélité Braise &amp; Co</div>
+    </div>
+    <div class="banner-msg">
+      <div class="banner-main">Suivez-nous et soyez les premiers informés !</div>
+      <div class="banner-sub">Événements · Promotions · Bons plans</div>
+    </div>
+    <div class="banner-msg">
+      <div class="banner-main">Réservez votre table en ligne !</div>
+      <div class="banner-sub">app.braiseandco.fr · Disponible 24h/24</div>
+    </div>
   </div>
 
   <!-- FOOTER -->
@@ -444,6 +484,17 @@ function refresh() {
   setDot('ok');
   setStatus(`Mis à jour le ${now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
 }
+
+/* ── BANNER ROTATION ── */
+(function() {
+  const msgs = document.querySelectorAll('.banner-msg');
+  let current = 0;
+  setInterval(() => {
+    msgs[current].classList.remove('active');
+    current = (current + 1) % msgs.length;
+    msgs[current].classList.add('active');
+  }, 4000);
+})();
 
 /* ── INIT ── */
 refresh();
