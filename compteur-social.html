@@ -40,17 +40,6 @@
     .ember{position:absolute;border-radius:50%;background:var(--ember);pointer-events:none;animation:float-up linear infinite;opacity:0;box-shadow:0 0 6px 2px rgba(251,191,36,.6)}
     @keyframes float-up{0%{opacity:0;transform:translateY(0) scale(0)}15%{opacity:1}75%{opacity:.7}100%{opacity:0;transform:translateY(-220px) translateX(var(--dx)) scale(.2)}}
 
-    /* flames */
-    .flame-outer,.flame-mid,.flame-tip{position:absolute;bottom:0;left:50%;transform:translateX(-50%);border-radius:50% 50% 15% 15% / 60% 60% 40% 40%;pointer-events:none}
-    .flame-outer{filter:blur(5px);animation:flicker ease-in-out infinite alternate}
-    .flame-mid{filter:blur(2.5px);animation:flicker ease-in-out infinite alternate-reverse}
-    .flame-tip{filter:blur(1px);animation:flicker ease-in-out infinite alternate}
-    @keyframes flicker{
-      0%{transform:translateX(-50%) scaleX(1) scaleY(1) rotate(-2deg)}
-      30%{transform:translateX(-50%) scaleX(.82) scaleY(1.14) rotate(1.5deg)}
-      60%{transform:translateX(-50%) scaleX(1.1) scaleY(.9) rotate(-1deg)}
-      100%{transform:translateX(-50%) scaleX(.95) scaleY(1.05) rotate(2.5deg)}
-    }
 
     /* ── APP LAYOUT ── */
     #app{position:relative;z-index:1;display:flex;flex-direction:column;height:100dvh;padding:16px 20px 14px;gap:12px}
@@ -347,27 +336,9 @@ function refresh(){
 /* ── BANNER ROTATION ── */
 (function(){const msgs=document.querySelectorAll('.banner-msg');let cur=0;setInterval(()=>{msgs[cur].classList.remove('active');cur=(cur+1)%msgs.length;msgs[cur].classList.add('active')},4000)})();
 
-/* ── FLAMES + EMBERS ── */
+/* ── EMBERS ── */
 (function(){
   const bg=document.getElementById('bg');
-  /* flammes */
-  for(let i=0;i<24;i++){
-    const x=1+i*(98/24)+(Math.random()-.5)*3;
-    const h=40+Math.random()*80;const w=18+Math.random()*22;
-    const dur=(0.3+Math.random()*0.55).toFixed(2);
-    const delay=-(Math.random()*1.2).toFixed(2);
-    const wrap=document.createElement('div');
-    wrap.style.cssText=`position:absolute;bottom:0;left:${x}%`;
-    const fo=document.createElement('div');fo.className='flame-outer';
-    fo.style.cssText=`width:${w}px;height:${h}px;background:radial-gradient(ellipse at 50% 100%,rgba(239,68,68,.95) 0%,rgba(249,115,22,.55) 55%,transparent 80%);animation-duration:${dur}s;animation-delay:${delay}s`;
-    const fm=document.createElement('div');fm.className='flame-mid';
-    fm.style.cssText=`width:${Math.round(w*.62)}px;height:${Math.round(h*.72)}px;background:radial-gradient(ellipse at 50% 100%,rgba(251,191,36,1) 0%,rgba(249,115,22,.8) 55%,transparent 80%);animation-duration:${(dur*.68).toFixed(2)}s;animation-delay:${(parseFloat(delay)-.08).toFixed(2)}s`;
-    const ft=document.createElement('div');ft.className='flame-tip';
-    ft.style.cssText=`width:${Math.round(w*.32)}px;height:${Math.round(h*.45)}px;background:radial-gradient(ellipse at 50% 100%,rgba(255,255,210,1) 0%,rgba(251,191,36,.9) 55%,transparent 80%);animation-duration:${(dur*.48).toFixed(2)}s;animation-delay:${(parseFloat(delay)-.04).toFixed(2)}s`;
-    wrap.appendChild(fo);wrap.appendChild(fm);wrap.appendChild(ft);
-    bg.appendChild(wrap);
-  }
-  /* braises */
   for(let i=0;i<24;i++){
     const e=document.createElement('div');e.className='ember';
     const x=Math.random()*100,delay=Math.random()*8,dur=3+Math.random()*5,dx=(Math.random()-.5)*70,s=2+Math.random()*4;
