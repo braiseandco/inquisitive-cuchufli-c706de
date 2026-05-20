@@ -318,7 +318,15 @@ function saveConfig({fb,ig,tiktok}){localStorage.setItem('bc_fb',fb);localStorag
 /* ── MODAL ── */
 function openModal(){const c=getConfig();document.getElementById('cfg-fb').value=c.fb||'';document.getElementById('cfg-ig').value=c.ig||'';document.getElementById('cfg-tiktok').value=c.tiktok||'';document.getElementById('modal').classList.add('open')}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
-function saveAndRefresh(){saveConfig({fb:parseInt(document.getElementById('cfg-fb').value,10)||0,ig:parseInt(document.getElementById('cfg-ig').value,10)||0,tiktok:parseInt(document.getElementById('cfg-tiktok').value,10)||0});closeModal();refresh()}
+async function saveAndRefresh(){
+  const cfg={fb:parseInt(document.getElementById('cfg-fb').value,10)||0,ig:parseInt(document.getElementById('cfg-ig').value,10)||0,tiktok:parseInt(document.getElementById('cfg-tiktok').value,10)||0};
+  saveConfig(cfg);closeModal();refresh();
+  try{await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1`,{
+    method:'PATCH',
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({fb:cfg.fb,ig:cfg.ig,tiktok:cfg.tiktok,updated_at:new Date().toISOString()})
+  });}catch{/* hors ligne */}
+}
 
 /* ── COUNTER ANIMATION ── */
 function animateTo(el,target){const from=parseRaw(el.dataset.raw||'0');el.dataset.raw=target;const t0=performance.now(),dur=1600;function step(now){const p=Math.min((now-t0)/dur,1),ease=1-Math.pow(1-p,3);el.textContent=fmt(Math.round(from+(target-from)*ease));if(p<1)requestAnimationFrame(step)}requestAnimationFrame(step)}
@@ -364,8 +372,31 @@ document.addEventListener('click',goFullscreen,{once:true});
 /* ── WAKE LOCK ── */
 if('wakeLock'in navigator){const lock=()=>navigator.wakeLock.request('screen').catch(()=>{});lock();document.addEventListener('visibilitychange',()=>{if(!document.hidden)lock()})}
 
+/* ── AUTO-FETCH SUPABASE ── */
+const SB_URL='https://ugyrrnqpapeagpuocwob.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+
+async function fetchFromSupabase(){
+  try{
+    const res=await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1&select=fb,ig,tiktok`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    if(!res.ok)return;
+    const [row]=await res.json();
+    if(!row)return;
+    const cfg=getConfig();
+    let changed=false;
+    if(row.fb>0&&row.fb!==cfg.fb){cfg.fb=row.fb;changed=true;}
+    if(row.ig>0&&row.ig!==cfg.ig){cfg.ig=row.ig;changed=true;}
+    if(row.tiktok>0&&row.tiktok!==cfg.tiktok){cfg.tiktok=row.tiktok;changed=true;}
+    if(changed){saveConfig(cfg);refresh();}
+  }catch{/* réseau indisponible */}
+}
+
 /* ── INIT ── */
 refresh();
+fetchFromSupabase();
+setInterval(fetchFromSupabase, 30*60*1000);
 
 /* ── SERVICE WORKER (mise à jour auto) ── */
 let swWaiting=null;
