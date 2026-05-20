@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Braise & Co — Nos Abonnés</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --bg:        #0b0b0b;
+      --card-bg:   #141414;
+      --border:    #222;
+      --text:      #f0f0f0;
+      --muted:     #666;
+      --accent:    #F97316;
+      --fb:        #1877F2;
+      --ig-a:      #F58529;
+      --ig-b:      #DD2A7B;
+      --tt:        #69C9D0;
+      --tt-b:      #EE1D52;
+    }
+
+    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Inter', sans-serif; }
+
+    /* ── LAYOUT ── */
+    #app {
+      display: flex; flex-direction: column;
+      height: 100dvh; padding: 20px 24px; gap: 16px;
+    }
+
+    /* ── HEADER ── */
+    #header {
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; cursor: pointer; user-select: none; }
+    .brand-icon { font-size: 36px; line-height: 1; }
+    .brand-name {
+      font-family: 'Bebas Neue', Impact, sans-serif;
+      font-size: 30px; color: var(--accent); letter-spacing: 2px;
+    }
+    .brand-sub {
+      font-size: 11px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-top: 2px;
+    }
+
+    #status-area { text-align: right; }
+    #status-line {
+      display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+      font-size: 12px; color: var(--muted); cursor: pointer;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+      animation: blink 2.5s ease-in-out infinite;
+    }
+    .dot.loading { background: var(--accent); animation: spin-dot 1s linear infinite; }
+    .dot.error   { background: #ef4444; animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+    #refresh-hint { font-size: 10px; color: #3a3a3a; margin-top: 3px; }
+
+    /* ── CARDS ── */
+    #counters { display: flex; flex: 1; gap: 16px; min-height: 0; }
+
+    .card {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--card-bg); border-radius: 24px; border: 1px solid var(--border);
+      padding: 28px 20px; gap: 14px; position: relative; overflow: hidden;
+      transition: transform .2s;
+    }
+    .card::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .card.facebook::after  { background: var(--fb); }
+    .card.instagram::after { background: linear-gradient(90deg, var(--ig-a), var(--ig-b)); }
+    .card.tiktok::after    { background: linear-gradient(90deg, var(--tt), var(--tt-b)); }
+
+    /* glow pulse on fresh data */
+    @keyframes glow-fb { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 40px 8px rgba(24,119,242,.18)} }
+    @keyframes glow-ig { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 40px 8px rgba(221,42,123,.18)} }
+    @keyframes glow-tt { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 40px 8px rgba(105,201,208,.18)} }
+    .card.pulse-fb { animation: glow-fb 1.2s ease; }
+    .card.pulse-ig { animation: glow-ig 1.2s ease; }
+    .card.pulse-tt { animation: glow-tt 1.2s ease; }
+
+    .card-logo { width: 58px; height: 58px; }
+
+    .card-platform { font-size: 17px; font-weight: 700; color: var(--text); }
+
+    .card-number {
+      font-family: 'Bebas Neue', Impact, sans-serif;
+      font-size: clamp(64px, 9vw, 128px);
+      line-height: 1; letter-spacing: -1px; color: var(--text);
+    }
+    .card.facebook  .card-number { color: var(--fb); }
+    .card.instagram .card-number {
+      background: linear-gradient(135deg, var(--ig-a), var(--ig-b));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .card.tiktok .card-number { color: var(--tt); }
+
+    .card-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 4px;
+      text-transform: uppercase; color: var(--muted);
+    }
+
+    .card-note {
+      font-size: 12px; color: var(--muted); text-align: center;
+      min-height: 18px;
+    }
+    .card-note.warn { color: #f59e0b; }
+    .card-note.ok   { color: #22c55e; }
+
+    /* ── FOOTER ── */
+    #footer {
+      flex-shrink: 0; text-align: center;
+      font-size: 11px; color: #2a2a2a; letter-spacing: 1px;
+    }
+
+    /* ── MODAL ── */
+    #modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.88); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    #modal.open { display: flex; }
+
+    .panel {
+      background: #181818; border: 1px solid #2a2a2a; border-radius: 24px;
+      padding: 32px; width: min(92vw, 500px); max-height: 88vh;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 22px;
+    }
+
+    .panel-title { font-size: 20px; font-weight: 700; color: var(--text); }
+
+    .section-head {
+      font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .field label { font-size: 13px; color: var(--muted); }
+    .field input {
+      background: #202020; border: 1px solid #2d2d2d; border-radius: 10px;
+      padding: 13px 16px; color: var(--text); font-size: 14px;
+      font-family: 'Inter', sans-serif; outline: none; transition: border-color .2s;
+      width: 100%;
+    }
+    .field input:focus { border-color: var(--accent); }
+
+    .hint {
+      font-size: 12px; color: #555; line-height: 1.65; background: #1c1c1c;
+      border: 1px solid #262626; border-radius: 10px; padding: 12px 14px;
+    }
+    .hint strong { color: #999; }
+
+    .divider { height: 1px; background: #222; }
+
+    .btn-row { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+      font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif; transition: opacity .2s;
+    }
+    .btn:active { opacity: .75; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost   { background: #252525; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div class="brand" id="logo-tap" title="Appuyer 5× pour ouvrir les réglages">
+      <span class="brand-icon">🔥</span>
+      <div>
+        <div class="brand-name">Braise &amp; Co</div>
+        <div class="brand-sub">Biganos · Bassin d'Arcachon</div>
+      </div>
+    </div>
+    <div id="status-area">
+      <div id="status-line" onclick="refresh()">
+        <span class="dot" id="dot"></span>
+        <span id="status-text">Chargement…</span>
+      </div>
+      <div id="refresh-hint">Toucher pour actualiser</div>
+    </div>
+  </div>
+
+  <!-- COUNTERS -->
+  <div id="counters">
+
+    <!-- Facebook -->
+    <div class="card facebook" id="card-fb">
+      <svg class="card-logo" viewBox="0 0 56 56"><rect width="56" height="56" rx="14" fill="#1877F2"/>
+        <path d="M38 28H31V21C31 19.9 31.9 19 33 19H36V13H31C27.1 13 24 16.1 24 20V28H18V34H24V50H31V34H36.5L38 28Z" fill="#fff"/></svg>
+      <div class="card-platform">Facebook</div>
+      <div class="card-number" id="fb-num">—</div>
+      <div class="card-label">abonnés</div>
+      <div class="card-note" id="fb-note"></div>
+    </div>
+
+    <!-- Instagram -->
+    <div class="card instagram" id="card-ig">
+      <svg class="card-logo" viewBox="0 0 56 56">
+        <defs><linearGradient id="ig" x1="0" y1="56" x2="56" y2="0">
+          <stop offset="0%" stop-color="#FFC107"/>
+          <stop offset="45%" stop-color="#F44336"/>
+          <stop offset="100%" stop-color="#9C27B0"/>
+        </linearGradient></defs>
+        <rect width="56" height="56" rx="14" fill="url(#ig)"/>
+        <rect x="14" y="14" width="28" height="28" rx="9" stroke="#fff" stroke-width="2.8" fill="none"/>
+        <circle cx="28" cy="28" r="7" stroke="#fff" stroke-width="2.8" fill="none"/>
+        <circle cx="38.5" cy="17.5" r="2.5" fill="#fff"/>
+      </svg>
+      <div class="card-platform">Instagram</div>
+      <div class="card-number" id="ig-num">—</div>
+      <div class="card-label">abonnés</div>
+      <div class="card-note" id="ig-note"></div>
+    </div>
+
+    <!-- TikTok -->
+    <div class="card tiktok" id="card-tt">
+      <svg class="card-logo" viewBox="0 0 56 56"><rect width="56" height="56" rx="14" fill="#010101"/>
+        <path d="M38 16C38.6 20 41.2 22.5 45 23V28.5C42 28.5 39.5 27.3 38 25.5V36C38 41.5 33.8 46 28 46C22.2 46 18 41.5 18 36C18 30.5 22.2 26 28 26C28.7 26 29.4 26.1 30 26.3V32C29.3 31.8 28.7 31.7 28 31.7C25.2 31.7 23 33.6 23 36C23 38.4 25.2 40.3 28 40.3C30.8 40.3 33 38.4 33 36V16H38Z" fill="white"/>
+        <path d="M39 16C39.6 20 42.2 22.5 46 23" stroke="#69C9D0" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M18.5 36C18.5 30.5 22.7 26.5 28.5 26.5" stroke="#EE1D52" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="card-platform">TikTok</div>
+      <div class="card-number" id="tt-num">—</div>
+      <div class="card-label">abonnés</div>
+      <div class="card-note" id="tt-note">Mise à jour manuelle</div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div id="footer">BRAISE &amp; CO BIGANOS · app.braiseandco.com</div>
+
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="modal">
+  <div class="panel">
+    <div class="panel-title">⚙️ Réglages</div>
+
+    <div>
+      <div class="section-head">Facebook &amp; Instagram — automatique</div>
+      <div class="field">
+        <label>ID de la Page Facebook</label>
+        <input id="cfg-page-id" type="text" inputmode="numeric" placeholder="ex : 123456789012345">
+      </div>
+      <div class="field">
+        <label>Token d'accès (Page Access Token)</label>
+        <input id="cfg-token" type="password" placeholder="EAAxxxxxxx…">
+      </div>
+      <div class="hint">
+        <strong>Comment obtenir le token :</strong><br>
+        1. Aller sur <strong>developers.facebook.com/tools/explorer</strong><br>
+        2. Sélectionner votre Application → votre Page Braise &amp; Co<br>
+        3. Cocher les permissions <em>pages_show_list</em> et <em>instagram_basic</em><br>
+        4. Cliquer « Générer un token d'accès » → copier et coller ici
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="section-head">TikTok — manuel</div>
+      <div class="field">
+        <label>Nombre d'abonnés TikTok (à mettre à jour à la main)</label>
+        <input id="cfg-tiktok" type="number" inputmode="numeric" placeholder="ex : 1 250">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveAndRefresh()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── CONFIG ── */
+const INTERVAL_MS = 10 * 60 * 1000; // 10 min
+
+function getConfig() {
+  return {
+    pageId : localStorage.getItem('bc_page_id')  || '',
+    token  : localStorage.getItem('bc_token')     || '',
+    tiktok : parseInt(localStorage.getItem('bc_tiktok') || '0', 10),
+  };
+}
+function saveConfig({ pageId, token, tiktok }) {
+  localStorage.setItem('bc_page_id', pageId);
+  localStorage.setItem('bc_token',   token);
+  localStorage.setItem('bc_tiktok',  tiktok);
+}
+
+/* ── MODAL ── */
+let tapCount = 0, tapTimer = null;
+document.getElementById('logo-tap').addEventListener('click', () => {
+  tapCount++;
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => tapCount = 0, 1800);
+  if (tapCount >= 5) { tapCount = 0; openModal(); }
+});
+
+function openModal() {
+  const c = getConfig();
+  document.getElementById('cfg-page-id').value = c.pageId;
+  document.getElementById('cfg-token').value   = c.token;
+  document.getElementById('cfg-tiktok').value  = c.tiktok || '';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function saveAndRefresh() {
+  saveConfig({
+    pageId : document.getElementById('cfg-page-id').value.trim(),
+    token  : document.getElementById('cfg-token').value.trim(),
+    tiktok : parseInt(document.getElementById('cfg-tiktok').value, 10) || 0,
+  });
+  closeModal();
+  refresh();
+}
+
+/* ── COUNTER ANIMATION ── */
+function animateTo(el, target) {
+  const from = parseRaw(el.dataset.raw || '0');
+  el.dataset.raw = target;
+  const t0 = performance.now();
+  const dur = 1400;
+  function step(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(Math.round(from + (target - from) * ease));
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function parseRaw(s) { return parseInt(String(s).replace(/\D/g, ''), 10) || 0; }
+
+function fmt(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.', ',') + ' M';
+  if (n >= 10_000)    return Math.round(n / 1000) + ' k';
+  return n.toLocaleString('fr-FR');
+}
+
+/* ── STATUS ── */
+function setDot(state) {
+  const d = document.getElementById('dot');
+  d.className = 'dot' + (state === 'loading' ? ' loading' : state === 'error' ? ' error' : '');
+}
+function setStatus(txt) { document.getElementById('status-text').textContent = txt; }
+function setNote(id, txt, cls = '') {
+  const el = document.getElementById(id);
+  el.textContent = txt;
+  el.className = 'card-note' + (cls ? ' ' + cls : '');
+}
+function pulse(cardId, cls) {
+  const el = document.getElementById(cardId);
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 1300);
+}
+
+/* ── API ── */
+async function fetchMeta(pageId, token) {
+  const r = await fetch(
+    `https://graph.facebook.com/v21.0/${pageId}?fields=fan_count,instagram_business_account&access_token=${token}`
+  );
+  if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+  return r.json();
+}
+async function fetchIg(igId, token) {
+  const r = await fetch(
+    `https://graph.facebook.com/v21.0/${igId}?fields=followers_count&access_token=${token}`
+  );
+  if (!r.ok) throw new Error(`IG HTTP ${r.status}`);
+  return r.json();
+}
+
+/* ── MAIN REFRESH ── */
+async function refresh() {
+  const c = getConfig();
+  setDot('loading');
+  setStatus('Actualisation…');
+
+  /* TikTok (always manual) */
+  if (c.tiktok > 0) {
+    animateTo(document.getElementById('tt-num'), c.tiktok);
+    pulse('card-tt', 'pulse-tt');
+    setNote('tt-note', 'Mise à jour manuelle');
+  } else {
+    document.getElementById('tt-num').textContent = '—';
+    setNote('tt-note', 'Appuyer 5× sur le logo → Réglages', 'warn');
+  }
+
+  if (!c.pageId || !c.token) {
+    setDot('error');
+    setStatus('Token manquant — appuyer 5× sur le logo');
+    ['fb-num', 'ig-num'].forEach(id => document.getElementById(id).textContent = '—');
+    setNote('fb-note', 'À configurer', 'warn');
+    setNote('ig-note', 'À configurer', 'warn');
+    return;
+  }
+
+  try {
+    const meta = await fetchMeta(c.pageId, c.token);
+
+    /* Facebook */
+    if (meta.fan_count != null) {
+      animateTo(document.getElementById('fb-num'), meta.fan_count);
+      localStorage.setItem('bc_cache_fb', meta.fan_count);
+      pulse('card-fb', 'pulse-fb');
+      setNote('fb-note', '', 'ok');
+    }
+
+    /* Instagram */
+    if (meta.instagram_business_account?.id) {
+      const ig = await fetchIg(meta.instagram_business_account.id, c.token);
+      if (ig.followers_count != null) {
+        animateTo(document.getElementById('ig-num'), ig.followers_count);
+        localStorage.setItem('bc_cache_ig', ig.followers_count);
+        pulse('card-ig', 'pulse-ig');
+        setNote('ig-note', '', 'ok');
+      }
+    } else {
+      document.getElementById('ig-num').textContent = '—';
+      setNote('ig-note', 'Lier Instagram à la Page Facebook', 'warn');
+    }
+
+    const now = new Date();
+    setDot('ok');
+    setStatus(`Mis à jour à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`);
+
+  } catch (err) {
+    setDot('error');
+    setStatus('Erreur API — vérifier le token');
+
+    /* Fallback: cached values */
+    const cacheFb = localStorage.getItem('bc_cache_fb');
+    const cacheIg = localStorage.getItem('bc_cache_ig');
+    if (cacheFb) { animateTo(document.getElementById('fb-num'), parseInt(cacheFb)); setNote('fb-note', '⚠ Données en cache', 'warn'); }
+    if (cacheIg) { animateTo(document.getElementById('ig-num'), parseInt(cacheIg)); setNote('ig-note', '⚠ Données en cache', 'warn'); }
+
+    console.error('[Braise Compteur]', err.message);
+  }
+}
+
+/* ── INIT ── */
+refresh();
+setInterval(refresh, INTERVAL_MS);
+
+/* Keep screen on (tablet) */
+if ('wakeLock' in navigator) {
+  const lock = () => navigator.wakeLock.request('screen').catch(() => {});
+  lock();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) lock(); });
+}
+</script>
+</body>
+</html>
