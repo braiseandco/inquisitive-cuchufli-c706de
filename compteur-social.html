@@ -508,11 +508,10 @@ async function fetchFromSupabase(){
     const [row]=await res.json();
     if(!row)return;
     const cfg=getConfig();
-    let changed=false;
-    if(row.fb>0&&row.fb!==cfg.fb){cfg.fb=row.fb;changed=true;}
-    if(row.ig>0&&row.ig!==cfg.ig){cfg.ig=row.ig;changed=true;}
-    if(row.tiktok>0&&row.tiktok!==cfg.tiktok){cfg.tiktok=row.tiktok;changed=true;}
-    if(changed){saveConfig(cfg);refresh();}
+    if(row.fb>0)cfg.fb=row.fb;
+    if(row.ig>0)cfg.ig=row.ig;
+    if(row.tiktok>0)cfg.tiktok=row.tiktok;
+    saveConfig(cfg);refresh();
   }catch{/* réseau indisponible */}
 }
 
