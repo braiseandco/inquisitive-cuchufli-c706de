@@ -285,7 +285,10 @@ function saveConfig({fb,ig,tiktok}){localStorage.setItem('bc_fb',fb);localStorag
 
 /* ── MODAL ── */
 let tapCount=0,tapTimer=null;
-document.getElementById('logo-tap').addEventListener('click',()=>{tapCount++;clearTimeout(tapTimer);tapTimer=setTimeout(()=>tapCount=0,1800);if(tapCount>=5){tapCount=0;openModal()}});
+function registerTap(){tapCount++;clearTimeout(tapTimer);tapTimer=setTimeout(()=>tapCount=0,2000);if(tapCount>=5){tapCount=0;openModal()}}
+const logoEl=document.getElementById('logo-tap');
+logoEl.addEventListener('touchend',e=>{e.preventDefault();registerTap()},{passive:false});
+logoEl.addEventListener('click',registerTap);
 function openModal(){const c=getConfig();document.getElementById('cfg-fb').value=c.fb||'';document.getElementById('cfg-ig').value=c.ig||'';document.getElementById('cfg-tiktok').value=c.tiktok||'';document.getElementById('modal').classList.add('open')}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 function saveAndRefresh(){saveConfig({fb:parseInt(document.getElementById('cfg-fb').value,10)||0,ig:parseInt(document.getElementById('cfg-ig').value,10)||0,tiktok:parseInt(document.getElementById('cfg-tiktok').value,10)||0});closeModal();refresh()}
@@ -319,7 +322,8 @@ function refresh(){
 (function(){const bg=document.getElementById('bg');for(let i=0;i<18;i++){const e=document.createElement('div');e.className='ember';const x=Math.random()*100,delay=Math.random()*8,dur=4+Math.random()*6,dx=(Math.random()-0.5)*60;e.style.cssText=left:%;bottom:%;--dx:px;animation-duration:s;animation-delay:s;width:px;height:px;background:;bg.appendChild(e)}})();
 
 /* ── FULLSCREEN + ORIENTATION ── */
-function goFullscreen(){const el=document.documentElement,req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;if(req)req.call(el).catch(()=>{});if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{})}
+function goFullscreen(){document.removeEventListener('touchstart',goFullscreen);document.removeEventListener('click',goFullscreen);const el=document.documentElement,req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;if(req)req.call(el).catch(()=>{});if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{})}
+document.addEventListener('touchstart',goFullscreen,{once:true,passive:true});
 document.addEventListener('click',goFullscreen,{once:true});
 
 /* ── WAKE LOCK ── */
