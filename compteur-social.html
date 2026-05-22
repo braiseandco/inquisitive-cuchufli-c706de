@@ -139,12 +139,14 @@
     #portrait-warn svg{opacity:.4;animation:rotate-hint 2s ease-in-out infinite}
     @keyframes rotate-hint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
     #portrait-warn p{font-size:16px;color:var(--muted);letter-spacing:3px;text-transform:uppercase}
-    @media(orientation:portrait) and (pointer:coarse){#portrait-warn{display:flex}}
+    @media(orientation:portrait) and (pointer:coarse) and (min-width:600px){#portrait-warn{display:flex}}
 
     /* ── MODAL ── */
-    #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
+    #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(8px);overflow-y:auto;padding:16px}
     #modal.open{display:flex}
-    .panel{background:#111;border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:32px;width:min(92vw,460px);display:flex;flex-direction:column;gap:20px;box-shadow:0 0 80px rgba(249,115,22,.15)}
+    .panel{background:#111;border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:24px;width:min(92vw,460px);max-height:calc(100dvh - 32px);overflow-y:auto;display:flex;flex-direction:column;gap:16px;box-shadow:0 0 80px rgba(249,115,22,.15);position:relative}
+    .modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1}
+    .modal-close:active{background:rgba(255,255,255,.15)}
     .panel-title{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text);letter-spacing:2px}
     .section-head{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--fire);margin-bottom:10px}
     .hint{font-size:12px;color:rgba(255,255,255,.3);line-height:1.7;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px 14px}
@@ -372,8 +374,9 @@
 </div>
 
 <!-- MODAL -->
-<div id="modal">
+<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
   <div class="panel">
+    <button class="modal-close" onclick="closeModal()" aria-label="Fermer">×</button>
     <div class="panel-title">Réglages</div>
     <div class="hint">Mets à jour les chiffres depuis l'app de chaque réseau, puis reviens ici. À faire 1 fois par semaine.</div>
     <div>
@@ -496,10 +499,19 @@ function manualRefresh(){
   }
 })();
 
-/* ── FULLSCREEN + ORIENTATION ── */
-function goFullscreen(){document.removeEventListener('touchstart',goFullscreen);document.removeEventListener('click',goFullscreen);const el=document.documentElement,req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;if(req)req.call(el).catch(()=>{});if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{})}
-document.addEventListener('touchstart',goFullscreen,{once:true,passive:true});
-document.addEventListener('click',goFullscreen,{once:true});
+/* ── FULLSCREEN + ORIENTATION (tablette uniquement) ── */
+const IS_PHONE=window.innerWidth<600||/Mobi|Android.*Mobile|iPhone/i.test(navigator.userAgent);
+function goFullscreen(){
+  if(IS_PHONE)return;
+  document.removeEventListener('touchstart',goFullscreen);document.removeEventListener('click',goFullscreen);
+  const el=document.documentElement,req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen;
+  if(req)req.call(el).catch(()=>{});
+  if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});
+}
+if(!IS_PHONE){
+  document.addEventListener('touchstart',goFullscreen,{once:true,passive:true});
+  document.addEventListener('click',goFullscreen,{once:true});
+}
 
 /* ── WAKE LOCK ── */
 if('wakeLock'in navigator){const lock=()=>navigator.wakeLock.request('screen').catch(()=>{});lock();document.addEventListener('visibilitychange',()=>{if(!document.hidden)lock()})}
