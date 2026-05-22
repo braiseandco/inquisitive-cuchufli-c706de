@@ -142,17 +142,18 @@
   /* Prix info */
   .prize{
     position:absolute;
-    bottom:165px;
+    bottom:200px;
     left:0;right:0;
     text-align:center;
-    z-index:5;
+    z-index:7;
     padding:0 32px;
   }
   .prize-text{
     font-size:14px;
-    color:rgba(255,255,255,.7);
+    color:rgba(255,255,255,.85);
     line-height:1.6;
     letter-spacing:1px;
+    text-shadow:0 2px 10px rgba(0,0,0,.7);
   }
   .prize-text strong{color:#fff;font-weight:600}
 
@@ -160,10 +161,11 @@
   .embers-zone{
     position:absolute;
     bottom:0;left:0;right:0;
-    height:140px;
+    height:80px;
     z-index:3;
-    background:linear-gradient(180deg,transparent 0%,rgba(249,115,22,.2) 50%,rgba(220,38,38,.4) 100%);
+    background:linear-gradient(180deg,transparent 0%,rgba(249,115,22,.15) 50%,rgba(220,38,38,.3) 100%);
     overflow:hidden;
+    pointer-events:none;
   }
   .ember{
     position:absolute;width:4px;height:4px;border-radius:50%;
@@ -176,38 +178,55 @@
     0%{opacity:0;transform:translateY(0) scale(.5)}
     20%{opacity:1}
     80%{opacity:.6}
-    100%{opacity:0;transform:translateY(-200px) translateX(var(--dx,0)) scale(.2)}
+    100%{opacity:0;transform:translateY(-180px) translateX(var(--dx,0)) scale(.2)}
   }
   /* Glow rouge des braises */
   .embers-zone::before{
-    content:'';position:absolute;bottom:-20px;left:-10%;right:-10%;height:80px;
-    background:radial-gradient(ellipse at center bottom,rgba(220,38,38,.6) 0%,transparent 70%);
+    content:'';position:absolute;bottom:-10px;left:-10%;right:-10%;height:50px;
+    background:radial-gradient(ellipse at center bottom,rgba(220,38,38,.5) 0%,transparent 70%);
     filter:blur(8px);
   }
 
-  /* CTA bottom */
+  /* CTA bottom — bloc encadré pour contraste max */
   .cta{
     position:absolute;
-    bottom:32px;
-    left:0;right:0;
+    bottom:100px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:10;
     text-align:center;
-    z-index:7;
-    padding:0 32px;
+  }
+  .cta-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    background:rgba(0,0,0,.65);
+    backdrop-filter:blur(10px);
+    border:1.5px solid rgba(249,115,22,.6);
+    padding:14px 28px;
+    border-radius:999px;
+    box-shadow:0 0 30px rgba(249,115,22,.4),inset 0 1px 0 rgba(255,255,255,.1);
   }
   .cta-line{
-    display:inline-block;
     font-family:'Bebas Neue',sans-serif;
-    font-size:18px;
-    letter-spacing:6px;
+    font-size:20px;
+    letter-spacing:5px;
     color:#fff;
-    text-shadow:0 2px 12px rgba(0,0,0,.8);
   }
   .cta-line span{color:#fbbf24}
+  .cta-arrow{
+    font-size:18px;
+    color:#fbbf24;
+    animation:arrow-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes arrow-pulse{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
   .cta-info{
-    margin-top:6px;
+    margin-top:14px;
     font-size:11px;
-    color:rgba(255,255,255,.5);
-    letter-spacing:2px;
+    color:rgba(255,255,255,.6);
+    letter-spacing:3px;
+    text-transform:uppercase;
+    text-shadow:0 2px 8px rgba(0,0,0,.8);
   }
 
   /* Coin badge */
@@ -282,7 +301,10 @@
 
   <!-- CTA -->
   <div class="cta">
-    <div class="cta-line">DM <span>POUR</span> RÉSERVER</div>
+    <div class="cta-pill">
+      <span class="cta-line">DM <span>POUR</span> RÉSERVER</span>
+      <span class="cta-arrow">▶</span>
+    </div>
     <div class="cta-info">@braiseandco · Biganos</div>
   </div>
 </div>
