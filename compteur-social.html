@@ -412,12 +412,21 @@ function saveConfig({fb,ig,tiktok}){localStorage.setItem('bc_fb',fb);localStorag
 function openModal(){const c=getConfig();document.getElementById('cfg-fb').value=c.fb||'';document.getElementById('cfg-ig').value=c.ig||'';document.getElementById('cfg-tiktok').value=c.tiktok||'';document.getElementById('modal').classList.add('open')}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 async function saveAndRefresh(){
-  const cfg={fb:parseInt(document.getElementById('cfg-fb').value,10)||0,ig:parseInt(document.getElementById('cfg-ig').value,10)||0,tiktok:parseInt(document.getElementById('cfg-tiktok').value,10)||0};
+  const prev=getConfig();
+  const fbIn=parseInt(document.getElementById('cfg-fb').value,10);
+  const igIn=parseInt(document.getElementById('cfg-ig').value,10);
+  const ttIn=parseInt(document.getElementById('cfg-tiktok').value,10);
+  const cfg={fb:fbIn>0?fbIn:prev.fb,ig:igIn>0?igIn:prev.ig,tiktok:ttIn>0?ttIn:prev.tiktok};
   saveConfig(cfg);closeModal();refresh();
+  const patch={updated_at:new Date().toISOString()};
+  if(fbIn>0)patch.fb=fbIn;
+  if(igIn>0)patch.ig=igIn;
+  if(ttIn>0)patch.tiktok=ttIn;
+  if(Object.keys(patch).length===1)return;
   try{await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1`,{
     method:'PATCH',
     headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-    body:JSON.stringify({fb:cfg.fb,ig:cfg.ig,tiktok:cfg.tiktok,updated_at:new Date().toISOString()})
+    body:JSON.stringify(patch)
   });}catch{/* hors ligne */}
 }
 
