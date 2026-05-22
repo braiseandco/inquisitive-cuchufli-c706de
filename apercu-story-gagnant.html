@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aperçu story gagnant — Braise & Co</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:#1a1a1a;
+    font-family:'Outfit',sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    overflow:hidden;
+  }
+  .page-info{
+    position:fixed;
+    top:20px;
+    left:20px;
+    color:#999;
+    font-size:12px;
+    z-index:100;
+    background:rgba(0,0,0,.6);
+    padding:8px 14px;
+    border-radius:20px;
+  }
+  /* Story frame — simule 1080x1920 mais responsive */
+  .story{
+    position:relative;
+    width:min(420px,90vw);
+    aspect-ratio:9/16;
+    background:linear-gradient(180deg,#1a0a05 0%,#0a0405 40%,#0a0405 60%,#2a0c00 100%);
+    border-radius:28px;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(249,115,22,.3),0 0 120px rgba(0,0,0,.5);
+  }
+
+  /* Fumée en haut */
+  .smoke{
+    position:absolute;top:0;left:0;right:0;height:25%;
+    background:radial-gradient(ellipse at 50% 0%,rgba(255,255,255,.04) 0%,transparent 70%);
+    z-index:1;
+  }
+  .smoke::before,.smoke::after{
+    content:'';position:absolute;border-radius:50%;
+    background:radial-gradient(circle,rgba(200,200,200,.08) 0%,transparent 60%);
+    filter:blur(20px);
+    animation:smoke-drift 12s ease-in-out infinite;
+  }
+  .smoke::before{width:180px;height:180px;top:-40px;left:20%;}
+  .smoke::after{width:140px;height:140px;top:-20px;right:15%;animation-delay:-4s;animation-duration:14s;}
+  @keyframes smoke-drift{0%,100%{transform:translateY(0) translateX(0) scale(1);opacity:.4}50%{transform:translateY(20px) translateX(-15px) scale(1.2);opacity:.7}}
+
+  /* Logo en haut */
+  .logo-zone{
+    position:relative;z-index:5;
+    padding:48px 0 0;
+    text-align:center;
+  }
+  .logo-zone img{
+    height:60px;
+    width:auto;
+    opacity:.95;
+    filter:drop-shadow(0 0 16px rgba(249,115,22,.5));
+  }
+
+  /* Titre */
+  .header{
+    position:relative;z-index:5;
+    text-align:center;
+    margin-top:48px;
+    padding:0 32px;
+  }
+  .header-line{
+    width:60px;height:1px;
+    background:linear-gradient(90deg,transparent,#F97316,transparent);
+    margin:0 auto 14px;
+  }
+  .header-title{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:42px;
+    color:#fff;
+    letter-spacing:6px;
+    line-height:.95;
+  }
+  .header-title-sub{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:30px;
+    color:rgba(255,255,255,.4);
+    letter-spacing:8px;
+    margin-top:6px;
+  }
+
+  /* Username gagnant */
+  .winner{
+    position:absolute;
+    top:50%;
+    left:0;right:0;
+    transform:translateY(-50%);
+    text-align:center;
+    z-index:6;
+    padding:0 20px;
+  }
+  .winner-name{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:96px;
+    line-height:1;
+    letter-spacing:-1px;
+    background:linear-gradient(180deg,#fbbf24 0%,#F97316 60%,#dc2626 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    filter:drop-shadow(0 0 30px rgba(249,115,22,.6));
+    animation:winner-glow 2.4s ease-in-out infinite;
+    word-break:break-word;
+  }
+  @keyframes winner-glow{
+    0%,100%{filter:drop-shadow(0 0 30px rgba(249,115,22,.5))}
+    50%{filter:drop-shadow(0 -4px 50px rgba(251,191,36,.9)) drop-shadow(0 0 60px rgba(249,115,22,.7))}
+  }
+  .winner-tag{
+    display:inline-flex;align-items:center;gap:8px;
+    margin-bottom:14px;
+    padding:6px 14px;
+    background:rgba(249,115,22,.12);
+    border:1px solid rgba(249,115,22,.3);
+    border-radius:999px;
+    font-size:10px;
+    color:#fbbf24;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    font-weight:700;
+  }
+  .winner-tag::before{content:'';width:6px;height:6px;background:#fbbf24;border-radius:50%;animation:pulse 1.5s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* Prix info */
+  .prize{
+    position:absolute;
+    bottom:165px;
+    left:0;right:0;
+    text-align:center;
+    z-index:5;
+    padding:0 32px;
+  }
+  .prize-text{
+    font-size:14px;
+    color:rgba(255,255,255,.7);
+    line-height:1.6;
+    letter-spacing:1px;
+  }
+  .prize-text strong{color:#fff;font-weight:600}
+
+  /* Braises rougeoyantes en bas */
+  .embers-zone{
+    position:absolute;
+    bottom:0;left:0;right:0;
+    height:140px;
+    z-index:3;
+    background:linear-gradient(180deg,transparent 0%,rgba(249,115,22,.2) 50%,rgba(220,38,38,.4) 100%);
+    overflow:hidden;
+  }
+  .ember{
+    position:absolute;width:4px;height:4px;border-radius:50%;
+    background:#fbbf24;
+    box-shadow:0 0 8px 2px rgba(251,191,36,.8);
+    animation:ember-up 4s linear infinite;
+    opacity:0;
+  }
+  @keyframes ember-up{
+    0%{opacity:0;transform:translateY(0) scale(.5)}
+    20%{opacity:1}
+    80%{opacity:.6}
+    100%{opacity:0;transform:translateY(-200px) translateX(var(--dx,0)) scale(.2)}
+  }
+  /* Glow rouge des braises */
+  .embers-zone::before{
+    content:'';position:absolute;bottom:-20px;left:-10%;right:-10%;height:80px;
+    background:radial-gradient(ellipse at center bottom,rgba(220,38,38,.6) 0%,transparent 70%);
+    filter:blur(8px);
+  }
+
+  /* CTA bottom */
+  .cta{
+    position:absolute;
+    bottom:32px;
+    left:0;right:0;
+    text-align:center;
+    z-index:7;
+    padding:0 32px;
+  }
+  .cta-line{
+    display:inline-block;
+    font-family:'Bebas Neue',sans-serif;
+    font-size:18px;
+    letter-spacing:6px;
+    color:#fff;
+    text-shadow:0 2px 12px rgba(0,0,0,.8);
+  }
+  .cta-line span{color:#fbbf24}
+  .cta-info{
+    margin-top:6px;
+    font-size:11px;
+    color:rgba(255,255,255,.5);
+    letter-spacing:2px;
+  }
+
+  /* Coin badge */
+  .badge-week{
+    position:absolute;
+    top:24px;right:24px;
+    z-index:10;
+    background:rgba(0,0,0,.5);
+    backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.1);
+    padding:6px 12px;
+    border-radius:999px;
+    font-size:10px;
+    color:rgba(255,255,255,.7);
+    letter-spacing:2px;
+  }
+
+  /* Indicateur format */
+  .format-hint{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    color:#666;
+    font-size:11px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-info">
+  Aperçu story 1080×1920 — Direction 4 "Braise vivante"
+</div>
+
+<div class="story">
+  <!-- Badge semaine en haut à droite -->
+  <div class="badge-week">SEMAINE 21</div>
+
+  <!-- Fumée -->
+  <div class="smoke"></div>
+
+  <!-- Logo -->
+  <div class="logo-zone">
+    <img src="images/logo-blanc.png" alt="Braise & Co" onerror="this.style.display='none'">
+  </div>
+
+  <!-- Titre -->
+  <div class="header">
+    <div class="header-line"></div>
+    <div class="header-title">LE GAGNANT</div>
+    <div class="header-title-sub">DE LA SEMAINE</div>
+  </div>
+
+  <!-- Username gagnant au centre -->
+  <div class="winner">
+    <div class="winner-tag">🔥 TIRAGE OFFICIEL</div>
+    <div class="winner-name">@marie_b</div>
+  </div>
+
+  <!-- Texte prix -->
+  <div class="prize">
+    <div class="prize-text">
+      Tu gagnes <strong>1 repas chez Braise & Co</strong><br>
+      vendredi soir au choix, valable 30 jours
+    </div>
+  </div>
+
+  <!-- Braises rougeoyantes -->
+  <div class="embers-zone" id="embers"></div>
+
+  <!-- CTA -->
+  <div class="cta">
+    <div class="cta-line">DM <span>POUR</span> RÉSERVER</div>
+    <div class="cta-info">@braiseandco · Biganos</div>
+  </div>
+</div>
+
+<div class="format-hint">format vertical · IG story</div>
+
+<script>
+  // Génère les braises animées
+  const zone=document.getElementById('embers');
+  for(let i=0;i<20;i++){
+    const e=document.createElement('div');
+    e.className='ember';
+    const x=Math.random()*100;
+    const delay=Math.random()*4;
+    const dur=3+Math.random()*3;
+    const dx=(Math.random()-.5)*60;
+    const s=2+Math.random()*4;
+    e.style.cssText=`left:${x}%;bottom:10px;--dx:${dx}px;animation-duration:${dur}s;animation-delay:-${delay}s;width:${s}px;height:${s}px`;
+    zone.appendChild(e);
+  }
+</script>
+
+</body>
+</html>
