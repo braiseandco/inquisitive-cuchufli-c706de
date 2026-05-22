@@ -501,6 +501,26 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 
 async function fetchFromSupabase(){
   try{
+    // Déclenche l'edge function qui va chercher les vraies valeurs chez Meta (FB + IG)
+    const efRes=await fetch(`${SB_URL}/functions/v1/fetch-social-counts`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    if(efRes.ok){
+      const data=await efRes.json();
+      const cfg=getConfig();
+      if(data.fb>0)cfg.fb=data.fb;
+      if(data.ig>0)cfg.ig=data.ig;
+      // TikTok n'est pas géré par l'edge function, on lit la table directement
+      const tbRes=await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1&select=tiktok`,{
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+      });
+      if(tbRes.ok){const[row]=await tbRes.json();if(row&&row.tiktok>0)cfg.tiktok=row.tiktok;}
+      saveConfig(cfg);refresh();
+      return;
+    }
+  }catch{/* edge function indisponible, fallback */}
+  // Fallback : lecture directe de la table (valeurs en cache)
+  try{
     const res=await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1&select=fb,ig,tiktok`,{
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
     });
