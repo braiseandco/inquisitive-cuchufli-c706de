@@ -500,39 +500,33 @@ const SB_URL='https://ugyrrnqpapeagpuocwob.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
 
 async function fetchFromSupabase(){
-  try{
-    // Déclenche l'edge function qui va chercher les vraies valeurs chez Meta (FB + IG)
-    const efRes=await fetch(`${SB_URL}/functions/v1/fetch-social-counts`,{
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-    });
-    if(efRes.ok){
-      const data=await efRes.json();
-      const cfg=getConfig();
-      if(data.fb>0)cfg.fb=data.fb;
-      if(data.ig>0)cfg.ig=data.ig;
-      // TikTok n'est pas géré par l'edge function, on lit la table directement
-      const tbRes=await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1&select=tiktok`,{
-        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
-      });
-      if(tbRes.ok){const[row]=await tbRes.json();if(row&&row.tiktok>0)cfg.tiktok=row.tiktok;}
-      saveConfig(cfg);refresh();
-      return;
-    }
-  }catch{/* edge function indisponible, fallback */}
-  // Fallback : lecture directe de la table (valeurs en cache)
+  // 1. Lire la table (source de vérité — contient les valeurs validées)
+  let tableRow=null;
   try{
     const res=await fetch(`${SB_URL}/rest/v1/social_counts?id=eq.1&select=fb,ig,tiktok`,{
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
     });
-    if(!res.ok)return;
-    const [row]=await res.json();
-    if(!row)return;
-    const cfg=getConfig();
-    if(row.fb>0)cfg.fb=row.fb;
-    if(row.ig>0)cfg.ig=row.ig;
-    if(row.tiktok>0)cfg.tiktok=row.tiktok;
-    saveConfig(cfg);refresh();
-  }catch{/* réseau indisponible */}
+    if(res.ok){const[row]=await res.json();tableRow=row||null;}
+  }catch{/* réseau */}
+
+  // 2. Tenter l'edge function pour des valeurs Meta en temps réel (optionnel)
+  let efFb=null,efIg=null;
+  try{
+    const efRes=await fetch(`${SB_URL}/functions/v1/fetch-social-counts`,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+    });
+    if(efRes.ok){const d=await efRes.json();if(d.fb>0)efFb=d.fb;if(d.ig>0)efIg=d.ig;}
+  }catch{/* edge function indisponible */}
+
+  // 3. Priorité : edge function > table > localStorage existant
+  const cfg=getConfig();
+  const fb=efFb??(tableRow&&tableRow.fb>0?tableRow.fb:null);
+  const ig=efIg??(tableRow&&tableRow.ig>0?tableRow.ig:null);
+  const tiktok=tableRow&&tableRow.tiktok>0?tableRow.tiktok:null;
+  if(fb!==null)cfg.fb=fb;
+  if(ig!==null)cfg.ig=ig;
+  if(tiktok!==null)cfg.tiktok=tiktok;
+  saveConfig(cfg);refresh();
 }
 
 /* ── INIT ── */
