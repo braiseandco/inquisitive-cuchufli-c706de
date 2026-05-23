@@ -1,4 +1,4 @@
-const CACHE = 'bc-compteur-v8';
+const CACHE = 'bc-compteur-v9';
 const ASSETS = ['/compteur-social.html'];
 
 self.addEventListener('install', e => {
