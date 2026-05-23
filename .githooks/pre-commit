@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Pre-commit hook: bump cache version in sw-compteur.js if compteur-social.html changes.
+# Active via: git config core.hooksPath .githooks
+set -e
+
+STAGED="$(git diff --cached --name-only)"
+SW_FILE="sw-compteur.js"
+
+needs_bump=0
+echo "$STAGED" | grep -qE '^(compteur-social\.html|images/)' && needs_bump=1
+echo "$STAGED" | grep -qE "^${SW_FILE}$" && needs_bump=0  # déjà modifié manuellement → ne pas écraser
+
+if [ "$needs_bump" -eq 0 ]; then
+  exit 0
+fi
+
+if [ ! -f "$SW_FILE" ]; then
+  exit 0
+fi
+
+current="$(grep -oE "bc-compteur-v[0-9]+" "$SW_FILE" | head -1 | grep -oE '[0-9]+$')"
+if [ -z "$current" ]; then
+  echo "[pre-commit] ATTENTION: version cache introuvable dans $SW_FILE, skip."
+  exit 0
+fi
+
+next=$((current + 1))
+sed -i.bak "s/bc-compteur-v${current}/bc-compteur-v${next}/" "$SW_FILE"
+rm -f "${SW_FILE}.bak"
+git add "$SW_FILE"
+echo "[pre-commit] sw-compteur.js cache bumpé: v${current} -> v${next}"
