@@ -688,14 +688,18 @@ fetchFromSupabase();
 setInterval(fetchFromSupabase, 30*60*1000);
 
 /* ── SERVICE WORKER (mise à jour auto) ── */
-let swWaiting=null;
+let swWaiting=null;let swReg=null;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw-compteur.js').then(reg=>{
+    swReg=reg;
     const checkWaiting=()=>{if(reg.waiting){swWaiting=reg.waiting;document.getElementById('update-toast').classList.add('show')}};
     checkWaiting();
     reg.addEventListener('updatefound',()=>{const sw=reg.installing;sw.addEventListener('statechange',()=>{if(sw.state==='installed'&&navigator.serviceWorker.controller){swWaiting=sw;document.getElementById('update-toast').classList.add('show')}})});
+    setInterval(()=>{try{reg.update()}catch(_){}},5*60*1000);
   }).catch(()=>{});
   navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&swReg){try{swReg.update()}catch(_){}}});
+  window.addEventListener('focus',()=>{if(swReg){try{swReg.update()}catch(_){}}});
 }
 function applyUpdate(){if(swWaiting)swWaiting.postMessage({type:'SKIP_WAITING'});}
 </script>
