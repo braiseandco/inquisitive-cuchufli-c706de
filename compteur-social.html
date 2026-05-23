@@ -177,7 +177,7 @@
     /* ── SLIDES ── */
     #counters{flex:1;position:relative;overflow:hidden;min-height:0}
     #slides-track{display:flex;width:100%;height:100%;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform}
-    .slide{flex:0 0 100%;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;padding:16px 24px;overflow:hidden}
+    .slide{flex:0 0 100%;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;padding:12px 24px;overflow:hidden}
     .slide-bg{position:absolute;inset:0;border-radius:20px;opacity:1}
     .slide.fb-slide .slide-bg{background:radial-gradient(ellipse at 50% 30%,rgba(24,119,242,.18) 0%,rgba(24,119,242,.06) 50%,transparent 80%);border:1px solid rgba(24,119,242,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(24,119,242,.15)}
     .slide.ig-slide .slide-bg{background:radial-gradient(ellipse at 50% 30%,rgba(221,42,123,.18) 0%,rgba(245,133,41,.08) 50%,transparent 80%);border:1px solid rgba(221,42,123,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 80px rgba(221,42,123,.15)}
@@ -189,12 +189,12 @@
     .slide.ig-slide::after{background:linear-gradient(90deg,transparent,var(--ig-b),transparent);animation:bar-glow 3s ease-in-out infinite .5s}
     .slide.tt-slide::after{background:linear-gradient(90deg,transparent,var(--tt),transparent);animation:bar-glow 3s ease-in-out infinite 1s}
 
-    .slide-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%}
-    .slide-icon{width:64px;height:64px;filter:drop-shadow(0 4px 20px currentColor)}
+    .slide-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+    .slide-icon{width:clamp(36px,4vw,52px);height:clamp(36px,4vw,52px);filter:drop-shadow(0 4px 20px currentColor);flex-shrink:0}
     .slide-platform{font-size:14px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--muted)}
     .slide-number{
       font-family:'Bebas Neue',Impact,sans-serif;
-      font-size:clamp(72px,11vw,150px);
+      font-size:clamp(64px,9.5vw,130px);
       line-height:.9;letter-spacing:-3px;
       animation:num-fire 2.4s ease-in-out infinite;
       flex-shrink:1;min-width:0;
@@ -207,7 +207,7 @@
     }
     .slide.tt-slide .slide-number{color:var(--tt);text-shadow:0 0 60px rgba(105,201,208,.8),0 0 120px rgba(105,201,208,.3)}
     .slide-label{font-size:12px;font-weight:700;letter-spacing:6px;text-transform:uppercase;color:var(--muted)}
-    .slide-cta{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(26px,4vw,44px);letter-spacing:3px;margin-top:6px;text-align:center}
+    .slide-cta{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(20px,3vw,36px);letter-spacing:3px;margin-top:4px;text-align:center}
     .slide.fb-slide .slide-cta{color:var(--fb);text-shadow:0 0 30px rgba(24,119,242,.5)}
     .slide.ig-slide .slide-cta{background:linear-gradient(135deg,#F58529,#DD2A7B);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     .slide.tt-slide .slide-cta{color:var(--tt);text-shadow:0 0 30px rgba(105,201,208,.5)}
