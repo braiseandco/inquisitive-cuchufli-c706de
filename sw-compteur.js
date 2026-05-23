@@ -1,5 +1,5 @@
-const CACHE = 'bc-compteur-v9';
-const ASSETS = ['/compteur-social.html'];
+const CACHE = 'bc-compteur-v10';
+const ASSETS = ['/compteur-social.html', '/images/tripadvisor.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
