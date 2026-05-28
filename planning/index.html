@@ -199,6 +199,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .setting-row{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
 .setting-row .form-input{margin-top:8px;}
 .btn-save-setting{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:12px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-top:10px;}
+
+/* Watermark overlay */
+#watermark-overlay{display:none;position:fixed;inset:0;z-index:400;pointer-events:none;background-repeat:repeat;background-size:300px 180px;}
+
+/* Toggle switch */
+.toggle-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.15);border-radius:26px;transition:.3s;}
+.toggle-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
+.toggle-switch input:checked + .toggle-slider{background:var(--green);}
+.toggle-switch input:checked + .toggle-slider:before{transform:translateX(20px);}
 </style>
 </head>
 <body>
@@ -498,6 +509,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="btn-primary" style="width:100%;background:rgba(30,136,229,.2);border:1px solid rgba(30,136,229,.4);color:#90caf9" onclick="exportAllData()">💾 Exporter toutes les données</button>
       <div id="exportStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
     </div>
+
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">🔒 Protection des plannings</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px">Ajoute un filigrane avec le nom du salarié et la date sur les vues planning. Dissuade la diffusion des plannings par screenshot.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);padding:14px 16px;border-radius:12px;border:1px solid var(--border)">
+        <span style="font-size:13px">Filigrane de confidentialité</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggleScreenshotProtection" onchange="saveScreenshotProtection(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p style="font-size:11px;color:var(--text-faint);margin-top:10px;line-height:1.6">Note : il est impossible de bloquer techniquement les screenshots sur mobile. Le filigrane identifie l'auteur d'une capture et agit comme dissuasion.</p>
+    </div>
   </div>
 </div>
 
@@ -724,6 +748,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const PIN = '2013';
 const COLORS = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+let screenshotProtectionEnabled = false;
 
 // ══════════════════════════════════════
 //  SUPABASE HELPERS
@@ -814,7 +839,8 @@ let pinBuffer = '';
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if (id === 'home') loadHome();
+  if (id === 'home') { loadHome(); hideWatermark(); }
+  else if (id === 'mgr-login' || id === 'mgr-dash' || id === 'emp-week') hideWatermark();
 }
 
 // ══════════════════════════════════════
@@ -824,7 +850,12 @@ async function initHome() {
   const now = new Date();
   document.getElementById('homeDate').textContent = now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('homeWeek').textContent = fmtWeek(getMonday(now));
-  await loadHome();
+  await Promise.all([
+    loadHome(),
+    GET('settings?key=eq.screenshot_protection&select=value').then(rows => {
+      screenshotProtectionEnabled = rows[0]?.value === 'on';
+    }).catch(() => {})
+  ]);
 }
 
 async function loadHome() {
@@ -860,6 +891,7 @@ async function openSign(empId) {
   currentEmpId = empId;
   const emp = employees.find(e => e.id === empId);
   document.getElementById('signEmpName').textContent = emp.name;
+  showWatermark(emp.name);
 
   const monday = getMonday(new Date());
   const weekStart = dateStr(monday);
@@ -2362,6 +2394,36 @@ async function loadSettings() {
   document.getElementById('settingEmailDisplay').textContent = val || '(non configuré)';
   const gasRow = rows.find(r => r.key === 'gas_webhook_url');
   if (gasRow?.value) document.getElementById('gasWebhookUrl').value = gasRow.value;
+  const spRow = rows.find(r => r.key === 'screenshot_protection');
+  screenshotProtectionEnabled = spRow?.value === 'on';
+  const toggle = document.getElementById('toggleScreenshotProtection');
+  if (toggle) toggle.checked = screenshotProtectionEnabled;
+}
+
+async function saveScreenshotProtection(enabled) {
+  screenshotProtectionEnabled = enabled;
+  try {
+    await sb('settings?on_conflict=key', {
+      method: 'POST',
+      body: JSON.stringify({key: 'screenshot_protection', value: enabled ? 'on' : 'off'}),
+      headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
+    });
+    toast(enabled ? '🔒 Protection activée' : '🔓 Protection désactivée');
+  } catch(e) { toast('Erreur : ' + e.message); }
+}
+
+function showWatermark(empName) {
+  if (!screenshotProtectionEnabled) return;
+  const overlay = document.getElementById('watermark-overlay');
+  const now = new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><g transform='rotate(-30 150 90)'><text x='10' y='85' font-size='15' fill='rgba(255,255,255,0.10)' font-family='sans-serif' font-weight='700'>${empName}</text><text x='10' y='107' font-size='11' fill='rgba(255,255,255,0.07)' font-family='sans-serif'>Confidentiel · ${now}</text></g></svg>`;
+  overlay.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  overlay.style.display = 'block';
+}
+
+function hideWatermark() {
+  const overlay = document.getElementById('watermark-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 async function saveSetting(key, value) {
   await sb(`settings?key=eq.${key}`, {method:'PATCH', body: JSON.stringify({value}), headers:{'Prefer':'return=representation'}});
@@ -3097,6 +3159,9 @@ function closePrintOverlay() {
   document.getElementById('printFrame').srcdoc = '';
 }
 </script>
+
+<!-- ═══ WATERMARK OVERLAY ═══ -->
+<div id="watermark-overlay"></div>
 
 <!-- ═══ PRINT OVERLAY ═══ -->
 <div id="printOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#f0f0f0;flex-direction:column">
