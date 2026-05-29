@@ -833,6 +833,30 @@ let calResaDates = new Set(); // jours avec réservations
 let pendingNotifResas = []; // réservations reçues non encore consultées
 let pendingNotifDates = new Set(); // dates avec nouvelles réservations non vues
 
+// Persistance des étoiles "nouvelle résa" — survit aux rechargements (PWA/SW)
+const PENDING_NOTIF_KEY = 'braise_pendingNotif_v1';
+function savePendingNotif(){
+  try{ localStorage.setItem(PENDING_NOTIF_KEY, JSON.stringify(pendingNotifResas)); }catch(e){}
+}
+function loadPendingNotif(){
+  try{
+    const raw = localStorage.getItem(PENDING_NOTIF_KEY);
+    if(raw){
+      pendingNotifResas = JSON.parse(raw) || [];
+      pendingNotifDates = new Set(pendingNotifResas.map(r=>r.date));
+    }
+  }catch(e){}
+}
+// Efface l'étoile d'une résa précise (uniquement à la confirmation manuelle).
+// L'étoile du jour reste tant qu'il y a d'autres résa non confirmées à cette date.
+function clearNotifForResa(id){
+  pendingNotifResas = pendingNotifResas.filter(r=>String(r.id)!==String(id));
+  pendingNotifDates = new Set(pendingNotifResas.map(r=>r.date));
+  savePendingNotif();
+  if(pendingNotifResas.length===0) document.getElementById('new-resa-badge').classList.remove('show');
+  if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
+}
+
 function openCalendar(){
   const parts = currentDate.split('-');
   calViewYear  = parseInt(parts[0]);
@@ -909,12 +933,7 @@ function renderCalendar(){
       const ds = el.dataset.date;
       currentDate = ds;
       updateDateLabel();
-      // Effacer l'étoile si c'est une date avec nouvelle résa
-      if(pendingNotifDates.has(ds)){
-        pendingNotifDates.delete(ds);
-        // Garder seulement les resas d'autres dates en pending
-        pendingNotifResas = pendingNotifResas.filter(r=>r.date !== ds);
-      }
+      // L'étoile ne s'efface qu'à la confirmation manuelle de la résa, pas à la navigation
       loadResas();
       closeCalendar();
     };
@@ -1167,8 +1186,17 @@ function renderResas(resas){
   // Bind clicks (onclick + touchend pour Android/tablette)
   container.querySelectorAll('.resa-card').forEach(card=>{
     card.onclick=()=>clickResa(card.dataset.id, card.dataset.tableId);
+    let _tx=0,_ty=0,_tmoved=false;
+    card.addEventListener('touchstart',function(e){
+      const t=e.touches[0]; _tx=t.clientX; _ty=t.clientY; _tmoved=false;
+    },{passive:true});
+    card.addEventListener('touchmove',function(e){
+      const t=e.touches[0];
+      if(Math.abs(t.clientX-_tx)>10 || Math.abs(t.clientY-_ty)>10) _tmoved=true;
+    },{passive:true});
     card.addEventListener('touchend',function(e){
       if(e.target.closest('.btn-arrivee,.btn-delete-resa')) return;
+      if(_tmoved) return; // c'était un scroll, pas un tap
       if(e.cancelable)e.preventDefault();
       clickResa(this.dataset.id, this.dataset.tableId);
     },{passive:false});
@@ -1287,6 +1315,7 @@ async function openDetail(id){
         try{
           await updateResa(id,{statut:p.dataset.status});
           if(p.dataset.status==='confirmee'){
+            clearNotifForResa(id);
             if(r.email){
               envoyerConfirmationEmail(r);
               await updateResa(id,{mail_confirmation_envoye:true});
@@ -2133,10 +2162,14 @@ let pollingActive = true;
 
 let pollingStarted = false;
 const notifiedResaIds = new Set(); // IDs déjà notifiés — évite les doublons
+const LAST_SEEN_KEY = 'braise_lastSeenCreatedAt_v1';
 
 async function initPolling(){
   if(pollingStarted) return; // Ne jamais démarrer deux fois
   pollingStarted = true;
+  // Restaurer les étoiles non vues du dernier passage
+  loadPendingNotif();
+  const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
   lastPollTime = new Date().toISOString();
   // Pré-remplir uniquement les IDs d'aujourd'hui et demain
   try{
@@ -2144,7 +2177,24 @@ async function initPolling(){
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
     const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow+'&id=not.like.roulette_%25&id=not.like.fid_%25');
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
+    // Étoiles pour les résa créées pendant que l'app était fermée
+    if(lastSeen){
+      const manquees = await sbFetch(
+        'reservations?created_at=gt.'+encodeURIComponent(lastSeen)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
+      );
+      if(manquees && manquees.length){
+        manquees.filter(r=>r.statut!=='confirmee').forEach(r=>{
+          notifiedResaIds.add(r.id);
+          if(!pendingNotifResas.find(x=>x.id===r.id)) pendingNotifResas.push(r);
+          pendingNotifDates.add(r.date);
+          calResaDates.add(r.date);
+        });
+        savePendingNotif();
+        document.getElementById('new-resa-badge').classList.add('show');
+      }
+    }
   }catch(e){}
+  localStorage.setItem(LAST_SEEN_KEY, lastPollTime);
   setInterval(checkNewResas, 30000);
 }
 
@@ -2153,6 +2203,7 @@ async function checkNewResas(){
   try{
     const since = lastPollTime;
     lastPollTime = new Date().toISOString();
+    localStorage.setItem(LAST_SEEN_KEY, lastPollTime);
     const newOnes = await sbFetch(
       'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
     );
@@ -2179,6 +2230,7 @@ function showNotification(newResas){
     pendingNotifDates.add(r2.date);
     calResaDates.add(r2.date);
   });
+  savePendingNotif();
   // Rafraîchir l'étoile dans le calendrier si ouvert
   if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
 
@@ -2206,13 +2258,10 @@ function showNotification(newResas){
   // Auto-hide after 15s
   setTimeout(()=>document.getElementById('notif-banner').classList.remove('show'), 15000);
 
-  // Si déjà sur l'onglet réservations : naviguer direct sur la date
-  if(document.getElementById('screen-reservations').classList.contains('active')){
-    currentDate = r.date;
-    updateDateLabel();
-    pendingNotifDates.delete(r.date);
-    pendingNotifResas = pendingNotifResas.filter(x=>x.date !== r.date);
-    loadResas(r.id, true);
+  // Si on regarde déjà la date concernée : rafraîchir la liste (sans effacer l'étoile)
+  if(document.getElementById('screen-reservations').classList.contains('active')
+     && newResas.some(x=>x.date === currentDate)){
+    loadResas();
   }
 }
 
@@ -2228,8 +2277,7 @@ document.getElementById('notif-close').onclick = ()=>{
     const r = pendingNotifResas[0];
     currentDate = r.date;
     updateDateLabel();
-    pendingNotifDates.delete(r.date);
-    pendingNotifResas = pendingNotifResas.filter(x=>x.date !== r.date);
+    // L'étoile reste jusqu'à confirmation manuelle — on navigue seulement
     loadResas(r.id);
   } else {
     loadResas();
