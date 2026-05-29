@@ -833,38 +833,36 @@ let calResaDates = new Set(); // jours avec réservations
 let pendingNotifResas = []; // réservations reçues non encore consultées
 let pendingNotifDates = new Set(); // dates avec nouvelles réservations non vues
 
-// Persistance des étoiles "nouvelle résa" — survit aux rechargements (PWA/SW)
-const PENDING_NOTIF_KEY = 'braise_pendingNotif_v1';
-function savePendingNotif(){
-  try{ localStorage.setItem(PENDING_NOTIF_KEY, JSON.stringify(pendingNotifResas)); }catch(e){}
-}
-function loadPendingNotif(){
+// Étoiles "à confirmer" dérivées de la base (statut=en-attente, futures) :
+// partagées entre toutes les tablettes. Confirmer une résa la passe en
+// 'confirmee' → l'étoile disparaît sur tous les terminaux au prochain refresh.
+async function refreshPendingNotif(){
   try{
-    const raw = localStorage.getItem(PENDING_NOTIF_KEY);
-    if(raw){
-      pendingNotifResas = JSON.parse(raw) || [];
-      pendingNotifDates = new Set(pendingNotifResas.map(r=>r.date));
-    }
+    const today = new Date().toISOString().split('T')[0];
+    const rows = await sbFetch(
+      'reservations?statut=eq.en-attente&date=gte.'+today+
+      '&select=id,nom,date,heure,personnes&order=date.asc,heure.asc'+
+      '&id=not.like.roulette_%25&id=not.like.fid_%25'
+    );
+    pendingNotifResas = rows || [];
+    pendingNotifDates = new Set(pendingNotifResas.map(r=>r.date));
+    pendingNotifResas.forEach(r=>calResaDates.add(r.date));
+    const badge = document.getElementById('new-resa-badge');
+    if(pendingNotifResas.length) badge.classList.add('show');
+    else badge.classList.remove('show');
+    if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
   }catch(e){}
-}
-// Efface l'étoile d'une résa précise (uniquement à la confirmation manuelle).
-// L'étoile du jour reste tant qu'il y a d'autres résa non confirmées à cette date.
-function clearNotifForResa(id){
-  pendingNotifResas = pendingNotifResas.filter(r=>String(r.id)!==String(id));
-  pendingNotifDates = new Set(pendingNotifResas.map(r=>r.date));
-  savePendingNotif();
-  if(pendingNotifResas.length===0) document.getElementById('new-resa-badge').classList.remove('show');
-  if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
 }
 
 function openCalendar(){
   const parts = currentDate.split('-');
   calViewYear  = parseInt(parts[0]);
   calViewMonth = parseInt(parts[1]) - 1;
-  // Charger les dates qui ont des réservations (toutes)
+  // Charger les dates qui ont des réservations (toutes) + étoiles à jour
   getAllResas().then(all=>{
     calResaDates = new Set((all||[]).map(r=>r.date));
     renderCalendar();
+    refreshPendingNotif();
   }).catch(()=>renderCalendar());
 
   // Positionner le popup sous le label
@@ -1314,8 +1312,8 @@ async function openDetail(id){
         showLoader(true);
         try{
           await updateResa(id,{statut:p.dataset.status});
+          refreshPendingNotif(); // sync étoiles sur toutes les tablettes
           if(p.dataset.status==='confirmee'){
-            clearNotifForResa(id);
             if(r.email){
               envoyerConfirmationEmail(r);
               await updateResa(id,{mail_confirmation_envoye:true});
@@ -2162,39 +2160,20 @@ let pollingActive = true;
 
 let pollingStarted = false;
 const notifiedResaIds = new Set(); // IDs déjà notifiés — évite les doublons
-const LAST_SEEN_KEY = 'braise_lastSeenCreatedAt_v1';
 
 async function initPolling(){
   if(pollingStarted) return; // Ne jamais démarrer deux fois
   pollingStarted = true;
-  // Restaurer les étoiles non vues du dernier passage
-  loadPendingNotif();
-  const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
   lastPollTime = new Date().toISOString();
-  // Pré-remplir uniquement les IDs d'aujourd'hui et demain
+  // Étoiles "à confirmer" dérivées de la base — partagées entre toutes les tablettes
+  refreshPendingNotif();
+  // Pré-remplir les IDs récents pour ne pas re-sonner la bannière au démarrage
   try{
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0];
     const existing = await sbFetch('reservations?select=id&date=gte.'+today+'&date=lte.'+tomorrow+'&id=not.like.roulette_%25&id=not.like.fid_%25');
     if(existing) existing.forEach(r => notifiedResaIds.add(r.id));
-    // Étoiles pour les résa créées pendant que l'app était fermée
-    if(lastSeen){
-      const manquees = await sbFetch(
-        'reservations?created_at=gt.'+encodeURIComponent(lastSeen)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
-      );
-      if(manquees && manquees.length){
-        manquees.filter(r=>r.statut!=='confirmee').forEach(r=>{
-          notifiedResaIds.add(r.id);
-          if(!pendingNotifResas.find(x=>x.id===r.id)) pendingNotifResas.push(r);
-          pendingNotifDates.add(r.date);
-          calResaDates.add(r.date);
-        });
-        savePendingNotif();
-        document.getElementById('new-resa-badge').classList.add('show');
-      }
-    }
   }catch(e){}
-  localStorage.setItem(LAST_SEEN_KEY, lastPollTime);
   setInterval(checkNewResas, 30000);
 }
 
@@ -2203,7 +2182,6 @@ async function checkNewResas(){
   try{
     const since = lastPollTime;
     lastPollTime = new Date().toISOString();
-    localStorage.setItem(LAST_SEEN_KEY, lastPollTime);
     const newOnes = await sbFetch(
       'reservations?created_at=gt.'+encodeURIComponent(since)+'&select=*&order=created_at.asc&id=not.like.roulette_%25&id=not.like.fid_%25'
     );
@@ -2215,6 +2193,8 @@ async function checkNewResas(){
       const pourBanniere = vraimentNouveaux.filter(r => r.statut !== 'confirmee');
       if(pourBanniere.length > 0) showNotification(pourBanniere);
     }
+    // Re-synchroniser les étoiles (nouvelles arrivées + confirmations d'une autre tablette)
+    refreshPendingNotif();
   }catch(e){ console.log('Polling error:', e); }
 }
 
@@ -2224,15 +2204,9 @@ function showNotification(newResas){
   const title = newResas.length > 1 ? newResas.length+' nouvelles réservations !' : 'Nouvelle réservation en ligne !';
   const sub = r.nom+' — '+r.personnes+'p — '+dateStr+' à '+r.heure.slice(0,5);
 
-  // Mémoriser les nouvelles resas pour navigation ultérieure
-  newResas.forEach(r2=>{
-    if(!pendingNotifResas.find(x=>x.id===r2.id)) pendingNotifResas.push(r2);
-    pendingNotifDates.add(r2.date);
-    calResaDates.add(r2.date);
-  });
-  savePendingNotif();
-  // Rafraîchir l'étoile dans le calendrier si ouvert
-  if(document.getElementById('cal-popup').classList.contains('open')) renderCalendar();
+  // Étoiles dérivées de la base (sync multi-tablette)
+  newResas.forEach(r2=>calResaDates.add(r2.date));
+  refreshPendingNotif();
 
   document.getElementById('notif-title').textContent = title;
   document.getElementById('notif-sub').textContent = sub;
