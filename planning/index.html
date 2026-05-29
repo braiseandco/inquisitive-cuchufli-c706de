@@ -106,6 +106,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .emp-card-name{flex:1;font-size:15px;font-weight:700;}
 .emp-card-sub{font-size:11px;color:var(--text-dim);margin-top:2px;}
 .btn-del{background:rgba(229,57,53,.1);border:1px solid rgba(229,57,53,.25);color:#ef9a9a;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;}
+.btn-rename{background:rgba(30,136,229,.12);border:1px solid rgba(30,136,229,.3);color:#90caf9;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer;flex-shrink:0;}
 .btn-edit-sched{background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.25);color:#ffcc80;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-right:6px;}
 
 /* Planning tab */
@@ -199,17 +200,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .setting-row{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
 .setting-row .form-input{margin-top:8px;}
 .btn-save-setting{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:12px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-top:10px;}
-
-/* Watermark overlay */
-#watermark-overlay{display:none;position:fixed;inset:0;z-index:400;pointer-events:none;background-repeat:repeat;background-size:300px 180px;}
-
-/* Toggle switch */
-.toggle-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;}
-.toggle-switch input{opacity:0;width:0;height:0;}
-.toggle-slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.15);border-radius:26px;transition:.3s;}
-.toggle-slider:before{position:absolute;content:'';height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
-.toggle-switch input:checked + .toggle-slider{background:var(--green);}
-.toggle-switch input:checked + .toggle-slider:before{transform:translateX(20px);}
 </style>
 </head>
 <body>
@@ -398,12 +388,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
     </div>
     <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-add" style="width:100%;background:rgba(255,204,2,.15);color:var(--accent3);border:1px solid rgba(255,204,2,.4);padding:13px 14px;font-size:13px;font-weight:700" onclick="generateWeekFromBase()">📋 Générer la semaine (horaires de base)</button>
       <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture</button>
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
       <button class="btn-add" style="background:rgba(30,136,229,.15);color:#90caf9;border:1px solid rgba(30,136,229,.3);padding:10px 14px" onclick="openEditWeek()">✏️ Modifier</button>
       <button class="btn-add" style="width:100%;margin-top:4px;background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.4);padding:12px 14px;font-size:13px" onclick="openSmsPlanningModal()">📱 Envoyer le planning par SMS</button>
     </div>
+    <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 14px;line-height:1.6">💡 Astuce : touchez n'importe quelle case du tableau pour modifier un horaire. « Générer la semaine » remplit tout d'un coup depuis les horaires de base.</p>
     <div id="planningBlocks"></div>
   </div>
 
@@ -508,19 +500,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Exporte toutes les données (plannings, horaires, signatures) en fichier JSON. À faire régulièrement pour archivage sur 5 ans.</p>
       <button class="btn-primary" style="width:100%;background:rgba(30,136,229,.2);border:1px solid rgba(30,136,229,.4);color:#90caf9" onclick="exportAllData()">💾 Exporter toutes les données</button>
       <div id="exportStatus" style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center"></div>
-    </div>
-
-    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
-      <div class="section-title" style="margin-bottom:8px">🔒 Protection des plannings</div>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px">Ajoute un filigrane avec le nom du salarié et la date sur les vues planning. Dissuade la diffusion des plannings par screenshot.</p>
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);padding:14px 16px;border-radius:12px;border:1px solid var(--border)">
-        <span style="font-size:13px">Filigrane de confidentialité</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="toggleScreenshotProtection" onchange="saveScreenshotProtection(this.checked)">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <p style="font-size:11px;color:var(--text-faint);margin-top:10px;line-height:1.6">Note : il est impossible de bloquer techniquement les screenshots sur mobile. Le filigrane identifie l'auteur d'une capture et agit comme dissuasion.</p>
     </div>
   </div>
 </div>
@@ -748,7 +727,6 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const PIN = '2013';
 const COLORS = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-let screenshotProtectionEnabled = false;
 
 // ══════════════════════════════════════
 //  SUPABASE HELPERS
@@ -839,8 +817,7 @@ let pinBuffer = '';
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if (id === 'home') { loadHome(); hideWatermark(); }
-  else if (id === 'mgr-login' || id === 'mgr-dash' || id === 'emp-week') hideWatermark();
+  if (id === 'home') loadHome();
 }
 
 // ══════════════════════════════════════
@@ -850,12 +827,7 @@ async function initHome() {
   const now = new Date();
   document.getElementById('homeDate').textContent = now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('homeWeek').textContent = fmtWeek(getMonday(now));
-  await Promise.all([
-    loadHome(),
-    GET('settings?key=eq.screenshot_protection&select=value').then(rows => {
-      screenshotProtectionEnabled = rows[0]?.value === 'on';
-    }).catch(() => {})
-  ]);
+  await loadHome();
 }
 
 async function loadHome() {
@@ -891,7 +863,6 @@ async function openSign(empId) {
   currentEmpId = empId;
   const emp = employees.find(e => e.id === empId);
   document.getElementById('signEmpName').textContent = emp.name;
-  showWatermark(emp.name);
 
   const monday = getMonday(new Date());
   const weekStart = dateStr(monday);
@@ -1170,6 +1141,7 @@ function loadEmpCards() {
         <div class="emp-card-name">${e.name}</div>
         <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
+      <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
       <button class="btn-del" onclick="event.stopPropagation();deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
     </div>
   `).join('');
@@ -1197,8 +1169,10 @@ function openEmpWeek(empId) {
   loadEmpWeek();
 }
 
-function openRenameEmp() {
-  const emp = employees.find(e => e.id === currentEwEmpId);
+let renameTargetId = null;
+function openRenameEmp(empId) {
+  renameTargetId = empId || currentEwEmpId;
+  const emp = employees.find(e => e.id === renameTargetId);
   document.getElementById('renameInput').value = emp ? emp.name : '';
   openModal('modalRename');
 }
@@ -1206,14 +1180,20 @@ function openRenameEmp() {
 async function saveRenameEmp() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
+  const targetId = renameTargetId || currentEwEmpId;
   try {
-    await PATCH(`employees?id=eq.${currentEwEmpId}`, {name});
-    const emp = employees.find(e => e.id === currentEwEmpId);
+    await PATCH(`employees?id=eq.${targetId}`, {name});
+    const emp = employees.find(e => e.id === targetId);
     if (emp) emp.name = name;
-    document.getElementById('ewEmpName').textContent = name;
-    document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
+    // Met à jour la vue planning salarié si c'est l'employé affiché
+    if (targetId === currentEwEmpId) {
+      document.getElementById('ewEmpName').textContent = name;
+      document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
+    }
     closeModal('modalRename');
     toast('Nom mis à jour');
+    // Rafraîchit la liste des employés si elle est visible
+    if (document.getElementById('empCardList')) loadEmpCards();
   } catch(e) {
     toast('Erreur : ' + e.message);
   }
@@ -1634,6 +1614,91 @@ async function loadPlanningTab() {
 
   html += '</tbody></table></div>';
   document.getElementById('planningBlocks').innerHTML = html;
+}
+
+// Construit une ligne weekly_override à partir d'un horaire de base (schedules)
+// dn = numéro de jour (2=Mar … 7=Dim). Renvoie null si l'employé ne travaille pas ce jour-là.
+function buildOvFromSched(empId, ds, dn, sched) {
+  const hasEvening = (dn === 5 || dn === 6); // Ven, Sam
+  if (!sched || sched.is_off) return null;
+  const mornWorks = !!sched.start_time;
+  const eveWorks  = hasEvening && !!sched.evening_start;
+  if (!mornWorks && !eveWorks) return null; // rien à générer ce jour-là
+  return {
+    employee_id: empId, date: ds, status: 'present',
+    morn_status: mornWorks ? 'on' : 'repos',
+    eve_status:  hasEvening ? (eveWorks ? 'on' : 'repos') : null,
+    start_time:  mornWorks ? sched.start_time  : null,
+    break_start: mornWorks ? sched.break_start : null,
+    break_end:   mornWorks ? sched.break_end   : null,
+    end_time:    mornWorks ? sched.end_time    : null,
+    evening_start:       eveWorks ? sched.evening_start       : null,
+    evening_break_start: eveWorks ? sched.evening_break_start : null,
+    evening_break_end:   eveWorks ? sched.evening_break_end   : null,
+    evening_end:         eveWorks ? sched.evening_end         : null,
+    note: null
+  };
+}
+
+// Génère toute la semaine visible à partir des horaires de base de chaque employé
+async function generateWeekFromBase() {
+  try {
+    if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+    if (!employees.length) { toast('Aucun employé enregistré'); return; }
+
+    const dates = weekDates(planningWeek);
+    const weekStart = dateStr(planningWeek);
+    const weekEnd   = dateStr(dates[6]);
+
+    const [allScheds, existingOv] = await Promise.all([
+      GET('schedules?select=*'),
+      GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`)
+    ]);
+
+    // Garde-fou : si la semaine contient déjà des horaires, on confirme avant d'écraser
+    if (existingOv.length) {
+      const ok = confirm(
+        "Cette semaine contient déjà des horaires.\n\n" +
+        "Voulez-vous la régénérer depuis les horaires de base ?\n" +
+        "⚠️ Vos ajustements de cette semaine seront remplacés."
+      );
+      if (!ok) return;
+    }
+
+    // Index des horaires de base par employé puis jour de semaine
+    const schedByEmp = {};
+    allScheds.forEach(s => {
+      (schedByEmp[s.employee_id] = schedByEmp[s.employee_id] || {})[s.day_of_week] = s;
+    });
+
+    // Construire les lignes (Mar→Dim ; lundi = restaurant fermé, ignoré)
+    const rows = [];
+    for (const emp of employees) {
+      for (let i = 1; i <= 6; i++) {
+        const dn = i + 1; // 2=Mar … 7=Dim
+        const sched = schedByEmp[emp.id]?.[dn];
+        const row = buildOvFromSched(emp.id, dateStr(dates[i]), dn, sched);
+        if (row) rows.push(row);
+      }
+    }
+
+    if (!rows.length) {
+      toast('Aucun horaire de base défini. Renseignez-les via « Horaires de base ».');
+      return;
+    }
+
+    // Remplacer la semaine : on efface puis on réinsère
+    await sb(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    await sb('weekly_overrides',
+      { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(rows) });
+
+    toast('Semaine générée ✓ — ajustez les exceptions en touchant les cases');
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('generateWeekFromBase', e);
+  }
 }
 
 function printPlanningReportForDate() {
@@ -2394,36 +2459,6 @@ async function loadSettings() {
   document.getElementById('settingEmailDisplay').textContent = val || '(non configuré)';
   const gasRow = rows.find(r => r.key === 'gas_webhook_url');
   if (gasRow?.value) document.getElementById('gasWebhookUrl').value = gasRow.value;
-  const spRow = rows.find(r => r.key === 'screenshot_protection');
-  screenshotProtectionEnabled = spRow?.value === 'on';
-  const toggle = document.getElementById('toggleScreenshotProtection');
-  if (toggle) toggle.checked = screenshotProtectionEnabled;
-}
-
-async function saveScreenshotProtection(enabled) {
-  screenshotProtectionEnabled = enabled;
-  try {
-    await sb('settings?on_conflict=key', {
-      method: 'POST',
-      body: JSON.stringify({key: 'screenshot_protection', value: enabled ? 'on' : 'off'}),
-      headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}
-    });
-    toast(enabled ? '🔒 Protection activée' : '🔓 Protection désactivée');
-  } catch(e) { toast('Erreur : ' + e.message); }
-}
-
-function showWatermark(empName) {
-  if (!screenshotProtectionEnabled) return;
-  const overlay = document.getElementById('watermark-overlay');
-  const now = new Date().toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><g transform='rotate(-30 150 90)'><text x='10' y='85' font-size='15' fill='rgba(255,255,255,0.10)' font-family='sans-serif' font-weight='700'>${empName}</text><text x='10' y='107' font-size='11' fill='rgba(255,255,255,0.07)' font-family='sans-serif'>Confidentiel · ${now}</text></g></svg>`;
-  overlay.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-  overlay.style.display = 'block';
-}
-
-function hideWatermark() {
-  const overlay = document.getElementById('watermark-overlay');
-  if (overlay) overlay.style.display = 'none';
 }
 async function saveSetting(key, value) {
   await sb(`settings?key=eq.${key}`, {method:'PATCH', body: JSON.stringify({value}), headers:{'Prefer':'return=representation'}});
@@ -3159,9 +3194,6 @@ function closePrintOverlay() {
   document.getElementById('printFrame').srcdoc = '';
 }
 </script>
-
-<!-- ═══ WATERMARK OVERLAY ═══ -->
-<div id="watermark-overlay"></div>
 
 <!-- ═══ PRINT OVERLAY ═══ -->
 <div id="printOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#f0f0f0;flex-direction:column">
