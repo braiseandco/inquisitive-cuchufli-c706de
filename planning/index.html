@@ -106,6 +106,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .emp-card-name{flex:1;font-size:15px;font-weight:700;}
 .emp-card-sub{font-size:11px;color:var(--text-dim);margin-top:2px;}
 .btn-del{background:rgba(229,57,53,.1);border:1px solid rgba(229,57,53,.25);color:#ef9a9a;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;}
+.btn-rename{background:rgba(30,136,229,.12);border:1px solid rgba(30,136,229,.3);color:#90caf9;border-radius:8px;padding:7px 11px;font-size:13px;cursor:pointer;flex-shrink:0;}
 .btn-edit-sched{background:rgba(255,107,0,.1);border:1px solid rgba(255,107,0,.25);color:#ffcc80;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;font-family:'Raleway',sans-serif;cursor:pointer;margin-right:6px;}
 
 /* Planning tab */
@@ -387,12 +388,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="week-nav-btn" onclick="changeWeek(1)">›</button>
     </div>
     <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-add" style="width:100%;background:rgba(255,204,2,.15);color:var(--accent3);border:1px solid rgba(255,204,2,.4);padding:13px 14px;font-size:13px;font-weight:700" onclick="generateWeekFromBase()">📋 Générer la semaine (horaires de base)</button>
       <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture</button>
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
       <button class="btn-add" style="background:rgba(30,136,229,.15);color:#90caf9;border:1px solid rgba(30,136,229,.3);padding:10px 14px" onclick="openEditWeek()">✏️ Modifier</button>
       <button class="btn-add" style="width:100%;margin-top:4px;background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.4);padding:12px 14px;font-size:13px" onclick="openSmsPlanningModal()">📱 Envoyer le planning par SMS</button>
     </div>
+    <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 14px;line-height:1.6">💡 Astuce : touchez n'importe quelle case du tableau pour modifier un horaire. « Générer la semaine » remplit tout d'un coup depuis les horaires de base.</p>
     <div id="planningBlocks"></div>
   </div>
 
@@ -1138,6 +1141,7 @@ function loadEmpCards() {
         <div class="emp-card-name">${e.name}</div>
         <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
+      <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
       <button class="btn-del" onclick="event.stopPropagation();deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
     </div>
   `).join('');
@@ -1165,8 +1169,10 @@ function openEmpWeek(empId) {
   loadEmpWeek();
 }
 
-function openRenameEmp() {
-  const emp = employees.find(e => e.id === currentEwEmpId);
+let renameTargetId = null;
+function openRenameEmp(empId) {
+  renameTargetId = empId || currentEwEmpId;
+  const emp = employees.find(e => e.id === renameTargetId);
   document.getElementById('renameInput').value = emp ? emp.name : '';
   openModal('modalRename');
 }
@@ -1174,14 +1180,20 @@ function openRenameEmp() {
 async function saveRenameEmp() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
+  const targetId = renameTargetId || currentEwEmpId;
   try {
-    await PATCH(`employees?id=eq.${currentEwEmpId}`, {name});
-    const emp = employees.find(e => e.id === currentEwEmpId);
+    await PATCH(`employees?id=eq.${targetId}`, {name});
+    const emp = employees.find(e => e.id === targetId);
     if (emp) emp.name = name;
-    document.getElementById('ewEmpName').textContent = name;
-    document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
+    // Met à jour la vue planning salarié si c'est l'employé affiché
+    if (targetId === currentEwEmpId) {
+      document.getElementById('ewEmpName').textContent = name;
+      document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
+    }
     closeModal('modalRename');
     toast('Nom mis à jour');
+    // Rafraîchit la liste des employés si elle est visible
+    if (document.getElementById('empCardList')) loadEmpCards();
   } catch(e) {
     toast('Erreur : ' + e.message);
   }
@@ -1602,6 +1614,91 @@ async function loadPlanningTab() {
 
   html += '</tbody></table></div>';
   document.getElementById('planningBlocks').innerHTML = html;
+}
+
+// Construit une ligne weekly_override à partir d'un horaire de base (schedules)
+// dn = numéro de jour (2=Mar … 7=Dim). Renvoie null si l'employé ne travaille pas ce jour-là.
+function buildOvFromSched(empId, ds, dn, sched) {
+  const hasEvening = (dn === 5 || dn === 6); // Ven, Sam
+  if (!sched || sched.is_off) return null;
+  const mornWorks = !!sched.start_time;
+  const eveWorks  = hasEvening && !!sched.evening_start;
+  if (!mornWorks && !eveWorks) return null; // rien à générer ce jour-là
+  return {
+    employee_id: empId, date: ds, status: 'present',
+    morn_status: mornWorks ? 'on' : 'repos',
+    eve_status:  hasEvening ? (eveWorks ? 'on' : 'repos') : null,
+    start_time:  mornWorks ? sched.start_time  : null,
+    break_start: mornWorks ? sched.break_start : null,
+    break_end:   mornWorks ? sched.break_end   : null,
+    end_time:    mornWorks ? sched.end_time    : null,
+    evening_start:       eveWorks ? sched.evening_start       : null,
+    evening_break_start: eveWorks ? sched.evening_break_start : null,
+    evening_break_end:   eveWorks ? sched.evening_break_end   : null,
+    evening_end:         eveWorks ? sched.evening_end         : null,
+    note: null
+  };
+}
+
+// Génère toute la semaine visible à partir des horaires de base de chaque employé
+async function generateWeekFromBase() {
+  try {
+    if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+    if (!employees.length) { toast('Aucun employé enregistré'); return; }
+
+    const dates = weekDates(planningWeek);
+    const weekStart = dateStr(planningWeek);
+    const weekEnd   = dateStr(dates[6]);
+
+    const [allScheds, existingOv] = await Promise.all([
+      GET('schedules?select=*'),
+      GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`)
+    ]);
+
+    // Garde-fou : si la semaine contient déjà des horaires, on confirme avant d'écraser
+    if (existingOv.length) {
+      const ok = confirm(
+        "Cette semaine contient déjà des horaires.\n\n" +
+        "Voulez-vous la régénérer depuis les horaires de base ?\n" +
+        "⚠️ Vos ajustements de cette semaine seront remplacés."
+      );
+      if (!ok) return;
+    }
+
+    // Index des horaires de base par employé puis jour de semaine
+    const schedByEmp = {};
+    allScheds.forEach(s => {
+      (schedByEmp[s.employee_id] = schedByEmp[s.employee_id] || {})[s.day_of_week] = s;
+    });
+
+    // Construire les lignes (Mar→Dim ; lundi = restaurant fermé, ignoré)
+    const rows = [];
+    for (const emp of employees) {
+      for (let i = 1; i <= 6; i++) {
+        const dn = i + 1; // 2=Mar … 7=Dim
+        const sched = schedByEmp[emp.id]?.[dn];
+        const row = buildOvFromSched(emp.id, dateStr(dates[i]), dn, sched);
+        if (row) rows.push(row);
+      }
+    }
+
+    if (!rows.length) {
+      toast('Aucun horaire de base défini. Renseignez-les via « Horaires de base ».');
+      return;
+    }
+
+    // Remplacer la semaine : on efface puis on réinsère
+    await sb(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    await sb('weekly_overrides',
+      { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(rows) });
+
+    toast('Semaine générée ✓ — ajustez les exceptions en touchant les cases');
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('generateWeekFromBase', e);
+  }
 }
 
 function printPlanningReportForDate() {
