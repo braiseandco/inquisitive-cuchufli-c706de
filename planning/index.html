@@ -911,25 +911,12 @@ async function openSign(empId) {
     }
 
     const isWorked = !cls;
-    const isToday = ds === today;
     const sigServices = sigMap[ds] || new Set();
     let actionHtml = '';
-    if (isToday && isWorked) {
-      const service = getCurrentService();
-      const midiOk = sigServices.has('midi');
-      const soirOk = sigServices.has('soir');
-      let badges = '';
-      if (midiOk) badges += '<span class="day-signed">✓ Midi</span> ';
-      if (soirOk) badges += '<span class="day-signed">✓ Soir</span>';
-      if (!service) {
-        actionHtml = badges || '<span style="font-size:10px;color:var(--text-faint)">Hors fenêtre</span>';
-      } else if (sigServices.has(service)) {
-        actionHtml = badges;
-      } else {
-        actionHtml = badges + `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i},'${service}')">Signer ${service}</button>`;
-      }
-    } else if (sigServices.size > 0) {
-      actionHtml = '<span class="day-signed">✓ Signé</span>';
+    if (isWorked) {
+      actionHtml = sigServices.size > 0
+        ? '<span class="day-signed">✓ Signé</span>'
+        : `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i},'midi')">Signer</button>`;
     }
 
     return `<div class="day-row ${cls}">
@@ -1271,18 +1258,14 @@ async function loadEmpWeek() {
     const border = isToday ? 'var(--accent)' : 'var(--border)';
     const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation' && row.status !== 'arret';
     const sigServices = sigByDate[ds] || {};
-    const hasMidi = !!sigServices['midi'];
-    const hasSoir = !!sigServices['soir'];
-    const hasSig  = hasMidi || hasSoir;
-    const mgrService = getCurrentService() || 'midi';
-    const sigBlock = hasSig
+    const sigImg = sigServices['midi'] || sigServices['soir'] || null;
+    const sigBlock = sigImg
       ? `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px">
-           ${hasMidi ? `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Midi</span><img src="${sigServices['midi']}" style="height:32px;max-width:140px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('Midi ${DNAMES[dn]}','${sigServices['midi']}')"></div>` : ''}
-           ${hasSoir ? `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Soir</span><img src="${sigServices['soir']}" style="height:32px;max-width:140px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('Soir ${DNAMES[dn]}','${sigServices['soir']}')"></div>` : ''}
+           <div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#a5d6a7;font-weight:700;flex-shrink:0">✓ Signé</span><img src="${sigImg}" style="height:32px;max-width:140px;object-fit:contain;border:1px solid var(--border);border-radius:6px;background:#1a1a26;padding:2px;cursor:pointer" onclick="event.stopPropagation();viewSig('${DNAMES[dn]}','${sigImg}')"></div>
          </div>`
       : (isWorked ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;display:flex;align-items:center;justify-content:space-between">
            <span style="font-size:10px;color:var(--text-faint);font-style:italic">Non signé</span>
-           <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="event.stopPropagation();openDaySignMgr('${empId}','${ds}',${dn-1},'${mgrService}')">✍️ Faire signer</button>
+           <button class="btn-secondary" style="font-size:11px;padding:5px 12px" onclick="event.stopPropagation();openDaySignMgr('${empId}','${ds}',${dn-1},'midi')">✍️ Faire signer</button>
          </div>` : '');
     return `<div onclick="openOverride('${empId}','${ds}',${dn-1})" style="background:var(--bg2);border:1.5px solid ${border};border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:pointer">
       <div style="display:flex;align-items:center;gap:12px">
