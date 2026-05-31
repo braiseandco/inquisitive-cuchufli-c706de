@@ -791,13 +791,10 @@ function fmtWeek(monday) {
 //  SERVICE UTILS
 // ══════════════════════════════════════
 function getCurrentService() {
-  const now = new Date();
-  const h = now.getHours(), m = now.getMinutes();
-  const mins = h * 60 + m;
-  const dow = now.getDay(); // 0=dim, 5=ven, 6=sam
-  if (mins >= 15*60 && mins < 16*60) return 'midi';
-  if ((dow === 5 || dow === 6) && mins >= 22*60+30 && mins < 23*60+30) return 'soir';
-  return null;
+  // Aucune restriction horaire : signature possible à tout moment.
+  // Le service est juste déduit de l'heure (journée = midi, soirée/nuit = soir).
+  const h = new Date().getHours();
+  return (h >= 5 && h < 17) ? 'midi' : 'soir';
 }
 
 // ══════════════════════════════════════
