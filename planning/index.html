@@ -309,10 +309,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <!-- ═══ MODAL RENAME ═══ -->
 <div class="modal-overlay" id="modalRename">
   <div class="modal">
-    <h3>Renommer l'employé</h3>
+    <h3>Modifier l'employé</h3>
     <div class="form-group">
       <label class="form-label">Prénom</label>
       <input class="form-input" type="text" id="renameInput" placeholder="Prénom" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Téléphone</label>
+      <input class="form-input" type="tel" id="renamePhoneInput" placeholder="Ex: 06 12 34 56 78" autocomplete="off">
     </div>
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal('modalRename')">Annuler</button>
@@ -794,6 +798,17 @@ function getCurrentService() {
   return (h >= 5 && h < 17) ? 'midi' : 'soir';
 }
 
+// Normalise un numéro FR vers le format international +33XXXXXXXXX (null si invalide)
+function frPhone(raw) {
+  if (!raw) return null;
+  let d = String(raw).replace(/\D/g, '');
+  if (d.startsWith('0033')) d = d.slice(4);
+  else if (d.startsWith('33') && d.length === 11) d = d.slice(2);
+  else if (d.startsWith('0')) d = d.slice(1);
+  if (d.length !== 9) return null;
+  return '+33' + d;
+}
+
 // ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
@@ -1155,24 +1170,26 @@ function openRenameEmp(empId) {
   renameTargetId = empId || currentEwEmpId;
   const emp = employees.find(e => e.id === renameTargetId);
   document.getElementById('renameInput').value = emp ? emp.name : '';
+  document.getElementById('renamePhoneInput').value = emp ? (emp.phone || '') : '';
   openModal('modalRename');
 }
 
 async function saveRenameEmp() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
+  const phone = document.getElementById('renamePhoneInput').value.trim().replace(/\s/g,'') || null;
   const targetId = renameTargetId || currentEwEmpId;
   try {
-    await PATCH(`employees?id=eq.${targetId}`, {name});
+    await PATCH(`employees?id=eq.${targetId}`, {name, phone});
     const emp = employees.find(e => e.id === targetId);
-    if (emp) emp.name = name;
+    if (emp) { emp.name = name; emp.phone = phone; }
     // Met à jour la vue planning salarié si c'est l'employé affiché
     if (targetId === currentEwEmpId) {
       document.getElementById('ewEmpName').textContent = name;
       document.getElementById('ewAvatar').textContent = name.charAt(0).toUpperCase();
     }
     closeModal('modalRename');
-    toast('Nom mis à jour');
+    toast('Employé mis à jour');
     // Rafraîchit la liste des employés si elle est visible
     if (document.getElementById('empCardList')) loadEmpCards();
   } catch(e) {
@@ -1409,7 +1426,7 @@ async function saveEmployee() {
   const name = document.getElementById('empNameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
   const phone = document.getElementById('empPhoneInput').value.trim().replace(/\s/g,'') || null;
-  const [emp] = await POST('employees', {name, color: selectedColor, phone});
+  const [emp] = await POST('employees', {name, color: selectedColor, phone, display_order: employees.length + 1});
   // Save schedules
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
@@ -2653,6 +2670,7 @@ const EDIT_COLS = [
   {label:'Dim',    offset:6, svc:'day'},
 ];
 // Note : lundi (offset:0) exclu du modal modifier — restaurant fermé
+let editWeekOvCache = {};
 
 function editCellVal(ov, svc) {
   if (!ov) return '';
@@ -2674,6 +2692,10 @@ async function openEditWeek() {
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
   const allOv = await GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
+
+  // Cache des overrides existants (empId → date → ov) pour conserver les pauses repas à l'enregistrement
+  editWeekOvCache = {};
+  allOv.forEach(o => { (editWeekOvCache[o.employee_id] = editWeekOvCache[o.employee_id] || {})[o.date] = o; });
 
   // thead
   let head = '<tr><th class="edit-week-th" style="text-align:left">Employé</th>';
@@ -2722,14 +2744,18 @@ async function saveEditWeek() {
     });
   });
 
+  const hmMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
+  const hmMid = s => hmMin(s) === 0 ? 1440 : hmMin(s);
+  // Conserve une pause repas existante si elle reste comprise dans le nouveau cr\u00e9neau
+  const keepBreak = (bs, be, s, e) => (bs && be && s && e && hmMin(bs) >= hmMin(s) && hmMid(be) <= hmMid(e));
+
   const overrides = [];
   for (const emp of employees) {
     for (const [ds, svcs] of Object.entries(byEmpDate[emp.id])) {
       const mornVal = (svcs.morn || svcs.day || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      const eveVal  = (svcs.eve || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      const isSpecial = v => /^(REPOS|ABSENT|ARRET|MALADIE|VACANT|VACANCE|VACANCES|CONGE|CONGES|)$/.test(v);
 
       let status, start_time=null, end_time=null, evening_start=null, evening_end=null;
+      let break_start=null, break_end=null, evening_break_start=null, evening_break_end=null;
       if (/^(ARRET|MALADIE)/.test(mornVal))           status = 'arret';
       else if (/^ABSENT/.test(mornVal))                status = 'absent';
       else if (/^(VACANT|VACANCE|VACANCES|CONGE)/.test(mornVal)) status = 'vacation';
@@ -2742,14 +2768,25 @@ async function saveEditWeek() {
         if (!hasMorn && !hasEve) { status = 'off'; }
         else {
           status = 'present';
-          if (hasMorn) { start_time   = pMorn.start; end_time     = pMorn.end; }
-          if (hasEve)  { evening_start = pEve.start;  evening_end  = pEve.end; }
+          const prev = (editWeekOvCache[emp.id] || {})[ds];
+          if (hasMorn) {
+            start_time = pMorn.start; end_time = pMorn.end;
+            if (prev && keepBreak(prev.break_start, prev.break_end, start_time, end_time)) {
+              break_start = prev.break_start; break_end = prev.break_end;
+            }
+          }
+          if (hasEve) {
+            evening_start = pEve.start; evening_end = pEve.end;
+            if (prev && keepBreak(prev.evening_break_start, prev.evening_break_end, evening_start, evening_end)) {
+              evening_break_start = prev.evening_break_start; evening_break_end = prev.evening_break_end;
+            }
+          }
         }
       }
       overrides.push({
         employee_id: emp.id, date: ds, status,
-        start_time, end_time, break_start: null, break_end: null,
-        evening_start, evening_end, evening_break_start: null, evening_break_end: null,
+        start_time, end_time, break_start, break_end,
+        evening_start, evening_end, evening_break_start, evening_break_end,
       });
     }
   }
@@ -3130,7 +3167,7 @@ async function loadSmsPlanList() {
     });
 
     const smsText = `Bonjour ${emp.name},\nTon planning ${weekStr} :\n${lines.join('\n')}\n— Braise & Co 🔥`;
-    const phone   = emp.phone ? '+33' + emp.phone.replace(/\s/g,'').slice(1) : null;
+    const phone   = frPhone(emp.phone);
     const smsHref = phone ? `sms:${phone}?body=${encodeURIComponent(smsText)}` : null;
 
     return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
