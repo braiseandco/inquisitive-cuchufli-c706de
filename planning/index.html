@@ -812,7 +812,8 @@ function frPhone(raw) {
 // ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
-let employees = [];
+let employees = [];          // employés actifs (vues opérationnelles)
+let reportEmps = [];         // tous les employés, archivés inclus (rapports/PDF)
 let currentEmpId = null;
 let planningWeek = getMonday(new Date());
 let overrideTarget = null; // {empId, date, dayIdx}
@@ -841,7 +842,7 @@ async function initHome() {
 
 async function loadHome() {
   try {
-    employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+    employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
     const monday = getMonday(new Date());
     const weekStart = dateStr(monday);
     const weekEnd = dateStr(weekDates(monday)[6]);
@@ -1121,7 +1122,7 @@ function switchTab(id, btn) {
 }
 
 async function loadMgrDash() {
-  employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
   loadEmpCards();
   document.getElementById('planningWeekLabel').textContent = fmtWeek(planningWeek);
 }
@@ -1138,7 +1139,7 @@ function loadEmpCards() {
         <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
       <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
-      <button class="btn-del" onclick="event.stopPropagation();deleteEmployee('${e.id}','${e.name}')">Supprimer</button>
+      <button class="btn-del" onclick="event.stopPropagation();archiveEmployee('${e.id}','${e.name}')">Archiver</button>
     </div>
   `).join('');
 }
@@ -1303,12 +1304,12 @@ async function loadEmpWeek() {
   document.getElementById('ewContent').innerHTML = totalLine + rows;
 }
 
-async function deleteEmployee(id, name) {
-  if (!confirm(`Supprimer ${name} ? Cette action est irréversible.`)) return;
-  await DEL(`employees?id=eq.${id}`);
+async function archiveEmployee(id, name) {
+  if (!confirm(`Archiver ${name} ?\n\n${name} disparaîtra des listes (accueil, planning, SMS), mais TOUTES ses signatures et plannings sont conservés et restent disponibles dans les exports/PDF.`)) return;
+  await PATCH(`employees?id=eq.${id}`, {archived: true});
   employees = employees.filter(e => e.id !== id);
   loadEmpCards();
-  toast(`${name} supprimé`);
+  toast(`${name} archivé`);
 }
 
 // ── Add employee ──
@@ -1502,7 +1503,7 @@ function changeWeek(dir) {
 
 async function loadPlanningTab() {
   document.getElementById('planningBlocks').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-faint)">Chargement…</div>';
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
   const dates = weekDates(planningWeek);
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
@@ -1637,7 +1638,7 @@ function buildOvFromSched(empId, ds, dn, sched) {
 // Génère toute la semaine visible à partir des horaires de base de chaque employé
 async function generateWeekFromBase() {
   try {
-    if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+    if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
     if (!employees.length) { toast('Aucun employé enregistré'); return; }
 
     const dates = weekDates(planningWeek);
@@ -1708,11 +1709,11 @@ async function loadSettingsTab() {
   document.getElementById('customRptFrom').value = dateStr(new Date(today.getFullYear(), today.getMonth(), 1));
   document.getElementById('customRptTo').value = dateStr(today);
   loadSettings();
-  // Remplir le sélecteur employé
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  // Rapports : on inclut les employés archivés pour garder l'accès à leur historique
+  reportEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
   const sel = document.getElementById('reportEmpSelect');
   sel.innerHTML = '<option value="">— Choisir —</option>' +
-    employees.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    reportEmps.map(e => `<option value="${e.id}">${e.name}${e.archived ? ' (archivé)' : ''}</option>`).join('');
   buildCustomRptEmps();
   // Afficher les 8 dernières semaines
   const list = document.getElementById('recentWeeksList');
@@ -1735,7 +1736,8 @@ async function loadSettingsTab() {
 async function printEmpReport() {
   const empId = document.getElementById('reportEmpSelect').value;
   if (!empId) { toast('Choisir un employé'); return; }
-  const emp = employees.find(e => e.id === empId);
+  const emp = reportEmps.find(e => e.id === empId) || employees.find(e => e.id === empId);
+  if (!emp) { toast('Employé introuvable'); return; }
 
   // Récupérer overrides ET signatures
   const [allOv, allSigsEmp] = await Promise.all([
@@ -1880,7 +1882,8 @@ async function printEmpReport() {
 
 async function printPlanningReport(week) {
   if (!week) week = planningWeek;
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  // Inclut les archivés pour ne perdre personne ayant travaillé/signé cette semaine
+  const rptEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
   const dates = weekDates(week);
   const weekStart = dateStr(week);
   const weekEnd   = dateStr(dates[6]);
@@ -1912,7 +1915,7 @@ async function printPlanningReport(week) {
 
   const headCells = COLS.map(c => `<th>${c.label}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(c.d))}</span></th>`).join('');
 
-  const rows = employees.map(emp => {
+  const rows = rptEmps.map(emp => {
     const schedMap = {};
     allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
     const ovMap = {};
@@ -1997,7 +2000,7 @@ async function printPlanningReport(week) {
 async function openOverride(empId, dateS, dayIdx) {
   try {
     overrideTarget = {empId, date: dateS, dayIdx};
-    if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+    if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
     const emp = employees.find(e => e.id === empId);
     if (!emp) { toast('Employé introuvable'); return; }
     document.getElementById('overrideTitle').textContent = `${emp.name} — ${DAYS[dayIdx]} ${fmtDate(new Date(dateS+'T12:00'))}`;
@@ -2162,7 +2165,7 @@ async function saveFermeture() {
   const start = document.getElementById('fermStart').value;
   const end   = document.getElementById('fermEnd').value;
   if (!start || !end || end < start) { toast('Dates invalides'); return; }
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
 
   // Générer toutes les dates de la plage
   const dates = [];
@@ -2209,7 +2212,7 @@ async function loadSigTab() {
   const monday = getMonday(new Date());
   const weekStart = dateStr(monday);
   const weekEnd = dateStr(weekDates(monday)[6]);
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
   const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*&order=date.asc`);
 
   // Grouper par employé
@@ -2245,7 +2248,7 @@ async function printSigReport() {
   const dates = weekDates(monday);
   const weekStart = dateStr(dates[0]);
   const weekEnd   = dateStr(dates[6]);
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const rptEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
   const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
 
   // sigMap[employeeId][date] = signature_data
@@ -2261,7 +2264,7 @@ async function printSigReport() {
 
   const headCells = dayDates.map((d,i) => `<th>${dayLabels[i]}<br><span style="font-weight:400;font-size:10px">${fmt(d)}</span></th>`).join('');
 
-  const rows = employees.map(emp => {
+  const rows = rptEmps.map(emp => {
     const empSigs = sigMap[emp.id] || {};
     const cells = dayDates.map(d => {
       const data = empSigs[d];
@@ -2521,17 +2524,17 @@ async function saveGasUrl() {
 function buildCustomRptEmps() {
   const container = document.getElementById('customRptEmpList');
   if (!container) return;
-  if (!employees.length) { container.innerHTML = '<span style="color:var(--text-faint);font-size:12px">Aucun employé chargé</span>'; return; }
-  container.innerHTML = employees.map(e => `
+  if (!reportEmps.length) { container.innerHTML = '<span style="color:var(--text-faint);font-size:12px">Aucun employé chargé</span>'; return; }
+  container.innerHTML = reportEmps.map(e => `
     <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
       <input type="checkbox" id="crpt_${e.id}" value="${e.id}" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
-      <span style="font-size:13px">${e.name}</span>
+      <span style="font-size:13px">${e.name}${e.archived ? ' (archivé)' : ''}</span>
     </label>
   `).join('');
 }
 
 function selectAllCustomEmps(all) {
-  employees.forEach(e => {
+  reportEmps.forEach(e => {
     const cb = document.getElementById('crpt_' + e.id);
     if (cb) cb.checked = all;
   });
@@ -2571,7 +2574,7 @@ async function sendCustomReport() {
   if (!from || !to) { toast('Sélectionnez une période'); return; }
   if (from > to) { toast('La date de début doit être avant la fin'); return; }
 
-  const selEmps = employees.filter(e => {
+  const selEmps = reportEmps.filter(e => {
     const cb = document.getElementById('crpt_' + e.id);
     return cb && cb.checked;
   });
@@ -2687,7 +2690,7 @@ function editCellVal(ov, svc) {
 }
 
 async function openEditWeek() {
-  if (!employees.length) employees = await GET('employees?select=*&order=display_order.asc,name.asc');
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
   const dates = weekDates(planningWeek);
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
@@ -3007,6 +3010,10 @@ async function confirmImport() {
         const created = await POST('employees', { name: empData.name, color, display_order: emps.length + 1 });
         emp = created[0];
         emps.push(emp);
+      } else if (emp.archived) {
+        // Employé de retour sur le planning : on le réactive (son historique est conservé)
+        await PATCH(`employees?id=eq.${emp.id}`, {archived: false});
+        emp.archived = false;
       }
 
       // Supprimer les anciens overrides pour cet employé sur toute la semaine (lundi inclus)
@@ -3073,7 +3080,7 @@ async function confirmImport() {
       });
     }
 
-    employees = emps;
+    employees = emps.filter(e => !e.archived);
     closeImportModal();
     toast('Planning importé ✓');
     loadPlanningTab();
