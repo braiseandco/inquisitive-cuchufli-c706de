@@ -13,7 +13,17 @@
 <title>Braise &amp; Co — Planning</title>
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).catch(()=>{});
+  // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
+  let swRefreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swRefreshing) return;
+    swRefreshing = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(reg => {
+    reg.update().catch(()=>{});                 // vérifie une nouvelle version à l'ouverture
+    setInterval(() => reg.update().catch(()=>{}), 60*60*1000); // puis toutes les heures
+  }).catch(()=>{});
 }
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet">
@@ -2549,14 +2559,23 @@ async function updateApp() {
   const status = document.getElementById('updateStatus');
   status.textContent = '⏳ Mise à jour en cours…';
   try {
+    // 1. Désinscrire TOUS les service workers (supprime la version cachée)
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg) await reg.update();
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
     }
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => caches.delete(k)));
-    status.textContent = '✅ Cache vidé — rechargement…';
-    setTimeout(() => location.reload(true), 800);
+    // 2. Supprimer tous les caches
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    status.textContent = '✅ Ancienne version effacée — rechargement…';
+    // 3. Recharger en contournant le cache HTTP (paramètre anti-cache)
+    setTimeout(() => {
+      const u = new URL(location.href);
+      u.searchParams.set('maj', Date.now());
+      location.replace(u.toString());
+    }, 700);
   } catch(e) {
     status.textContent = '❌ ' + e.message;
   }
