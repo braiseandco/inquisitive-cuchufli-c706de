@@ -1317,7 +1317,20 @@ async function loadEmpWeek() {
 }
 
 async function archiveEmployee(id, name) {
-  if (!confirm(`Archiver ${name} ?\n\n${name} disparaîtra des listes (accueil, planning, SMS), mais TOUTES ses signatures et plannings sont conservés et restent disponibles dans les exports/PDF.`)) return;
+  if (!confirm(`Archiver ${name} ?\n\nÉtape 1 : un PDF « Archive des signatures » de ${name} va s'ouvrir — enregistre-le (Imprimer → PDF).\nÉtape 2 : on confirmera l'archivage.\n\nLes données restent conservées en base dans tous les cas.`)) return;
+
+  // Étape 1 : générer le document de preuve des signatures (s'il y en a)
+  const hadSigs = await printEmpSignatureArchive(id);
+  if (hadSigs) {
+    await new Promise(r => setTimeout(r, 400)); // laisse le PDF s'afficher
+  }
+
+  // Étape 2 : confirmer l'archivage
+  const msg = hadSigs
+    ? `As-tu bien enregistré le PDF des signatures de ${name} ?\n\nOK = archiver ${name} (il disparaît des listes, données conservées en base).`
+    : `${name} n'a aucune signature enregistrée.\n\nOK = archiver ${name} (données conservées en base).`;
+  if (!confirm(msg)) { toast('Archivage annulé'); return; }
+
   await PATCH(`employees?id=eq.${id}`, {archived: true});
   employees = employees.filter(e => e.id !== id);
   loadEmpCards();
@@ -1893,17 +1906,18 @@ async function printEmpReport() {
 }
 
 // Archive dédiée des signatures d'un employé : chaque jour signé, sur toute sa période.
-async function printEmpSignatureArchive() {
-  const empId = document.getElementById('reportEmpSelect').value;
-  if (!empId) { toast('Choisir un employé'); return; }
-  const emp = reportEmps.find(e => e.id === empId) || employees.find(e => e.id === empId);
-  if (!emp) { toast('Employé introuvable'); return; }
+async function printEmpSignatureArchive(empId) {
+  if (!empId) empId = document.getElementById('reportEmpSelect').value;
+  if (!empId) { toast('Choisir un employé'); return false; }
+  let emp = reportEmps.find(e => e.id === empId) || employees.find(e => e.id === empId);
+  if (!emp) { const r = await GET(`employees?id=eq.${empId}&select=*`); emp = r[0]; }
+  if (!emp) { toast('Employé introuvable'); return false; }
 
   const [sigs, ovs] = await Promise.all([
     GET(`daily_signatures?employee_id=eq.${empId}&order=date.asc,service.asc&select=*`),
     GET(`weekly_overrides?employee_id=eq.${empId}&select=*`)
   ]);
-  if (!sigs.length) { toast('Aucune signature pour cet employé'); return; }
+  if (!sigs.length) { toast('Aucune signature pour cet employé'); return false; }
 
   const ovMap = {};
   ovs.forEach(o => ovMap[o.date] = o);
@@ -1962,6 +1976,7 @@ async function printEmpSignatureArchive() {
   </table>
   </body></html>`;
   openPrintOverlay(html);
+  return true;
 }
 
 async function printPlanningReport(week) {
