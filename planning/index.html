@@ -432,6 +432,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         </select>
       </div>
       <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printEmpReport()">🖨️ Générer le PDF employé</button>
+      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(156,39,176,.18);border:1px solid rgba(156,39,176,.4);color:#ce93d8" onclick="printEmpSignatureArchive()">🖊️ Archive des signatures (PDF)</button>
+      <p style="font-size:11px;color:var(--text-faint);margin-top:8px;line-height:1.6">Document de preuve : chaque jour signé (date, service, horaires, signature) sur toute la période travaillée. À conserver avant d'archiver un salarié.</p>
     </div>
 
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
@@ -1878,6 +1880,78 @@ async function printEmpReport() {
   </table>
   </body></html>`;
   openPrintOverlay(empHtml);
+}
+
+// Archive dédiée des signatures d'un employé : chaque jour signé, sur toute sa période.
+async function printEmpSignatureArchive() {
+  const empId = document.getElementById('reportEmpSelect').value;
+  if (!empId) { toast('Choisir un employé'); return; }
+  const emp = reportEmps.find(e => e.id === empId) || employees.find(e => e.id === empId);
+  if (!emp) { toast('Employé introuvable'); return; }
+
+  const [sigs, ovs] = await Promise.all([
+    GET(`daily_signatures?employee_id=eq.${empId}&order=date.asc,service.asc&select=*`),
+    GET(`weekly_overrides?employee_id=eq.${empId}&select=*`)
+  ]);
+  if (!sigs.length) { toast('Aucune signature pour cet employé'); return; }
+
+  const ovMap = {};
+  ovs.forEach(o => ovMap[o.date] = o);
+
+  const fmtT = t => { if (!t) return ''; const [h,m] = t.slice(0,5).split(':'); return m === '00' ? h+'h' : h+'h'+m; };
+  const dayNames = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const months   = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const fmtFull  = ds => { const d = new Date(ds+'T12:00'); return `${dayNames[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`; };
+  const svcHours = (ov, service) => {
+    if (!ov) return '—';
+    if (service === 'soir') return ov.evening_start ? `${fmtT(ov.evening_start)} – ${fmtT(ov.evening_end)}` : '—';
+    return ov.start_time ? `${fmtT(ov.start_time)} – ${fmtT(ov.end_time)}` : '—';
+  };
+
+  let rows = '';
+  let lastWeekKey = null;
+  for (const s of sigs) {
+    const weekKey = dateStr(getMonday(new Date(s.date+'T12:00')));
+    if (weekKey !== lastWeekKey) {
+      const mon = new Date(weekKey+'T12:00'); const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+      rows += `<tr class="wk"><td colspan="4">Semaine du ${mon.getDate()}/${mon.getMonth()+1} au ${sun.getDate()}/${sun.getMonth()+1}/${sun.getFullYear()}</td></tr>`;
+      lastWeekKey = weekKey;
+    }
+    const service = s.service || 'midi';
+    rows += `<tr>
+      <td style="white-space:nowrap">${fmtFull(s.date)}</td>
+      <td style="text-align:center;text-transform:capitalize">${service}</td>
+      <td style="text-align:center;white-space:nowrap">${svcHours(ovMap[s.date], service)}</td>
+      <td style="padding:4px;text-align:center;background:#fff">${s.signature_data ? `<img src="${s.signature_data}" style="width:150px;height:56px;object-fit:contain;border:1px solid #ddd;border-radius:4px;background:#fff;padding:2px">` : '—'}</td>
+    </tr>`;
+  }
+
+  const first = fmtFull(sigs[0].date);
+  const last  = fmtFull(sigs[sigs.length-1].date);
+  const exportDate = new Date().toLocaleDateString('fr-FR');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Archive signatures — ${emp.name}</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;margin:24px;color:#111}
+    h1{font-size:19px;margin-bottom:2px}
+    .meta{font-size:12px;color:#666;margin-bottom:18px}
+    table{border-collapse:collapse;width:100%;font-size:12px}
+    th{background:#222;color:#fff;padding:8px 6px;text-align:left;font-size:11px}
+    th.c{text-align:center}
+    td{border:1px solid #ddd;padding:6px 8px;vertical-align:middle}
+    tr.wk td{background:#f0f0f0;font-weight:700;font-size:11px;color:#444;border-top:2px solid #bbb}
+    @media print{.print-btn{display:none}}
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()" style="position:fixed;top:14px;right:14px;background:#9c27b0;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer">🖨️ Imprimer / PDF</button>
+  <h1>Archive des signatures — ${emp.name}</h1>
+  <p class="meta">${sigs.length} signature(s) · du ${first} au ${last} · généré le ${exportDate}</p>
+  <table>
+    <thead><tr><th>Date</th><th class="c">Service</th><th class="c">Horaires</th><th class="c">Signature</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </body></html>`;
+  openPrintOverlay(html);
 }
 
 async function printPlanningReport(week) {
