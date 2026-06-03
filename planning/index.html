@@ -1317,24 +1317,28 @@ async function loadEmpWeek() {
 }
 
 async function archiveEmployee(id, name) {
-  if (!confirm(`Archiver ${name} ?\n\nÉtape 1 : un PDF « Archive des signatures » de ${name} va s'ouvrir — enregistre-le (Imprimer → PDF).\nÉtape 2 : on confirmera l'archivage.\n\nLes données restent conservées en base dans tous les cas.`)) return;
+  if (!confirm(`Archiver ${name} ?\n\nUn fichier « Archive des signatures » (toutes les semaines signées) va se télécharger automatiquement, puis ${name} sera archivé.\n\nLes données restent conservées en base.`)) return;
 
-  // Étape 1 : générer le document de preuve des signatures (s'il y en a)
-  const hadSigs = await printEmpSignatureArchive(id);
-  if (hadSigs) {
-    await new Promise(r => setTimeout(r, 400)); // laisse le PDF s'afficher
+  try {
+    // 1. Génère et télécharge automatiquement l'archive des signatures
+    const res = await buildEmpSignatureArchive(id);
+    if (res && res.count) {
+      const fname = `Archive-signatures-${res.emp.name.replace(/[^\p{L}\p{N}]+/gu,'_')}-${dateStr(new Date())}.html`;
+      downloadFile(fname, res.html);
+      openPrintOverlay(res.html); // affiche aussi le document (pour impression PDF éventuelle)
+    }
+
+    // 2. Archive l'employé
+    await PATCH(`employees?id=eq.${id}`, {archived: true});
+    employees = employees.filter(e => e.id !== id);
+    loadEmpCards();
+    toast(res && res.count
+      ? `${name} archivé — archive de ${res.count} signature(s) téléchargée`
+      : `${name} archivé (aucune signature à archiver)`);
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('archiveEmployee', e);
   }
-
-  // Étape 2 : confirmer l'archivage
-  const msg = hadSigs
-    ? `As-tu bien enregistré le PDF des signatures de ${name} ?\n\nOK = archiver ${name} (il disparaît des listes, données conservées en base).`
-    : `${name} n'a aucune signature enregistrée.\n\nOK = archiver ${name} (données conservées en base).`;
-  if (!confirm(msg)) { toast('Archivage annulé'); return; }
-
-  await PATCH(`employees?id=eq.${id}`, {archived: true});
-  employees = employees.filter(e => e.id !== id);
-  loadEmpCards();
-  toast(`${name} archivé`);
 }
 
 // ── Add employee ──
@@ -1905,19 +1909,30 @@ async function printEmpReport() {
   openPrintOverlay(empHtml);
 }
 
-// Archive dédiée des signatures d'un employé : chaque jour signé, sur toute sa période.
-async function printEmpSignatureArchive(empId) {
-  if (!empId) empId = document.getElementById('reportEmpSelect').value;
-  if (!empId) { toast('Choisir un employé'); return false; }
+// Télécharge un fichier autonome (archive permanente, signatures intégrées)
+function downloadFile(filename, content, mime = 'text/html') {
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+// Construit le document d'archive de TOUTES les signatures d'un employé (toutes les semaines signées).
+// Retourne { emp, html, count } ou null si aucune signature.
+async function buildEmpSignatureArchive(empId) {
   let emp = reportEmps.find(e => e.id === empId) || employees.find(e => e.id === empId);
   if (!emp) { const r = await GET(`employees?id=eq.${empId}&select=*`); emp = r[0]; }
-  if (!emp) { toast('Employé introuvable'); return false; }
+  if (!emp) return null;
 
   const [sigs, ovs] = await Promise.all([
     GET(`daily_signatures?employee_id=eq.${empId}&order=date.asc,service.asc&select=*`),
     GET(`weekly_overrides?employee_id=eq.${empId}&select=*`)
   ]);
-  if (!sigs.length) { toast('Aucune signature pour cet employé'); return false; }
+  if (!sigs.length) return { emp, html: null, count: 0 };
 
   const ovMap = {};
   ovs.forEach(o => ovMap[o.date] = o);
@@ -1931,6 +1946,9 @@ async function printEmpSignatureArchive(empId) {
     if (service === 'soir') return ov.evening_start ? `${fmtT(ov.evening_start)} – ${fmtT(ov.evening_end)}` : '—';
     return ov.start_time ? `${fmtT(ov.start_time)} – ${fmtT(ov.end_time)}` : '—';
   };
+
+  // Nombre de semaines distinctes signées
+  const weekSet = new Set(sigs.map(s => dateStr(getMonday(new Date(s.date+'T12:00')))));
 
   let rows = '';
   let lastWeekKey = null;
@@ -1953,7 +1971,7 @@ async function printEmpSignatureArchive(empId) {
   const first = fmtFull(sigs[0].date);
   const last  = fmtFull(sigs[sigs.length-1].date);
   const exportDate = new Date().toLocaleDateString('fr-FR');
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
   <title>Archive signatures — ${emp.name}</title>
   <style>
     *{box-sizing:border-box}
@@ -1969,13 +1987,25 @@ async function printEmpSignatureArchive(empId) {
   </style></head><body>
   <button class="print-btn" onclick="window.print()" style="position:fixed;top:14px;right:14px;background:#9c27b0;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer">🖨️ Imprimer / PDF</button>
   <h1>Archive des signatures — ${emp.name}</h1>
-  <p class="meta">${sigs.length} signature(s) · du ${first} au ${last} · généré le ${exportDate}</p>
+  <p class="meta">${sigs.length} signature(s) · ${weekSet.size} semaine(s) · du ${first} au ${last} · généré le ${exportDate}</p>
   <table>
     <thead><tr><th>Date</th><th class="c">Service</th><th class="c">Horaires</th><th class="c">Signature</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   </body></html>`;
-  openPrintOverlay(html);
+  return { emp, html, count: sigs.length, weeks: weekSet.size };
+}
+
+// Bouton manuel (Réglages) : affiche l'archive ET la télécharge.
+async function printEmpSignatureArchive(empId) {
+  if (!empId) empId = document.getElementById('reportEmpSelect').value;
+  if (!empId) { toast('Choisir un employé'); return false; }
+  const res = await buildEmpSignatureArchive(empId);
+  if (!res) { toast('Employé introuvable'); return false; }
+  if (!res.count) { toast('Aucune signature pour cet employé'); return false; }
+  const fname = `Archive-signatures-${res.emp.name.replace(/[^\p{L}\p{N}]+/gu,'_')}-${dateStr(new Date())}.html`;
+  downloadFile(fname, res.html);
+  openPrintOverlay(res.html);
   return true;
 }
 
