@@ -2145,7 +2145,9 @@ async function printPlanningReport(week) {
   // Inclut les archivés pour ne perdre personne ayant travaillé/signé cette semaine
   const rptEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
   const dates = weekDates(week);
-  const weekStart = dateStr(week);
+  // Le PDF n'affiche que mardi→dimanche : on cale la requête sur le mardi pour
+  // ne pas faire entrer un employé dont la seule donnée de la semaine est le lundi.
+  const weekStart = dateStr(dates[1]);
   const weekEnd   = dateStr(dates[6]);
 
   const [allScheds, allOv, allSigs] = await Promise.all([
