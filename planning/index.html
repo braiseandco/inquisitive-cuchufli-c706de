@@ -176,6 +176,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .day-toggle.arret{background:rgba(229,57,53,.15);color:#ef9a9a;border-color:rgba(229,57,53,.4);}
 .time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
 .sep{color:var(--text-faint);}
+.preset-select{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Raleway',sans-serif;font-weight:600;width:100%;margin-bottom:8px;cursor:pointer;outline:none;}
+.preset-select:focus{border-color:var(--accent);}
+.preset-select option{background:var(--bg2);color:var(--text);}
 
 /* override modal */
 .override-opts{display:flex;gap:10px;margin-bottom:16px;}
@@ -609,6 +612,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           <button type="button" class="day-toggle on" id="ovMornToggle" data-state="on" onclick="cycleOvMorn()">TRAVAILLE</button>
         </div>
         <div id="ovMornFields">
+          <select class="preset-select" id="ovMornPreset" onchange="applyOvMornPreset(this)"></select>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             <input class="time-input" type="time" id="ovStart">
             <span class="sep">→</span>
@@ -627,6 +631,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           <button type="button" class="day-toggle on" id="ovEveToggle" data-state="on" onclick="cycleOvEve()">TRAVAILLE</button>
         </div>
         <div id="ovEveFields">
+          <select class="preset-select" id="ovEvePreset" onchange="applyOvEvePreset(this)"></select>
           <div class="form-group">
             <label class="form-label">Début soir → Pause repas</label>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -718,7 +723,7 @@ function calcDayHours(row) {
   // Malade (arret) sans heures renseignées = 0h ; avec heures = on compte ce qui a été travaillé
   if (row.status === 'arret' && !row.start_time) return 0;
   const t = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
-  const midnight = s => t(s) === 0 ? 1440 : t(s);
+  const midnight = s => { const v = t(s); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
   // Pause repas 30min auto, sauf si embauche à 12h00 ou 19h30
   const hasPause = start => t(start) !== 12*60 && t(start) !== 19*60+30;
   let total = 0;
@@ -740,6 +745,57 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const PIN = '2013';
 const COLORS = ['#e53935','#e91e63','#9c27b0','#3f51b5','#2196f3','#009688','#4caf50','#ff9800','#795548','#607d8b'];
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+const MIDI_PRESETS = [
+  {label:'10h00 → 15h30 (pause 11h30-12h)', start:'10:00', bs:'11:30', be:'12:00', end:'15:30'},
+  {label:'10h30 → 15h30 (pause 11h30-12h)', start:'10:30', bs:'11:30', be:'12:00', end:'15:30'},
+  {label:'10h00 → 16h00 (pause 11h30-12h)', start:'10:00', bs:'11:30', be:'12:00', end:'16:00'},
+  {label:'09h30 → 15h30 (pause 11h30-12h)', start:'09:30', bs:'11:30', be:'12:00', end:'15:30'},
+  {label:'08h30 → 15h30 (pause 11h30-12h)', start:'08:30', bs:'11:30', be:'12:00', end:'15:30'},
+];
+const SOIR_PRESETS = [
+  {label:'18h00 → 00h00 (pause 19h-19h30)', start:'18:00', bs:'19:00', be:'19:30', end:'00:00'},
+  {label:'17h30 → 00h00 (pause 19h-19h30)', start:'17:30', bs:'19:00', be:'19:30', end:'00:00'},
+];
+// dayIdx (0=Lun..6=Dim) : soir possible Ven/Sam uniquement (fermé Lun + Mar/Mer/Jeu/Dim sans soir)
+const EVENING_DAY_IDX = new Set([4, 5]);
+// day_of_week 1..7 (1=Lun..7=Dim)
+const EVENING_DAY_NUM = new Set([5, 6]);
+
+// Heures sup : décalent l'heure de fin (en minutes)
+const SUP_OPTIONS = [30, 60, 90];
+
+function fillShift(ids, preset) {
+  document.getElementById(ids.start).value = preset.start;
+  document.getElementById(ids.bs).value    = preset.bs;
+  document.getElementById(ids.be).value    = preset.be;
+  document.getElementById(ids.end).value   = preset.end;
+}
+// Ajoute des minutes à une heure "HH:MM" (modulo 24h)
+function addMinutes(t, mins) {
+  if (!t) return t;
+  const [h, m] = t.slice(0, 5).split(':').map(Number);
+  const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440;
+  return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+}
+function presetOptions(presets) {
+  const base = presets.map((p, i) => `<option value="${i}">${p.label}</option>`).join('');
+  const sup  = SUP_OPTIONS.map(m => `<option value="sup:${m}">➕ ${(m / 60).toString().replace('.', ',')}h sup (décale la fin)</option>`).join('');
+  return '<option value="">⏱ Pré-rempli…</option>' + base +
+    '<option value="" disabled>──────────</option>' + sup;
+}
+// Applique le choix du menu déroulant : preset complet ou ajout d'heures sup sur la fin.
+function applyPresetChoice(sel, presets, ids) {
+  const v = sel.value;
+  if (v === '') return;
+  if (v.startsWith('sup:')) {
+    const el = document.getElementById(ids.end);
+    el.value = addMinutes(el.value, +v.slice(4));
+  } else {
+    fillShift(ids, presets[+v]);
+  }
+  sel.value = '';
+}
 
 // ══════════════════════════════════════
 //  SUPABASE HELPERS
@@ -1242,7 +1298,7 @@ async function loadEmpWeek() {
   const calcSvc = (s, bs, be, e) => {
     if (!s || !e) return 0;
     const tMin = x => { const [h,m]=x.slice(0,5).split(':').map(Number); return h*60+m; };
-    const tMid = x => tMin(x) === 0 ? 1440 : tMin(x);
+    const tMid = x => { const v = tMin(x); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
     const hasPause = tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
     return bs && be ? (tMin(bs)-tMin(s)) + (tMid(e)-tMin(be)) : tMid(e)-tMin(s) - (hasPause ? 30 : 0);
   };
@@ -1371,7 +1427,7 @@ function buildScheduleGrid(containerId, schedMap) {
     const bStart = s && !s.is_off && s.break_start ? s.break_start.slice(0,5) : '11:30';
     const bEnd   = s && !s.is_off && s.break_end   ? s.break_end.slice(0,5)   : '12:00';
     const end    = s && !s.is_off ? s.end_time.slice(0,5)                      : (isSun ? '16:00' : '15:30');
-    const hasEvening = (dayNum === 5 || dayNum === 6);
+    const hasEvening = EVENING_DAY_NUM.has(dayNum);
     const eStart  = s?.evening_start       ? s.evening_start.slice(0,5)       : '18:00';
     const eBStart = s?.evening_break_start ? s.evening_break_start.slice(0,5) : '19:00';
     const eBEnd   = s?.evening_break_end   ? s.evening_break_end.slice(0,5)   : '19:30';
@@ -1384,7 +1440,9 @@ function buildScheduleGrid(containerId, schedMap) {
             <span style="font-size:10px;color:var(--accent3);font-weight:700;">🌙 Service du soir</span>
             <button type="button" class="day-toggle ${eveRepos?'off':'on'}" id="evetog${dayNum}" onclick="toggleEve(${dayNum})">${eveRepos?'REPOS':'TRAVAILLE'}</button>
           </div>
-          <div id="evetimes${dayNum}" style="display:${eveRepos?'none':'flex'};flex-wrap:wrap;align-items:center;gap:6px;">
+          <div id="evetimes${dayNum}" style="display:${eveRepos?'none':'block'};">
+          <select class="preset-select" onchange="applySchedEvePreset(this,${dayNum})">${presetOptions(SOIR_PRESETS)}</select>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
             <input type="time" class="time-input" id="est${dayNum}" value="${eStart}">
             <span class="sep">→</span>
             <input type="time" class="time-input" id="ebs${dayNum}" value="${eBStart}">
@@ -1393,28 +1451,37 @@ function buildScheduleGrid(containerId, schedMap) {
             <span class="sep">→</span>
             <input type="time" class="time-input" id="eet${dayNum}" value="${eEnd}">
           </div>
+          </div>
         </div>` : '';
     const mornHtml = hasEvening ? `
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span style="font-size:10px;color:var(--text-faint);font-weight:700;">☀️ Service du midi</span>
           <button type="button" class="day-toggle ${mornRepos?'off':'on'}" id="morntog${dayNum}" onclick="toggleMorn(${dayNum})">${mornRepos?'REPOS':'TRAVAILLE'}</button>
         </div>
-        <div id="morntimes${dayNum}" style="display:${mornRepos?'none':'flex'};flex-wrap:wrap;align-items:center;gap:6px;">
-          <input type="time" class="time-input" id="st${dayNum}" value="${start}">
-          <span class="sep">→</span>
-          <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
-          <span style="font-size:10px;color:var(--text-faint)">🍽</span>
-          <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
-          <span class="sep">→</span>
-          <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+        <div id="morntimes${dayNum}" style="display:${mornRepos?'none':'block'};">
+          <select class="preset-select" onchange="applySchedMornPreset(this,${dayNum})">${presetOptions(MIDI_PRESETS)}</select>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+            <input type="time" class="time-input" id="st${dayNum}" value="${start}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
+            <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+            <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+          </div>
         </div>` : `
-        <input type="time" class="time-input" id="st${dayNum}" value="${start}">
-        <span class="sep">→</span>
-        <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
-        <span style="font-size:10px;color:var(--text-faint)">🍽</span>
-        <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
-        <span class="sep">→</span>
-        <input type="time" class="time-input" id="et${dayNum}" value="${end}">`;
+        <div style="width:100%">
+          <select class="preset-select" onchange="applySchedMornPreset(this,${dayNum})">${presetOptions(MIDI_PRESETS)}</select>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+            <input type="time" class="time-input" id="st${dayNum}" value="${start}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="bs${dayNum}" value="${bStart}">
+            <span style="font-size:10px;color:var(--text-faint)">🍽</span>
+            <input type="time" class="time-input" id="be${dayNum}" value="${bEnd}">
+            <span class="sep">→</span>
+            <input type="time" class="time-input" id="et${dayNum}" value="${end}">
+          </div>
+        </div>`;
     return `<div class="schedule-row" style="flex-wrap:wrap;gap:6px;padding:6px 0;border-bottom:1px solid var(--border);">
       <span class="schedule-day-name">${d}</span>
       <input type="checkbox" class="schedule-check" id="chk${dayNum}" ${isOff?'':'checked'} onchange="toggleDay(${dayNum})">
@@ -1425,6 +1492,13 @@ function buildScheduleGrid(containerId, schedMap) {
       </div>
     </div>`;
   }).join('');
+}
+
+function applySchedMornPreset(sel, dayNum) {
+  applyPresetChoice(sel, MIDI_PRESETS, {start:'st'+dayNum, bs:'bs'+dayNum, be:'be'+dayNum, end:'et'+dayNum});
+}
+function applySchedEvePreset(sel, dayNum) {
+  applyPresetChoice(sel, SOIR_PRESETS, {start:'est'+dayNum, bs:'ebs'+dayNum, be:'ebe'+dayNum, end:'eet'+dayNum});
 }
 
 function toggleDay(dayNum) {
@@ -1442,14 +1516,14 @@ function toggleMorn(dayNum) {
   const off = tog.classList.contains('off');
   tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
   tog.className = 'day-toggle ' + (off ? 'on' : 'off');
-  document.getElementById('morntimes'+dayNum).style.display = off ? 'flex' : 'none';
+  document.getElementById('morntimes'+dayNum).style.display = off ? 'block' : 'none';
 }
 function toggleEve(dayNum) {
   const tog = document.getElementById('evetog'+dayNum);
   const off = tog.classList.contains('off');
   tog.textContent = off ? 'TRAVAILLE' : 'REPOS';
   tog.className = 'day-toggle ' + (off ? 'on' : 'off');
-  document.getElementById('evetimes'+dayNum).style.display = off ? 'flex' : 'none';
+  document.getElementById('evetimes'+dayNum).style.display = off ? 'block' : 'none';
 }
 
 async function saveEmployee() {
@@ -1461,7 +1535,7 @@ async function saveEmployee() {
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
-    const hasEvening = (dayNum === 5 || dayNum === 6);
+    const hasEvening = EVENING_DAY_NUM.has(dayNum);
     const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
     const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
     return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
@@ -1497,7 +1571,7 @@ async function saveSchedule() {
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
     const on = document.getElementById('chk'+dayNum).checked;
-    const hasEvening = (dayNum === 5 || dayNum === 6);
+    const hasEvening = EVENING_DAY_NUM.has(dayNum);
     const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
     const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
     return {employee_id: scheduleTarget, day_of_week: dayNum, is_off: !on,
@@ -1557,7 +1631,7 @@ async function loadPlanningTab() {
 
   const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
-  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const tMid = s => { const v = tMin(s); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
   const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
   const calcSvc = (s, bs, be, e) => {
     if (!s || !e) return 0;
@@ -1643,7 +1717,7 @@ async function loadPlanningTab() {
 // Construit une ligne weekly_override à partir d'un horaire de base (schedules)
 // dn = numéro de jour (2=Mar … 7=Dim). Renvoie null si l'employé ne travaille pas ce jour-là.
 function buildOvFromSched(empId, ds, dn, sched) {
-  const hasEvening = (dn === 5 || dn === 6); // Ven, Sam
+  const hasEvening = EVENING_DAY_NUM.has(dn); // Lun, Ven, Sam
   if (!sched || sched.is_off) return null;
   const mornWorks = !!sched.start_time;
   const eveWorks  = hasEvening && !!sched.evening_start;
@@ -1788,7 +1862,7 @@ async function printEmpReport() {
   });
 
   const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
-  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const tMid = s => { const v = tMin(s); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
   const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
   const calcSvc = (s,bs,be,e) => (!s||!e)?0:(bs&&be?(tMin(bs)-tMin(s))+(tMid(e)-tMin(be)):tMid(e)-tMin(s)-(hasPause(s)?30:0));
   const fmtT = t => { if(!t) return ''; const [h,m]=t.split(':'); return m==='00'?h+'h':h+'h'+m; };
@@ -2037,7 +2111,7 @@ async function printPlanningReport(week) {
 
   const fmtT = t => { if(!t) return ''; const [h,m] = t.split(':'); return m==='00' ? h+'h' : h+'h'+m; };
   const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
-  const tMid = s => tMin(s) === 0 ? 1440 : tMin(s);
+  const tMid = s => { const v = tMin(s); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
   const hasPause = s => s && tMin(s) !== 12*60 && tMin(s) !== 19*60+30;
   const calcSvc = (s, bs, be, e) => (!s||!e) ? 0 : (bs&&be ? (tMin(bs)-tMin(s))+(tMid(e)-tMin(be)) : tMid(e)-tMin(s)-(hasPause(s)?30:0));
   const fmt = d => { const [y,m,j]=d.split('-'); return `${j}/${m}`; };
@@ -2126,6 +2200,13 @@ async function printPlanningReport(week) {
 }
 
 // ── Override ──
+function applyOvMornPreset(sel) {
+  applyPresetChoice(sel, MIDI_PRESETS, {start:'ovStart', bs:'ovBreakStart', be:'ovBreakEnd', end:'ovEnd'});
+}
+function applyOvEvePreset(sel) {
+  applyPresetChoice(sel, SOIR_PRESETS, {start:'ovEveningStart', bs:'ovEveningBreakStart', be:'ovEveningBreakEnd', end:'ovEveningEnd'});
+}
+
 async function openOverride(empId, dateS, dayIdx) {
   try {
     overrideTarget = {empId, date: dateS, dayIdx};
@@ -2150,8 +2231,9 @@ async function openOverride(empId, dateS, dayIdx) {
     document.getElementById('ovBreakEnd').value   = st(ov?.break_end   || sched?.break_end,   '13:00');
     document.getElementById('ovEnd').value        = st(ov?.end_time    || sched?.end_time,    '17:00');
     document.getElementById('ovNote').value       = ov?.note || '';
+    document.getElementById('ovMornPreset').innerHTML = presetOptions(MIDI_PRESETS);
 
-    const hasEvening = (dayIdx === 4 || dayIdx === 5);
+    const hasEvening = EVENING_DAY_IDX.has(dayIdx);
 
     // Déterminer le statut matin (backward-compat: si morn_status absent, déduire depuis l'ancien comportement)
     let mornState = 'on';
@@ -2183,6 +2265,7 @@ async function openOverride(empId, dateS, dayIdx) {
         }
       }
       setToggleState(document.getElementById('ovEveToggle'), document.getElementById('ovEveFields'), eveState);
+      document.getElementById('ovEvePreset').innerHTML = presetOptions(SOIR_PRESETS);
       document.getElementById('ovEveningStart').value      = st(ov?.evening_start       || sched?.evening_start,       '18:00');
       document.getElementById('ovEveningBreakStart').value = st(ov?.evening_break_start || sched?.evening_break_start, '19:00');
       document.getElementById('ovEveningBreakEnd').value   = st(ov?.evening_break_end   || sched?.evening_break_end,   '19:30');
@@ -2232,7 +2315,7 @@ async function saveOverride() {
   try {
     if (!overrideTarget) { toast('Erreur : cible manquante'); return; }
     const {empId, date, dayIdx} = overrideTarget;
-    const hasEvening = (dayIdx === 4 || dayIdx === 5);
+    const hasEvening = EVENING_DAY_IDX.has(dayIdx);
     const isVacation = currentOvStatus === 'vacation';
 
     const mornState = isVacation ? 'on' : (document.getElementById('ovMornToggle').dataset.state || 'on');
@@ -2886,7 +2969,7 @@ async function saveEditWeek() {
   });
 
   const hmMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
-  const hmMid = s => hmMin(s) === 0 ? 1440 : hmMin(s);
+  const hmMid = s => { const v = hmMin(s); return v <= 6*60 ? v + 1440 : v; }; // fin ≤ 6h = après minuit
   // Conserve une pause repas existante si elle reste comprise dans le nouveau cr\u00e9neau
   const keepBreak = (bs, be, s, e) => (bs && be && s && e && hmMin(bs) >= hmMin(s) && hmMid(be) <= hmMid(e));
 
