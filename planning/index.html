@@ -2155,6 +2155,12 @@ async function printPlanningReport(week) {
   ]);
   const sigMap = {};
   allSigs.forEach(s => { if(!sigMap[s.employee_id]) sigMap[s.employee_id]={}; sigMap[s.employee_id][s.date]=s.signature_data; });
+
+  // N'inclure que les employés réellement planifiés cette semaine (override ou signature).
+  // Les horaires de base seuls ne prouvent pas qu'un employé était présent (ex : embauche ultérieure).
+  const activeIds = new Set([...allOv.map(o => o.employee_id), ...allSigs.map(s => s.employee_id)]);
+  const weekEmps = rptEmps.filter(emp => activeIds.has(emp.id));
+
   const COLS = [
     {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
     {label:'Mercredi',   d:dates[2], dn:3, svc:'day'},
@@ -2175,7 +2181,7 @@ async function printPlanningReport(week) {
 
   const headCells = COLS.map(c => `<th>${c.label}<br><span style="font-weight:400;font-size:9px">${fmt(dateStr(c.d))}</span></th>`).join('');
 
-  const rows = rptEmps.map(emp => {
+  const rows = weekEmps.map(emp => {
     const schedMap = {};
     allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
     const ovMap = {};
