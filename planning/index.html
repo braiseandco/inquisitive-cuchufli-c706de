@@ -237,12 +237,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <div class="screen" id="sign">
   <div class="topbar">
     <button class="btn-back" onclick="showScreen('home')">←</button>
-    <div>
+    <div style="flex:1;min-width:0">
       <div class="topbar-logo" id="signEmpName">Employé</div>
-      <div class="topbar-sub">Semaine en cours</div>
+      <div class="topbar-sub" id="signWeekLabel">Semaine en cours</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="week-nav-btn" onclick="changeSignWeek(-1)">‹</button>
+      <button class="week-nav-btn" id="signWeekNext" onclick="changeSignWeek(1)">›</button>
     </div>
   </div>
   <div class="week-grid" id="signWeekGrid" style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;"></div>
+  <div style="padding:8px 16px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:center;align-items:center">
+    <img src="logo-braise.png" id="signUnlockLogo" onclick="unlockSignPage()" alt="Braise & Co" title="Débloquer la modification des signatures" style="height:28px;opacity:.45;cursor:pointer;transition:opacity .2s">
+  </div>
 </div>
 
 <!-- ═══ SIGN-DAY (signature journalière) ═══ -->
@@ -883,6 +890,8 @@ function frPhone(raw) {
 let employees = [];          // employés actifs (vues opérationnelles)
 let reportEmps = [];         // tous les employés, archivés inclus (rapports/PDF)
 let currentEmpId = null;
+let signWeek = getMonday(new Date()); // semaine affichée dans l'écran signature salarié
+let signUnlocked = false;             // true quand le logo a débloqué la modif des signatures
 let planningWeek = getMonday(new Date());
 let overrideTarget = null; // {empId, date, dayIdx}
 let scheduleTarget = null; // empId
@@ -939,13 +948,57 @@ async function loadHome() {
 // ══════════════════════════════════════
 async function openSign(empId) {
   currentEmpId = empId;
+  signWeek = getMonday(new Date());
+  signUnlocked = false;
+  renderSignWeek();
+}
+
+// Navigation entre semaines (le salarié peut signer les semaines passées, pas le futur)
+function changeSignWeek(delta) {
+  const cur = getMonday(new Date());
+  const next = new Date(signWeek);
+  next.setDate(next.getDate() + delta * 7);
+  if (next > cur) { toast('Pas de planning pour les semaines à venir'); return; }
+  signWeek = next;
+  renderSignWeek();
+}
+
+// Le logo "Braise & Co" débloque la modification des signatures déjà posées (réservé manager via code)
+function unlockSignPage() {
+  if (signUnlocked) {
+    signUnlocked = false;
+    toast('Page reverrouillée');
+    renderSignWeek();
+    return;
+  }
+  const code = prompt('Code manager pour débloquer la modification des signatures :');
+  if (code === null) return;
+  if (code === PIN) {
+    signUnlocked = true;
+    toast('Déblocage — vous pouvez modifier les signatures');
+    renderSignWeek();
+  } else {
+    toast('Code incorrect');
+  }
+}
+
+async function renderSignWeek() {
+  const empId = currentEmpId;
   const emp = employees.find(e => e.id === empId);
   document.getElementById('signEmpName').textContent = emp.name;
 
-  const monday = getMonday(new Date());
+  const monday = signWeek;
   const weekStart = dateStr(monday);
   const dates = weekDates(monday);
   const today = dateStr(new Date());
+
+  const curMonday = getMonday(new Date());
+  document.getElementById('signWeekLabel').textContent =
+    dateStr(monday) === dateStr(curMonday) ? 'Semaine en cours' : fmtWeek(monday);
+  document.getElementById('signWeekNext').style.visibility =
+    dateStr(monday) === dateStr(curMonday) ? 'hidden' : 'visible';
+  const logo = document.getElementById('signUnlockLogo');
+  if (logo) logo.style.opacity = signUnlocked ? '1' : '.45';
 
   const [scheds, overrides, dailySigs] = await Promise.all([
     GET(`schedules?employee_id=eq.${empId}&select=*`),
@@ -998,9 +1051,12 @@ async function openSign(empId) {
     const sigServices = sigMap[ds] || new Set();
     let actionHtml = '';
     if (isWorked) {
-      actionHtml = sigServices.size > 0
-        ? '<span class="day-signed">✓ Signé</span>'
-        : `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i},'midi')">Signer</button>`;
+      if (sigServices.size > 0) {
+        actionHtml = '<span class="day-signed">✓ Signé</span>';
+        if (signUnlocked) actionHtml += `<button class="day-sig-btn" style="margin-left:6px" onclick="openDaySign('${empId}','${ds}',${i},'midi')">Modifier</button>`;
+      } else {
+        actionHtml = `<button class="day-sig-btn" onclick="openDaySign('${empId}','${ds}',${i},'midi')">Signer</button>`;
+      }
     }
 
     return `<div class="day-row ${cls}">
@@ -1135,7 +1191,8 @@ async function submitDaySignature() {
         showScreen('emp-week');
         loadEmpWeek();
       } else {
-        openSign(currentEmpId);
+        showScreen('sign');
+        renderSignWeek();
       }
     }, 600);
   } catch(e) {
