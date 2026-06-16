@@ -338,6 +338,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <label class="form-label">Téléphone</label>
       <input class="form-input" type="tel" id="renamePhoneInput" placeholder="Ex: 06 12 34 56 78" autocomplete="off">
     </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Arrivée</label>
+        <input class="form-input" type="date" id="renameArriveeInput">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Départ</label>
+        <input class="form-input" type="date" id="renameDepartInput">
+      </div>
+    </div>
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal('modalRename')">Annuler</button>
       <button class="btn-primary" onclick="saveRenameEmp()">Enregistrer</button>
@@ -423,8 +433,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <!-- Signatures -->
   <div class="tab-content" id="tab-signatures">
     <div class="section-head">
-      <div class="section-title">Semaine en cours</div>
-      <button class="btn-add" onclick="printSigReport()" style="font-size:11px;padding:8px 12px">🖨️ Imprimer</button>
+      <div class="section-title" id="sigWeekLabel">Semaine en cours</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="week-nav-btn" style="padding:6px 12px;font-size:16px" onclick="changeSigTabWeek(-1)">‹</button>
+        <button class="week-nav-btn" id="sigTabWeekNext" style="padding:6px 12px;font-size:16px" onclick="changeSigTabWeek(1)">›</button>
+        <button class="btn-add" onclick="printSigReport()" style="font-size:11px;padding:8px 12px">🖨️ Imprimer</button>
+      </div>
     </div>
     <div id="sigList"></div>
   </div>
@@ -587,6 +601,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="form-group">
       <label class="form-label">Téléphone</label>
       <input class="form-input" type="tel" id="empPhoneInput" placeholder="Ex: 06 12 34 56 78">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date d'arrivée (optionnel)</label>
+      <input class="form-input" type="date" id="empArriveeInput">
     </div>
     <div class="form-group">
       <label class="form-label">Couleur</label>
@@ -834,6 +852,53 @@ const POST = (path, body) => sb(path, {method:'POST', body: JSON.stringify(body)
 const PATCH= (path, body) => sb(path, {method:'PATCH', body: JSON.stringify(body), headers:{'Prefer':'return=representation'}});
 const DEL  = (path) => sb(path, {method:'DELETE', headers:{'Prefer':'return=representation'}});
 
+// GET paginé : contourne la limite implicite de PostgREST (~1000 lignes) pour les
+// gros exports (signatures/plannings sur plusieurs années) — récupère tout par tranches.
+async function GETALL(path, pageSize = 1000) {
+  let from = 0, all = [];
+  for (;;) {
+    const page = await sb(path, {headers:{'Range-Unit':'items','Range':`${from}-${from + pageSize - 1}`}});
+    if (!Array.isArray(page) || !page.length) break;
+    all = all.concat(page);
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+// Échappe une chaîne destinée à un littéral JS entre apostrophes (ex: noms avec ').
+function jsStr(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+}
+
+// Un employé est-il en poste sur la plage [startYmd, endYmd] (bornes incluses, format YYYY-MM-DD) ?
+// Vrai si sa période d'emploi (date_arrivee → date_depart) recoupe la plage.
+function empActiveInRange(emp, startYmd, endYmd) {
+  if (emp.date_arrivee && emp.date_arrivee > endYmd) return false;
+  if (emp.date_depart  && emp.date_depart  < startYmd) return false;
+  return true;
+}
+
+// Normalise un nom pour comparaison : sans accents, majuscules, découpé en mots.
+function normNameWords(str) {
+  return String(str || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().split(/\s+/).filter(Boolean);
+}
+// Rattache un nom CSV à un employé existant (ou null). Match strict : deux mots
+// correspondent s'ils sont égaux, ou si l'un est préfixe de l'autre ET le plus court
+// fait ≥ 4 lettres (« FOUGERE »↔« Fougères » OK, mais un nom court ne fusionne pas par erreur).
+function matchEmployeeByName(csvName, emps) {
+  const csvW = normNameWords(csvName);
+  const tokEq = (a, b) => {
+    if (a === b) return true;
+    const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+    return s.length >= 4 && l.startsWith(s);
+  };
+  return emps.find(e => {
+    const dbW = normNameWords(e.name);
+    return csvW.some(cw => dbW.some(dw => tokEq(cw, dw)));
+  }) || null;
+}
+
 // ══════════════════════════════════════
 //  DATE UTILS
 // ══════════════════════════════════════
@@ -926,12 +991,15 @@ async function loadHome() {
     const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`);
     const signedIds = new Set(sigs.map(s => s.employee_id));
 
+    // N'afficher que les employés en poste cette semaine (arrivée/départ)
+    const visible = employees.filter(e => empActiveInRange(e, weekStart, weekEnd));
+
     const el = document.getElementById('empList');
-    if (!employees.length) {
+    if (!visible.length) {
       el.innerHTML = '<div class="empty-msg">Aucun employé enregistré.<br>Demandez au manager d\'en ajouter.</div>';
       return;
     }
-    el.innerHTML = employees.map(e => `
+    el.innerHTML = visible.map(e => `
       <div class="emp-btn ${signedIds.has(e.id)?'signed':''}" onclick="openSign('${e.id}')">
         ${signedIds.has(e.id) ? '<div class="emp-signed-badge">✓ Signé</div>' : ''}
         <div class="emp-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
@@ -1264,7 +1332,7 @@ function loadEmpCards() {
         <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
       <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
-      <button class="btn-del" onclick="event.stopPropagation();archiveEmployee('${e.id}','${e.name}')">Archiver</button>
+      <button class="btn-del" onclick="event.stopPropagation();archiveEmployee('${e.id}','${jsStr(e.name)}')">Archiver</button>
     </div>
   `).join('');
 }
@@ -1297,6 +1365,8 @@ function openRenameEmp(empId) {
   const emp = employees.find(e => e.id === renameTargetId);
   document.getElementById('renameInput').value = emp ? emp.name : '';
   document.getElementById('renamePhoneInput').value = emp ? (emp.phone || '') : '';
+  document.getElementById('renameArriveeInput').value = emp ? (emp.date_arrivee || '') : '';
+  document.getElementById('renameDepartInput').value = emp ? (emp.date_depart || '') : '';
   openModal('modalRename');
 }
 
@@ -1304,11 +1374,27 @@ async function saveRenameEmp() {
   const name = document.getElementById('renameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
   const phone = document.getElementById('renamePhoneInput').value.trim().replace(/\s/g,'') || null;
+  const date_arrivee = document.getElementById('renameArriveeInput').value || null;
+  const date_depart  = document.getElementById('renameDepartInput').value || null;
+  if (date_arrivee && date_depart && date_depart < date_arrivee) { toast('Le départ doit être après l\'arrivée'); return; }
   const targetId = renameTargetId || currentEwEmpId;
+  const emp0 = employees.find(e => e.id === targetId);
+  // Garde-fou : changer le NOM d'une fiche qui a déjà des signatures ré-attribue
+  // l'historique légal d'une personne à une autre. Pour remplacer un salarié,
+  // il faut archiver sa fiche et en créer une nouvelle, pas la renommer.
+  if (emp0 && name !== emp0.name) {
+    const sigs = await GET(`daily_signatures?employee_id=eq.${targetId}&select=id&limit=1`);
+    if (sigs.length && !confirm(
+      `⚠️ Cette fiche possède déjà des signatures (preuves légales).\n\n` +
+      `Renommer « ${emp0.name} » en « ${name} » réattribue TOUT son historique au nouveau nom.\n\n` +
+      `Pour remplacer une personne par une autre, ANNULE et utilise plutôt « Archiver » puis crée une nouvelle fiche.\n\n` +
+      `Continuer le renommage quand même ?`
+    )) return;
+  }
   try {
-    await PATCH(`employees?id=eq.${targetId}`, {name, phone});
+    await PATCH(`employees?id=eq.${targetId}`, {name, phone, date_arrivee, date_depart});
     const emp = employees.find(e => e.id === targetId);
-    if (emp) { emp.name = name; emp.phone = phone; }
+    if (emp) { emp.name = name; emp.phone = phone; emp.date_arrivee = date_arrivee; emp.date_depart = date_depart; }
     // Met à jour la vue planning salarié si c'est l'employé affiché
     if (targetId === currentEwEmpId) {
       document.getElementById('ewEmpName').textContent = name;
@@ -1458,6 +1544,7 @@ async function archiveEmployee(id, name) {
 function openAddEmployee() {
   document.getElementById('empNameInput').value = '';
   document.getElementById('empPhoneInput').value = '';
+  document.getElementById('empArriveeInput').value = '';
   buildColorPicker('modalEmployee', COLORS[0]);
   buildScheduleGrid('scheduleGrid', null);
   openModal('modalEmployee');
@@ -1587,7 +1674,8 @@ async function saveEmployee() {
   const name = document.getElementById('empNameInput').value.trim();
   if (!name) { toast('Entrez un prénom'); return; }
   const phone = document.getElementById('empPhoneInput').value.trim().replace(/\s/g,'') || null;
-  const [emp] = await POST('employees', {name, color: selectedColor, phone, display_order: employees.length + 1});
+  const date_arrivee = document.getElementById('empArriveeInput').value || null;
+  const [emp] = await POST('employees', {name, color: selectedColor, phone, date_arrivee, display_order: employees.length + 1});
   // Save schedules
   const rows = DAYS.map((_,i) => {
     const dayNum = i+1;
@@ -1708,7 +1796,8 @@ async function loadPlanningTab() {
     <th>Total</th>
   </tr></thead><tbody>`;
 
-  for (const emp of employees) {
+  const weekEmps = employees.filter(emp => empActiveInRange(emp, weekStart, weekEnd));
+  for (const emp of weekEmps) {
     const schedMap = {};
     allScheds.filter(s=>s.employee_id===emp.id).forEach(s=>schedMap[s.day_of_week]=s);
     const ovMap = {};
@@ -2161,7 +2250,7 @@ async function printPlanningReport(week) {
   // N'inclure que les employés réellement planifiés cette semaine (override ou signature).
   // Les horaires de base seuls ne prouvent pas qu'un employé était présent (ex : embauche ultérieure).
   const activeIds = new Set([...allOv.map(o => o.employee_id), ...allSigs.map(s => s.employee_id)]);
-  const weekEmps = rptEmps.filter(emp => activeIds.has(emp.id));
+  const weekEmps = rptEmps.filter(emp => activeIds.has(emp.id) && empActiveInRange(emp, weekStart, weekEnd));
 
   const COLS = [
     {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
@@ -2485,10 +2574,27 @@ async function saveFermeture() {
 }
 
 // ── Signatures tab ──
+let sigTabWeek = getMonday(new Date());
+
+function changeSigTabWeek(delta) {
+  const cur = getMonday(new Date());
+  const next = new Date(sigTabWeek);
+  next.setDate(next.getDate() + delta * 7);
+  if (next > cur) { toast('Pas de semaine à venir'); return; }
+  sigTabWeek = next;
+  loadSigTab();
+}
+
 async function loadSigTab() {
-  const monday = getMonday(new Date());
+  const monday = sigTabWeek;
+  const dates = weekDates(monday);
   const weekStart = dateStr(monday);
-  const weekEnd = dateStr(weekDates(monday)[6]);
+  const weekEnd = dateStr(dates[6]);
+  const cur = getMonday(new Date());
+  document.getElementById('sigWeekLabel').textContent =
+    dateStr(monday) === dateStr(cur) ? 'Semaine en cours' : fmtWeek(monday);
+  document.getElementById('sigTabWeekNext').style.visibility =
+    dateStr(monday) === dateStr(cur) ? 'hidden' : 'visible';
   if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
   const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*&order=date.asc`);
 
@@ -2496,9 +2602,12 @@ async function loadSigTab() {
   const sigMap = {};
   sigs.forEach(s => { if (!sigMap[s.employee_id]) sigMap[s.employee_id] = []; sigMap[s.employee_id].push(s); });
 
+  // Employés en poste cette semaine
+  const weekEmps = employees.filter(emp => empActiveInRange(emp, weekStart, weekEnd));
+
   document.getElementById('sigList').innerHTML = `
     <div class="sig-week-block">
-      ${employees.map(emp => {
+      ${weekEmps.map(emp => {
         const empSigs = sigMap[emp.id] || [];
         const count = empSigs.length;
         const lastSig = empSigs[empSigs.length - 1];
@@ -2508,7 +2617,7 @@ async function loadSigTab() {
             <div style="font-size:14px;font-weight:700">${emp.name}</div>
             <div style="font-size:10px;color:var(--text-faint)">${count > 0 ? count + ' jour(s) signé(s) cette semaine' : 'Aucune signature'}</div>
           </div>
-          ${lastSig ? `<img class="sig-thumb" src="${lastSig.signature_data}" onclick="viewSig('${emp.name}','${lastSig.signature_data}')">` : ''}
+          ${lastSig ? `<img class="sig-thumb" src="${lastSig.signature_data}" onclick="viewSig('${jsStr(emp.name)}','${lastSig.signature_data}')">` : ''}
           <span class="sig-status ${count > 0 ? 'ok' : 'nok'}">${count > 0 ? '✓ ' + count + 'j' : '✗ 0j'}</span>
         </div>`;
       }).join('')}
@@ -2521,19 +2630,22 @@ function viewSig(name, data) {
 }
 
 async function printSigReport() {
-  const monday = getMonday(new Date());
+  const monday = sigTabWeek;
   const dates = weekDates(monday);
-  const weekStart = dateStr(dates[0]);
+  // Restaurant fermé le lundi : on imprime mardi→dimanche
+  const weekStart = dateStr(dates[1]);
   const weekEnd   = dateStr(dates[6]);
-  const rptEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
+  const allEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
+  // Employés en poste cette semaine (inclut un salarié parti mais ayant travaillé la semaine)
+  const rptEmps = allEmps.filter(emp => empActiveInRange(emp, weekStart, weekEnd));
   const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
 
   // sigMap[employeeId][date] = signature_data
   const sigMap = {};
   sigs.forEach(s => { if (!sigMap[s.employee_id]) sigMap[s.employee_id] = {}; sigMap[s.employee_id][s.date] = s.signature_data; });
 
-  const dayLabels = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-  const dayDates  = dates.map(d => dateStr(d));
+  const dayLabels = ['Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const dayDates  = dates.slice(1).map(d => dateStr(d));
 
   // Formatage date lisible
   const fmt = d => { const [y,m,j] = d.split('-'); return `${j}/${m}`; };
@@ -2583,10 +2695,11 @@ async function exportAllData() {
   const status = document.getElementById('exportStatus');
   status.textContent = 'Récupération des données…';
   try {
+    // GETALL : pagination pour ne rien tronquer sur plusieurs années de données
     const [emps, allOv, allSigs] = await Promise.all([
       GET('employees?select=*&order=display_order.asc,name.asc'),
-      GET('weekly_overrides?select=*&order=date.asc'),
-      GET('daily_signatures?select=*&order=date.asc')
+      GETALL('weekly_overrides?select=*&order=date.asc'),
+      GETALL('daily_signatures?select=*&order=date.asc')
     ]);
 
     const tMin = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
@@ -3213,8 +3326,10 @@ function renderImportPreview(data) {
     return;
   }
 
-  const knownNames = (employees || []).map(e => e.name.toUpperCase());
-  const newEmps = data.filter(d => !knownNames.includes(d.name.toUpperCase()));
+  const roster = employees || [];
+  // Pour chaque ligne CSV : à quel employé existant elle se rattache (ou null = nouveau)
+  data.forEach(d => { d._match = matchEmployeeByName(d.name, roster); });
+  const newEmps = data.filter(d => !d._match);
 
   const days = ['Mar','Mer','Jeu','Ven☀','Ven🌙','Sam☀','Sam🌙','Dim'];
   const fields = ['mardi','mercredi','jeudi','vendrediMidi','vendrediSoir','samediMidi','samediSoir','dimanche'];
@@ -3224,8 +3339,11 @@ function renderImportPreview(data) {
   html += '</tr></thead><tbody>';
 
   data.forEach(emp => {
-    const isNew = !knownNames.includes(emp.name.toUpperCase());
-    html += `<tr><td>${isNew ? '<span class="import-new-emp">✦ '+emp.name+'</span>' : emp.name}</td>`;
+    const m = emp._match;
+    const nameCell = m
+      ? `${emp.name}${normNameWords(m.name).join(' ') !== normNameWords(emp.name).join(' ') ? `<br><span style="font-size:10px;color:var(--text-faint)">→ rattaché à ${m.name}</span>` : ''}`
+      : `<span class="import-new-emp">✦ ${emp.name}</span>`;
+    html += `<tr><td>${nameCell}</td>`;
     fields.forEach(f => {
       const h = emp[f];
       html += h ? `<td class="import-hours">${h.start}<br>${h.end}</td>`
@@ -3279,18 +3397,9 @@ async function confirmImport() {
 
     const allOverrides = [];
 
-    // Normalise : strip accents, uppercase, split en mots
-    const norm = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
-    const normWords = str => norm(str).split(/\s+/).filter(Boolean);
-    // "FOUGERE" matche "Fougères" (FOUGERES) → on vérifie si un mot CSV est préfixe d'un mot DB ou vice-versa
-    const nameMatches = (dbName, csvName) => {
-      const dbW = normWords(dbName);
-      const csvW = normWords(csvName);
-      return csvW.some(cw => dbW.some(dw => dw.startsWith(cw) || cw.startsWith(dw)));
-    };
-
     for (const empData of importParsedData) {
-      let emp = emps.find(e => nameMatches(e.name, empData.name));
+      // Matcher partagé avec l'aperçu (strict : évite de fusionner deux personnes par erreur)
+      let emp = matchEmployeeByName(empData.name, emps);
       if (!emp) {
         const color = COLORS_CYCLE[emps.length % COLORS_CYCLE.length];
         const created = await POST('employees', { name: empData.name, color, display_order: emps.length + 1 });
