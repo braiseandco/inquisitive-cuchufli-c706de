@@ -2149,30 +2149,30 @@ function _contratPageHtml(emp, wk, dateSign) {
 function _contratPrintCss() {
   return `
     @page { size:A4; margin:14mm 14mm; }
-    body { font-family: 'Helvetica',Arial,sans-serif; font-size:10.5pt; color:#222; line-height:1.5; margin:0; padding:18px; background:#eee; }
+    body { font-family: 'Helvetica',Arial,sans-serif; font-size:10.5pt; color:#111; line-height:1.5; margin:0; padding:18px; background:#eee; }
     .contrat-page { background:#fff; padding:18mm 16mm; max-width:210mm; margin:0 auto 24px; box-shadow:0 2px 12px rgba(0,0,0,.2); page-break-after:always; }
     .contrat-page:last-child { page-break-after:auto; }
-    .contrat-header { display:flex; align-items:center; gap:18px; padding-bottom:14px; margin-bottom:18px; border-bottom:3px solid #e53935; }
-    .contrat-logo { height:60px; width:auto; }
-    .contrat-title { flex:1; }
-    .contrat-title h1 { margin:0; font-size:16pt; color:#e53935; letter-spacing:.5px; }
-    .contrat-subtitle { font-size:10pt; color:#555; margin-top:3px; }
-    h2 { font-size:11.5pt; margin:16px 0 5px; color:#e53935; padding-bottom:2px; border-bottom:1px solid #f5cccc; }
+    .contrat-header { display:flex; flex-direction:column; align-items:center; gap:8px; padding-bottom:16px; margin-bottom:18px; border-bottom:1px solid #222; }
+    .contrat-logo { height:90px; width:auto; }
+    .contrat-title { text-align:center; }
+    .contrat-title h1 { margin:0; font-size:16pt; color:#111; letter-spacing:1px; }
+    .contrat-subtitle { font-size:10pt; color:#444; margin-top:3px; }
+    h2 { font-size:11.5pt; margin:16px 0 5px; color:#111; padding-bottom:2px; border-bottom:1px solid #ccc; }
     p { margin:5px 0; text-align:justify; }
-    .bloc-employeur, .bloc-salarie { background:#fafafa; padding:9px 12px; border-left:3px solid #ff7043; border-radius:0 4px 4px 0; }
-    .et-sep { text-align:center; font-weight:700; letter-spacing:6px; color:#e53935; margin:10px 0; }
-    .jours-block { background:#fafafa; padding:8px 14px; border-radius:4px; margin:5px 0; }
+    .bloc-employeur, .bloc-salarie { padding:6px 0; }
+    .et-sep { text-align:center; font-weight:700; letter-spacing:6px; color:#111; margin:10px 0; }
+    .jours-block { padding:4px 0 4px 12px; margin:5px 0; }
     .jour-line { padding:2px 0; font-variant-numeric:tabular-nums; }
     .fait-en-deux { margin-top:18px; }
     .sign-block { display:flex; gap:20px; margin-top:24px; }
     .sign-col { flex:1; }
-    .sign-label { font-weight:700; color:#222; }
+    .sign-label { font-weight:700; color:#111; }
     .sign-sub { font-style:italic; font-size:8.5pt; color:#555; margin-top:2px; }
     .sign-name { margin-top:6px; font-size:10pt; }
     .sign-box { height:60px; border:1px dashed #bbb; border-radius:4px; margin-top:8px; background:#fcfcfc; }
     .toolbar { position:fixed; top:10px; right:10px; z-index:9999; }
-    .toolbar button { padding:9px 18px; background:#e53935; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.2); }
-    .toolbar button:hover { background:#c62828; }
+    .toolbar button { padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+    .toolbar button:hover { background:#000; }
     @media print {
       .toolbar { display:none; }
       body { background:#fff; padding:0; }
