@@ -716,8 +716,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           <label class="form-label" style="margin:0">Horaires du matin</label>
           <button type="button" class="day-toggle on" id="ovMornToggle" data-state="on" onclick="cycleOvMorn()">TRAVAILLE</button>
         </div>
+        <select class="preset-select" id="ovMornPreset" onchange="applyOvMornPreset(this)"></select>
         <div id="ovMornFields">
-          <select class="preset-select" id="ovMornPreset" onchange="applyOvMornPreset(this)"></select>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             <input class="time-input" type="time" id="ovStart">
             <span class="sep">→</span>
@@ -735,8 +735,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
           <span style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent3);font-weight:700;">🌙 Service du soir</span>
           <button type="button" class="day-toggle on" id="ovEveToggle" data-state="on" onclick="cycleOvEve()">TRAVAILLE</button>
         </div>
+        <select class="preset-select" id="ovEvePreset" onchange="applyOvEvePreset(this)"></select>
         <div id="ovEveFields">
-          <select class="preset-select" id="ovEvePreset" onchange="applyOvEvePreset(this)"></select>
           <div class="form-group">
             <label class="form-label">Début soir → Pause repas</label>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -2853,9 +2853,16 @@ async function printPlanningReport(week) {
 
 // ── Override ──
 function applyOvMornPreset(sel) {
+  if (sel.value !== '') {
+    // Bascule auto en TRAVAILLE quand on choisit un horaire
+    setToggleState(document.getElementById('ovMornToggle'), document.getElementById('ovMornFields'), 'on');
+  }
   applyPresetChoice(sel, MIDI_PRESETS, {start:'ovStart', bs:'ovBreakStart', be:'ovBreakEnd', end:'ovEnd'});
 }
 function applyOvEvePreset(sel) {
+  if (sel.value !== '') {
+    setToggleState(document.getElementById('ovEveToggle'), document.getElementById('ovEveFields'), 'on');
+  }
   applyPresetChoice(sel, SOIR_PRESETS, {start:'ovEveningStart', bs:'ovEveningBreakStart', be:'ovEveningBreakEnd', end:'ovEveningEnd'});
 }
 
