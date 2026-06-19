@@ -658,7 +658,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <label class="form-label">Fichier CSV</label>
       <label class="btn-file">
         📂 Choisir le fichier CSV
-        <input type="file" id="importFileInput" accept=".csv,.txt" style="display:none" onchange="onImportFileChange(this)">
+        <input type="file" id="importFileInput" accept=".csv,.txt,.ods" style="display:none" onchange="onImportFileChange(this)">
       </label>
       <div id="importFileName" style="font-size:11px;color:var(--text-faint);margin-top:6px;text-align:center;"></div>
     </div>
@@ -797,6 +797,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- JSZip pour lire les fichiers ODS (LibreOffice Calc) à l'import planning -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
 
 <script>
 // ══════════════════════════════════════
@@ -3801,10 +3804,92 @@ function parsePlanningCSV(text) {
   return result;
 }
 
+// Parse un ODS (LibreOffice Calc) — extrait Feuille1 et renvoie le même format que parsePlanningCSV
+async function parsePlanningODS(file) {
+  if (typeof JSZip === 'undefined') throw new Error('JSZip non chargé (vérifier la connexion internet)');
+  const zip = await JSZip.loadAsync(file);
+  const contentEntry = zip.file('content.xml');
+  if (!contentEntry) throw new Error('content.xml introuvable dans le fichier ODS');
+  const xmlText = await contentEntry.async('string');
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  const NS_TBL  = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+  const NS_TEXT = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+  const tables = doc.getElementsByTagNameNS(NS_TBL, 'table');
+  if (!tables.length) throw new Error('Aucune feuille trouvée dans le fichier ODS');
+  const table = tables[0]; // Feuille1
+
+  const cellText = cell => {
+    const ps = cell.getElementsByTagNameNS(NS_TEXT, 'p');
+    const parts = [];
+    for (const p of ps) parts.push(p.textContent || '');
+    return parts.join(' ').trim();
+  };
+
+  // Reconstruit les lignes en respectant table:number-columns-repeated
+  const rows = [];
+  const trs = table.getElementsByTagNameNS(NS_TBL, 'table-row');
+  for (const tr of trs) {
+    const cells = [];
+    const tcs = tr.getElementsByTagNameNS(NS_TBL, 'table-cell');
+    for (const tc of tcs) {
+      const rep = parseInt(tc.getAttributeNS(NS_TBL, 'number-columns-repeated') || '1', 10);
+      const txt = cellText(tc);
+      const r = rep > 50 ? 1 : rep;
+      for (let i = 0; i < r; i++) cells.push(txt);
+    }
+    while (cells.length && cells[cells.length - 1] === '') cells.pop();
+    rows.push(cells);
+  }
+
+  // Saute l'en-tête si la première ligne ressemble à un header
+  let start = 0;
+  if (rows[0] && rows[0][0] && rows[0][0].toUpperCase().includes('JOUR')) start = 1;
+
+  const result = [];
+  // Chaque salarié = 1 ligne principale (nom + 8 services + total) puis ligne d'heures + "H.SUP"
+  // On n'avance pas forcément de 3 lignes : on saute jusqu'au prochain nom valide
+  for (let i = start; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !r[0]) continue;
+    const first = r[0].trim();
+    if (!first) continue;
+    if (/^(H\.?\s*SUP|TOTAL|JOUR)$/i.test(first)) continue;
+    // Heuristique : un nom contient au moins une lettre alphabétique
+    if (!/[A-Za-zÀ-ÿ]/.test(first)) continue;
+    // Mais doit avoir au moins une autre cellule (sinon c'est juste un libellé orphelin)
+    if (r.length < 2) continue;
+    result.push({
+      name: first,
+      mardi:        parseHoraire(r[1]),
+      mercredi:     parseHoraire(r[2]),
+      jeudi:        parseHoraire(r[3]),
+      vendrediMidi: parseHoraire(r[4]),
+      vendrediSoir: parseHoraire(r[5]),
+      samediMidi:   parseHoraire(r[6]),
+      samediSoir:   parseHoraire(r[7]),
+      dimanche:     parseHoraire(r[8]),
+    });
+  }
+  return result;
+}
+
 function onImportFileChange(input) {
   const file = input.files[0];
   if (!file) return;
   document.getElementById('importFileName').textContent = file.name;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'ods') {
+    document.getElementById('importPreviewZone').innerHTML =
+      '<div style="text-align:center;padding:14px;color:var(--text-faint);font-size:12px">Lecture du fichier ODS…</div>';
+    parsePlanningODS(file)
+      .then(data => { importParsedData = data; renderImportPreview(importParsedData); })
+      .catch(err => {
+        document.getElementById('importPreviewZone').innerHTML =
+          `<div style="color:var(--accent);font-size:13px;text-align:center;margin-top:12px">❌ Erreur lecture ODS : ${err.message}</div>`;
+        document.getElementById('btnConfirmImport').style.display = 'none';
+      });
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
     importParsedData = parsePlanningCSV(e.target.result);
