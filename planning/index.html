@@ -2067,56 +2067,18 @@ function buildEmpJoursForWeek(ovList, dates) {
   return {jours, total_h: totalH, total_repas: totalRepas};
 }
 
-// Cache le logo en base64 (chargé une fois) pour éviter les problèmes de cross-origin
-// dans la fenêtre window.open('') qui a une URL about:blank.
-let _logoBase64Cache = null;
-async function _getLogoBase64() {
-  if (_logoBase64Cache) return _logoBase64Cache;
-  // Cherche le logo dans le même dossier que la page (planning/) — robuste avec ou sans trailing slash
-  const path = window.location.pathname.replace(/\/[^\/]*$/, '/') + 'logo-braise.png';
-  const candidates = [
-    path,                                   // ex: /planning/logo-braise.png
-    '/planning/logo-braise.png',            // fallback absolu
-    'logo-braise.png',                      // dernier recours relatif
-  ];
-  for (const url of candidates) {
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) continue;
-      const ct = resp.headers.get('content-type') || '';
-      if (!ct.startsWith('image/')) continue;
-      const blob = await resp.blob();
-      _logoBase64Cache = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onloadend = () => resolve(r.result);
-        r.onerror = reject;
-        r.readAsDataURL(blob);
-      });
-      return _logoBase64Cache;
-    } catch (e) { /* essai suivant */ }
-  }
-  console.warn('Logo introuvable, contrat sans logo');
-  _logoBase64Cache = '';
-  return _logoBase64Cache;
-}
-
 // HTML d'une page de contrat (réutilisé pour génération en lot et réimpression)
-function _contratPageHtml(emp, wk, dateSign, logoSrc) {
+function _contratPageHtml(emp, wk, dateSign) {
   const employeur = EMPLOYEUR_BRAISE;
   const civ = emp.civilite || 'Mr';
   const nomComplet = `${civ} ${emp.name}`;
   const taux = (emp.taux_horaire || SMIC_HORAIRE_HCR).toFixed(2).replace('.',',');
   const naissanceFr = emp.date_naissance ? dateFr(emp.date_naissance) : '';
   const joursHtml = wk.jours.map(j => `<div class="jour-line">${dateFr(j.date)} : ${j.heure_debut} ${j.heure_fin}</div>`).join('');
-  const logoImg = logoSrc ? `<img src="${logoSrc}" alt="Braise &amp; Co" class="contrat-logo">` : '';
   return `
     <section class="contrat-page">
       <header class="contrat-header">
-        ${logoImg}
-        <div class="contrat-title">
-          <h1>CONTRAT DE TRAVAIL EXTRA</h1>
-          <div class="contrat-subtitle">${employeur.raison_sociale}</div>
-        </div>
+        <h1>CONTRAT DE TRAVAIL EXTRA</h1>
       </header>
 
       <p>Entre les soussignés :</p>
@@ -2186,11 +2148,8 @@ function _contratPrintCss() {
     body { font-family: 'Helvetica',Arial,sans-serif; font-size:10.5pt; color:#111; line-height:1.5; margin:0; padding:18px; background:#eee; }
     .contrat-page { background:#fff; padding:18mm 16mm; max-width:210mm; margin:0 auto 24px; box-shadow:0 2px 12px rgba(0,0,0,.2); page-break-after:always; }
     .contrat-page:last-child { page-break-after:auto; }
-    .contrat-header { display:flex; flex-direction:row; align-items:center; gap:18px; padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid #222; }
-    .contrat-logo { height:80px; width:auto; flex-shrink:0; }
-    .contrat-title { flex:1; text-align:left; }
-    .contrat-title h1 { margin:0; font-size:16pt; color:#111; letter-spacing:1px; }
-    .contrat-subtitle { font-size:10pt; color:#444; margin-top:3px; }
+    .contrat-header { text-align:center; padding-bottom:14px; margin-bottom:18px; border-bottom:1px solid #222; }
+    .contrat-header h1 { margin:0; font-size:16pt; color:#111; letter-spacing:1px; }
     h2 { font-size:11.5pt; margin:16px 0 5px; color:#111; padding-bottom:2px; border-bottom:1px solid #ccc; }
     p { margin:5px 0; text-align:justify; }
     .bloc-employeur, .bloc-salarie { padding:6px 0; }
@@ -2276,10 +2235,9 @@ async function generateSelectedContrats() {
   if (!checked.length) { toast('Aucun contrat sélectionné'); return; }
 
   const dateSign = dateFrLong(new Date());
-  const logoSrc = await _getLogoBase64();
   const contratsHtml = checked.map(idx => {
     const {emp, wk} = contratsWeekData.items[idx];
-    return _contratPageHtml(emp, wk, dateSign, logoSrc);
+    return _contratPageHtml(emp, wk, dateSign);
   }).join('');
   _openContratPrintWindow('Contrats extras', contratsHtml);
 
@@ -2389,8 +2347,7 @@ async function reprintContrat(id) {
 }
 
 async function _printSingleContrat({emp, wk}) {
-  const logoSrc = await _getLogoBase64();
-  const html = _contratPageHtml(emp, wk, dateFrLong(new Date()), logoSrc);
+  const html = _contratPageHtml(emp, wk, dateFrLong(new Date()));
   _openContratPrintWindow(`Contrat ${emp.name}`, html);
 }
 
