@@ -327,6 +327,67 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 </div>
 
 <!-- ═══ MODAL RENAME ═══ -->
+<!-- ═══ MODAL GÉNÉRATION CONTRATS EXTRAS (semaine) ═══ -->
+<div class="modal-overlay" id="modalContratsExtras">
+  <div class="modal" style="max-width:560px">
+    <h3>Contrats d'extra — <span id="contratsWeekLabel"></span></h3>
+    <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 12px;line-height:1.5">
+      Coche les employés pour qui générer un contrat. Le planning de la semaine est repris automatiquement (avec déduction de 30 min de pause par service).
+    </p>
+    <div id="contratsExtrasList" style="max-height:50vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px"></div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="btn-secondary" onclick="closeModal('modalContratsExtras')">Fermer</button>
+      <button class="btn-primary" onclick="generateSelectedContrats()">🖨️ Générer les contrats cochés</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FICHE CONTRAT EXTRA ═══ -->
+<div class="modal-overlay" id="modalEmpContrat">
+  <div class="modal">
+    <h3>Fiche contrat — <span id="contratEmpName"></span></h3>
+    <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 14px;line-height:1.5">
+      Infos légales utilisées pour générer les contrats d'extra (CCN HCR). Remplissage manager uniquement.
+    </p>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:0 0 90px">
+        <label class="form-label">Civilité</label>
+        <select class="form-input" id="contratCivilite">
+          <option value="Mr">Mr</option>
+          <option value="Mme">Mme</option>
+          <option value="Mlle">Mlle</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Nationalité</label>
+        <input class="form-input" type="text" id="contratNationalite" placeholder="française" value="française">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Adresse complète</label>
+      <input class="form-input" type="text" id="contratAdresse" placeholder="Ex: 8 rue pomponne 33380 biganos">
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Date de naissance</label>
+        <input class="form-input" type="date" id="contratNaissance">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Taux horaire (EUR)</label>
+        <input class="form-input" type="number" step="0.01" min="0" id="contratTaux" value="12.31">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">N° sécurité sociale</label>
+      <input class="form-input" type="text" id="contratNumSecu" placeholder="Ex: 1 07 05 33 011 244 65">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modalEmpContrat')">Annuler</button>
+      <button class="btn-primary" onclick="saveEmpContrat()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalRename">
   <div class="modal">
     <h3>Modifier l'employé</h3>
@@ -399,6 +460,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <button class="tab active" onclick="switchTab('tab-employees',this)">Employés</button>
     <button class="tab" onclick="switchTab('tab-planning',this)">Planning</button>
     <button class="tab" onclick="switchTab('tab-signatures',this)">Signatures</button>
+    <button class="tab" onclick="switchTab('tab-contrats',this)">Contrats</button>
     <button class="tab" onclick="switchTab('tab-settings',this)">Réglages</button>
   </div>
 
@@ -425,6 +487,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
       <button class="btn-add" style="background:rgba(30,136,229,.15);color:#90caf9;border:1px solid rgba(30,136,229,.3);padding:10px 14px" onclick="openEditWeek()">✏️ Modifier</button>
       <button class="btn-add" style="width:100%;margin-top:4px;background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.4);padding:12px 14px;font-size:13px" onclick="openSmsPlanningModal()">📱 Envoyer le planning par SMS</button>
+      <button class="btn-add" style="width:100%;margin-top:4px;background:rgba(156,39,176,.18);color:#ce93d8;border:1px solid rgba(156,39,176,.4);padding:12px 14px;font-size:13px;font-weight:700" onclick="openContratsExtrasModal()">📝 Générer les contrats d'extra</button>
     </div>
     <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 14px;line-height:1.6">💡 Astuce : touchez n'importe quelle case du tableau pour modifier un horaire. « Générer la semaine » remplit tout d'un coup depuis les horaires de base.</p>
     <div id="planningBlocks"></div>
@@ -441,6 +504,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       </div>
     </div>
     <div id="sigList"></div>
+  </div>
+
+  <!-- Contrats extras -->
+  <div class="tab-content" id="tab-contrats">
+    <div class="section-head">
+      <div class="section-title">Contrats d'extra</div>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6">
+      Historique des contrats déjà générés. Pour en générer de nouveaux, va dans l'onglet <b>Planning</b> de la semaine voulue puis clique sur <b>📝 Générer les contrats d'extra</b>.
+    </p>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <select class="form-input" id="contratsFilterEmp" style="flex:1" onchange="loadContratsHistory()">
+        <option value="">Tous les employés</option>
+      </select>
+      <button class="btn-primary" onclick="loadContratsHistory()" style="padding:8px 14px">Rafraîchir</button>
+    </div>
+    <div id="contratsHistoryList"></div>
   </div>
 
   <!-- Réglages -->
@@ -1311,6 +1391,7 @@ function switchTab(id, btn) {
   if (id==='tab-employees') loadEmpCards();
   if (id==='tab-planning') loadPlanningTab();
   if (id==='tab-signatures') loadSigTab();
+  if (id==='tab-contrats') loadContratsHistory();
   if (id==='tab-settings') loadSettingsTab();
 }
 
@@ -1324,17 +1405,20 @@ async function loadMgrDash() {
 function loadEmpCards() {
   const el = document.getElementById('empCardList');
   if (!employees.length) { el.innerHTML = '<div style="color:var(--text-faint);text-align:center;padding:40px">Aucun employé</div>'; return; }
-  el.innerHTML = employees.map(e => `
+  el.innerHTML = employees.map(e => {
+    const hasContrat = !!(e.adresse && e.num_secu && e.date_naissance);
+    return `
     <div class="emp-card" onclick="openEmpWeek('${e.id}')" style="cursor:pointer">
       <div class="emp-card-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
       <div style="flex:1">
         <div class="emp-card-name">${e.name}</div>
         <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
       </div>
+      <button class="btn-rename" onclick="event.stopPropagation();openEmpContrat('${e.id}')" title="Fiche contrat extra" style="font-size:14px">${hasContrat ? '📄' : '📄❗'}</button>
       <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
       <button class="btn-del" onclick="event.stopPropagation();archiveEmployee('${e.id}','${jsStr(e.name)}')">Archiver</button>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 // ── Planning semaine par employé ──
@@ -1412,6 +1496,47 @@ async function saveRenameEmp() {
 function changeEmpWeek(dir) {
   ewWeek.setDate(ewWeek.getDate() + dir * 7);
   loadEmpWeek();
+}
+
+// ═══ FICHE CONTRAT EXTRA (manager only) ═══
+const SMIC_HORAIRE_HCR = 12.31; // SMIC HCR niveau 1 échelon 1
+let contratTargetId = null;
+function openEmpContrat(empId) {
+  contratTargetId = empId;
+  const emp = employees.find(e => e.id === empId);
+  if (!emp) { toast('Employé introuvable'); return; }
+  document.getElementById('contratEmpName').textContent = emp.name;
+  document.getElementById('contratCivilite').value    = emp.civilite || 'Mr';
+  document.getElementById('contratNationalite').value = emp.nationalite || 'française';
+  document.getElementById('contratAdresse').value     = emp.adresse || '';
+  document.getElementById('contratNaissance').value   = emp.date_naissance || '';
+  document.getElementById('contratNumSecu').value     = emp.num_secu || '';
+  document.getElementById('contratTaux').value        = emp.taux_horaire != null ? emp.taux_horaire : SMIC_HORAIRE_HCR;
+  openModal('modalEmpContrat');
+}
+
+async function saveEmpContrat() {
+  if (!contratTargetId) return;
+  const civilite       = document.getElementById('contratCivilite').value;
+  const nationalite    = document.getElementById('contratNationalite').value.trim() || null;
+  const adresse        = document.getElementById('contratAdresse').value.trim() || null;
+  const date_naissance = document.getElementById('contratNaissance').value || null;
+  const num_secu       = document.getElementById('contratNumSecu').value.trim() || null;
+  const tauxRaw        = document.getElementById('contratTaux').value.replace(',', '.');
+  const taux_horaire   = tauxRaw ? parseFloat(tauxRaw) : null;
+  if (taux_horaire != null && taux_horaire > 0 && taux_horaire < SMIC_HORAIRE_HCR) {
+    if (!confirm(`Le taux saisi (${taux_horaire.toFixed(2)} €/h) est inférieur au SMIC HCR (${SMIC_HORAIRE_HCR.toFixed(2)} €/h).\n\nEnregistrer quand même ?`)) return;
+  }
+  try {
+    await PATCH(`employees?id=eq.${contratTargetId}`, {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire});
+    const emp = employees.find(e => e.id === contratTargetId);
+    if (emp) Object.assign(emp, {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire});
+    closeModal('modalEmpContrat');
+    toast('Fiche contrat enregistrée');
+    loadEmpCards();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+  }
 }
 
 async function loadEmpWeek() {
@@ -1858,6 +1983,376 @@ async function loadPlanningTab() {
 
   html += '</tbody></table></div>';
   document.getElementById('planningBlocks').innerHTML = html;
+}
+
+// ═══ CONTRATS EXTRAS — Génération par semaine ═══
+const EMPLOYEUR_BRAISE = {
+  raison_sociale: 'SAS ARP BIGANOS',
+  adresse: '174 AV DE LA COTE D ARGENT',
+  cp_ville: '33380 BIGANOS',
+  siret: '81990125700017',
+  ape: '5610A',
+  representant: 'Monsieur FARGE alexandre',
+  representant_qualite: 'Gérant',
+  urssaf: '727000000601947167',
+  urssaf_region: 'Aquitaine',
+  retraite: 'GROUPE KLESIA 1-13 RARP rue Denise Buisson 93554 MONTREUIL CEDEX',
+  ville_signature: 'BIGANOS',
+  signataire_qualite: 'directeur',
+  signataire_nom: 'FARGE alexandre',
+};
+const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const SERVICES_LABEL_FR = ['lundi','mardi midi','mercredi midi','jeudi midi','vendredi midi','vendredi soir','samedi midi','samedi soir','dimanche'];
+
+function fmtH(mins) {
+  const h = Math.floor(mins/60), m = Math.round(mins%60);
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2,'0')}`;
+}
+function fmtTimeFr(t) {
+  if (!t) return '';
+  const [h,m] = t.slice(0,5).split(':');
+  return m === '00' ? h+'h' : h+'h'+m;
+}
+function dateFr(ymd) {
+  const [y,m,d] = ymd.split('-').map(Number);
+  return `${d}/${String(m).padStart(2,'0')}/${y}`;
+}
+function dateFrLong(d) {
+  return `${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Construit la liste des services d'un employé pour la semaine (overrides only)
+function buildEmpJoursForWeek(ovList, dates) {
+  // ovList: weekly_overrides de cet employé pour la semaine
+  // dates: tableau weekDates (Lun=0, Mar=1, ..., Dim=6)
+  const ovByDate = {};
+  ovList.forEach(o => ovByDate[o.date] = o);
+  const jours = [];
+  let totalH = 0, totalRepas = 0;
+  for (let i = 1; i <= 6; i++) {
+    const d = dates[i];
+    const ds = dateStr(d);
+    const ov = ovByDate[ds];
+    if (!ov || ov.status === 'off' || ov.status === 'vacation' || ov.status === 'absent') continue;
+    // Service midi
+    const mornState = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    if (ov.start_time && ov.end_time && mornState !== 'absent' && mornState !== 'repos') {
+      const hrs = calcDayHours({start_time: ov.start_time, end_time: ov.end_time, break_start: ov.break_start, break_end: ov.break_end});
+      if (hrs > 0) {
+        jours.push({
+          date: ds, label: SERVICES_LABEL_FR[i] + ' midi',
+          heure_debut: fmtTimeFr(ov.start_time), heure_fin: fmtTimeFr(ov.end_time),
+          duree_h: hrs,
+        });
+        totalH += hrs; totalRepas += 1;
+      }
+    }
+    // Service soir
+    const eveState = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    if (ov.evening_start && ov.evening_end && eveState !== 'absent' && eveState !== 'repos') {
+      const hrs = calcDayHours({evening_start: ov.evening_start, evening_end: ov.evening_end, evening_break_start: ov.evening_break_start, evening_break_end: ov.evening_break_end});
+      if (hrs > 0) {
+        jours.push({
+          date: ds, label: SERVICES_LABEL_FR[i] + ' soir',
+          heure_debut: fmtTimeFr(ov.evening_start), heure_fin: fmtTimeFr(ov.evening_end),
+          duree_h: hrs,
+        });
+        totalH += hrs; totalRepas += 1;
+      }
+    }
+  }
+  return {jours, total_h: totalH, total_repas: totalRepas};
+}
+
+// HTML d'une page de contrat (réutilisé pour génération en lot et réimpression)
+function _contratPageHtml(emp, wk, dateSign) {
+  const employeur = EMPLOYEUR_BRAISE;
+  const civ = emp.civilite || 'Mr';
+  const nomComplet = `${civ} ${emp.name}`;
+  const taux = (emp.taux_horaire || SMIC_HORAIRE_HCR).toFixed(2).replace('.',',');
+  const naissanceFr = emp.date_naissance ? dateFr(emp.date_naissance) : '';
+  const joursHtml = wk.jours.map(j => `<div class="jour-line">${dateFr(j.date)} : ${j.heure_debut} ${j.heure_fin}</div>`).join('');
+  return `
+    <section class="contrat-page">
+      <header class="contrat-header">
+        <img src="${window.location.origin}/planning/logo-braise.png" alt="Braise &amp; Co" class="contrat-logo">
+        <div class="contrat-title">
+          <h1>CONTRAT DE TRAVAIL EXTRA</h1>
+          <div class="contrat-subtitle">${employeur.raison_sociale}</div>
+        </div>
+      </header>
+
+      <p>Entre les soussignés :</p>
+      <p class="bloc-employeur">
+        La <b>${employeur.raison_sociale}</b><br>
+        ${employeur.adresse}<br>${employeur.cp_ville}<br>
+        Siret : ${employeur.siret} &nbsp;&nbsp; APE : ${employeur.ape}<br>
+        Agissant par l'intermédiaire de son représentant légal, <b>${employeur.representant}</b>, ${employeur.representant_qualite}.
+        Les cotisations de sécurité sociale sont versées sous le numéro <b>${employeur.urssaf}</b> à l'Urssaf d'${employeur.urssaf_region}
+        auprès de laquelle l'employeur est immatriculé.
+      </p>
+      <p class="et-sep">ET</p>
+      <p class="bloc-salarie">
+        <b>${nomComplet}</b><br>
+        Adresse : ${emp.adresse || ''}<br>
+        Né(e) le ${naissanceFr}<br>
+        de nationalité ${emp.nationalite || 'française'}<br>
+        Numéro de sécurité sociale ${emp.num_secu || ''}
+      </p>
+      <p>Il a été convenu et arrêté ce qui suit :</p>
+
+      <h2>Article 1 : Objet</h2>
+      <p>La <b>${employeur.raison_sociale}</b> engage <b>${nomComplet}</b> pour un contrat extra, emploi temporaire par nature.</p>
+
+      <h2>Article 2 : Fonction</h2>
+      <p><b>${nomComplet}</b> est embauché(e) en qualité d'<b>employé polyvalent</b> au niveau 1 à l'échelon 1 selon la classification de la Convention Collective Nationale des hôtels, cafés, restaurants, actuellement applicable à la société et, pour autant qu'elle le demeurera.</p>
+
+      <h2>Article 3 : Durée du contrat</h2>
+      <p>La durée de travail de <b>${nomComplet}</b> :</p>
+      <div class="jours-block">${joursHtml}</div>
+      <p>soit : <b>${fmtH(wk.total_h*60)}</b> et ${wk.total_repas} repas</p>
+
+      <h2>Article 4 : Rémunération</h2>
+      <p><b>${nomComplet}</b> percevra un salaire brut à un taux horaire de <b>${taux} EUROS</b>, plus les avantages en nature.</p>
+
+      <h2>Article 5 : Congés payés</h2>
+      <p>Vous avez droit à une indemnité de congés payés qui sera égale à 10 % de votre rémunération brute perçue.</p>
+
+      <h2>Article 6 : Caisse de retraite et de prévoyance</h2>
+      <p><b>${nomComplet}</b> sera affilié(e) à la caisse de retraite complémentaire, prévoyance et mutuelle dont dépend la <b>${employeur.raison_sociale}</b> : ${employeur.retraite}.</p>
+      <p>La déclaration préalable à l'embauche de <b>${nomComplet}</b> a été effectuée à l'URSSAF dont ci-joint copie.</p>
+      <p>Conformément à la loi n° 78-17 du 06/01/1978 modifiée par la loi n° 2004-801 du 06/08/2004 relative à l'informatique, aux fichiers et aux libertés, <b>${nomComplet}</b> dispose d'un droit d'accès et de rectification aux informations qui sont enregistrées dans le fichier informatisé tenu par l'organisme de protection sociale (URSSAF).</p>
+
+      <p class="fait-en-deux">Fait en deux exemplaires</p>
+      <p>À ${employeur.ville_signature}, le ${dateSign}</p>
+
+      <div class="sign-block">
+        <div class="sign-col">
+          <div class="sign-label">Signature Employeur</div>
+          <div class="sign-sub">(Précisez le nom et la qualité du signataire)</div>
+          <div class="sign-name">${employeur.signataire_nom} (${employeur.signataire_qualite})</div>
+          <div class="sign-box"></div>
+        </div>
+        <div class="sign-col">
+          <div class="sign-label">Signature Salarié</div>
+          <div class="sign-sub">(Précédée de la mention manuscrite « lu et approuvé » de la main du salarié)</div>
+          <div class="sign-box"></div>
+        </div>
+      </div>
+    </section>`;
+}
+
+// CSS commun pour la fenêtre d'impression
+function _contratPrintCss() {
+  return `
+    @page { size:A4; margin:14mm 14mm; }
+    body { font-family: 'Helvetica',Arial,sans-serif; font-size:10.5pt; color:#222; line-height:1.5; margin:0; padding:18px; background:#eee; }
+    .contrat-page { background:#fff; padding:18mm 16mm; max-width:210mm; margin:0 auto 24px; box-shadow:0 2px 12px rgba(0,0,0,.2); page-break-after:always; }
+    .contrat-page:last-child { page-break-after:auto; }
+    .contrat-header { display:flex; align-items:center; gap:18px; padding-bottom:14px; margin-bottom:18px; border-bottom:3px solid #e53935; }
+    .contrat-logo { height:60px; width:auto; }
+    .contrat-title { flex:1; }
+    .contrat-title h1 { margin:0; font-size:16pt; color:#e53935; letter-spacing:.5px; }
+    .contrat-subtitle { font-size:10pt; color:#555; margin-top:3px; }
+    h2 { font-size:11.5pt; margin:16px 0 5px; color:#e53935; padding-bottom:2px; border-bottom:1px solid #f5cccc; }
+    p { margin:5px 0; text-align:justify; }
+    .bloc-employeur, .bloc-salarie { background:#fafafa; padding:9px 12px; border-left:3px solid #ff7043; border-radius:0 4px 4px 0; }
+    .et-sep { text-align:center; font-weight:700; letter-spacing:6px; color:#e53935; margin:10px 0; }
+    .jours-block { background:#fafafa; padding:8px 14px; border-radius:4px; margin:5px 0; }
+    .jour-line { padding:2px 0; font-variant-numeric:tabular-nums; }
+    .fait-en-deux { margin-top:18px; }
+    .sign-block { display:flex; gap:20px; margin-top:24px; }
+    .sign-col { flex:1; }
+    .sign-label { font-weight:700; color:#222; }
+    .sign-sub { font-style:italic; font-size:8.5pt; color:#555; margin-top:2px; }
+    .sign-name { margin-top:6px; font-size:10pt; }
+    .sign-box { height:60px; border:1px dashed #bbb; border-radius:4px; margin-top:8px; background:#fcfcfc; }
+    .toolbar { position:fixed; top:10px; right:10px; z-index:9999; }
+    .toolbar button { padding:9px 18px; background:#e53935; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+    .toolbar button:hover { background:#c62828; }
+    @media print {
+      .toolbar { display:none; }
+      body { background:#fff; padding:0; }
+      .contrat-page { box-shadow:none; margin:0; padding:0; max-width:none; }
+    }
+  `;
+}
+
+function _openContratPrintWindow(title, innerHtml) {
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${_contratPrintCss()}</style></head><body>
+    <div class="toolbar"><button onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button></div>
+    ${innerHtml}
+  </body></html>`);
+  w.document.close();
+}
+
+let contratsWeekData = null;
+async function openContratsExtrasModal() {
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+  const dates = weekDates(planningWeek);
+  const weekStart = dateStr(planningWeek);
+  const weekEnd   = dateStr(dates[6]);
+  document.getElementById('contratsWeekLabel').textContent = `semaine du ${fmtDate(dates[1])} au ${fmtDate(dates[6])}`;
+  document.getElementById('contratsExtrasList').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint)">Chargement…</div>';
+  openModal('modalContratsExtras');
+
+  const allOv = await GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`);
+
+  const items = [];
+  for (const emp of employees) {
+    if (!empActiveInRange(emp, weekStart, weekEnd)) continue;
+    const ovList = allOv.filter(o => o.employee_id === emp.id);
+    const wk = buildEmpJoursForWeek(ovList, dates);
+    if (!wk.jours.length) continue;
+    const fields = ['adresse','date_naissance','num_secu'];
+    const missing = fields.filter(f => !emp[f]);
+    items.push({emp, wk, missing});
+  }
+  contratsWeekData = {dates, weekStart, weekEnd, items};
+
+  if (!items.length) {
+    document.getElementById('contratsExtrasList').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-faint)">Aucun employé planifié sur cette semaine.</div>';
+    return;
+  }
+
+  document.getElementById('contratsExtrasList').innerHTML = items.map((it, idx) => {
+    const disabled = it.missing.length > 0;
+    const missingHtml = disabled
+      ? `<div style="font-size:10px;color:#ff6e6e;margin-top:3px">⚠ Fiche contrat incomplète : ${it.missing.join(', ')}</div>`
+      : '';
+    return `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border);cursor:${disabled?'not-allowed':'pointer'};opacity:${disabled?'.5':'1'}">
+      <input type="checkbox" class="contrat-chk" data-idx="${idx}" ${disabled?'disabled':'checked'} style="width:18px;height:18px">
+      <div style="flex:1">
+        <div style="font-weight:700">${it.emp.name}</div>
+        <div style="font-size:11px;color:var(--text-dim)">${it.wk.jours.length} services · ${fmtH(it.wk.total_h*60)} · ${it.wk.total_repas} repas · ${(it.emp.taux_horaire||SMIC_HORAIRE_HCR).toFixed(2).replace('.',',')} €/h</div>
+        ${missingHtml}
+      </div>
+    </label>`;
+  }).join('');
+}
+
+async function generateSelectedContrats() {
+  if (!contratsWeekData) return;
+  const checked = Array.from(document.querySelectorAll('.contrat-chk:checked')).map(c => parseInt(c.dataset.idx));
+  if (!checked.length) { toast('Aucun contrat sélectionné'); return; }
+
+  const dateSign = dateFrLong(new Date());
+  const contratsHtml = checked.map(idx => {
+    const {emp, wk} = contratsWeekData.items[idx];
+    return _contratPageHtml(emp, wk, dateSign);
+  }).join('');
+  _openContratPrintWindow('Contrats extras', contratsHtml);
+
+  // Sauvegarde historique
+  try {
+    const rows = checked.map(idx => {
+      const {emp, wk} = contratsWeekData.items[idx];
+      return {
+        employee_id: emp.id,
+        week_start: contratsWeekData.weekStart,
+        week_end: contratsWeekData.weekEnd,
+        total_heures: +wk.total_h.toFixed(2),
+        total_repas: wk.total_repas,
+        taux_horaire: emp.taux_horaire || SMIC_HORAIRE_HCR,
+        jours_json: wk.jours,
+        generated_by: localStorage.getItem('mgr_email') || null,
+      };
+    });
+    await POST('contrats_extras', rows);
+  } catch(e) {
+    console.warn('Sauvegarde historique contrats échouée :', e);
+  }
+
+  closeModal('modalContratsExtras');
+  toast(`${checked.length} contrat(s) générés`);
+  if (typeof loadContratsHistory === 'function') loadContratsHistory();
+}
+
+// ═══ HISTORIQUE CONTRATS (onglet dédié) ═══
+async function loadContratsHistory() {
+  const list = document.getElementById('contratsHistoryList');
+  const sel  = document.getElementById('contratsFilterEmp');
+  if (!list || !sel) return;
+
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+  const currentFilter = sel.value;
+  if (sel.options.length <= 1) {
+    employees.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id; opt.textContent = e.name;
+      sel.appendChild(opt);
+    });
+    sel.value = currentFilter;
+  }
+
+  const empFilter = sel.value;
+  const q = empFilter
+    ? `contrats_extras?employee_id=eq.${empFilter}&order=week_start.desc,generated_at.desc&select=*`
+    : `contrats_extras?order=week_start.desc,generated_at.desc&select=*`;
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint)">Chargement…</div>';
+  const rows = await GET(q);
+  if (!rows.length) {
+    list.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-faint)">Aucun contrat généré pour le moment.</div>';
+    return;
+  }
+
+  // Groupe par semaine
+  const byWeek = {};
+  rows.forEach(r => {
+    (byWeek[r.week_start] = byWeek[r.week_start] || []).push(r);
+  });
+
+  const empById = {};
+  employees.forEach(e => empById[e.id] = e);
+
+  list.innerHTML = Object.keys(byWeek).map(weekStart => {
+    const weekRows = byWeek[weekStart];
+    const weekEnd = weekRows[0].week_end;
+    const items = weekRows.map(r => {
+      const emp = empById[r.employee_id];
+      const nom = emp ? emp.name : '(employé archivé)';
+      const tauxStr = r.taux_horaire ? (+r.taux_horaire).toFixed(2).replace('.',',') + ' €/h' : '';
+      const dGen = new Date(r.generated_at).toLocaleDateString('fr-FR');
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-weight:700">${nom}</div>
+            <div style="font-size:11px;color:var(--text-dim)">${(r.jours_json||[]).length} services · ${fmtH((r.total_heures||0)*60)} · ${r.total_repas||0} repas · ${tauxStr} · généré le ${dGen}</div>
+          </div>
+          <button class="btn-primary" onclick="reprintContrat('${r.id}')" style="padding:7px 14px;font-size:12px">🖨️ Réimprimer</button>
+        </div>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:18px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="background:rgba(156,39,176,.15);padding:10px 14px;font-weight:700;font-size:13px;color:#ce93d8">
+          Semaine du ${dateFr(weekStart)} au ${dateFr(weekEnd)} · ${weekRows.length} contrat(s)
+        </div>
+        ${items}
+      </div>`;
+  }).join('');
+}
+
+async function reprintContrat(id) {
+  const rows = await GET(`contrats_extras?id=eq.${id}&select=*`);
+  if (!rows.length) { toast('Contrat introuvable'); return; }
+  const r = rows[0];
+  const emps = await GET(`employees?id=eq.${r.employee_id}&select=*`);
+  const emp = emps[0];
+  if (!emp) { toast('Employé introuvable'); return; }
+  const wk = {jours: r.jours_json || [], total_h: +r.total_heures || 0, total_repas: r.total_repas || 0};
+  contratsWeekData = {dates: [], weekStart: r.week_start, weekEnd: r.week_end, items: [{emp: {...emp, taux_horaire: r.taux_horaire || emp.taux_horaire}, wk}]};
+  // On simule une "sélection" de l'item 0 et on appelle un mini-print
+  const idx = 0;
+  document.body.dataset._tmpCheck = '0';
+  // Génère le HTML d'un seul contrat (réutilise la même mise en page)
+  await _printSingleContrat(contratsWeekData.items[idx]);
+}
+
+async function _printSingleContrat({emp, wk}) {
+  const html = _contratPageHtml(emp, wk, dateFrLong(new Date()));
+  _openContratPrintWindow(`Contrat ${emp.name}`, html);
 }
 
 // Construit une ligne weekly_override à partir d'un horaire de base (schedules)
