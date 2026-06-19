@@ -2312,12 +2312,13 @@ async function loadContratsHistory() {
       const tauxStr = r.taux_horaire ? (+r.taux_horaire).toFixed(2).replace('.',',') + ' €/h' : '';
       const dGen = new Date(r.generated_at).toLocaleDateString('fr-FR');
       return `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border)">
-          <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px;border-bottom:1px solid var(--border)">
+          <div style="flex:1;min-width:0">
             <div style="font-weight:700">${nom}</div>
             <div style="font-size:11px;color:var(--text-dim)">${(r.jours_json||[]).length} services · ${fmtH((r.total_heures||0)*60)} · ${r.total_repas||0} repas · ${tauxStr} · généré le ${dGen}</div>
           </div>
-          <button class="btn-primary" onclick="reprintContrat('${r.id}')" style="padding:7px 14px;font-size:12px">🖨️ Réimprimer</button>
+          <button class="btn-primary" onclick="reprintContrat('${r.id}')" style="padding:7px 12px;font-size:12px">🖨️</button>
+          <button class="btn-del" onclick="deleteContrat('${r.id}','${jsStr(nom)}','${dGen}')" style="padding:7px 12px;font-size:12px" title="Supprimer ce contrat">🗑️</button>
         </div>`;
     }).join('');
     return `
@@ -2328,6 +2329,17 @@ async function loadContratsHistory() {
         ${items}
       </div>`;
   }).join('');
+}
+
+async function deleteContrat(id, nom, dateGen) {
+  if (!confirm(`Supprimer le contrat de ${nom} (généré le ${dateGen}) ?\n\nCette action est irréversible.`)) return;
+  try {
+    await sb(`contrats_extras?id=eq.${id}`, {method:'DELETE'});
+    toast('Contrat supprimé');
+    loadContratsHistory();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+  }
 }
 
 async function reprintContrat(id) {
