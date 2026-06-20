@@ -2437,6 +2437,7 @@ async function computeMonthlyRecap(mois) {
   const recap = [];
   for (const emp of employees) {
     let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, absentHours = 0;
+    const absDates = []; // {date, type: 'vacation'|'arret'|'accident'}
     for (const monday of mondays) {
       let weekH = 0, weekServices = 0, hasAny = false;
       for (let i = 0; i < 7; i++) {
@@ -2457,18 +2458,21 @@ async function computeMonthlyRecap(mois) {
           if (ABSENCE.has(ov.eve_status))  absentHours += plannedSvc(sched, true);
         }
         // Décompte congés / arrêts / accidents / absences (en jours, 0,5 par service le cas échéant)
-        if (ov.status === 'vacation') congesJours += 1;
-        else if (ov.status === 'arret') arretJours += 1;
-        else if (ov.status === 'accident') accidentJours += 1;
+        const dayYmd = dateStr(d);
+        const dayTypes = new Set();
+        if (ov.status === 'vacation') { congesJours += 1; dayTypes.add('vacation'); }
+        else if (ov.status === 'arret') { arretJours += 1; dayTypes.add('arret'); }
+        else if (ov.status === 'accident') { accidentJours += 1; dayTypes.add('accident'); }
         else if (ov.status === 'absent') absJours += 1;
         else {
-          if (ov.morn_status === 'arret') arretJours += 0.5;
-          else if (ov.morn_status === 'accident') accidentJours += 0.5;
+          if (ov.morn_status === 'arret') { arretJours += 0.5; dayTypes.add('arret'); }
+          else if (ov.morn_status === 'accident') { accidentJours += 0.5; dayTypes.add('accident'); }
           else if (ov.morn_status === 'absent') absJours += 0.5;
-          if (ov.eve_status === 'arret') arretJours += 0.5;
-          else if (ov.eve_status === 'accident') accidentJours += 0.5;
+          if (ov.eve_status === 'arret') { arretJours += 0.5; dayTypes.add('arret'); }
+          else if (ov.eve_status === 'accident') { accidentJours += 0.5; dayTypes.add('accident'); }
           else if (ov.eve_status === 'absent') absJours += 0.5;
         }
+        dayTypes.forEach(type => absDates.push({date: dayYmd, type}));
       }
       if (!hasAny) continue;
       totalH += weekH;
@@ -2494,7 +2498,7 @@ async function computeMonthlyRecap(mois) {
       presenceDays = 0; presenceRatio = 0;
     }
     if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0)
-      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours, presenceDays, presenceRatio, daysInMonth});
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours, presenceDays, presenceRatio, daysInMonth, absDates, ovByDate: ovIdx[emp.id] || {}});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2505,6 +2509,61 @@ async function computeMonthlyRecap(mois) {
 let recapRows = null;
 let recapMoisLabel = '';
 let recapObservations = '';
+
+// Construit le texte d'observations automatiques (1 ligne par plage consécutive d'absence)
+function buildAutoObservations(recap) {
+  const labels = { vacation: 'Congé payé', arret: 'Arrêt maladie', accident: 'Accident du travail' };
+  const fmtJM = ymd => {
+    const [, m, d] = ymd.split('-').map(Number);
+    return `${d} ${MOIS_FR[m-1]}`;
+  };
+  const addDay = (ymd, n) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const nd = new Date(y, m-1, d + n);
+    return `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+  };
+  const diffDays = (a, b) => {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    return Math.round((new Date(by, bm-1, bd) - new Date(ay, am-1, ad)) / 86400000);
+  };
+  const lines = [];
+  // Un jour "transparent" ne casse pas une plage d'absence (repos, jour off, jour non marqué)
+  const isTransparent = (ymd, ovByDate) => {
+    const ov = ovByDate && ovByDate[ymd];
+    if (!ov) return true;
+    if (ov.is_off || ov.status === 'off') return true;
+    return false;
+  };
+  recap.forEach(r => {
+    const byType = {};
+    (r.absDates || []).forEach(({date, type}) => { (byType[type] = byType[type] || new Set()).add(date); });
+    ['accident', 'arret', 'vacation'].forEach(type => {
+      if (!byType[type]) return;
+      const dates = [...byType[type]].sort();
+      let start = dates[0], prev = dates[0];
+      const ranges = [];
+      for (let i = 1; i < dates.length; i++) {
+        // Vérifie si tous les jours entre prev et dates[i] sont transparents → fusion
+        let canMerge = true;
+        let cursor = addDay(prev, 1);
+        while (cursor < dates[i]) {
+          if (!isTransparent(cursor, r.ovByDate)) { canMerge = false; break; }
+          cursor = addDay(cursor, 1);
+        }
+        if (canMerge) prev = dates[i];
+        else { ranges.push([start, prev]); start = dates[i]; prev = dates[i]; }
+      }
+      ranges.push([start, prev]);
+      ranges.forEach(([s, e]) => {
+        const dur = diffDays(s, e) + 1;
+        const periode = s === e ? `le ${fmtJM(s)}` : `du ${fmtJM(s)} au ${fmtJM(e)}`;
+        lines.push(`${r.emp.name} — ${labels[type]} ${periode} (${dur}j)`);
+      });
+    });
+  });
+  return lines.join('\n');
+}
 
 // Taux horaire net "contractuel" = salaire net de base / heures mensuelles du contrat
 function netHourlyOf(r) {
@@ -2540,7 +2599,7 @@ async function loadRecapEditable() {
   recapRows = data.recap;
   recapRows.forEach(r => { r.netVerse = recapNetEstime(r); });
   recapMoisLabel = data.moisLabel;
-  recapObservations = '';
+  recapObservations = buildAutoObservations(recapRows);
   renderRecapEditable();
 }
 
