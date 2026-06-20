@@ -920,13 +920,16 @@ function fillTRSections(doc, sheet, trTotals) {
     const emetteur = TR_MAPPING[label];
     const totals = { ...(trTotals[emetteur] || {}) };
 
-    // 1) Remplir les colonnes existantes
+    // 1) Remplir les colonnes existantes — seulement celles que l'app a saisies ce mois.
+    //    Les autres colonnes (saisies manuellement dans l'ODS pour des dénominations
+    //    inconnues de l'app) sont préservées intactes.
     for (const {cell: headerCell, col} of iterRowCells(headerRow)) {
       if (col === 0) continue;
       const v = cellNumber(headerCell);
       if (v == null || v === 0) continue;
       const key = v.toFixed(2);
-      const qty = totals[key] || 0;
+      if (!(key in totals)) continue; // app n'a pas cette dénomination → ne pas toucher
+      const qty = totals[key];
       setNumberCell(doc, getCellAt(nombreRow, col), qty);
       delete totals[key];
       if (qty > 0) countWritten++;
@@ -1075,10 +1078,10 @@ async function processODS() {
     if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
 
     // Vider d'abord toutes les valeurs du mois pour que la suppression d'une journée se repercute
+    // (lignes par jour seulement — les sections TR conservent les saisies manuelles non gérées par l'app)
     const monthPrefix = `${year}-${String(monthNum).padStart(2,'0')}`;
     clearMonthRows(sheetRecap, 0, monthPrefix, [1, 2, 3, 4, 5, 7, 8]);
     clearMonthRows(sheetCaisse, 1, monthPrefix, [2, 3, 4, 5, 6, 9, 10, 11, 12]);
-    clearTRSectionsNombre(sheetCaisse);
 
     // Onglet RÉCAP : Date(0) | CB(1) | CHQ(2) | TR(3) | CV(4) | ESP(5) | total formula(6) | TTC10(7) | TTC20(8)
     let countRecap = 0;
