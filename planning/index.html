@@ -2478,8 +2478,23 @@ async function computeMonthlyRecap(mois) {
         totalSup += weekH - +emp.heures_hebdo_contrat;
       }
     }
+    // Prorata mois : jours calendaires de présence (arrivée/départ dans le mois)
+    const firstYmd = dateStr(firstDay), lastYmd = dateStr(lastDay);
+    const startYmd = emp.date_arrivee && emp.date_arrivee > firstYmd ? emp.date_arrivee : firstYmd;
+    const endYmd   = emp.date_depart  && emp.date_depart  < lastYmd  ? emp.date_depart  : lastYmd;
+    const daysInMonth = lastDay.getDate();
+    let presenceDays = 0, presenceRatio = 1;
+    if (startYmd <= endYmd) {
+      const [sy,sm,sd] = startYmd.split('-').map(Number);
+      const [ey,em,ed] = endYmd.split('-').map(Number);
+      const sDate = new Date(sy, sm-1, sd), eDate = new Date(ey, em-1, ed);
+      presenceDays = Math.round((eDate - sDate) / 86400000) + 1;
+      presenceRatio = presenceDays / daysInMonth;
+    } else {
+      presenceDays = 0; presenceRatio = 0;
+    }
     if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0)
-      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours});
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours, presenceDays, presenceRatio, daysInMonth});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2501,11 +2516,17 @@ function netHourlyOf(r) {
 function retenueAbsenceOf(r) {
   return Math.round((r.absentHours || 0) * netHourlyOf(r) * 100) / 100;
 }
+// Salaire de base proratisé selon les jours de présence dans le mois (arrivée/départ)
+function baseProrataOf(r) {
+  if (r.emp.salaire_base_net == null) return 0;
+  return Math.round(+r.emp.salaire_base_net * (r.presenceRatio != null ? r.presenceRatio : 1) * 100) / 100;
+}
 // Estimation du net pour un employé (sert de valeur par défaut au champ "Net à verser")
 function recapNetEstime(r) {
   const taux = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
-  const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
-  if (baseNet != null) return Math.round((baseNet - retenueAbsenceOf(r) + r.totalSup * taux * 1.10) * 100) / 100;
+  if (r.emp.salaire_base_net != null) {
+    return Math.round((baseProrataOf(r) - retenueAbsenceOf(r) + r.totalSup * taux * 1.10) * 100) / 100;
+  }
   return Math.round(r.totalH * taux * 100) / 100;
 }
 const fmtJours = n => (Number.isInteger(n) ? n : n.toString().replace('.', ',')) + 'j';
@@ -2655,11 +2676,15 @@ function printRecapSalaires() {
     const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
     const supVal  = r.totalSup * taux * MAJ;   // heures sup × taux × 1,10
     const retenue = retenueAbsenceOf(r);        // retenue absence non payée
+    const baseDue = baseProrataOf(r);            // base proratisée arrivée/départ
     const net = r.netVerse != null ? r.netVerse : recapNetEstime(r);
     let baseCell, retCell, supCell;
     if (baseNet != null) {
-      sBase += baseNet;
-      baseCell = fmtEuros(baseNet);
+      sBase += baseDue;
+      const isProrata = r.presenceRatio != null && r.presenceRatio < 0.999;
+      baseCell = isProrata
+        ? `${fmtEuros(baseDue)}<br><span style="font-size:8.5pt;color:#888">prorata ${r.presenceDays}/${r.daysInMonth}j · base ${fmtEuros(baseNet)}</span>`
+        : fmtEuros(baseDue);
       retCell  = retenue > 0.005 ? `<span style="color:#b00">−${fmtEuros(retenue)}</span><br><span style="font-size:8.5pt;color:#888">${fmtHeures(r.absentHours)}</span>` : '—';
       supCell  = r.totalSup > 0.01 ? `+${fmtEuros(supVal)}<br><span style="font-size:8.5pt;color:#888">${fmtHeures(r.totalSup)}</span>` : '—';
       sRet += retenue; sSupVal += supVal;
