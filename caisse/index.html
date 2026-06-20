@@ -811,34 +811,125 @@ function aggregateTR(rows) {
   return totals;
 }
 
-// Remplit les sections TR (UP/Pluxee/Bimpli/Edenred) avec les cumuls du mois
+// Helpers colonne ↔ lettre (A=0, Z=25, AA=26…)
+function colToLetter(n) {
+  let s = ''; n = n + 1;
+  while (n > 0) { n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); }
+  return s;
+}
+function letterToCol(s) {
+  let n = 0;
+  for (const c of s) n = n*26 + (c.charCodeAt(0) - 64);
+  return n - 1;
+}
+// Étend la borne supérieure d'un range SUM([.X:.Y]) de 1 colonne si Y = oldLastValueCol
+function expandSumRange(formula, oldLastValueCol) {
+  if (!formula) return formula;
+  const oldLet = colToLetter(oldLastValueCol);
+  const newLet = colToLetter(oldLastValueCol + 1);
+  return formula.replace(/(\[\.[A-Z]+\d+:\.)([A-Z]+)(\d+\])/g, (m, start, letters, end) => {
+    return letters === oldLet ? start + newLet + end : m;
+  });
+}
+// Trouve la position de "TOTAL TICKET" dans la ligne header
+function findLabelCol(row, target) {
+  const up = target.toUpperCase();
+  for (const {cell, col} of iterRowCells(row)) {
+    if (cellText(cell).toUpperCase().trim() === up) return col;
+  }
+  return -1;
+}
+// Insère une cellule vide juste avant la position 'pos' (splitte si répétée). Retourne la nouvelle cellule.
+function insertCellAt(doc, row, pos) {
+  const existing = getCellAt(row, pos);
+  const newCell = doc.createElementNS(NS_TABLE, 'table-cell');
+  if (existing) row.insertBefore(newCell, existing); else row.appendChild(newCell);
+  return newCell;
+}
+
+// Remplit les sections TR (UP/Pluxee/Bimpli/Edenred) avec les cumuls du mois.
+// Crée automatiquement les colonnes pour les dénominations sans correspondance.
 function fillTRSections(doc, sheet, trTotals) {
   const rows = [...sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')];
-  let countWritten = 0, missingDenoms = [];
-  for (let i = 0; i < rows.length - 1; i++) {
-    const firstCell = [...rows[i].children].find(c => c.localName === 'table-cell');
-    const label = cellText(firstCell).toUpperCase().trim();
+  let countWritten = 0, countCreated = 0;
+  for (let i = 0; i < rows.length - 2; i++) {
+    const headerRow = rows[i], nombreRow = rows[i+1], totalRow = rows[i+2];
+    const label = cellText([...headerRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
     if (!TR_MAPPING[label]) continue;
-    const nextFirst = [...rows[i+1].children].find(c => c.localName === 'table-cell');
-    if (cellText(nextFirst).toUpperCase().trim() !== 'NOMBRE') continue;
+    const nombreLbl = cellText([...nombreRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+    const totalLbl  = cellText([...totalRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+    if (nombreLbl !== 'NOMBRE' || totalLbl !== 'TOTAL') continue;
+
     const emetteur = TR_MAPPING[label];
     const totals = { ...(trTotals[emetteur] || {}) };
-    for (const {cell: headerCell, col} of iterRowCells(rows[i])) {
-      if (col === 0) continue; // skip label
+
+    // 1) Remplir les colonnes existantes
+    for (const {cell: headerCell, col} of iterRowCells(headerRow)) {
+      if (col === 0) continue;
       const v = cellNumber(headerCell);
       if (v == null || v === 0) continue;
       const key = v.toFixed(2);
       const qty = totals[key] || 0;
-      setNumberCell(doc, getCellAt(rows[i+1], col), qty);
-      delete totals[key]; // marquer comme utilisé
+      setNumberCell(doc, getCellAt(nombreRow, col), qty);
+      delete totals[key];
       if (qty > 0) countWritten++;
     }
-    // Dénominations en base mais sans colonne dans l'ODS
-    for (const [key, qty] of Object.entries(totals)) {
-      if (qty > 0) missingDenoms.push(`${label} ${key.replace('.', ',')}€ (×${qty})`);
+
+    // 2) Insérer de nouvelles colonnes pour les dénominations restantes (par valeur croissante)
+    const remaining = Object.entries(totals).filter(([,q]) => q > 0).sort((a,b) => parseFloat(a[0]) - parseFloat(b[0]));
+    if (!remaining.length) continue;
+    let totalTicketCol = findLabelCol(headerRow, 'TOTAL TICKET');
+    if (totalTicketCol < 0) continue;
+    const headerRowNum = i + 1;     // ODS rows are 1-indexed in formulas
+    const nombreRowNum = i + 2;
+    // Récupérer le style des cellules adjacentes pour conserver la mise en forme
+    const sampleHeader = getCellAt(headerRow, totalTicketCol - 1);
+    const sampleNombre = getCellAt(nombreRow, totalTicketCol - 1);
+    const sampleTotal  = getCellAt(totalRow,  totalTicketCol - 1);
+    const styleH = sampleHeader && sampleHeader.getAttribute('table:style-name');
+    const styleN = sampleNombre && sampleNombre.getAttribute('table:style-name');
+    const styleT = sampleTotal  && sampleTotal.getAttribute('table:style-name');
+
+    for (const [key, qty] of remaining) {
+      const value = parseFloat(key);
+      const oldLastValueCol = totalTicketCol - 1; // dernière col valeur AVANT insertion
+
+      // Header
+      const cellH = insertCellAt(doc, headerRow, totalTicketCol);
+      if (styleH) cellH.setAttribute('table:style-name', styleH);
+      cellH.setAttribute('office:value-type', 'float');
+      cellH.setAttribute('office:value', String(value));
+      const pH = doc.createElementNS(NS_TEXT, 'p'); pH.textContent = String(value).replace('.', ','); cellH.appendChild(pH);
+
+      // NOMBRE
+      const cellN = insertCellAt(doc, nombreRow, totalTicketCol);
+      if (styleN) cellN.setAttribute('table:style-name', styleN);
+      cellN.setAttribute('office:value-type', 'float');
+      cellN.setAttribute('office:value', String(qty));
+      const pN = doc.createElementNS(NS_TEXT, 'p'); pN.textContent = String(qty); cellN.appendChild(pN);
+
+      // TOTAL : formule = header × nombre
+      const cellT = insertCellAt(doc, totalRow, totalTicketCol);
+      if (styleT) cellT.setAttribute('table:style-name', styleT);
+      const newLet = colToLetter(totalTicketCol);
+      cellT.setAttribute('table:formula', `of:=[.${newLet}${headerRowNum}]*[.${newLet}${nombreRowNum}]`);
+      cellT.setAttribute('office:value-type', 'float');
+      cellT.setAttribute('office:value', String(value * qty));
+      const pT = doc.createElementNS(NS_TEXT, 'p'); pT.textContent = String(value * qty).replace('.', ','); cellT.appendChild(pT);
+
+      // Bumper les formules SUM des cellules TOTAL TICKET/VALEUR (qui sont maintenant en pos +1 et +2)
+      for (const {cell, col} of iterRowCells(nombreRow)) {
+        if (col >= totalTicketCol + 1 && col <= totalTicketCol + 2) {
+          const f = cell.getAttribute('table:formula');
+          if (f && /SUM\(/i.test(f)) cell.setAttribute('table:formula', expandSumRange(f, oldLastValueCol));
+        }
+      }
+
+      totalTicketCol++; // décalé d'une position pour la prochaine insertion
+      countCreated++;
     }
   }
-  return { countWritten, missingDenoms };
+  return { countWritten, countCreated };
 }
 
 function rowDateYmd(rowEl, dateCol) {
@@ -929,9 +1020,10 @@ async function processODS() {
 
     // Cumul TR du mois → sections UP/Pluxee/Bimpli/Edenred dans l'onglet caisse
     const trTotals = aggregateTR(rows);
-    const { countWritten: countTR, missingDenoms } = fillTRSections(doc, sheetCaisse, trTotals);
+    const { countWritten: countTR, countCreated } = fillTRSections(doc, sheetCaisse, trTotals);
 
-    const newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc);
+    let newXml = new XMLSerializer().serializeToString(doc);
+    if (!newXml.startsWith('<?xml')) newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + newXml;
     zip.file('content.xml', newXml);
     const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
     const a = document.createElement('a');
@@ -941,8 +1033,8 @@ async function processODS() {
     URL.revokeObjectURL(a.href);
 
     closeODSModal();
-    let msg = `✅ ${countRecap} jours · ${countTR} dénominations TR cumulées`;
-    if (missingDenoms.length) msg += ` ⚠️ ${missingDenoms.length} dénomination(s) sans colonne ODS : ${missingDenoms.slice(0,3).join(', ')}`;
+    let msg = `✅ ${countRecap} jours · ${countTR} TR cumulés`;
+    if (countCreated > 0) msg += ` · ${countCreated} nouvelle(s) dénomination(s) créée(s)`;
     showToast(msg);
   } catch(e) {
     console.error(e);
