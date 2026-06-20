@@ -2370,21 +2370,23 @@ async function printRecapMensuel() {
 
   if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
 
-  // Semaines entières rattachées au mois : on prend tous les lundis qui tombent
-  // dans le mois, et on compte la semaine complète (Lun→Dim) même si elle déborde
-  // sur le mois suivant. Chaque semaine est ainsi comptée une seule fois, jamais coupée.
-  let firstMonday = getMonday(firstDay);
-  if (firstMonday < firstDay) firstMonday.setDate(firstMonday.getDate() + 7);
+  // Semaines entières (Lun→Dim) comptées une seule fois, jamais coupées.
+  // Une semaine est rattachée au mois où tombe la MAJORITÉ de ses jours, c.-à-d.
+  // le mois de son jeudi (norme ISO). Ex : la semaine du 29/6 au 5/7 a 5 jours en
+  // juillet (jeudi 2/7) → comptée en juillet, pas en juin.
   const mondays = [];
-  const cur = new Date(firstMonday);
-  while (cur <= lastDay) {
-    mondays.push(new Date(cur));
+  const cur = getMonday(firstDay); // lundi de la semaine contenant le 1er (peut être le mois précédent)
+  while (true) {
+    const thu = new Date(cur); thu.setDate(thu.getDate() + 3); // jeudi de la semaine
+    if (thu > lastDay) break;
+    if (thu >= firstDay) mondays.push(new Date(cur));
     cur.setDate(cur.getDate() + 7);
   }
-  if (!mondays.length) { toast('Aucune semaine entière dans ce mois'); return; }
+  if (!mondays.length) { toast('Aucune semaine dans ce mois'); return; }
+  const fetchStart = mondays[0];
   const fetchEnd = new Date(mondays[mondays.length - 1]);
   fetchEnd.setDate(fetchEnd.getDate() + 6); // dimanche de la dernière semaine
-  const allOv = await GET(`weekly_overrides?date=gte.${dateStr(firstMonday)}&date=lte.${dateStr(fetchEnd)}&select=*`);
+  const allOv = await GET(`weekly_overrides?date=gte.${dateStr(fetchStart)}&date=lte.${dateStr(fetchEnd)}&select=*`);
 
   // Index par employé + date
   const ovIdx = {};
@@ -2490,7 +2492,7 @@ async function printRecapMensuel() {
   <div class="note">
     Calcul des heures : pause repas de 30 min déduite par service (sauf début à 12h ou 19h30).<br>
     Heures sup : pour chaque semaine, différence entre heures réelles et heures hebdo du contrat (si dépassement), sommée sur le mois.<br>
-    Semaines : comptées entières (Lun→Dim), rattachées au mois de leur lundi — jamais coupées en bord de mois.<br>
+    Semaines : comptées entières (Lun→Dim), rattachées au mois où tombe la majorité de leurs jours (jeudi) — jamais coupées en bord de mois.<br>
     Repas : 1 par service travaillé (midi et/ou soir).
   </div>
   </body></html>`;
