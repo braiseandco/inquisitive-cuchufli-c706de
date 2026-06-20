@@ -669,10 +669,15 @@ async function loadHistory() {
     });
     const data = await res.json();
     if (!data.length) { list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim);">Aucune donnée</div>'; return; }
-    list.innerHTML = data.map(r => `
+    list.innerHTML = data.map(r => {
+      const exportedBadge = r.exported_to_ods_at
+        ? '<span title="Déjà exporté dans le tableur — les modifs ne se re-exporteront pas automatiquement" style="background:rgba(90,158,111,0.15);color:var(--green);border:1px solid var(--green);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">📊 Exporté</span>'
+        : '<span title="Non encore exporté" style="background:rgba(200,169,110,0.10);color:var(--gold-dim);border:1px solid var(--gold-dim);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">○ À exporter</span>';
+      return `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
           <div style="font-weight:800;">${new Date(r.date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short',day:'2-digit',month:'short'})}</div>
+          ${exportedBadge}
           <div style="color:var(--gold);font-weight:800;flex:1;text-align:right;">${fmtEur(r.total_general)}</div>
           <button onclick="editDay('${r.date}')" title="Modifier" style="background:rgba(200,169,110,0.15);border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">✏️</button>
           <button onclick="deleteDay('${r.date}')" title="Supprimer" style="background:rgba(192,88,88,0.15);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">🗑️</button>
@@ -684,7 +689,8 @@ async function loadHistory() {
           <span>Esp: ${fmtEur(r.esp)}</span>
           <span>Cvts: ${r.couverts || 0}</span>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch(e) { list.innerHTML = '<div style="color:var(--red);padding:20px;">Erreur de chargement</div>'; }
 }
 
@@ -729,7 +735,7 @@ async function editDay(date) {
 // ── SUPPRIMER UNE JOURNÉE ─────────────────────────────────────
 async function deleteDay(date) {
   const label = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-  if (!confirm(`Supprimer la caisse du ${label} ?\n\nCelle-ci sera effacée du tableur au prochain export ODS.`)) return;
+  if (!confirm(`Supprimer la caisse du ${label} ?\n\nAttention : si cette journée a déjà été exportée dans ton ODS, ses valeurs y resteront. Tu devras les retirer manuellement.`)) return;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}`, {
       method: 'DELETE',
@@ -920,19 +926,22 @@ function fillTRSections(doc, sheet, trTotals) {
     const emetteur = TR_MAPPING[label];
     const totals = { ...(trTotals[emetteur] || {}) };
 
-    // 1) Remplir les colonnes existantes — seulement celles que l'app a saisies ce mois.
-    //    Les autres colonnes (saisies manuellement dans l'ODS pour des dénominations
-    //    inconnues de l'app) sont préservées intactes.
+    // 1) Pour chaque colonne existante dans l'ODS dont l'app a une saisie : on ADDITIONNE
+    //    le delta à la valeur déjà présente (manuelle ou issue d'un précédent export).
+    //    Les autres colonnes (inconnues de l'app) sont préservées intactes.
     for (const {cell: headerCell, col} of iterRowCells(headerRow)) {
       if (col === 0) continue;
       const v = cellNumber(headerCell);
       if (v == null || v === 0) continue;
       const key = v.toFixed(2);
-      if (!(key in totals)) continue; // app n'a pas cette dénomination → ne pas toucher
-      const qty = totals[key];
-      setNumberCell(doc, getCellAt(nombreRow, col), qty);
+      if (!(key in totals)) continue;
+      const add = totals[key];
       delete totals[key];
-      if (qty > 0) countWritten++;
+      if (!add) continue;
+      const targetCell = getCellAt(nombreRow, col);
+      const current = cellNumber(targetCell) || 0;
+      setNumberCell(doc, targetCell, current + add);
+      countWritten++;
     }
 
     // 2) Insérer de nouvelles colonnes pour les dénominations restantes (par valeur croissante)
@@ -1054,11 +1063,12 @@ async function processODS() {
     const lastDate = new Date(year, monthNum, 0);
     const lastDay = `${year}-${String(monthNum).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=gte.${firstDay}&date=lte.${lastDay}&select=*`, {
+    // On ne traite QUE les journées non encore exportées (pour éviter les doubles comptages).
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=gte.${firstDay}&date=lte.${lastDay}&exported_to_ods_at=is.null&select=*`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     const rows = await res.json();
-    if (!rows.length) throw new Error('Aucune donnée pour ce mois');
+    if (!rows.length) throw new Error('Aucune nouvelle saisie à exporter pour ce mois');
     const byDate = {};
     rows.forEach(r => { byDate[r.date] = r; });
 
@@ -1077,13 +1087,8 @@ async function processODS() {
     if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable`);
     if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
 
-    // Vider d'abord toutes les valeurs du mois pour que la suppression d'une journée se repercute
-    // (lignes par jour seulement — les sections TR conservent les saisies manuelles non gérées par l'app)
-    const monthPrefix = `${year}-${String(monthNum).padStart(2,'0')}`;
-    clearMonthRows(sheetRecap, 0, monthPrefix, [1, 2, 3, 4, 5, 7, 8]);
-    clearMonthRows(sheetCaisse, 1, monthPrefix, [2, 3, 4, 5, 6, 9, 10, 11, 12]);
-
     // Onglet RÉCAP : Date(0) | CB(1) | CHQ(2) | TR(3) | CV(4) | ESP(5) | total formula(6) | TTC10(7) | TTC20(8)
+    // On n'écrit que les jours non encore exportés (= byDate). Les valeurs manuelles existantes ne sont pas touchées.
     let countRecap = 0;
     for (const row of sheetRecap.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
       const ymd = rowDateYmd(row, 0);
@@ -1132,8 +1137,24 @@ async function processODS() {
     a.click();
     URL.revokeObjectURL(a.href);
 
+    // Marquer les journées traitées comme exportées (évite le double comptage au prochain export)
+    const now = new Date().toISOString();
+    const datesToMark = rows.map(r => r.date);
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=in.(${datesToMark.join(',')})`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ exported_to_ods_at: now })
+      });
+    } catch(e) { console.warn('mark exported failed', e); }
+
     closeODSModal();
-    let msg = `✅ ${countRecap} jours · ${countTR} TR cumulés`;
+    let msg = `✅ ${rows.length} nouvelle(s) journée(s) ajoutée(s) · ${countTR} TR additionnés`;
     if (countCreated > 0) msg += ` · ${countCreated} nouvelle(s) dénomination(s) créée(s)`;
     showToast(msg);
   } catch(e) {
