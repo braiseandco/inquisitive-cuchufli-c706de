@@ -2411,6 +2411,15 @@ async function computeMonthlyRecap(mois) {
   const ovIdx = {};
   allOv.forEach(o => { (ovIdx[o.employee_id] = ovIdx[o.employee_id] || {})[o.date] = o; });
 
+  // Plannings récurrents : pour estimer les heures planifiées perdues lors des absences
+  const allSched = await GET('schedules?select=*');
+  const schedIdx = {};
+  allSched.forEach(s => { (schedIdx[s.employee_id] = schedIdx[s.employee_id] || {})[s.day_of_week] = s; });
+  const ABSENCE = new Set(['accident', 'arret', 'absent']); // absences non payées (hors congé payé)
+  const plannedSvc = (s, eve) => !s ? 0 : (eve
+    ? calcDayHours({evening_start: s.evening_start, evening_end: s.evening_end, evening_break_start: s.evening_break_start, evening_break_end: s.evening_break_end})
+    : calcDayHours({start_time: s.start_time, end_time: s.end_time, break_start: s.break_start, break_end: s.break_end}));
+
   const isMornActive = ov => {
     if (!ov || !ov.start_time || !ov.end_time) return false;
     const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
@@ -2424,7 +2433,7 @@ async function computeMonthlyRecap(mois) {
 
   const recap = [];
   for (const emp of employees) {
-    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0;
+    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, absentHours = 0;
     for (const monday of mondays) {
       let weekH = 0, weekServices = 0, hasAny = false;
       for (let i = 0; i < 7; i++) {
@@ -2435,6 +2444,15 @@ async function computeMonthlyRecap(mois) {
         weekH += calcDayHours(ov);
         if (isMornActive(ov)) weekServices += 1;
         if (isEveActive(ov))  weekServices += 1;
+        // Heures planifiées perdues lors d'une absence non payée (pour la retenue salaire)
+        const dow = d.getDay() === 0 ? 7 : d.getDay();
+        const sched = (schedIdx[emp.id] || {})[dow];
+        if (ABSENCE.has(ov.status)) {
+          absentHours += plannedSvc(sched, false) + plannedSvc(sched, true);
+        } else if (ov.status !== 'vacation') {
+          if (ABSENCE.has(ov.morn_status)) absentHours += plannedSvc(sched, false);
+          if (ABSENCE.has(ov.eve_status))  absentHours += plannedSvc(sched, true);
+        }
         // Décompte congés / arrêts / accidents / absences (en jours, 0,5 par service le cas échéant)
         if (ov.status === 'vacation') congesJours += 1;
         else if (ov.status === 'arret') arretJours += 1;
@@ -2458,7 +2476,7 @@ async function computeMonthlyRecap(mois) {
       }
     }
     if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0)
-      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours});
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2469,11 +2487,21 @@ async function computeMonthlyRecap(mois) {
 let recapRows = null;
 let recapMoisLabel = '';
 
+// Taux horaire net "contractuel" = salaire net de base / heures mensuelles du contrat
+function netHourlyOf(r) {
+  if (r.emp.salaire_base_net == null || !r.emp.heures_hebdo_contrat) return 0;
+  const monthlyContract = +r.emp.heures_hebdo_contrat * 52 / 12;
+  return monthlyContract > 0 ? +r.emp.salaire_base_net / monthlyContract : 0;
+}
+// Retenue pour absence non payée (AT / arrêt / absence) = heures perdues × taux net contractuel
+function retenueAbsenceOf(r) {
+  return Math.round((r.absentHours || 0) * netHourlyOf(r) * 100) / 100;
+}
 // Estimation du net pour un employé (sert de valeur par défaut au champ "Net à verser")
 function recapNetEstime(r) {
   const taux = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
   const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
-  if (baseNet != null) return Math.round((baseNet + r.totalSup * taux * 1.10) * 100) / 100;
+  if (baseNet != null) return Math.round((baseNet - retenueAbsenceOf(r) + r.totalSup * taux * 1.10) * 100) / 100;
   return Math.round(r.totalH * taux * 100) / 100;
 }
 const fmtJours = n => (Number.isInteger(n) ? n : n.toString().replace('.', ',')) + 'j';
@@ -2616,29 +2644,31 @@ function printRecapSalaires() {
   const recap = recapRows, moisLabel = recapMoisLabel;
   const MAJ = 1.10; // heures au-delà du contrat payées au taux majoré de 10%
 
-  let sBase = 0, sSupVal = 0, sTotal = 0;
+  let sBase = 0, sRet = 0, sSupVal = 0, sNet = 0;
   const rows = recap.map(r => {
     const taux    = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
     const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
-    const supVal  = r.totalSup * taux * MAJ; // heures sup × taux × 1,10
-    let total, baseCell, supCell;
+    const supVal  = r.totalSup * taux * MAJ;   // heures sup × taux × 1,10
+    const retenue = retenueAbsenceOf(r);        // retenue absence non payée
+    const net = r.netVerse != null ? r.netVerse : recapNetEstime(r);
+    let baseCell, retCell, supCell;
     if (baseNet != null) {
-      total = baseNet + supVal;
       sBase += baseNet;
       baseCell = fmtEuros(baseNet);
-      supCell  = r.totalSup > 0.01 ? fmtHeures(r.totalSup) + ' → ' + fmtEuros(supVal) : '—';
-      sSupVal += supVal;
+      retCell  = retenue > 0.005 ? `<span style="color:#b00">−${fmtEuros(retenue)}</span><br><span style="font-size:8.5pt;color:#888">${fmtHeures(r.absentHours)}</span>` : '—';
+      supCell  = r.totalSup > 0.01 ? `+${fmtEuros(supVal)}<br><span style="font-size:8.5pt;color:#888">${fmtHeures(r.totalSup)}</span>` : '—';
+      sRet += retenue; sSupVal += supVal;
     } else {
-      total = r.totalH * taux; // extra : payé aux heures réelles
       baseCell = `<span style="color:#888">aux heures (${fmtHeures(r.totalH)})</span>`;
-      supCell  = '—';
+      retCell = '—'; supCell = '—';
     }
-    sTotal += total;
+    sNet += net;
     return `<tr>
       <td>${r.emp.name}</td>
       <td style="text-align:right">${baseCell}</td>
+      <td style="text-align:right">${retCell}</td>
       <td style="text-align:right">${supCell}</td>
-      <td style="text-align:right;font-weight:700">${fmtEuros(total)}</td>
+      <td style="text-align:right;font-weight:700">${fmtEuros(net)}</td>
     </tr>`;
   }).join('');
 
@@ -2658,15 +2688,16 @@ function printRecapSalaires() {
     @media print { .print-btn { display:none; } body { padding:0; } }
   </style></head><body>
   <button class="print-btn" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
-  <h1>Estimation salaires — ${moisLabel}</h1>
-  <div class="subtitle">SAS ARP BIGANOS · Salaire de base + heures sup majorées 10%</div>
+  <h1>Salaires à verser — ${moisLabel}</h1>
+  <div class="subtitle">SAS ARP BIGANOS · Base net − absences + heures sup majorées 10%</div>
   <table>
     <thead>
       <tr>
         <th>Employé</th>
         <th style="text-align:right">Salaire net de base</th>
+        <th style="text-align:right">Retenue absence</th>
         <th style="text-align:right">Heures sup (+10%)</th>
-        <th style="text-align:right">Total estimé</th>
+        <th style="text-align:right">Net à verser</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -2674,15 +2705,17 @@ function printRecapSalaires() {
       <tr>
         <td>TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
         <td style="text-align:right">${fmtEuros(sBase)}</td>
-        <td style="text-align:right">${sSupVal > 0.005 ? fmtEuros(sSupVal) : '—'}</td>
-        <td style="text-align:right">${fmtEuros(sTotal)}</td>
+        <td style="text-align:right">${sRet > 0.005 ? '−' + fmtEuros(sRet) : '—'}</td>
+        <td style="text-align:right">${sSupVal > 0.005 ? '+' + fmtEuros(sSupVal) : '—'}</td>
+        <td style="text-align:right">${fmtEuros(sNet)}</td>
       </tr>
     </tfoot>
   </table>
   <div class="note">
     Salaire net de base : salaire mensuel du contrat (saisi sur la fiche de l'employé).<br>
-    Heures sup : heures au-delà du contrat hebdo, payées au taux horaire majoré de +10 % (taux × 1,10).<br>
-    Total estimé = salaire de base + heures sup majorées.<br>
+    Retenue absence : heures planifiées non travaillées pour AT / arrêt maladie / absence (hors congé payé), valorisées au taux net contractuel (base ÷ heures mensuelles du contrat). Les congés payés ne sont pas déduits.<br>
+    Heures sup : heures au-delà du contrat hebdo, payées au taux horaire majoré de +10 %.<br>
+    Net à verser = base − retenue absence + heures sup (ajustable manuellement avant génération).<br>
     Extras (sans salaire de base) : estimés aux heures réelles × taux horaire.
   </div>
   <div class="warn">
