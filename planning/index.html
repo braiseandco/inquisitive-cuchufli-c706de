@@ -377,10 +377,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <input class="form-input" type="number" step="0.01" min="0" id="contratTaux" value="12.31">
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">N° sécurité sociale</label>
-      <input class="form-input" type="text" id="contratNumSecu" placeholder="Ex: 1 07 05 33 011 244 65">
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">N° sécurité sociale</label>
+        <input class="form-input" type="text" id="contratNumSecu" placeholder="Ex: 1 07 05 33 011 244 65">
+      </div>
+      <div class="form-group" style="flex:0 0 140px">
+        <label class="form-label">H/semaine contrat</label>
+        <input class="form-input" type="number" step="0.5" min="0" max="60" id="contratHeuresHebdo" placeholder="35">
+      </div>
     </div>
+    <p style="font-size:10px;color:var(--text-faint);margin:-6px 0 8px;line-height:1.4">
+      💡 Heures hebdomadaires du contrat (ex : 35h temps plein, 20h mi-temps). Sert au calcul des heures sup pour le récap mensuel.
+    </p>
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal('modalEmpContrat')">Annuler</button>
       <button class="btn-primary" onclick="saveEmpContrat()">Enregistrer</button>
@@ -535,6 +544,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printPlanningReportForDate()">🖨️ Générer le PDF</button>
     <div id="recentWeeksList" style="margin-top:24px"></div>
+
+    <!-- Récap mensuel pour le comptable -->
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">📊 Récap mensuel (pour le comptable)</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6">
+        Pour chaque employé : heures travaillées · repas pris (1 par service) · heures supplémentaires (au-delà des heures contrat hebdo).
+      </p>
+      <div class="form-group">
+        <label class="form-label">Mois</label>
+        <input class="form-input" type="month" id="recapMois">
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel</button>
+      <p style="font-size:11px;color:var(--text-faint);margin-top:8px;line-height:1.6">
+        💡 Renseigne « H/semaine contrat » sur la fiche de chaque employé pour activer le calcul des heures sup.
+      </p>
+    </div>
 
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
       <div class="section-title" style="margin-bottom:12px">PDF par employé</div>
@@ -1515,6 +1540,7 @@ function openEmpContrat(empId) {
   document.getElementById('contratNaissance').value   = emp.date_naissance || '';
   document.getElementById('contratNumSecu').value     = emp.num_secu || '';
   document.getElementById('contratTaux').value        = emp.taux_horaire != null ? emp.taux_horaire : SMIC_HORAIRE_HCR;
+  document.getElementById('contratHeuresHebdo').value = emp.heures_hebdo_contrat != null ? emp.heures_hebdo_contrat : '';
   openModal('modalEmpContrat');
 }
 
@@ -1527,13 +1553,16 @@ async function saveEmpContrat() {
   const num_secu       = document.getElementById('contratNumSecu').value.trim() || null;
   const tauxRaw        = document.getElementById('contratTaux').value.replace(',', '.');
   const taux_horaire   = tauxRaw ? parseFloat(tauxRaw) : null;
+  const hebdoRaw       = document.getElementById('contratHeuresHebdo').value.replace(',', '.');
+  const heures_hebdo_contrat = hebdoRaw ? parseFloat(hebdoRaw) : null;
   if (taux_horaire != null && taux_horaire > 0 && taux_horaire < SMIC_HORAIRE_HCR) {
     if (!confirm(`Le taux saisi (${taux_horaire.toFixed(2)} €/h) est inférieur au SMIC HCR (${SMIC_HORAIRE_HCR.toFixed(2)} €/h).\n\nEnregistrer quand même ?`)) return;
   }
   try {
-    await PATCH(`employees?id=eq.${contratTargetId}`, {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire});
+    const patch = {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire, heures_hebdo_contrat};
+    await PATCH(`employees?id=eq.${contratTargetId}`, patch);
     const emp = employees.find(e => e.id === contratTargetId);
-    if (emp) Object.assign(emp, {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire});
+    if (emp) Object.assign(emp, patch);
     closeModal('modalEmpContrat');
     toast('Fiche contrat enregistrée');
     loadEmpCards();
@@ -2331,6 +2360,144 @@ async function loadContratsHistory() {
   }).join('');
 }
 
+// ═══ RÉCAP MENSUEL (édition PDF pour le comptable) ═══
+async function printRecapMensuel() {
+  const mois = document.getElementById('recapMois').value;
+  if (!mois) { toast('Choisis un mois'); return; }
+  const [year, monthNum] = mois.split('-').map(Number);
+  const firstDay = new Date(year, monthNum - 1, 1);
+  const lastDay  = new Date(year, monthNum, 0);
+
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+
+  // Semaines entières rattachées au mois : on prend tous les lundis qui tombent
+  // dans le mois, et on compte la semaine complète (Lun→Dim) même si elle déborde
+  // sur le mois suivant. Chaque semaine est ainsi comptée une seule fois, jamais coupée.
+  let firstMonday = getMonday(firstDay);
+  if (firstMonday < firstDay) firstMonday.setDate(firstMonday.getDate() + 7);
+  const mondays = [];
+  const cur = new Date(firstMonday);
+  while (cur <= lastDay) {
+    mondays.push(new Date(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  if (!mondays.length) { toast('Aucune semaine entière dans ce mois'); return; }
+  const fetchEnd = new Date(mondays[mondays.length - 1]);
+  fetchEnd.setDate(fetchEnd.getDate() + 6); // dimanche de la dernière semaine
+  const allOv = await GET(`weekly_overrides?date=gte.${dateStr(firstMonday)}&date=lte.${dateStr(fetchEnd)}&select=*`);
+
+  // Index par employé + date
+  const ovIdx = {};
+  allOv.forEach(o => { (ovIdx[o.employee_id] = ovIdx[o.employee_id] || {})[o.date] = o; });
+
+  const isMornActive = ov => {
+    if (!ov || !ov.start_time || !ov.end_time) return false;
+    const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    return s !== 'absent' && s !== 'repos';
+  };
+  const isEveActive = ov => {
+    if (!ov || !ov.evening_start || !ov.evening_end) return false;
+    const s = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    return s !== 'absent' && s !== 'repos';
+  };
+
+  const recap = [];
+  for (const emp of employees) {
+    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0;
+    for (const monday of mondays) {
+      let weekH = 0, weekServices = 0, hasAny = false;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday); d.setDate(d.getDate() + i);
+        const ov = (ovIdx[emp.id] || {})[dateStr(d)];
+        if (!ov) continue;
+        hasAny = true;
+        weekH += calcDayHours(ov);
+        if (isMornActive(ov)) weekServices += 1;
+        if (isEveActive(ov))  weekServices += 1;
+      }
+      if (!hasAny) continue;
+      totalH += weekH;
+      totalRepas += weekServices;
+      nbSemaines += 1;
+      if (emp.heures_hebdo_contrat != null && weekH > +emp.heures_hebdo_contrat) {
+        totalSup += weekH - +emp.heures_hebdo_contrat;
+      }
+    }
+    if (totalH > 0 || totalRepas > 0) recap.push({emp, totalH, totalRepas, totalSup, nbSemaines});
+  }
+
+  if (!recap.length) { toast('Aucune donnée pour ce mois'); return; }
+  recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
+
+  const fmtH2 = h => {
+    const v = Math.round(h * 100) / 100;
+    return (Number.isInteger(v) ? v : v.toFixed(2)).toString().replace('.', ',') + 'h';
+  };
+  const moisLabel = `${MOIS_FR[monthNum - 1]} ${year}`;
+
+  let sumH = 0, sumRepas = 0, sumSup = 0;
+  const rows = recap.map(r => {
+    sumH += r.totalH; sumRepas += r.totalRepas; sumSup += r.totalSup;
+    const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.',',') + 'h/sem' : '—';
+    return `<tr>
+      <td>${r.emp.name}</td>
+      <td>${hebdo}</td>
+      <td style="text-align:center">${r.nbSemaines}</td>
+      <td style="text-align:right">${fmtH2(r.totalH)}</td>
+      <td style="text-align:center">${r.totalRepas}</td>
+      <td style="text-align:right">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap ${moisLabel}</title>
+  <style>
+    @page { size:A4; margin:14mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:11pt; color:#111; margin:0; padding:18px; background:#fff; }
+    h1 { text-align:center; font-size:16pt; margin:0 0 4px; letter-spacing:.5px; }
+    .subtitle { text-align:center; font-size:11pt; color:#555; margin-bottom:18px; }
+    table { width:100%; border-collapse:collapse; margin-top:6px; }
+    th, td { border:1px solid #999; padding:7px 10px; text-align:left; font-size:10.5pt; }
+    th { background:#eee; font-weight:700; }
+    tfoot td { font-weight:700; background:#f6f6f6; }
+    .note { font-size:9.5pt; color:#555; margin-top:14px; line-height:1.5; }
+    .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
+    @media print { .print-btn { display:none; } body { padding:0; } }
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
+  <h1>Récapitulatif mensuel — ${moisLabel}</h1>
+  <div class="subtitle">SAS ARP BIGANOS · Pour le comptable</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Employé</th>
+        <th>Contrat</th>
+        <th style="text-align:center">Sem.</th>
+        <th style="text-align:right">Heures travaillées</th>
+        <th style="text-align:center">Repas</th>
+        <th style="text-align:right">Heures sup</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
+        <td style="text-align:right">${fmtH2(sumH)}</td>
+        <td style="text-align:center">${sumRepas}</td>
+        <td style="text-align:right">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="note">
+    Calcul des heures : pause repas de 30 min déduite par service (sauf début à 12h ou 19h30).<br>
+    Heures sup : pour chaque semaine, différence entre heures réelles et heures hebdo du contrat (si dépassement), sommée sur le mois.<br>
+    Semaines : comptées entières (Lun→Dim), rattachées au mois de leur lundi — jamais coupées en bord de mois.<br>
+    Repas : 1 par service travaillé (midi et/ou soir).
+  </div>
+  </body></html>`;
+
+  openPrintOverlay(html);
+}
+
 async function deleteContrat(id, nom, dateGen) {
   if (!confirm(`Supprimer le contrat de ${nom} (généré le ${dateGen}) ?\n\nCette action est irréversible.`)) return;
   try {
@@ -2460,6 +2627,8 @@ async function loadSettingsTab() {
   // Dates par défaut pour le rapport personnalisé : 1er du mois → aujourd'hui
   document.getElementById('customRptFrom').value = dateStr(new Date(today.getFullYear(), today.getMonth(), 1));
   document.getElementById('customRptTo').value = dateStr(today);
+  // Récap mensuel : mois en cours par défaut
+  document.getElementById('recapMois').value = today.toISOString().slice(0,7);
   loadSettings();
   // Rapports : on inclut les employés archivés pour garder l'accès à leur historique
   reportEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
