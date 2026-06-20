@@ -130,6 +130,7 @@
   .spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
   @keyframes spin{to{transform:rotate(360deg);}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -332,7 +333,10 @@
 <div id="page-historique" class="page">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
     <h2 style="font-family:'Playfair Display';color:var(--gold);">Historique</h2>
-    <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;" onclick="exportCSV()">⬇️ CSV</button>
+    <div style="display:flex;gap:8px">
+      <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;" onclick="openODSModal()">📊 ODS</button>
+      <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;" onclick="exportCSV()">⬇️ CSV</button>
+    </div>
   </div>
   <div id="historyList"><div style="text-align:center;padding:40px;color:var(--text-dim);">Chargement...</div></div>
 </div>
@@ -364,6 +368,29 @@
     </div>
     <button class="btn-modal-save" onclick="saveTRValue()">✓ Ajouter</button>
     <button class="btn-modal-cancel" onclick="closeAddTRModal()">Annuler</button>
+  </div>
+</div>
+
+<!-- MODAL EXPORT ODS -->
+<div class="modal-overlay" id="modalODS">
+  <div class="modal-box">
+    <div class="modal-title">
+      📊 Export vers chiffre2026.ods
+      <button onclick="closeODSModal()" style="background:none;border:none;color:var(--text-dim);font-size:28px;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px;line-height:1.5">
+      Glisse ton fichier .ods, choisis le mois. L'app remplit les onglets « <em>mois_année</em> » et « caisse <em>mois</em> » avec les jours saisis en base. Les autres onglets, formules, totaux et sections TR ne sont pas touchés.
+    </p>
+    <div class="modal-field">
+      <label>Fichier .ods</label>
+      <input type="file" id="odsFile" accept=".ods" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:13px">
+    </div>
+    <div class="modal-field">
+      <label>Mois à remplir</label>
+      <input type="month" id="odsMonth" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px">
+    </div>
+    <button class="btn-modal-save" onclick="processODS()" id="btnProcessODS">⬇️ Remplir et télécharger</button>
+    <button class="btn-modal-cancel" onclick="closeODSModal()">Annuler</button>
   </div>
 </div>
 
@@ -685,6 +712,163 @@ async function exportCSV() {
     a.click();
     showToast('✅ Export téléchargé !');
   } catch(e) { showToast('Erreur export', true); }
+}
+
+// ── EXPORT ODS (chiffre2026.ods) ──────────────────────────────
+const MOIS_FR_ODS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+const NS_TEXT  = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+
+function openODSModal() {
+  document.getElementById('odsMonth').value = new Date().toISOString().slice(0,7);
+  document.getElementById('odsFile').value = '';
+  document.getElementById('modalODS').classList.add('open');
+}
+function closeODSModal() { document.getElementById('modalODS').classList.remove('open'); }
+
+// Trouve (et "splitte" si nécessaire) la cellule à la colonne ciblée d'une ligne.
+function getCellAt(rowEl, targetCol) {
+  let col = 0;
+  for (const cell of [...rowEl.children]) {
+    if (cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+    const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+    if (targetCol < col + repeat) {
+      if (repeat === 1) return cell;
+      const before = targetCol - col;
+      const after  = col + repeat - targetCol - 1;
+      cell.removeAttribute('table:number-columns-repeated');
+      if (before > 0) {
+        const b = cell.cloneNode(true);
+        if (before > 1) b.setAttribute('table:number-columns-repeated', String(before));
+        rowEl.insertBefore(b, cell);
+      }
+      if (after > 0) {
+        const a = cell.cloneNode(true);
+        if (after > 1) a.setAttribute('table:number-columns-repeated', String(after));
+        if (cell.nextSibling) rowEl.insertBefore(a, cell.nextSibling); else rowEl.appendChild(a);
+      }
+      return cell;
+    }
+    col += repeat;
+  }
+  return null;
+}
+
+function setNumberCell(doc, cell, value) {
+  if (cell == null) return;
+  if (cell.hasAttribute('table:formula')) return; // ne pas écraser une formule
+  if (value == null || value === '' || isNaN(value)) return;
+  cell.setAttribute('office:value-type', 'float');
+  cell.setAttribute('office:value', String(value));
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+  const p = doc.createElementNS(NS_TEXT, 'p');
+  p.textContent = String(value).replace('.', ',');
+  cell.appendChild(p);
+}
+
+function rowDateYmd(rowEl, dateCol) {
+  let col = 0;
+  for (const cell of rowEl.children) {
+    if (cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+    const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+    if (dateCol >= col && dateCol < col + repeat) {
+      return cell.getAttribute('office:date-value') || null;
+    }
+    col += repeat;
+  }
+  return null;
+}
+
+async function processODS() {
+  const fileInput = document.getElementById('odsFile');
+  const month = document.getElementById('odsMonth').value;
+  if (!fileInput.files.length) { showToast('Choisis ton fichier .ods', true); return; }
+  if (!month) { showToast('Choisis un mois', true); return; }
+  const btn = document.getElementById('btnProcessODS');
+  btn.disabled = true; btn.textContent = '⏳ Traitement…';
+  try {
+    if (typeof JSZip === 'undefined') throw new Error('Librairie ZIP non chargée (vérifie ta connexion)');
+    const [year, monthNum] = month.split('-').map(Number);
+    const monthName = MOIS_FR_ODS[monthNum - 1];
+    const firstDay = `${year}-${String(monthNum).padStart(2,'0')}-01`;
+    const lastDate = new Date(year, monthNum, 0);
+    const lastDay = `${year}-${String(monthNum).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=gte.${firstDay}&date=lte.${lastDay}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    if (!rows.length) throw new Error('Aucune donnée pour ce mois');
+    const byDate = {};
+    rows.forEach(r => { byDate[r.date] = r; });
+
+    const buf = await fileInput.files[0].arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const xmlText = await zip.file('content.xml').async('string');
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+
+    const tables = doc.getElementsByTagNameNS(NS_TABLE, 'table');
+    let sheetRecap = null, sheetCaisse = null;
+    for (const t of tables) {
+      const name = (t.getAttribute('table:name') || '').toLowerCase();
+      if (!sheetRecap && name.includes(monthName) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
+      if (!sheetCaisse && name.startsWith('caisse') && name.includes(monthName)) sheetCaisse = t;
+    }
+    if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable`);
+    if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
+
+    // Onglet RÉCAP : Date(0) | CB(1) | CHQ(2) | TR(3) | CV(4) | ESP(5) | total formula(6) | TTC10(7) | TTC20(8)
+    let countRecap = 0;
+    for (const row of sheetRecap.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
+      const ymd = rowDateYmd(row, 0);
+      if (!ymd || !byDate[ymd]) continue;
+      const r = byDate[ymd];
+      setNumberCell(doc, getCellAt(row, 1), r.cb);
+      setNumberCell(doc, getCellAt(row, 2), r.cheque);
+      setNumberCell(doc, getCellAt(row, 3), r.tr);
+      setNumberCell(doc, getCellAt(row, 4), r.cv);
+      setNumberCell(doc, getCellAt(row, 5), r.esp);
+      setNumberCell(doc, getCellAt(row, 7), r.ttc10);
+      setNumberCell(doc, getCellAt(row, 8), r.ttc20);
+      countRecap++;
+    }
+
+    // Onglet CAISSE : Jour(0) | Date(1) | CA(2) | Offert(3) | Couvert(4) | CartFid(5) | Divers(6) | TM formula(7)
+    // | (vide 8) | CV10(9) | CV20(10) | CV25(11) | CV50(12)
+    let countCaisse = 0;
+    for (const row of sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
+      const ymd = rowDateYmd(row, 1);
+      if (!ymd || !byDate[ymd]) continue;
+      const r = byDate[ymd];
+      setNumberCell(doc, getCellAt(row, 2), r.total_general);
+      setNumberCell(doc, getCellAt(row, 3), r.offerts);
+      setNumberCell(doc, getCellAt(row, 4), r.couverts);
+      setNumberCell(doc, getCellAt(row, 5), r.carte_fidelite);
+      setNumberCell(doc, getCellAt(row, 6), r.divers);
+      setNumberCell(doc, getCellAt(row, 9),  r.cv_10);
+      setNumberCell(doc, getCellAt(row, 10), r.cv_20);
+      setNumberCell(doc, getCellAt(row, 11), r.cv_25);
+      setNumberCell(doc, getCellAt(row, 12), r.cv_50);
+      countCaisse++;
+    }
+
+    const newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc);
+    zip.file('content.xml', newXml);
+    const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileInput.files[0].name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    closeODSModal();
+    showToast(`✅ ${countRecap} jours (récap) · ${countCaisse} jours (caisse) écrits`);
+  } catch(e) {
+    console.error(e);
+    showToast('Erreur : ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇️ Remplir et télécharger';
+  }
 }
 
 // ── UTILITAIRES ───────────────────────────────────────────────
