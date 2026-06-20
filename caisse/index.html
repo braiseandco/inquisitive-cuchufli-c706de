@@ -381,15 +381,27 @@
     <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px;line-height:1.5">
       Glisse ton fichier .ods, choisis le mois. L'app remplit les onglets « <em>mois_année</em> » et « caisse <em>mois</em> » avec les jours saisis en base. Les autres onglets, formules, totaux et sections TR ne sont pas touchés.
     </p>
-    <div class="modal-field">
+    <div id="odsLinkedZone" style="display:none;background:rgba(90,158,111,0.12);border:1px solid var(--green);border-radius:10px;padding:12px;margin-bottom:14px;">
+      <div style="font-size:13px;color:var(--green);font-weight:700;margin-bottom:4px;">📎 Fichier lié</div>
+      <div id="odsLinkedName" style="font-size:12px;color:var(--text);margin-bottom:8px;word-break:break-all;"></div>
+      <button onclick="pickOdsFile(true)" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;">Changer de fichier</button>
+      <button onclick="unlinkOdsFile()" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer;margin-left:6px;">Délier</button>
+    </div>
+    <div id="odsPickZone" class="modal-field">
       <label>Fichier .ods</label>
-      <input type="file" id="odsFile" accept=".ods" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:13px">
+      <button id="btnPickOds" onclick="pickOdsFile()" style="width:100%;background:rgba(200,169,110,0.12);border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;">📎 Lier mon fichier ODS (1 fois)</button>
+      <p style="font-size:11px;color:var(--text-faint);margin:6px 0 0;">Une fois lié, plus besoin de le chercher — il sera mis à jour directement sur place à chaque export.</p>
+      <details style="margin-top:8px;">
+        <summary style="font-size:11px;color:var(--text-dim);cursor:pointer;">Pas dispo sur ce navigateur ?</summary>
+        <input type="file" id="odsFile" accept=".ods" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:13px;margin-top:8px;">
+        <p style="font-size:11px;color:var(--text-faint);margin:4px 0 0;">Fallback : sélectionne le fichier à chaque export (Firefox, iOS…).</p>
+      </details>
     </div>
     <div class="modal-field">
       <label>Mois à remplir</label>
       <input type="month" id="odsMonth" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px">
     </div>
-    <button class="btn-modal-save" onclick="processODS()" id="btnProcessODS">⬇️ Remplir et télécharger</button>
+    <button class="btn-modal-save" onclick="processODS()" id="btnProcessODS">⬇️ Remplir et enregistrer</button>
     <button class="btn-modal-cancel" onclick="closeODSModal()">Annuler</button>
   </div>
 </div>
@@ -782,10 +794,87 @@ const MOIS_FR_ODS = ['janvier','février','mars','avril','mai','juin','juillet',
 const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
 const NS_TEXT  = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
 
+// ── FILE SYSTEM ACCESS API : fichier ODS lié (Chrome/Edge desktop) ──
+const ODS_DB = 'caisse-handles', ODS_STORE = 'handles', ODS_KEY = 'ods';
+function odsHandleDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(ODS_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(ODS_STORE);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function saveOdsHandle(h) {
+  const db = await odsHandleDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(ODS_STORE, 'readwrite');
+    tx.objectStore(ODS_STORE).put(h, ODS_KEY);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  });
+}
+async function getOdsHandle() {
+  const db = await odsHandleDB();
+  return new Promise((res) => {
+    const tx = db.transaction(ODS_STORE, 'readonly');
+    const req = tx.objectStore(ODS_STORE).get(ODS_KEY);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => res(null);
+  });
+}
+async function clearOdsHandle() {
+  const db = await odsHandleDB();
+  return new Promise((res) => {
+    const tx = db.transaction(ODS_STORE, 'readwrite');
+    tx.objectStore(ODS_STORE).delete(ODS_KEY);
+    tx.oncomplete = () => res(); tx.onerror = () => res();
+  });
+}
+async function ensureOdsPermission(h, write) {
+  const opts = { mode: write ? 'readwrite' : 'read' };
+  if (h.queryPermission && (await h.queryPermission(opts)) === 'granted') return true;
+  if (h.requestPermission && (await h.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+async function pickOdsFile(replace) {
+  if (!window.showOpenFilePicker) { showToast('Ton navigateur ne supporte pas la liaison automatique (Firefox/iOS). Utilise le sélecteur manuel ci-dessous.', true); return; }
+  try {
+    const [h] = await window.showOpenFilePicker({
+      types: [{ description: 'Fichier ODS', accept: { 'application/vnd.oasis.opendocument.spreadsheet': ['.ods'] } }],
+      multiple: false
+    });
+    if (!(await ensureOdsPermission(h, true))) { showToast('Permission refusée', true); return; }
+    await saveOdsHandle(h);
+    await refreshOdsLinkedZone();
+    showToast('✅ Fichier lié : ' + h.name);
+  } catch(e) {
+    if (e.name !== 'AbortError') showToast('Erreur : ' + e.message, true);
+  }
+}
+async function unlinkOdsFile() {
+  if (!confirm('Délier le fichier ODS ? Tu devras le re-sélectionner pour l\'export suivant.')) return;
+  await clearOdsHandle();
+  await refreshOdsLinkedZone();
+  showToast('Fichier délié');
+}
+async function refreshOdsLinkedZone() {
+  const h = await getOdsHandle();
+  const linkedZone = document.getElementById('odsLinkedZone');
+  const pickZone = document.getElementById('odsPickZone');
+  if (h) {
+    document.getElementById('odsLinkedName').textContent = h.name;
+    linkedZone.style.display = 'block';
+    pickZone.style.display = 'none';
+  } else {
+    linkedZone.style.display = 'none';
+    pickZone.style.display = 'block';
+  }
+}
+
 function openODSModal() {
   document.getElementById('odsMonth').value = new Date().toISOString().slice(0,7);
   document.getElementById('odsFile').value = '';
   document.getElementById('modalODS').classList.add('open');
+  refreshOdsLinkedZone();
 }
 function closeODSModal() { document.getElementById('modalODS').classList.remove('open'); }
 
@@ -1091,10 +1180,23 @@ function rowDateYmd(rowEl, dateCol) {
 }
 
 async function processODS() {
-  const fileInput = document.getElementById('odsFile');
   const month = document.getElementById('odsMonth').value;
-  if (!fileInput.files.length) { showToast('Choisis ton fichier .ods', true); return; }
   if (!month) { showToast('Choisis un mois', true); return; }
+  // Source du fichier : handle lié en priorité, sinon input
+  const handle = await getOdsHandle();
+  const fileInput = document.getElementById('odsFile');
+  let sourceFile = null, sourceName = null, useHandle = false;
+  if (handle) {
+    if (!(await ensureOdsPermission(handle, true))) { showToast('Permission refusée sur le fichier lié', true); return; }
+    sourceFile = await handle.getFile();
+    sourceName = handle.name;
+    useHandle = true;
+  } else if (fileInput.files.length) {
+    sourceFile = fileInput.files[0];
+    sourceName = sourceFile.name;
+  } else {
+    showToast('Lie ton fichier .ods ou sélectionne-le', true); return;
+  }
   const btn = document.getElementById('btnProcessODS');
   btn.disabled = true; btn.textContent = '⏳ Traitement…';
   try {
@@ -1114,7 +1216,7 @@ async function processODS() {
     const byDate = {};
     rows.forEach(r => { byDate[r.date] = r; });
 
-    const buf = await fileInput.files[0].arrayBuffer();
+    const buf = await sourceFile.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
     const xmlText = await zip.file('content.xml').async('string');
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
@@ -1173,11 +1275,17 @@ async function processODS() {
     if (!newXml.startsWith('<?xml')) newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + newXml;
     zip.file('content.xml', newXml);
     const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = fileInput.files[0].name;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    if (useHandle) {
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = sourceName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
 
     // Marquer les journées traitées comme exportées (évite le double comptage au prochain export)
     const now = new Date().toISOString();
@@ -1196,7 +1304,10 @@ async function processODS() {
     } catch(e) { console.warn('mark exported failed', e); }
 
     closeODSModal();
-    let msg = `✅ ${rows.length} nouvelle(s) journée(s) ajoutée(s) · ${countTR} TR additionnés`;
+    let msg = useHandle
+      ? `✅ Fichier mis à jour : ${rows.length} journée(s)`
+      : `✅ ${rows.length} nouvelle(s) journée(s) téléchargée(s)`;
+    if (countTR > 0) msg += ` · ${countTR} TR additionnés`;
     if (countCreated > 0) msg += ` · ${countCreated} nouvelle(s) dénomination(s) créée(s)`;
     showToast(msg);
   } catch(e) {
