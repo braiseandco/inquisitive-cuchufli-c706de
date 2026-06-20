@@ -387,8 +387,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <input class="form-input" type="number" step="0.5" min="0" max="60" id="contratHeuresHebdo" placeholder="35">
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Salaire net de base (EUR / mois)</label>
+      <input class="form-input" type="number" step="10" min="0" id="contratSalaireBase" placeholder="Ex: 1500">
+    </div>
     <p style="font-size:10px;color:var(--text-faint);margin:-6px 0 8px;line-height:1.4">
-      💡 Heures hebdomadaires du contrat (ex : 35h temps plein, 20h mi-temps). Sert au calcul des heures sup pour le récap mensuel.
+      💡 H/semaine = heures du contrat (35h temps plein, 20h mi-temps) → sert au calcul des heures sup. Salaire net de base = salaire mensuel pour ce contrat ; les heures au-delà du contrat sont ajoutées majorées de 10 % dans l'estimation salaires.
     </p>
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeModal('modalEmpContrat')">Annuler</button>
@@ -1542,6 +1546,7 @@ function openEmpContrat(empId) {
   document.getElementById('contratNumSecu').value     = emp.num_secu || '';
   document.getElementById('contratTaux').value        = emp.taux_horaire != null ? emp.taux_horaire : SMIC_HORAIRE_HCR;
   document.getElementById('contratHeuresHebdo').value = emp.heures_hebdo_contrat != null ? emp.heures_hebdo_contrat : '';
+  document.getElementById('contratSalaireBase').value  = emp.salaire_base_net != null ? emp.salaire_base_net : '';
   openModal('modalEmpContrat');
 }
 
@@ -1556,11 +1561,13 @@ async function saveEmpContrat() {
   const taux_horaire   = tauxRaw ? parseFloat(tauxRaw) : null;
   const hebdoRaw       = document.getElementById('contratHeuresHebdo').value.replace(',', '.');
   const heures_hebdo_contrat = hebdoRaw ? parseFloat(hebdoRaw) : null;
+  const baseRaw        = document.getElementById('contratSalaireBase').value.replace(',', '.');
+  const salaire_base_net = baseRaw ? parseFloat(baseRaw) : null;
   if (taux_horaire != null && taux_horaire > 0 && taux_horaire < SMIC_HORAIRE_HCR) {
     if (!confirm(`Le taux saisi (${taux_horaire.toFixed(2)} €/h) est inférieur au SMIC HCR (${SMIC_HORAIRE_HCR.toFixed(2)} €/h).\n\nEnregistrer quand même ?`)) return;
   }
   try {
-    const patch = {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire, heures_hebdo_contrat};
+    const patch = {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire, heures_hebdo_contrat, salaire_base_net};
     await PATCH(`employees?id=eq.${contratTargetId}`, patch);
     const emp = employees.find(e => e.id === contratTargetId);
     if (emp) Object.assign(emp, patch);
@@ -2552,23 +2559,31 @@ function printRecapMensuel() {
 function printRecapSalaires() {
   if (!recapRows || !recapRows.length) { toast('Charge d\'abord un mois'); return; }
   const recap = recapRows, moisLabel = recapMoisLabel;
-  const MAJ = 0.10; // majoration des heures sup
+  const MAJ = 1.10; // heures au-delà du contrat payées au taux majoré de 10%
 
-  let sH = 0, sSup = 0, sBase = 0, sMaj = 0, sBrut = 0;
+  let sBase = 0, sSupVal = 0, sTotal = 0;
   const rows = recap.map(r => {
-    const taux = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
-    const base = r.totalH * taux;          // toutes les heures au taux simple
-    const maj  = r.totalSup * taux * MAJ;  // +10% sur les seules heures sup
-    const brut = base + maj;
-    sH += r.totalH; sSup += r.totalSup; sBase += base; sMaj += maj; sBrut += brut;
+    const taux    = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
+    const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
+    const supVal  = r.totalSup * taux * MAJ; // heures sup × taux × 1,10
+    let total, baseCell, supCell;
+    if (baseNet != null) {
+      total = baseNet + supVal;
+      sBase += baseNet;
+      baseCell = fmtEuros(baseNet);
+      supCell  = r.totalSup > 0.01 ? fmtHeures(r.totalSup) + ' → ' + fmtEuros(supVal) : '—';
+      sSupVal += supVal;
+    } else {
+      total = r.totalH * taux; // extra : payé aux heures réelles
+      baseCell = `<span style="color:#888">aux heures (${fmtHeures(r.totalH)})</span>`;
+      supCell  = '—';
+    }
+    sTotal += total;
     return `<tr>
       <td>${r.emp.name}</td>
-      <td style="text-align:right">${fmtEuros(taux)}</td>
-      <td style="text-align:right">${fmtHeures(r.totalH)}</td>
-      <td style="text-align:right">${r.totalSup > 0.01 ? fmtHeures(r.totalSup) : '—'}</td>
-      <td style="text-align:right">${fmtEuros(base)}</td>
-      <td style="text-align:right">${maj > 0.005 ? fmtEuros(maj) : '—'}</td>
-      <td style="text-align:right;font-weight:700">${fmtEuros(brut)}</td>
+      <td style="text-align:right">${baseCell}</td>
+      <td style="text-align:right">${supCell}</td>
+      <td style="text-align:right;font-weight:700">${fmtEuros(total)}</td>
     </tr>`;
   }).join('');
 
@@ -2589,40 +2604,37 @@ function printRecapSalaires() {
   </style></head><body>
   <button class="print-btn" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
   <h1>Estimation salaires — ${moisLabel}</h1>
-  <div class="subtitle">SAS ARP BIGANOS · Estimation brute (heures sup +10%)</div>
+  <div class="subtitle">SAS ARP BIGANOS · Salaire de base + heures sup majorées 10%</div>
   <table>
     <thead>
       <tr>
         <th>Employé</th>
-        <th style="text-align:right">Taux €/h</th>
-        <th style="text-align:right">Heures</th>
-        <th style="text-align:right">dont sup</th>
-        <th style="text-align:right">Salaire base</th>
-        <th style="text-align:right">Major. +10%</th>
-        <th style="text-align:right">Brut estimé</th>
+        <th style="text-align:right">Salaire net de base</th>
+        <th style="text-align:right">Heures sup (+10%)</th>
+        <th style="text-align:right">Total estimé</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="2">TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
-        <td style="text-align:right">${fmtHeures(sH)}</td>
-        <td style="text-align:right">${sSup > 0.01 ? fmtHeures(sSup) : '—'}</td>
+        <td>TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
         <td style="text-align:right">${fmtEuros(sBase)}</td>
-        <td style="text-align:right">${sMaj > 0.005 ? fmtEuros(sMaj) : '—'}</td>
-        <td style="text-align:right">${fmtEuros(sBrut)}</td>
+        <td style="text-align:right">${sSupVal > 0.005 ? fmtEuros(sSupVal) : '—'}</td>
+        <td style="text-align:right">${fmtEuros(sTotal)}</td>
       </tr>
     </tfoot>
   </table>
   <div class="note">
-    Salaire base : toutes les heures travaillées au taux horaire.<br>
-    Majoration : +10% appliqué uniquement aux heures supplémentaires (au-delà du contrat hebdo).<br>
-    Brut estimé = salaire base + majoration.
+    Salaire net de base : salaire mensuel du contrat (saisi sur la fiche de l'employé).<br>
+    Heures sup : heures au-delà du contrat hebdo, payées au taux horaire majoré de +10 % (taux × 1,10).<br>
+    Total estimé = salaire de base + heures sup majorées.<br>
+    Extras (sans salaire de base) : estimés aux heures réelles × taux horaire.
   </div>
   <div class="warn">
-    ⚠️ Estimation indicative seulement. N'inclut pas les charges sociales, primes, avantages en nature (repas),
-    ni le lissage mensuel. La majoration légale HCR est en réalité progressive (10 % de la 36ᵉ à la 39ᵉ h,
-    20 % de la 40ᵉ à la 43ᵉ h, 50 % au-delà) — ce récap applique un taux unique de 10 %. À valider avec le comptable.
+    ⚠️ Estimation indicative. Le salaire de base est en net ; les heures sup sont valorisées sur le taux horaire
+    (brut). N'inclut pas les charges sociales, primes, ni avantages en nature (repas). La majoration légale HCR
+    est en réalité progressive (10 % de la 36ᵉ à la 39ᵉ h, 20 % de la 40ᵉ à la 43ᵉ h, 50 % au-delà) — ce récap
+    applique un taux unique de 10 %. À valider avec le comptable.
   </div>
   </body></html>`;
 
