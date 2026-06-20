@@ -747,8 +747,23 @@ async function editDay(date) {
 // ── SUPPRIMER UNE JOURNÉE ─────────────────────────────────────
 async function deleteDay(date) {
   const label = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-  if (!confirm(`Supprimer la caisse du ${label} ?\n\nAttention : si cette journée a déjà été exportée dans ton ODS, ses valeurs y resteront. Tu devras les retirer manuellement.`)) return;
+  if (!confirm(`Supprimer la caisse du ${label} ?\n\nElle sera retirée du tableur ODS au prochain export.`)) return;
   try {
+    // Récupère la journée pour pouvoir la propager au tableur
+    const getRes = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const arr = await getRes.json();
+    if (!arr.length) { showToast('Introuvable', true); return; }
+    const row = arr[0];
+    // Stocke un snapshot pour propagation (seulement si la journée avait été exportée)
+    if (row.exported_to_ods_at) {
+      await fetch(`${SUPABASE_URL}/rest/v1/caisse_pending_deletions`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'apikey': SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ date: row.date, was_exported: true, snapshot: row })
+      });
+    }
     const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}`, {
       method: 'DELETE',
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -1207,12 +1222,17 @@ async function processODS() {
     const lastDate = new Date(year, monthNum, 0);
     const lastDay = `${year}-${String(monthNum).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;
 
-    // On ne traite QUE les journées non encore exportées (pour éviter les doubles comptages).
+    // Journées non encore exportées (pour éviter doubles comptages)
     const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=gte.${firstDay}&date=lte.${lastDay}&exported_to_ods_at=is.null&select=*`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     const rows = await res.json();
-    if (!rows.length) throw new Error('Aucune nouvelle saisie à exporter pour ce mois');
+    // Suppressions en attente de propagation au tableur
+    const delRes = await fetch(`${SUPABASE_URL}/rest/v1/caisse_pending_deletions?date=gte.${firstDay}&date=lte.${lastDay}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const pendingDels = await delRes.json();
+    if (!rows.length && !pendingDels.length) throw new Error('Aucune nouvelle saisie ni suppression à propager');
     const byDate = {};
     rows.forEach(r => { byDate[r.date] = r; });
 
@@ -1230,6 +1250,55 @@ async function processODS() {
     }
     if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable`);
     if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
+
+    // === PROPAGATION DES SUPPRESSIONS (déduit ce que l'app avait précédemment exporté) ===
+    let countDeleted = 0, countTRSubtracted = 0;
+    for (const del of pendingDels) {
+      const ymd = del.date;
+      // 1) Effacer les lignes par jour
+      for (const row of sheetRecap.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
+        if (rowDateYmd(row, 0) !== ymd) continue;
+        for (const c of [1,2,3,4,5,7,8]) clearNumberCell(getCellAt(row, c));
+        break;
+      }
+      for (const row of sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
+        if (rowDateYmd(row, 1) !== ymd) continue;
+        for (const c of [2,3,4,5,6,9,10,11,12]) clearNumberCell(getCellAt(row, c));
+        break;
+      }
+      // 2) Soustraire les tickets restaurant de la snapshot
+      const snap = del.snapshot || {};
+      let trData = null;
+      try { trData = snap.tr_data ? (typeof snap.tr_data === 'string' ? JSON.parse(snap.tr_data) : snap.tr_data) : null; } catch(e) { trData = null; }
+      if (trData) {
+        const sheetRows = [...sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')];
+        for (let i = 0; i < sheetRows.length - 1; i++) {
+          const label = cellText([...sheetRows[i].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+          if (!TR_MAPPING[label]) continue;
+          const nextLabel = cellText([...sheetRows[i+1].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+          if (nextLabel !== 'NOMBRE') continue;
+          const emetteur = TR_MAPPING[label];
+          const dataEm = trData[emetteur] || {};
+          for (const [m, q] of Object.entries(dataEm)) {
+            const mv = parseFloat(m); const qv = parseInt(q) || 0;
+            if (!isFinite(mv) || !qv) continue;
+            const key = mv.toFixed(2);
+            // Trouver la colonne dans le header
+            for (const {cell: headerCell, col} of iterRowCells(sheetRows[i])) {
+              if (col === 0) continue;
+              const v = cellNumber(headerCell);
+              if (v == null || v.toFixed(2) !== key) continue;
+              const cell = getCellAt(sheetRows[i+1], col);
+              const cur = cellNumber(cell) || 0;
+              setNumberCell(doc, cell, Math.max(0, cur - qv));
+              countTRSubtracted++;
+              break;
+            }
+          }
+        }
+      }
+      countDeleted++;
+    }
 
     // Onglet RÉCAP : Date(0) | CB(1) | CHQ(2) | TR(3) | CV(4) | ESP(5) | total formula(6) | TTC10(7) | TTC20(8)
     // On n'écrit que les jours non encore exportés (= byDate). Les valeurs manuelles existantes ne sont pas touchées.
@@ -1288,28 +1357,37 @@ async function processODS() {
     }
 
     // Marquer les journées traitées comme exportées (évite le double comptage au prochain export)
-    const now = new Date().toISOString();
-    const datesToMark = rows.map(r => r.date);
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=in.(${datesToMark.join(',')})`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_KEY,
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({ exported_to_ods_at: now })
-      });
-    } catch(e) { console.warn('mark exported failed', e); }
+    if (rows.length) {
+      const now = new Date().toISOString();
+      const datesToMark = rows.map(r => r.date);
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=in.(${datesToMark.join(',')})`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ exported_to_ods_at: now })
+        });
+      } catch(e) { console.warn('mark exported failed', e); }
+    }
+    // Supprimer les pending deletions traitées
+    if (pendingDels.length) {
+      const ids = pendingDels.map(d => d.id);
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/caisse_pending_deletions?id=in.(${ids.join(',')})`, {
+          method: 'DELETE',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+      } catch(e) { console.warn('clear pending dels failed', e); }
+    }
 
     closeODSModal();
-    let msg = useHandle
-      ? `✅ Fichier mis à jour : ${rows.length} journée(s)`
-      : `✅ ${rows.length} nouvelle(s) journée(s) téléchargée(s)`;
-    if (countTR > 0) msg += ` · ${countTR} TR additionnés`;
-    if (countCreated > 0) msg += ` · ${countCreated} nouvelle(s) dénomination(s) créée(s)`;
-    showToast(msg);
+    const parts = [];
+    if (rows.length) parts.push(`${rows.length} journée(s) ajoutée(s)`);
+    if (countDeleted) parts.push(`${countDeleted} journée(s) retirée(s)`);
+    if (countTR > 0) parts.push(`${countTR} TR additionnés`);
+    if (countTRSubtracted > 0) parts.push(`${countTRSubtracted} TR retirés`);
+    if (countCreated > 0) parts.push(`${countCreated} nouvelle(s) dénomination(s) créée(s)`);
+    const prefix = useHandle ? '✅ Fichier mis à jour' : '✅ Fichier téléchargé';
+    showToast(`${prefix} : ${parts.join(' · ')}`);
   } catch(e) {
     console.error(e);
     showToast('Erreur : ' + e.message, true);
