@@ -902,6 +902,29 @@ function findLabelCol(row, target) {
   }
   return -1;
 }
+// Met à jour la valeur cachée (office:value + text:p) sans toucher à la formule
+function setCachedNumber(doc, cell, value) {
+  if (cell == null) return;
+  cell.setAttribute('office:value-type', 'float');
+  cell.setAttribute('office:value', String(value));
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+  const p = doc.createElementNS(NS_TEXT, 'p');
+  p.textContent = String(Math.round(value * 100) / 100).replace('.', ',');
+  cell.appendChild(p);
+}
+
+// Somme des valeurs numériques d'une ligne entre les colonnes fromCol et toCol (inclus)
+function sumRow(row, fromCol, toCol) {
+  let s = 0;
+  for (const {cell, col} of iterRowCells(row)) {
+    if (col > toCol) break;
+    if (col < fromCol) continue;
+    const v = cellNumber(cell);
+    if (v != null) s += v;
+  }
+  return s;
+}
+
 // Insère une cellule vide juste avant la position 'pos' (splitte si répétée). Retourne la nouvelle cellule.
 function insertCellAt(doc, row, pos) {
   const existing = getCellAt(row, pos);
@@ -988,7 +1011,7 @@ function fillTRSections(doc, sheet, trTotals) {
 
       // Bumper les formules SUM des cellules TOTAL TICKET/VALEUR (qui sont maintenant en pos +1 et +2)
       for (const {cell, col} of iterRowCells(nombreRow)) {
-        if (col >= totalTicketCol + 1 && col <= totalTicketCol + 2) {
+        if (col === totalTicketCol + 1 || col === totalTicketCol + 2) {
           const f = cell.getAttribute('table:formula');
           if (f && /SUM\(/i.test(f)) cell.setAttribute('table:formula', expandSumRange(f, oldLastValueCol));
         }
@@ -996,6 +1019,25 @@ function fillTRSections(doc, sheet, trTotals) {
 
       totalTicketCol++; // décalé d'une position pour la prochaine insertion
       countCreated++;
+    }
+
+    // 3) Recalcule la valeur cachée de TOTAL TICKET et TOTAL VALEUR pour cette section,
+    //    pour refléter immédiatement les additions/insertions (LibreOffice n'a pas toujours
+    //    le recalcul auto activé selon le contenu de settings.xml).
+    const finalTotalTicketCol = findLabelCol(headerRow, 'TOTAL TICKET');
+    if (finalTotalTicketCol > 0) {
+      const lastValueCol = finalTotalTicketCol - 1;
+      let totalTickets = 0, totalValeur = 0;
+      for (let c = 1; c <= lastValueCol; c++) {
+        const v = cellNumber(getCellAt(headerRow, c));
+        const q = cellNumber(getCellAt(nombreRow, c));
+        if (q != null) totalTickets += q;
+        if (v != null && q != null) totalValeur += v * q;
+      }
+      const tcell = getCellAt(nombreRow, finalTotalTicketCol);
+      if (tcell) setCachedNumber(doc, tcell, totalTickets);
+      const vcell = getCellAt(nombreRow, finalTotalTicketCol + 1);
+      if (vcell) setCachedNumber(doc, vcell, totalValeur);
     }
   }
   return { countWritten, countCreated };

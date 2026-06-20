@@ -1,4 +1,4 @@
-const CACHE = 'caisse-v7';
+const CACHE = 'caisse-v8';
 const ASSETS = [
   '/caisse/index.html',
   '/icon-192.png',
