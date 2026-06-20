@@ -2382,6 +2382,9 @@ function fmtHeures(h) {
 function fmtEuros(n) {
   return (Math.round(n * 100) / 100).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
 }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 // Calcul partagé : heures, repas et heures sup par employé pour un mois donné.
 // Semaines entières (Lun→Dim) comptées une seule fois, jamais coupées. Une semaine
@@ -2486,6 +2489,7 @@ async function computeMonthlyRecap(mois) {
 // Données du mois chargé, ajustables avant génération du PDF.
 let recapRows = null;
 let recapMoisLabel = '';
+let recapObservations = '';
 
 // Taux horaire net "contractuel" = salaire net de base / heures mensuelles du contrat
 function netHourlyOf(r) {
@@ -2515,6 +2519,7 @@ async function loadRecapEditable() {
   recapRows = data.recap;
   recapRows.forEach(r => { r.netVerse = recapNetEstime(r); });
   recapMoisLabel = data.moisLabel;
+  recapObservations = '';
   renderRecapEditable();
 }
 
@@ -2550,6 +2555,10 @@ function renderRecapEditable() {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    </div>
+    <div style="margin-top:14px">
+      <label class="form-label" style="margin-bottom:6px;display:block">Observations pour le comptable</label>
+      <textarea id="recapObsInput" rows="4" placeholder="Notes libres affichées en bas du PDF (ex: maintien de salaire pour X, IJSS reçues pour Y, prime à ajouter pour Z…)" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:12px;font-family:'Raleway',sans-serif;resize:vertical" oninput="recapObservations=this.value">${recapObservations}</textarea>
     </div>
     <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel (heures, repas, congés, arrêts)</button>
     <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(255,160,0,.16);border:1px solid rgba(255,160,0,.4);color:#ffcc80" onclick="printRecapSalaires()">💰 Générer le récap salaires (net à verser)</button>`;
@@ -2590,7 +2599,9 @@ function printRecapMensuel() {
     th, td { border:1px solid #999; padding:6px 8px; text-align:left; font-size:9.5pt; }
     th { background:#eee; font-weight:700; }
     tfoot td { font-weight:700; background:#f6f6f6; }
-    .note { font-size:9pt; color:#555; margin-top:14px; line-height:1.5; }
+    .obs { margin-top:18px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
+    .obs-title { font-size:10pt; font-weight:700; margin-bottom:6px; letter-spacing:.3px; }
+    .obs-body { font-size:10pt; line-height:1.5; color:#222; white-space:pre-wrap; }
     .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
     @media print { .print-btn { display:none; } body { padding:0; } }
   </style></head><body>
@@ -2626,13 +2637,7 @@ function printRecapMensuel() {
       </tr>
     </tfoot>
   </table>
-  <div class="note">
-    Calcul des heures : pause repas de 30 min déduite par service (sauf début à 12h ou 19h30).<br>
-    Heures sup : pour chaque semaine, différence entre heures réelles et heures hebdo du contrat (si dépassement), sommée sur le mois.<br>
-    Semaines : comptées entières (Lun→Dim), rattachées au mois où tombe la majorité de leurs jours (jeudi) — jamais coupées en bord de mois.<br>
-    Repas : 1 par service travaillé (midi et/ou soir).<br>
-    Congés / Arrêt maladie / AT (accident travail) / Absence : décomptés en jours (0,5 si un seul service de la journée est concerné).
-  </div>
+  ${recapObservations.trim() ? `<div class="obs"><div class="obs-title">Observations</div><div class="obs-body">${escapeHtml(recapObservations).replace(/\n/g, '<br>')}</div></div>` : ''}
   </body></html>`;
 
   openPrintOverlay(html);
@@ -2682,8 +2687,9 @@ function printRecapSalaires() {
     th, td { border:1px solid #999; padding:7px 9px; text-align:left; font-size:10pt; }
     th { background:#eee; font-weight:700; }
     tfoot td { font-weight:700; background:#f6f6f6; }
-    .note { font-size:9pt; color:#555; margin-top:14px; line-height:1.5; }
-    .warn { font-size:9pt; color:#b00; margin-top:8px; line-height:1.5; }
+    .obs { margin-top:18px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
+    .obs-title { font-size:10pt; font-weight:700; margin-bottom:6px; letter-spacing:.3px; }
+    .obs-body { font-size:10pt; line-height:1.5; color:#222; white-space:pre-wrap; }
     .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
     @media print { .print-btn { display:none; } body { padding:0; } }
   </style></head><body>
@@ -2711,19 +2717,7 @@ function printRecapSalaires() {
       </tr>
     </tfoot>
   </table>
-  <div class="note">
-    Salaire net de base : salaire mensuel du contrat (saisi sur la fiche de l'employé).<br>
-    Retenue absence : heures planifiées non travaillées pour AT / arrêt maladie / absence (hors congé payé), valorisées au taux net contractuel (base ÷ heures mensuelles du contrat). Les congés payés ne sont pas déduits.<br>
-    Heures sup : heures au-delà du contrat hebdo, payées au taux horaire majoré de +10 %.<br>
-    Net à verser = base − retenue absence + heures sup (ajustable manuellement avant génération).<br>
-    Extras (sans salaire de base) : estimés aux heures réelles × taux horaire.
-  </div>
-  <div class="warn">
-    ⚠️ Estimation indicative. Le salaire de base est en net ; les heures sup sont valorisées sur le taux horaire
-    (brut). N'inclut pas les charges sociales, primes, ni avantages en nature (repas). La majoration légale HCR
-    est en réalité progressive (10 % de la 36ᵉ à la 39ᵉ h, 20 % de la 40ᵉ à la 43ᵉ h, 50 % au-delà) — ce récap
-    applique un taux unique de 10 %. À valider avec le comptable.
-  </div>
+  ${recapObservations.trim() ? `<div class="obs"><div class="obs-title">Observations</div><div class="obs-body">${escapeHtml(recapObservations).replace(/\n/g, '<br>')}</div></div>` : ''}
   </body></html>`;
 
   openPrintOverlay(html);
