@@ -137,6 +137,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .wt-repos{color:var(--text-faint);font-style:italic;}
 .wt-absent{color:#ef9a9a;font-weight:700;}
 .wt-arret{color:#ffb74d;font-weight:700;}
+.wt-accident{color:#f48fb1;font-weight:700;}
 .wt-conge{color:#90caf9;}
 .wt-ecole{color:#ce93d8;}
 .wt-total{font-weight:700;color:var(--accent2);background:rgba(229,57,53,.06) !important;white-space:nowrap;}
@@ -174,6 +175,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .day-toggle.off,.day-toggle.repos{background:rgba(120,120,120,.15);color:#9e9e9e;border-color:rgba(120,120,120,.3);}
 .day-toggle.absent{background:rgba(255,152,0,.15);color:#ffcc80;border-color:rgba(255,152,0,.4);}
 .day-toggle.arret{background:rgba(229,57,53,.15);color:#ef9a9a;border-color:rgba(229,57,53,.4);}
+.day-toggle.accident{background:rgba(244,143,177,.15);color:#f48fb1;border-color:rgba(244,143,177,.45);}
 .time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
 .sep{color:var(--text-faint);}
 .preset-select{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Raleway',sans-serif;font-weight:600;width:100%;margin-bottom:8px;cursor:pointer;outline:none;}
@@ -857,7 +859,7 @@ function fmtHours(s) {
 
 // Calcule les heures travaillées d'une journée (retourne un float en heures)
 function calcDayHours(row) {
-  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation') return 0;
+  if (!row || row.is_off || row.status === 'absent' || row.status === 'vacation' || row.status === 'accident') return 0;
   // Malade (arret) sans heures renseignées = 0h ; avec heures = on compte ce qui a été travaillé
   if (row.status === 'arret' && !row.start_time) return 0;
   const t = s => { if(!s) return 0; const [h,m]=s.slice(0,5).split(':').map(Number); return h*60+m; };
@@ -1210,6 +1212,7 @@ async function renderSignWeek() {
       }
       else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absent'; }
       else if (ov.status === 'arret')    { cls = 'absent';   badgeHtml = '<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d">Arrêt</span>'; info = 'Arrêt maladie'; }
+      else if (ov.status === 'accident') { cls = 'absent';   badgeHtml = '<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1">🩹 AT</span>'; info = 'Accident travail'; }
       else if (ov.status === 'vacation') { cls = 'vacation'; badgeHtml = '<span class="day-badge vacation">Congé</span>';  info = 'Congé'; }
       else {
         // Afficher les états par service si présents
@@ -1217,8 +1220,10 @@ async function renderSignWeek() {
         const badges = [];
         if (ms === 'absent') badges.push('<span class="day-badge absent" style="font-size:9px">Matin absent</span>');
         else if (ms === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Matin malade</span>');
+        else if (ms === 'accident') badges.push('<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1;font-size:9px">Matin AT</span>');
         if (es === 'absent') badges.push('<span class="day-badge absent" style="font-size:9px">Soir absent</span>');
         else if (es === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Soir malade</span>');
+        else if (es === 'accident') badges.push('<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1;font-size:9px">Soir AT</span>');
         badgeHtml = badges.join(' ');
         info = ov.start_time ? fmtHours(ov) : (ms && ms !== 'on' ? '' : '—');
       }
@@ -1992,6 +1997,7 @@ async function loadPlanningTab() {
         ? (ov.morn_status || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : 'on'))
         : (ov.eve_status  || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : 'on'));
       const badgeMalade = `<div style="font-size:9px;color:#ffb74d;font-weight:700;margin-top:2px">🤒 Malade</div>`;
+      if (svcState === 'accident') return `<td class="wt-accident" ${click}>🩹 AT</td>`;
       if (svcState === 'absent') return `<td class="wt-absent" ${click}>Absent</td>`;
       if (svcState === 'arret') {
         const hasTime = isMorn ? ov.start_time : ov.evening_start;
@@ -2073,7 +2079,7 @@ function buildEmpJoursForWeek(ovList, dates) {
     const d = dates[i];
     const ds = dateStr(d);
     const ov = ovByDate[ds];
-    if (!ov || ov.status === 'off' || ov.status === 'vacation' || ov.status === 'absent') continue;
+    if (!ov || ov.status === 'off' || ov.status === 'vacation' || ov.status === 'absent' || ov.status === 'accident') continue;
     // Service midi
     const mornState = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
     if (ov.start_time && ov.end_time && mornState !== 'absent' && mornState !== 'repos') {
@@ -2408,17 +2414,17 @@ async function computeMonthlyRecap(mois) {
   const isMornActive = ov => {
     if (!ov || !ov.start_time || !ov.end_time) return false;
     const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident';
   };
   const isEveActive = ov => {
     if (!ov || !ov.evening_start || !ov.evening_end) return false;
     const s = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident';
   };
 
   const recap = [];
   for (const emp of employees) {
-    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0;
+    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0;
     for (const monday of mondays) {
       let weekH = 0, weekServices = 0, hasAny = false;
       for (let i = 0; i < 7; i++) {
@@ -2429,6 +2435,19 @@ async function computeMonthlyRecap(mois) {
         weekH += calcDayHours(ov);
         if (isMornActive(ov)) weekServices += 1;
         if (isEveActive(ov))  weekServices += 1;
+        // Décompte congés / arrêts / accidents / absences (en jours, 0,5 par service le cas échéant)
+        if (ov.status === 'vacation') congesJours += 1;
+        else if (ov.status === 'arret') arretJours += 1;
+        else if (ov.status === 'accident') accidentJours += 1;
+        else if (ov.status === 'absent') absJours += 1;
+        else {
+          if (ov.morn_status === 'arret') arretJours += 0.5;
+          else if (ov.morn_status === 'accident') accidentJours += 0.5;
+          else if (ov.morn_status === 'absent') absJours += 0.5;
+          if (ov.eve_status === 'arret') arretJours += 0.5;
+          else if (ov.eve_status === 'accident') accidentJours += 0.5;
+          else if (ov.eve_status === 'absent') absJours += 0.5;
+        }
       }
       if (!hasAny) continue;
       totalH += weekH;
@@ -2438,7 +2457,8 @@ async function computeMonthlyRecap(mois) {
         totalSup += weekH - +emp.heures_hebdo_contrat;
       }
     }
-    if (totalH > 0 || totalRepas > 0) recap.push({emp, totalH, totalRepas, totalSup, nbSemaines});
+    if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0)
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2449,6 +2469,15 @@ async function computeMonthlyRecap(mois) {
 let recapRows = null;
 let recapMoisLabel = '';
 
+// Estimation du net pour un employé (sert de valeur par défaut au champ "Net à verser")
+function recapNetEstime(r) {
+  const taux = r.emp.taux_horaire != null ? +r.emp.taux_horaire : SMIC_HORAIRE_HCR;
+  const baseNet = r.emp.salaire_base_net != null ? +r.emp.salaire_base_net : null;
+  if (baseNet != null) return Math.round((baseNet + r.totalSup * taux * 1.10) * 100) / 100;
+  return Math.round(r.totalH * taux * 100) / 100;
+}
+const fmtJours = n => (Number.isInteger(n) ? n : n.toString().replace('.', ',')) + 'j';
+
 async function loadRecapEditable() {
   const mois = document.getElementById('recapMois').value;
   if (!mois) { toast('Choisis un mois'); return; }
@@ -2456,35 +2485,46 @@ async function loadRecapEditable() {
   const container = document.getElementById('recapEditable');
   if (!data || !data.recap.length) { recapRows = null; container.innerHTML = ''; toast('Aucune donnée pour ce mois'); return; }
   recapRows = data.recap;
+  recapRows.forEach(r => { r.netVerse = recapNetEstime(r); });
   recapMoisLabel = data.moisLabel;
   renderRecapEditable();
 }
 
 function renderRecapEditable() {
   const container = document.getElementById('recapEditable');
-  const inp = 'background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 6px;width:62px;text-align:right;font-size:12px';
+  const inp = 'background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 6px;width:58px;text-align:right;font-size:12px';
   const rows = recapRows.map((r, i) => {
     const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.', ',') + 'h' : 'extra';
+    const abs = [];
+    if (r.congesJours > 0) abs.push(`<span style="color:#90caf9">${fmtJours(r.congesJours)} congé</span>`);
+    if (r.arretJours > 0)  abs.push(`<span style="color:#ffb74d">${fmtJours(r.arretJours)} arrêt</span>`);
+    if (r.accidentJours > 0) abs.push(`<span style="color:#f48fb1">${fmtJours(r.accidentJours)} AT</span>`);
+    if (r.absJours > 0)    abs.push(`<span style="color:#ef9a9a">${fmtJours(r.absJours)} absence</span>`);
+    const sub = hebdo + (abs.length ? ' · ' + abs.join(' · ') : '');
     return `<tr style="border-top:1px solid var(--border)">
-      <td style="padding:6px 6px">${r.emp.name}<div style="font-size:10px;color:var(--text-faint)">${hebdo}</div></td>
+      <td style="padding:6px 6px">${r.emp.name}<div style="font-size:10px;color:var(--text-faint)">${sub}</div></td>
       <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalH*100)/100}" oninput="recapRows[${i}].totalH=parseFloat(this.value)||0" style="${inp}"></td>
-      <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0" style="${inp};width:48px"></td>
+      <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0" style="${inp};width:44px"></td>
       <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalSup*100)/100}" oninput="recapRows[${i}].totalSup=parseFloat(this.value)||0" style="${inp}"></td>
+      <td style="text-align:center"><input type="number" step="10" min="0" value="${r.netVerse}" oninput="recapRows[${i}].netVerse=parseFloat(this.value)||0" style="${inp};width:72px;font-weight:700;color:#a5d6a7"></td>
     </tr>`;
   }).join('');
   container.innerHTML = `
-    <p style="font-size:11px;color:var(--text-dim);margin:14px 0 6px">${recapMoisLabel} — ajuste si besoin, puis génère :</p>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <p style="font-size:11px;color:var(--text-dim);margin:14px 0 6px">${recapMoisLabel} — ajuste si besoin (le « Net à verser » est libre, indépendant des heures), puis génère :</p>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:420px">
       <thead><tr style="color:var(--text-dim);font-size:11px">
         <th style="text-align:left;padding:4px 6px">Employé</th>
         <th style="padding:4px">Heures</th>
         <th style="padding:4px">Repas</th>
         <th style="padding:4px">Sup</th>
+        <th style="padding:4px">Net à verser</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel</button>
-    <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(255,160,0,.16);border:1px solid rgba(255,160,0,.4);color:#ffcc80" onclick="printRecapSalaires()">💰 Estimation salaires (heures sup +10%)</button>`;
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel (heures, repas, congés, arrêts)</button>
+    <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(255,160,0,.16);border:1px solid rgba(255,160,0,.4);color:#ffcc80" onclick="printRecapSalaires()">💰 Générer le récap salaires (net à verser)</button>`;
 }
 
 function printRecapMensuel() {
@@ -2492,9 +2532,11 @@ function printRecapMensuel() {
   const recap = recapRows, moisLabel = recapMoisLabel;
   const fmtH2 = fmtHeures;
 
-  let sumH = 0, sumRepas = 0, sumSup = 0;
+  const fj = n => Number.isInteger(n) ? n : n.toString().replace('.', ',');
+  let sumH = 0, sumRepas = 0, sumSup = 0, sumConges = 0, sumArret = 0, sumAbs = 0, sumAccident = 0;
   const rows = recap.map(r => {
     sumH += r.totalH; sumRepas += r.totalRepas; sumSup += r.totalSup;
+    sumConges += r.congesJours; sumArret += r.arretJours; sumAbs += r.absJours; sumAccident += r.accidentJours;
     const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.',',') + 'h/sem' : '—';
     return `<tr>
       <td>${r.emp.name}</td>
@@ -2503,20 +2545,24 @@ function printRecapMensuel() {
       <td style="text-align:right">${fmtH2(r.totalH)}</td>
       <td style="text-align:center">${r.totalRepas}</td>
       <td style="text-align:right">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</td>
+      <td style="text-align:center">${r.congesJours > 0 ? fj(r.congesJours) : '—'}</td>
+      <td style="text-align:center">${r.arretJours > 0 ? fj(r.arretJours) : '—'}</td>
+      <td style="text-align:center">${r.accidentJours > 0 ? fj(r.accidentJours) : '—'}</td>
+      <td style="text-align:center">${r.absJours > 0 ? fj(r.absJours) : '—'}</td>
     </tr>`;
   }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap ${moisLabel}</title>
   <style>
-    @page { size:A4; margin:14mm; }
-    body { font-family:'Helvetica',Arial,sans-serif; font-size:11pt; color:#111; margin:0; padding:18px; background:#fff; }
-    h1 { text-align:center; font-size:16pt; margin:0 0 4px; letter-spacing:.5px; }
-    .subtitle { text-align:center; font-size:11pt; color:#555; margin-bottom:18px; }
+    @page { size:A4 landscape; margin:12mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:10pt; color:#111; margin:0; padding:18px; background:#fff; }
+    h1 { text-align:center; font-size:15pt; margin:0 0 4px; letter-spacing:.5px; }
+    .subtitle { text-align:center; font-size:10.5pt; color:#555; margin-bottom:16px; }
     table { width:100%; border-collapse:collapse; margin-top:6px; }
-    th, td { border:1px solid #999; padding:7px 10px; text-align:left; font-size:10.5pt; }
+    th, td { border:1px solid #999; padding:6px 8px; text-align:left; font-size:9.5pt; }
     th { background:#eee; font-weight:700; }
     tfoot td { font-weight:700; background:#f6f6f6; }
-    .note { font-size:9.5pt; color:#555; margin-top:14px; line-height:1.5; }
+    .note { font-size:9pt; color:#555; margin-top:14px; line-height:1.5; }
     .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
     @media print { .print-btn { display:none; } body { padding:0; } }
   </style></head><body>
@@ -2529,9 +2575,13 @@ function printRecapMensuel() {
         <th>Employé</th>
         <th>Contrat</th>
         <th style="text-align:center">Sem.</th>
-        <th style="text-align:right">Heures travaillées</th>
+        <th style="text-align:right">Heures trav.</th>
         <th style="text-align:center">Repas</th>
-        <th style="text-align:right">Heures sup</th>
+        <th style="text-align:right">H. sup</th>
+        <th style="text-align:center">Congés</th>
+        <th style="text-align:center">Arrêt</th>
+        <th style="text-align:center">AT</th>
+        <th style="text-align:center">Absence</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -2541,6 +2591,10 @@ function printRecapMensuel() {
         <td style="text-align:right">${fmtH2(sumH)}</td>
         <td style="text-align:center">${sumRepas}</td>
         <td style="text-align:right">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</td>
+        <td style="text-align:center">${sumConges > 0 ? fj(sumConges) : '—'}</td>
+        <td style="text-align:center">${sumArret > 0 ? fj(sumArret) : '—'}</td>
+        <td style="text-align:center">${sumAccident > 0 ? fj(sumAccident) : '—'}</td>
+        <td style="text-align:center">${sumAbs > 0 ? fj(sumAbs) : '—'}</td>
       </tr>
     </tfoot>
   </table>
@@ -2548,7 +2602,8 @@ function printRecapMensuel() {
     Calcul des heures : pause repas de 30 min déduite par service (sauf début à 12h ou 19h30).<br>
     Heures sup : pour chaque semaine, différence entre heures réelles et heures hebdo du contrat (si dépassement), sommée sur le mois.<br>
     Semaines : comptées entières (Lun→Dim), rattachées au mois où tombe la majorité de leurs jours (jeudi) — jamais coupées en bord de mois.<br>
-    Repas : 1 par service travaillé (midi et/ou soir).
+    Repas : 1 par service travaillé (midi et/ou soir).<br>
+    Congés / Arrêt maladie / AT (accident travail) / Absence : décomptés en jours (0,5 si un seul service de la journée est concerné).
   </div>
   </body></html>`;
 
@@ -2855,6 +2910,7 @@ async function printEmpReport() {
       const tdRepos = `<td style="color:#aaa;text-align:center;font-size:10px">Repos</td>`;
       const tdAbsent  = `<td style="color:#c62828;text-align:center;font-weight:700;font-size:10px">Absent</td>`;
       const tdArret   = `<td style="color:#e65100;text-align:center;font-weight:700;font-size:10px">Arrêt</td>`;
+      const tdAccident= `<td style="color:#ad1457;text-align:center;font-weight:700;font-size:10px">AT</td>`;
       const tdVacance = `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
 
       // Helper: cellule pour un service selon son état
@@ -2862,6 +2918,7 @@ async function printEmpReport() {
         const effState = state || (startT ? 'on' : 'repos');
         if (effState === 'absent') return tdAbsent;
         if (effState === 'arret')  return tdArret;
+        if (effState === 'accident') return tdAccident;
         if (effState === 'repos')  return tdRepos;
         if (!startT) return tdRepos;
         const mins = isEve
@@ -2883,9 +2940,10 @@ async function printEmpReport() {
       if (!ov || ov.status === 'off')    { cellArr.push(tdRepos); return; }
       if (ov.status === 'vacation')      { cellArr.push(tdVacance); return; }
       // Utiliser morn_status si disponible, sinon backward-compat via status
-      const effMornState = ov.morn_status || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : null);
+      const effMornState = ov.morn_status || (ov.status === 'absent' ? 'absent' : ov.status === 'arret' ? 'arret' : ov.status === 'accident' ? 'accident' : null);
       if (effMornState === 'absent') { cellArr.push(tdAbsent); return; }
       if (effMornState === 'arret')  { cellArr.push(tdArret);  return; }
+      if (effMornState === 'accident') { cellArr.push(tdAccident); return; }
       const mins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
       weekTotal += mins;
       cellArr.push(`<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`);
@@ -3264,24 +3322,24 @@ function selectOv(status) {
 
 // Helper: applique un état (on/repos/absent/arret) à un toggle + son bloc de champs
 function setToggleState(togEl, fieldsEl, state) {
-  const labels = { on: 'TRAVAILLE', repos: 'REPOS', absent: 'ABSENT', arret: 'MALADE' };
+  const labels = { on: 'TRAVAILLE', repos: 'REPOS', absent: 'ABSENT', arret: 'MALADE', accident: 'ACCID. TRAVAIL' };
   togEl.textContent = labels[state] || 'TRAVAILLE';
   togEl.dataset.state = state;
   togEl.className = 'day-toggle ' + state;
   if (fieldsEl) fieldsEl.style.display = (state === 'on') ? '' : 'none';
 }
 
-// Cycle: TRAVAILLE → REPOS → ABSENT → MALADE → TRAVAILLE
+// Cycle: TRAVAILLE → REPOS → ABSENT → MALADE → ACCID. TRAVAIL → TRAVAILLE
 function cycleOvMorn() {
   const tog = document.getElementById('ovMornToggle');
-  const states = ['on','repos','absent','arret'];
+  const states = ['on','repos','absent','arret','accident'];
   const cur = tog.dataset.state || 'on';
   const next = states[(states.indexOf(cur) + 1) % states.length];
   setToggleState(tog, document.getElementById('ovMornFields'), next);
 }
 function cycleOvEve() {
   const tog = document.getElementById('ovEveToggle');
-  const states = ['on','repos','absent','arret'];
+  const states = ['on','repos','absent','arret','accident'];
   const cur = tog.dataset.state || 'on';
   const next = states[(states.indexOf(cur) + 1) % states.length];
   setToggleState(tog, document.getElementById('ovEveFields'), next);
