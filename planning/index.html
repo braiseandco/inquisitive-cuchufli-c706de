@@ -2514,8 +2514,8 @@ let recapObservations = '';
 function buildAutoObservations(recap) {
   const labels = { vacation: 'Congé payé', arret: 'Arrêt maladie', accident: 'Accident du travail' };
   const fmtJM = ymd => {
-    const [, m, d] = ymd.split('-').map(Number);
-    return `${d} ${MOIS_FR[m-1]}`;
+    const [y, m, d] = ymd.split('-').map(Number);
+    return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
   };
   const addDay = (ymd, n) => {
     const [y, m, d] = ymd.split('-').map(Number);
