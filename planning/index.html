@@ -555,10 +555,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <label class="form-label">Mois</label>
         <input class="form-input" type="month" id="recapMois">
       </div>
-      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel</button>
-      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(255,160,0,.16);border:1px solid rgba(255,160,0,.4);color:#ffcc80" onclick="printRecapSalaires()">💰 Estimation salaires (heures sup +10%)</button>
+      <button class="btn-primary" style="width:100%;margin-top:8px" onclick="loadRecapEditable()">📥 Charger le mois (ajustable)</button>
+      <div id="recapEditable"></div>
       <p style="font-size:11px;color:var(--text-faint);margin-top:8px;line-height:1.6">
-        💡 Renseigne « H/semaine contrat » sur la fiche de chaque employé pour activer le calcul des heures sup.
+        💡 Renseigne « H/semaine contrat » sur la fiche de chaque employé pour activer le calcul des heures sup. Tu peux ajuster les heures, repas et heures sup avant de générer le PDF.
       </p>
     </div>
 
@@ -2438,12 +2438,51 @@ async function computeMonthlyRecap(mois) {
   return {recap, year, monthNum, moisLabel: `${MOIS_FR[monthNum - 1]} ${year}`};
 }
 
-async function printRecapMensuel() {
+// Données du mois chargé, ajustables avant génération du PDF.
+let recapRows = null;
+let recapMoisLabel = '';
+
+async function loadRecapEditable() {
   const mois = document.getElementById('recapMois').value;
   if (!mois) { toast('Choisis un mois'); return; }
   const data = await computeMonthlyRecap(mois);
-  if (!data || !data.recap.length) { toast('Aucune donnée pour ce mois'); return; }
-  const {recap, moisLabel} = data;
+  const container = document.getElementById('recapEditable');
+  if (!data || !data.recap.length) { recapRows = null; container.innerHTML = ''; toast('Aucune donnée pour ce mois'); return; }
+  recapRows = data.recap;
+  recapMoisLabel = data.moisLabel;
+  renderRecapEditable();
+}
+
+function renderRecapEditable() {
+  const container = document.getElementById('recapEditable');
+  const inp = 'background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 6px;width:62px;text-align:right;font-size:12px';
+  const rows = recapRows.map((r, i) => {
+    const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.', ',') + 'h' : 'extra';
+    return `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 6px">${r.emp.name}<div style="font-size:10px;color:var(--text-faint)">${hebdo}</div></td>
+      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalH*100)/100}" oninput="recapRows[${i}].totalH=parseFloat(this.value)||0" style="${inp}"></td>
+      <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0" style="${inp};width:48px"></td>
+      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalSup*100)/100}" oninput="recapRows[${i}].totalSup=parseFloat(this.value)||0" style="${inp}"></td>
+    </tr>`;
+  }).join('');
+  container.innerHTML = `
+    <p style="font-size:11px;color:var(--text-dim);margin:14px 0 6px">${recapMoisLabel} — ajuste si besoin, puis génère :</p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="color:var(--text-dim);font-size:11px">
+        <th style="text-align:left;padding:4px 6px">Employé</th>
+        <th style="padding:4px">Heures</th>
+        <th style="padding:4px">Repas</th>
+        <th style="padding:4px">Sup</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printRecapMensuel()">📊 Générer le récap mensuel</button>
+    <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(255,160,0,.16);border:1px solid rgba(255,160,0,.4);color:#ffcc80" onclick="printRecapSalaires()">💰 Estimation salaires (heures sup +10%)</button>`;
+}
+
+function printRecapMensuel() {
+  if (!recapRows || !recapRows.length) { toast('Charge d\'abord un mois'); return; }
+  const recap = recapRows, moisLabel = recapMoisLabel;
   const fmtH2 = fmtHeures;
 
   let sumH = 0, sumRepas = 0, sumSup = 0;
@@ -2510,12 +2549,9 @@ async function printRecapMensuel() {
 }
 
 // ═══ RÉCAP SALAIRES (estimation brute, heures sup majorées +10%) ═══
-async function printRecapSalaires() {
-  const mois = document.getElementById('recapMois').value;
-  if (!mois) { toast('Choisis un mois'); return; }
-  const data = await computeMonthlyRecap(mois);
-  if (!data || !data.recap.length) { toast('Aucune donnée pour ce mois'); return; }
-  const {recap, moisLabel} = data;
+function printRecapSalaires() {
+  if (!recapRows || !recapRows.length) { toast('Charge d\'abord un mois'); return; }
+  const recap = recapRows, moisLabel = recapMoisLabel;
   const MAJ = 0.10; // majoration des heures sup
 
   let sH = 0, sSup = 0, sBase = 0, sMaj = 0, sBrut = 0;
