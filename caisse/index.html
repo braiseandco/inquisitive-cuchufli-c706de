@@ -766,6 +766,81 @@ function setNumberCell(doc, cell, value) {
   cell.appendChild(p);
 }
 
+// Mapping label dans l'ODS → clé dans trData
+const TR_MAPPING = { 'UP DEJEUNER':'up', 'PLUXEE':'sodexo', 'BIMPLI':'bimpli', 'EDENRED':'edenred' };
+
+function cellText(cell) {
+  if (!cell) return '';
+  return [...cell.getElementsByTagNameNS(NS_TEXT, 'p')].map(p => p.textContent).join('');
+}
+function cellNumber(cell) {
+  if (!cell) return null;
+  const v = cell.getAttribute('office:value');
+  if (v !== null && v !== '') return parseFloat(v);
+  return null;
+}
+function* iterRowCells(row) {
+  let col = 0;
+  for (const cell of row.children) {
+    if (cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+    const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+    yield { cell, col, repeat };
+    col += repeat;
+  }
+}
+
+// Cumul des tickets restaurant du mois par émetteur et dénomination (clé = montant en .toFixed(2))
+function aggregateTR(rows) {
+  const totals = { up:{}, sodexo:{}, bimpli:{}, edenred:{} };
+  for (const r of rows) {
+    if (!r.tr_data) continue;
+    let data;
+    try { data = typeof r.tr_data === 'string' ? JSON.parse(r.tr_data) : r.tr_data; }
+    catch(e) { continue; }
+    for (const e of Object.keys(totals)) {
+      const d = data[e] || {};
+      for (const [m, q] of Object.entries(d)) {
+        const mv = parseFloat(m);
+        const qv = parseInt(q) || 0;
+        if (!isFinite(mv) || !qv) continue;
+        const key = mv.toFixed(2);
+        totals[e][key] = (totals[e][key] || 0) + qv;
+      }
+    }
+  }
+  return totals;
+}
+
+// Remplit les sections TR (UP/Pluxee/Bimpli/Edenred) avec les cumuls du mois
+function fillTRSections(doc, sheet, trTotals) {
+  const rows = [...sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')];
+  let countWritten = 0, missingDenoms = [];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const firstCell = [...rows[i].children].find(c => c.localName === 'table-cell');
+    const label = cellText(firstCell).toUpperCase().trim();
+    if (!TR_MAPPING[label]) continue;
+    const nextFirst = [...rows[i+1].children].find(c => c.localName === 'table-cell');
+    if (cellText(nextFirst).toUpperCase().trim() !== 'NOMBRE') continue;
+    const emetteur = TR_MAPPING[label];
+    const totals = { ...(trTotals[emetteur] || {}) };
+    for (const {cell: headerCell, col} of iterRowCells(rows[i])) {
+      if (col === 0) continue; // skip label
+      const v = cellNumber(headerCell);
+      if (v == null || v === 0) continue;
+      const key = v.toFixed(2);
+      const qty = totals[key] || 0;
+      setNumberCell(doc, getCellAt(rows[i+1], col), qty);
+      delete totals[key]; // marquer comme utilisé
+      if (qty > 0) countWritten++;
+    }
+    // Dénominations en base mais sans colonne dans l'ODS
+    for (const [key, qty] of Object.entries(totals)) {
+      if (qty > 0) missingDenoms.push(`${label} ${key.replace('.', ',')}€ (×${qty})`);
+    }
+  }
+  return { countWritten, missingDenoms };
+}
+
 function rowDateYmd(rowEl, dateCol) {
   let col = 0;
   for (const cell of rowEl.children) {
@@ -852,6 +927,10 @@ async function processODS() {
       countCaisse++;
     }
 
+    // Cumul TR du mois → sections UP/Pluxee/Bimpli/Edenred dans l'onglet caisse
+    const trTotals = aggregateTR(rows);
+    const { countWritten: countTR, missingDenoms } = fillTRSections(doc, sheetCaisse, trTotals);
+
     const newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(doc);
     zip.file('content.xml', newXml);
     const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
@@ -862,7 +941,9 @@ async function processODS() {
     URL.revokeObjectURL(a.href);
 
     closeODSModal();
-    showToast(`✅ ${countRecap} jours (récap) · ${countCaisse} jours (caisse) écrits`);
+    let msg = `✅ ${countRecap} jours · ${countTR} dénominations TR cumulées`;
+    if (missingDenoms.length) msg += ` ⚠️ ${missingDenoms.length} dénomination(s) sans colonne ODS : ${missingDenoms.slice(0,3).join(', ')}`;
+    showToast(msg);
   } catch(e) {
     console.error(e);
     showToast('Erreur : ' + e.message, true);
