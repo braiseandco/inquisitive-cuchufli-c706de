@@ -2650,21 +2650,26 @@ function printRecapMensuel() {
   const fmtH2 = fmtHeures;
 
   const fj = n => Number.isInteger(n) ? n : n.toString().replace('.', ',');
-  let sumH = 0, sumRepas = 0, sumSup = 0, sumConges = 0, sumArret = 0, sumAbs = 0, sumAccident = 0;
+  let sumBase = 0, sumRepas = 0, sumSup = 0, sumConges = 0, sumAbs = 0;
   const rows = recap.map(r => {
-    sumH += r.totalH; sumRepas += r.totalRepas; sumSup += r.totalSup;
-    sumConges += r.congesJours; sumArret += r.arretJours; sumAbs += r.absJours; sumAccident += r.accidentJours;
+    const baseDue = baseProrataOf(r);
+    sumBase += baseDue; sumRepas += r.totalRepas; sumSup += r.totalSup;
+    sumConges += r.congesJours; sumAbs += r.absJours;
     const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.',',') + 'h/sem' : '—';
+    const isProrata = r.presenceRatio != null && r.presenceRatio < 0.999;
+    const baseCell = r.emp.salaire_base_net == null
+      ? '—'
+      : (isProrata
+          ? `${fmtEuros(baseDue)}<br><span style="font-size:8.5pt;color:#888">prorata ${r.presenceDays}/${r.daysInMonth}j</span>`
+          : fmtEuros(baseDue));
     return `<tr>
       <td>${r.emp.name}</td>
       <td>${hebdo}</td>
       <td style="text-align:center">${r.nbSemaines}</td>
-      <td style="text-align:right">${fmtH2(r.totalH)}</td>
+      <td style="text-align:right">${baseCell}</td>
       <td style="text-align:center">${r.totalRepas}</td>
       <td style="text-align:right">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</td>
       <td style="text-align:center">${r.congesJours > 0 ? fj(r.congesJours) : '—'}</td>
-      <td style="text-align:center">${r.arretJours > 0 ? fj(r.arretJours) : '—'}</td>
-      <td style="text-align:center">${r.accidentJours > 0 ? fj(r.accidentJours) : '—'}</td>
       <td style="text-align:center">${r.absJours > 0 ? fj(r.absJours) : '—'}</td>
     </tr>`;
   }).join('');
@@ -2694,12 +2699,10 @@ function printRecapMensuel() {
         <th>Employé</th>
         <th>Contrat</th>
         <th style="text-align:center">Sem.</th>
-        <th style="text-align:right">Heures trav.</th>
+        <th style="text-align:right">Salaire net de base</th>
         <th style="text-align:center">Repas</th>
         <th style="text-align:right">H. sup</th>
         <th style="text-align:center">Congés</th>
-        <th style="text-align:center">Arrêt</th>
-        <th style="text-align:center">AT</th>
         <th style="text-align:center">Absence</th>
       </tr>
     </thead>
@@ -2707,12 +2710,10 @@ function printRecapMensuel() {
     <tfoot>
       <tr>
         <td colspan="3">TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
-        <td style="text-align:right">${fmtH2(sumH)}</td>
+        <td style="text-align:right">${fmtEuros(sumBase)}</td>
         <td style="text-align:center">${sumRepas}</td>
         <td style="text-align:right">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</td>
         <td style="text-align:center">${sumConges > 0 ? fj(sumConges) : '—'}</td>
-        <td style="text-align:center">${sumArret > 0 ? fj(sumArret) : '—'}</td>
-        <td style="text-align:center">${sumAccident > 0 ? fj(sumAccident) : '—'}</td>
         <td style="text-align:center">${sumAbs > 0 ? fj(sumAbs) : '—'}</td>
       </tr>
     </tfoot>
