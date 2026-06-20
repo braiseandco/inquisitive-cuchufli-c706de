@@ -671,9 +671,11 @@ async function loadHistory() {
     if (!data.length) { list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim);">Aucune donnée</div>'; return; }
     list.innerHTML = data.map(r => `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:15px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
           <div style="font-weight:800;">${new Date(r.date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short',day:'2-digit',month:'short'})}</div>
-          <div style="color:var(--gold);font-weight:800;">${fmtEur(r.total_general)}</div>
+          <div style="color:var(--gold);font-weight:800;flex:1;text-align:right;">${fmtEur(r.total_general)}</div>
+          <button onclick="editDay('${r.date}')" title="Modifier" style="background:rgba(200,169,110,0.15);border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">✏️</button>
+          <button onclick="deleteDay('${r.date}')" title="Supprimer" style="background:rgba(192,88,88,0.15);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">🗑️</button>
         </div>
         <div style="font-size:12px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap;">
           <span>CB: ${fmtEur(r.cb)}</span>
@@ -684,6 +686,61 @@ async function loadHistory() {
         </div>
       </div>`).join('');
   } catch(e) { list.innerHTML = '<div style="color:var(--red);padding:20px;">Erreur de chargement</div>'; }
+}
+
+// ── MODIFIER UNE JOURNÉE ──────────────────────────────────────
+async function editDay(date) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const data = await res.json();
+    if (!data.length) { showToast('Introuvable', true); return; }
+    const r = data[0];
+    // Va sur la page Saisie + remplit les champs
+    showPage('saisie');
+    const di = document.getElementById('dateInput');
+    di.value = r.date;
+    document.getElementById('dayBadge').textContent = JOURS[new Date(r.date + 'T12:00:00').getDay()];
+    document.getElementById('cb').value      = r.cb || '';
+    document.getElementById('cheque').value  = r.cheque || '';
+    document.getElementById('esp').value     = r.esp || '';
+    document.getElementById('ttc10').value   = r.ttc10 || '';
+    document.getElementById('ttc20').value   = r.ttc20 || '';
+    document.getElementById('fondCaisse').value = r.fond_caisse || '';
+    document.getElementById('offerts').value = r.offerts || '';
+    document.getElementById('couverts').value = r.couverts || '';
+    document.getElementById('notes').value   = r.notes || '';
+    document.getElementById('cv10').value = r.cv_10 || 0;
+    document.getElementById('cv20').value = r.cv_20 || 0;
+    document.getElementById('cv25').value = r.cv_25 || 0;
+    document.getElementById('cv50').value = r.cv_50 || 0;
+    try { trData = JSON.parse(r.tr_data || '{}'); } catch(e) { trData = {edenred:{},sodexo:{},up:{},bimpli:{}}; }
+    EMETTEURS.forEach(e => { if (!trData[e]) trData[e] = {}; renderTRItems(e); updateEmetteurTotal(e); });
+    calcCV();
+    calcTotal();
+    checkTVA();
+    showToast('Journée chargée — modifie puis enregistre');
+  } catch(e) {
+    showToast('Erreur : ' + e.message, true);
+  }
+}
+
+// ── SUPPRIMER UNE JOURNÉE ─────────────────────────────────────
+async function deleteDay(date) {
+  const label = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+  if (!confirm(`Supprimer la caisse du ${label} ?\n\nCelle-ci sera effacée du tableur au prochain export ODS.`)) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast('✅ Caisse supprimée');
+    loadHistory();
+  } catch(e) {
+    showToast('Erreur : ' + e.message, true);
+  }
 }
 
 // ── EXPORT CSV ────────────────────────────────────────────────
@@ -932,6 +989,40 @@ function fillTRSections(doc, sheet, trTotals) {
   return { countWritten, countCreated };
 }
 
+// Efface la valeur numérique d'une cellule (en gardant style + formule + repeat)
+function clearNumberCell(cell) {
+  if (!cell) return;
+  if (cell.hasAttribute('table:formula')) return; // ne touche pas aux formules
+  cell.removeAttribute('office:value');
+  cell.removeAttribute('office:value-type');
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+}
+
+// Vide les colonnes 'cols' (par index) pour toutes les lignes du mois cible
+function clearMonthRows(sheet, dateCol, monthYmdPrefix, cols) {
+  for (const row of sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')) {
+    const ymd = rowDateYmd(row, dateCol);
+    if (!ymd || !ymd.startsWith(monthYmdPrefix)) continue;
+    for (const c of cols) clearNumberCell(getCellAt(row, c));
+  }
+}
+
+// Remet à 0 les quantités des lignes NOMBRE des sections TR (toutes, indépendamment du mois)
+function clearTRSectionsNombre(sheet) {
+  const rows = [...sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const labelCell = [...rows[i].children].find(c => c.localName === 'table-cell');
+    const label = cellText(labelCell).toUpperCase().trim();
+    if (!TR_MAPPING[label]) continue;
+    const nextFirst = [...rows[i+1].children].find(c => c.localName === 'table-cell');
+    if (cellText(nextFirst).toUpperCase().trim() !== 'NOMBRE') continue;
+    // Vider la ligne NOMBRE colonnes 1 jusqu'à TOTAL TICKET (exclu)
+    const totalCol = findLabelCol(rows[i], 'TOTAL TICKET');
+    if (totalCol < 0) continue;
+    for (let col = 1; col < totalCol; col++) clearNumberCell(getCellAt(rows[i+1], col));
+  }
+}
+
 function rowDateYmd(rowEl, dateCol) {
   let col = 0;
   for (const cell of rowEl.children) {
@@ -982,6 +1073,12 @@ async function processODS() {
     }
     if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable`);
     if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
+
+    // Vider d'abord toutes les valeurs du mois pour que la suppression d'une journée se repercute
+    const monthPrefix = `${year}-${String(monthNum).padStart(2,'0')}`;
+    clearMonthRows(sheetRecap, 0, monthPrefix, [1, 2, 3, 4, 5, 7, 8]);
+    clearMonthRows(sheetCaisse, 1, monthPrefix, [2, 3, 4, 5, 6, 9, 10, 11, 12]);
+    clearTRSectionsNombre(sheetCaisse);
 
     // Onglet RÉCAP : Date(0) | CB(1) | CHQ(2) | TR(3) | CV(4) | ESP(5) | total formula(6) | TTC10(7) | TTC20(8)
     let countRecap = 0;
