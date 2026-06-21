@@ -334,6 +334,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
     <h2 style="font-family:'Playfair Display';color:var(--gold);">Historique</h2>
     <div style="display:flex;gap:8px">
+      <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;" onclick="openMonthModal()">📅 Mois</button>
       <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;" onclick="openODSModal()">📊 ODS</button>
       <button style="background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;" onclick="exportCSV()">⬇️ CSV</button>
     </div>
@@ -403,6 +404,41 @@
     </div>
     <button class="btn-modal-save" onclick="processODS()" id="btnProcessODS">⬇️ Remplir et enregistrer</button>
     <button class="btn-modal-cancel" onclick="closeODSModal()">Annuler</button>
+  </div>
+</div>
+
+<!-- MODAL CREATION DE MOIS -->
+<div class="modal-overlay" id="modalMonth">
+  <div class="modal-box">
+    <div class="modal-title">
+      📅 Créer un mois
+      <button onclick="closeMonthModal()" style="background:none;border:none;color:var(--text-dim);font-size:28px;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px;line-height:1.5">
+      Clone une feuille recap et une feuille caisse d'un mois source vers un mois cible. Les lundis sont laissés vides, les formules sont ajustées (TOTAL SEMAINE, TOTAL, TOTAL MOIS). Les autres feuilles ne sont pas touchées.
+    </p>
+    <div class="modal-field">
+      <label>Mois cible</label>
+      <input type="month" id="monthTarget" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px">
+    </div>
+    <div class="modal-field">
+      <label>Feuille recap source</label>
+      <select id="monthSrcRecap" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px"></select>
+    </div>
+    <div class="modal-field">
+      <label>Feuille caisse source</label>
+      <select id="monthSrcCaisse" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px"></select>
+    </div>
+    <div class="modal-field">
+      <label>Nom feuille recap cible</label>
+      <input type="text" id="monthTgtRecap" placeholder="ex: aout_2026" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px">
+    </div>
+    <div class="modal-field">
+      <label>Nom feuille caisse cible</label>
+      <input type="text" id="monthTgtCaisse" placeholder="ex: caisseaout" style="width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-size:14px">
+    </div>
+    <button class="btn-modal-save" onclick="createMonth()" id="btnCreateMonth">✓ Créer dans le fichier lié</button>
+    <button class="btn-modal-cancel" onclick="closeMonthModal()">Annuler</button>
   </div>
 </div>
 
@@ -892,6 +928,428 @@ function openODSModal() {
   refreshOdsLinkedZone();
 }
 function closeODSModal() { document.getElementById('modalODS').classList.remove('open'); }
+
+// ═══════════════ CREATION DE MOIS (clone) ═══════════════
+const MOIS_FR_ODS_NOACC = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+const MOIS_FR_ODS_CAPS  = ['JANVIER','FEVRIER','MARS','AVRIL','MAI','JUIN','JUILLET','AOUT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DECEMBRE'];
+const JOUR_CODE_FR = { 1:'M', 2:'M', 3:'J', 4:'V', 5:'S', 6:'D' };  // JS: getDay() Dim=0,Lun=1,...,Sam=6 -> ajusté plus bas
+
+function jsWeekdayToWeekday(jsDay) {
+  // JS getDay(): Dim=0 Lun=1 Mar=2 Mer=3 Jeu=4 Ven=5 Sam=6
+  // On veut Python-like : Lun=0 Mar=1 ... Dim=6
+  return (jsDay + 6) % 7;
+}
+
+async function openMonthModal() {
+  const handle = await getOdsHandle();
+  if (!handle) { showToast('Lie d\'abord ton fichier ODS dans la modal Export', true); return; }
+  if (!(await ensureOdsPermission(handle, true))) { showToast('Permission refusée', true); return; }
+  let file;
+  try { file = await handle.getFile(); }
+  catch(e) { showToast('Fichier inaccessible : ' + e.message, true); return; }
+  const buf = await file.arrayBuffer();
+  if (typeof JSZip === 'undefined') { showToast('Librairie ZIP non chargée', true); return; }
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('content.xml').async('string');
+
+  const sheetNames = [...xml.matchAll(/<table:table\b[^>]*\btable:name="([^"]+)"/g)].map(m => m[1]);
+  const recapSheets  = sheetNames.filter(s => /^[a-zàâéèêëïîôùûç]+_\d{4}$/i.test(s));
+  const caisseSheets = sheetNames.filter(s => /^caisse/i.test(s));
+
+  const recapSel = document.getElementById('monthSrcRecap');
+  const caisseSel = document.getElementById('monthSrcCaisse');
+  recapSel.innerHTML = recapSheets.map(s => `<option value="${s}">${s}</option>`).join('');
+  caisseSel.innerHTML = caisseSheets.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  // Mois cible = mois suivant le mois en cours
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  document.getElementById('monthTarget').value =
+    next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0');
+  // Pre-remplir les noms cibles
+  recomputeTargetNames();
+  document.getElementById('monthTarget').onchange = recomputeTargetNames;
+
+  document.getElementById('modalMonth').classList.add('open');
+}
+
+function recomputeTargetNames() {
+  const v = document.getElementById('monthTarget').value;
+  if (!v) return;
+  const [y, m] = v.split('-').map(Number);
+  const mn = MOIS_FR_ODS_NOACC[m - 1];
+  document.getElementById('monthTgtRecap').value  = `${mn}_${y}`;
+  document.getElementById('monthTgtCaisse').value = `caisse${mn}`;
+}
+
+function closeMonthModal() { document.getElementById('modalMonth').classList.remove('open'); }
+
+// --- Helpers chaines XML ---
+function findTableBlock(xml, name) {
+  const re = new RegExp(
+    '<table:table\\b[^>]*\\btable:name="' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>[\\s\\S]*?</table:table>'
+  );
+  const m = xml.match(re);
+  if (!m) return null;
+  return { block: m[0], start: m.index, end: m.index + m[0].length };
+}
+
+function shiftRowRefs(xml, deltaOrFn) {
+  const fn = (typeof deltaOrFn === 'function') ? deltaOrFn : (n => n + deltaOrFn);
+  // Matche .X<n> avec X = lettres colonne, optionnel $
+  return xml.replace(/(\.\$?[A-Z]+\$?)(\d+)/g, (m, prefix, num) => prefix + fn(parseInt(num)));
+}
+
+function clearCellValuesAndDisplay(xml) {
+  // Vide office:value="X"
+  xml = xml.replace(/\s+office:value="[^"]*"/g, '');
+  // Vide les contenus <text:p>...</text:p> qui sont des nombres/devises/erreurs
+  xml = xml.replace(/<text:p\b[^>]*>([\s\S]*?)<\/text:p>/g, (m, content) => {
+    const textOnly = content.replace(/<[^>]+>/g, '').trim();
+    if (/^([-\d\s.,]+|#DIV\/0\s*!?|-+\s*€?\s*|0[,.]?\d*)$/.test(textOnly)) return '<text:p/>';
+    return m;
+  });
+  return xml;
+}
+
+function extractRows(innerXml) {
+  return innerXml.match(/<table:table-row\b[^>]*>[\s\S]*?<\/table:table-row>/g) || [];
+}
+
+function getFirstCellText(rowXml) {
+  const firstCell = rowXml.match(/<table:table-cell\b[^>]*>([\s\S]*?)<\/table:table-cell>/);
+  if (!firstCell) return '';
+  const txt = [...firstCell[1].matchAll(/<text:p[^>]*>([^<]*)<\/text:p>/g)].map(m => m[1]).join('');
+  return txt.trim();
+}
+
+function firstRowRef(xml) {
+  const m = xml.match(/\.\$?[A-Z]+\$?(\d+)/);
+  return m ? parseInt(m[1]) : null;
+}
+
+// --- Construction du calendrier ---
+function monthCalendarWeeks(year, month) {
+  // month = 1-based. Retourne tableau de semaines, chaque semaine = tableau de {y,m,d,wd}
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const weeks = [];
+  let cur = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(year, month - 1, d);
+    const wd = jsWeekdayToWeekday(dt.getDay());  // 0=Lun...6=Dim
+    if (wd === 0) {
+      if (cur.length) weeks.push(cur);
+      cur = [];
+      continue;
+    }
+    cur.push({ y: year, m: month, d, wd });
+  }
+  if (cur.length) weeks.push(cur);
+  return { weeks, daysInMonth };
+}
+
+// --- Clone d'une feuille recap ---
+function cloneRecapInXml(xml, srcName, tgtName, year, month) {
+  const found = findTableBlock(xml, srcName);
+  if (!found) throw new Error(`Feuille recap source introuvable: ${srcName}`);
+  if (findTableBlock(xml, tgtName)) throw new Error(`Feuille ${tgtName} existe déjà`);
+
+  const openerMatch = found.block.match(/^<table:table\b[^>]*?>/);
+  const opener = openerMatch[0];
+  const inner = found.block.slice(opener.length, -('</table:table>'.length));
+
+  const cols = (inner.match(/<table:table-column\b[^>]*(?:\/>|>[\s\S]*?<\/table:table-column>)/g) || []).join('');
+  const rows = extractRows(inner);
+  if (rows.length < 3) throw new Error('Feuille recap source trop courte');
+
+  // Trouver le TOTAL row (contient SUM(...) ou texte 'TOTAL GENE')
+  let totalIdx = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (/SUM\(/.test(rows[i]) || /TOTAL GENE/.test(rows[i])) { totalIdx = i; break; }
+  }
+  if (totalIdx < 0) throw new Error('TOTAL row introuvable dans la recap source');
+
+  // Templates
+  const headerTpl = rows[0];
+  let dataTpl = null, emptyTpl = null;
+  for (let i = 1; i < totalIdx; i++) {
+    const r = rows[i];
+    const hasDate = /office:date-value=/.test(r);
+    if (!dataTpl && hasDate) dataTpl = r;
+    if (!emptyTpl && !hasDate) emptyTpl = r;
+    if (dataTpl && emptyTpl) break;
+  }
+  if (!dataTpl) throw new Error('Template data row introuvable');
+  if (!emptyTpl) emptyTpl = dataTpl;  // si pas de lundi vide dans source, on reutilise
+  const totalTpl = rows[totalIdx];
+  const dataTplRef = firstRowRef(dataTpl) || 2;
+
+  const newOpener = opener.replace(
+    new RegExp('(table:name=")' + srcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(")'),
+    '$1' + tgtName + '$2'
+  );
+
+  function makeDataRow(d, excelRow) {
+    let r = dataTpl;
+    const iso = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    const disp = `${d.d}/${d.m}/${String(d.y).slice(-2)}`;
+    r = r.replace(/office:date-value="\d{4}-\d{2}-\d{2}"/, `office:date-value="${iso}"`);
+    r = r.replace(/(<text:p[^>]*>)\d{1,2}\/\d{1,2}\/\d{2}(<\/text:p>)/, `$1${disp}$2`);
+    const delta = excelRow - dataTplRef;
+    if (delta) r = shiftRowRefs(r, delta);
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  function makeTotalRow(lastDataExcelRow) {
+    let r = totalTpl;
+    r = r.replace(/(SUM\(\[\.\$?[A-Z]+\$?2:\.\$?[A-Z]+\$?)\d+(\]\))/g, `$1${lastDataExcelRow}$2`);
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  const { weeks, daysInMonth } = monthCalendarWeeks(year, month);
+  const newRows = [headerTpl];
+  let excelRow = 2;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dt = new Date(year, month - 1, day);
+    const wd = jsWeekdayToWeekday(dt.getDay());
+    if (wd === 0) {
+      newRows.push(emptyTpl);
+    } else {
+      newRows.push(makeDataRow({ y: year, m: month, d: day, wd }, excelRow));
+    }
+    excelRow++;
+  }
+  const lastDataExcelRow = daysInMonth + 1;
+  newRows.push(makeTotalRow(lastDataExcelRow));
+
+  const newBlock = newOpener + cols + newRows.join('') + '</table:table>';
+  return xml.slice(0, found.end) + newBlock + xml.slice(found.end);
+}
+
+// --- Clone d'une feuille caisse ---
+function cloneCaisseInXml(xml, srcName, tgtName, year, month) {
+  const found = findTableBlock(xml, srcName);
+  if (!found) throw new Error(`Feuille caisse source introuvable: ${srcName}`);
+  if (findTableBlock(xml, tgtName)) throw new Error(`Feuille ${tgtName} existe déjà`);
+
+  const openerMatch = found.block.match(/^<table:table\b[^>]*?>/);
+  const opener = openerMatch[0];
+  const inner = found.block.slice(opener.length, -('</table:table>'.length));
+
+  const cols = (inner.match(/<table:table-column\b[^>]*(?:\/>|>[\s\S]*?<\/table:table-column>)/g) || []).join('');
+  const rows = extractRows(inner);
+  if (rows.length < 5) throw new Error('Feuille caisse source trop courte');
+
+  // Detection des indices cles
+  let idxFirstData = -1, idxFirstWeekTotal = -1, idxTotal = -1, idxTotalMois = -1;
+  for (let i = 2; i < rows.length; i++) {
+    const r = rows[i];
+    const a = getFirstCellText(r);
+    if (idxFirstData < 0 && /office:date-value=/.test(r)) idxFirstData = i;
+    if (idxFirstWeekTotal < 0 && a === 'TOTAL SEMAINE') idxFirstWeekTotal = i;
+    if (idxTotal < 0 && a === 'TOTAL' && idxFirstWeekTotal >= 0 && i > idxFirstWeekTotal && idxTotalMois < 0) idxTotal = i;
+    if (a === 'TOTAL MOIS' && idxTotalMois < 0) { idxTotalMois = i; break; }
+  }
+  if (idxFirstData < 0 || idxFirstWeekTotal < 0 || idxTotal < 0 || idxTotalMois < 0) {
+    throw new Error('Templates caisse introuvables (data/TOTAL SEMAINE/TOTAL/TOTAL MOIS)');
+  }
+
+  const titleTpl    = rows[0];
+  const headerTpl   = rows[1];
+  const dataTpl     = rows[idxFirstData];
+  const weekTotalTpl = rows[idxFirstWeekTotal];
+  const totalTpl    = rows[idxTotal];
+  const totalMoisTpl = rows[idxTotalMois];
+  const trSection   = rows.slice(idxTotalMois + 1);
+
+  const dataTplRef = firstRowRef(dataTpl) || 3;
+
+  // Titre : remplacer le mois source par le mois cible
+  function makeTitleRow() {
+    let r = titleTpl;
+    // On essaie tous les noms source en majuscules
+    for (let i = 0; i < MOIS_FR_ODS_CAPS.length; i++) {
+      const cap = MOIS_FR_ODS_CAPS[i];
+      if (r.includes(cap)) {
+        r = r.split(cap).join(MOIS_FR_ODS_CAPS[month - 1]);
+        break;
+      }
+    }
+    // Annee : 4 chiffres -> annee cible
+    r = r.replace(/\b20\d{2}\b/, String(year));
+    return r;
+  }
+
+  function makeDataRow(d, excelRow) {
+    let r = dataTpl;
+    const iso = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    const disp = `${String(d.d).padStart(2,'0')}/${String(d.m).padStart(2,'0')}/${String(d.y).slice(-2)}`;
+    r = r.replace(/office:date-value="\d{4}-\d{2}-\d{2}"/, `office:date-value="${iso}"`);
+    r = r.replace(/(<text:p[^>]*>)\d{1,2}\/\d{1,2}\/\d{2}(<\/text:p>)/, `$1${disp}$2`);
+    // Code jour
+    const code = JOUR_CODE_FR[d.wd];
+    if (code) {
+      r = r.replace(
+        /(<table:table-cell\b[^>]*>\s*<text:p[^>]*>)[MJVSD](<\/text:p>\s*<\/table:table-cell>)/,
+        `$1${code}$2`
+      );
+    }
+    const delta = excelRow - dataTplRef;
+    if (delta) r = shiftRowRefs(r, delta);
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  function makeWeekTotalRow(firstExcel, lastExcel) {
+    let r = weekTotalTpl;
+    // SUM([.X<a>:.X<b>]) -> SUM([.X<first>:.X<last>])
+    r = r.replace(
+      /(SUM\(\[\.\$?[A-Z]+\$?)\d+(:\.\$?[A-Z]+\$?)\d+(\]\))/g,
+      `$1${firstExcel}$2${lastExcel}$3`
+    );
+    const selfRow = lastExcel + 1;
+    // Pour les formules ratio (multi-col, mono-row) sans SUM, on cible self
+    r = r.replace(/<table:table-cell\b[^>]*?(?:\/>|>[\s\S]*?<\/table:table-cell>)/g, (cell) => {
+      const fmlM = cell.match(/table:formula="([^"]+)"/);
+      if (!fmlM) return cell;
+      const fml = fmlM[1];
+      if (/SUM/.test(fml)) return cell;
+      const refs = [...fml.matchAll(/\.\$?([A-Z]+)\$?(\d+)/g)];
+      if (!refs.length) return cell;
+      const cols = new Set(refs.map(x => x[1]));
+      const rs = new Set(refs.map(x => x[2]));
+      if (cols.size > 1 && rs.size === 1) {
+        const newFml = fml.replace(/(\.\$?[A-Z]+\$?)\d+/g, `$1${selfRow}`);
+        return cell.replace(fml, newFml);
+      }
+      return cell;
+    });
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  function makeTotalRow(weekTotalExcelRows, selfExcel) {
+    let r = totalTpl;
+    r = r.replace(/<table:table-cell\b[^>]*?(?:\/>|>[\s\S]*?<\/table:table-cell>)/g, (cell) => {
+      const fmlM = cell.match(/table:formula="([^"]+)"/);
+      if (!fmlM) return cell;
+      const fml = fmlM[1];
+      const refs = [...fml.matchAll(/\.\$?([A-Z]+)\$?(\d+)/g)];
+      if (!refs.length) return cell;
+      const cols = new Set(refs.map(x => x[1]));
+      const rs = new Set(refs.map(x => x[2]));
+      if (cols.size === 1 && rs.size > 1) {
+        const col = [...cols][0];
+        const sum = weekTotalExcelRows.map(r => `[.${col}${r}]`).join('+');
+        const newFml = (fml.startsWith('of:') ? 'of:' : '') + '=' + sum;
+        return cell.replace(fml, newFml);
+      } else if (cols.size > 1 && rs.size === 1) {
+        const newFml = fml.replace(/(\.\$?[A-Z]+\$?)\d+/g, `$1${selfExcel}`);
+        return cell.replace(fml, newFml);
+      }
+      return cell;
+    });
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  function makeTotalMoisRow(totalExcelRow) {
+    let r = totalMoisTpl;
+    r = shiftRowRefs(r, () => totalExcelRow);
+    r = clearCellValuesAndDisplay(r);
+    return r;
+  }
+
+  const { weeks, daysInMonth } = monthCalendarWeeks(year, month);
+  const newRows = [makeTitleRow(), headerTpl];
+  let excelRow = 3;
+  const weekTotalExcelRows = [];
+  for (const w of weeks) {
+    const first = excelRow;
+    for (const d of w) {
+      newRows.push(makeDataRow(d, excelRow));
+      excelRow++;
+    }
+    const last = excelRow - 1;
+    newRows.push(makeWeekTotalRow(first, last));
+    weekTotalExcelRows.push(excelRow);
+    excelRow++;
+  }
+  const totalExcelRow = excelRow;
+  newRows.push(makeTotalRow(weekTotalExcelRows, totalExcelRow));
+  excelRow++;
+  newRows.push(makeTotalMoisRow(totalExcelRow));
+  excelRow++;
+
+  // TR section : decaler par delta
+  const srcTrFirstExcel = idxTotalMois + 2;
+  const dstTrFirstExcel = excelRow;
+  const trDelta = dstTrFirstExcel - srcTrFirstExcel;
+  for (const srcRow of trSection) {
+    let r = srcRow;
+    if (trDelta !== 0) r = shiftRowRefs(r, trDelta);
+    r = clearCellValuesAndDisplay(r);
+    newRows.push(r);
+  }
+
+  const newOpener = opener.replace(
+    new RegExp('(table:name=")' + srcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(")'),
+    '$1' + tgtName + '$2'
+  );
+  const newBlock = newOpener + cols + newRows.join('') + '</table:table>';
+  return xml.slice(0, found.end) + newBlock + xml.slice(found.end);
+}
+
+async function createMonth() {
+  const monthVal = document.getElementById('monthTarget').value;
+  const srcRecap  = document.getElementById('monthSrcRecap').value;
+  const srcCaisse = document.getElementById('monthSrcCaisse').value;
+  const tgtRecap  = document.getElementById('monthTgtRecap').value.trim();
+  const tgtCaisse = document.getElementById('monthTgtCaisse').value.trim();
+  if (!monthVal || !srcRecap || !srcCaisse || !tgtRecap || !tgtCaisse) {
+    showToast('Champs manquants', true); return;
+  }
+  const [year, month] = monthVal.split('-').map(Number);
+
+  const btn = document.getElementById('btnCreateMonth');
+  btn.disabled = true; btn.textContent = '⏳ Création...';
+
+  try {
+    const handle = await getOdsHandle();
+    if (!handle) throw new Error('Aucun fichier ODS lié');
+    if (!(await ensureOdsPermission(handle, true))) throw new Error('Permission refusée');
+    const file = await handle.getFile();
+    const buf  = await file.arrayBuffer();
+    if (typeof JSZip === 'undefined') throw new Error('Librairie ZIP non chargée');
+    const zip = await JSZip.loadAsync(buf);
+    let xml = await zip.file('content.xml').async('string');
+
+    xml = cloneRecapInXml(xml, srcRecap, tgtRecap, year, month);
+    xml = cloneCaisseInXml(xml, srcCaisse, tgtCaisse, year, month);
+
+    zip.file('content.xml', xml);
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.oasis.opendocument.spreadsheet' });
+
+    let writable;
+    try { writable = await handle.createWritable(); }
+    catch (e1) {
+      try { await handle.getFile(); writable = await handle.createWritable(); }
+      catch (e2) { throw new Error('Fichier verrouillé (LibreOffice ouvert ? OneDrive sync ?)'); }
+    }
+    await writable.write(blob);
+    await writable.close();
+
+    showToast(`✅ ${tgtRecap} + ${tgtCaisse} ajoutés dans le fichier`);
+    closeMonthModal();
+  } catch (e) {
+    console.error(e);
+    showToast('Erreur : ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '✓ Créer dans le fichier lié';
+  }
+}
 
 // Trouve (et "splitte" si nécessaire) la cellule à la colonne ciblée d'une ligne.
 function getCellAt(rowEl, targetCol) {
