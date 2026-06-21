@@ -1345,7 +1345,19 @@ async function processODS() {
     zip.file('content.xml', newXml);
     const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
     if (useHandle) {
-      const writable = await handle.createWritable();
+      let writable;
+      try {
+        writable = await handle.createWritable();
+      } catch (e1) {
+        // Snapshot perimé (OneDrive a synchronisé, LibreOffice a ouvert/modifié le fichier, etc.)
+        // On rafraîchit le snapshot et on retente une fois.
+        try {
+          await handle.getFile();
+          writable = await handle.createWritable();
+        } catch (e2) {
+          throw new Error('Le fichier .ods a changé pendant l\'opération (OneDrive en train de synchroniser, ou fichier ouvert dans LibreOffice ?). Ferme-le, attends la fin de sync, puis relance. Tes saisies sont conservées et seront ré-exportées au prochain essai.');
+        }
+      }
       await writable.write(blob);
       await writable.close();
     } else {
