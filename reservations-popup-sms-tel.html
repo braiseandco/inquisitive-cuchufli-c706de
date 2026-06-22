@@ -349,6 +349,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
     <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
     <button class="tab" data-screen="roulette" id="tab-roulette">🎰 Roulette</button>
+    <button class="tab" data-screen="caisse" id="tab-caisse">💰 Caisse</button>
   </div>
 
   <!-- ══ SCREEN: RESERVATIONS ══ -->
@@ -462,6 +463,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <div id="roulette-gains-list"><div style="text-align:center;padding:20px;color:var(--text-faint);">⏳ Chargement…</div></div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: CAISSE ══ -->
+  <div class="screen" id="screen-caisse">
+    <div style="flex:1;overflow-y:auto;padding:40px 20px;text-align:center;color:var(--text-faint);">
+      <div style="font-family:'Cinzel',serif;font-size:18px;color:var(--accent);margin-bottom:12px;">💰 Caisse</div>
+      <div style="font-size:13px;">Onglet en cours d'intégration…</div>
     </div>
   </div>
 
@@ -808,6 +817,8 @@ document.querySelectorAll('.tab').forEach(tab=>{
       loadRouletteEmployes();
       loadRouletteGains();
       startRoulettePolling();
+    } else if(this.dataset.screen==='caisse'){
+      // Initialisation caisse — étape D
     } else {
       loadResas();
     }
