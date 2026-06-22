@@ -461,8 +461,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       📊 Export vers chiffre2026.ods
       <button onclick="caisseCloseODSModal()" style="background:none;border:none;color:var(--text-dim);font-size:28px;cursor:pointer;">✕</button>
     </div>
+    <div style="background:rgba(229,57,53,0.12);border:1px solid rgba(229,57,53,0.5);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:18px;line-height:1;">⚠️</span>
+      <div style="font-size:12px;color:#ef9a9a;line-height:1.5;font-weight:600;">
+        <strong>FERME LibreOffice avant de continuer.</strong><br>
+        <span style="color:#f5b8b6;font-weight:400;">Sinon le fichier .ods est verrouillé et l'export échoue (erreur « operation depends on cached state »).</span>
+      </div>
+    </div>
     <p style="font-size:12px;color:var(--text-dim);margin:0 0 16px;line-height:1.5">
-      Glisse ton fichier .ods, choisis le mois. L'app remplit les onglets « <em>mois_année</em> » et « caisse <em>mois</em> » avec les jours saisis en base. Les autres onglets, formules, totaux et sections TR ne sont pas touchés.
+      L'app remplit les onglets « <em>mois_année</em> » et « caisse <em>mois</em> » avec les jours saisis en base. Les autres onglets, formules, totaux et sections TR ne sont pas touchés.
     </p>
     <div id="odsLinkedZone" style="display:none;background:rgba(67,160,71,0.12);border:1px solid rgba(67,160,71,0.5);border-radius:10px;padding:12px;margin-bottom:14px;">
       <div style="font-size:12px;color:#a5d6a7;font-weight:700;margin-bottom:4px;">📎 Fichier lié</div>
@@ -3438,8 +3445,8 @@ initSmsPolling();
           + '<div style="font-weight:800;">' + new Date(r.date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short',day:'2-digit',month:'short'}) + '</div>'
           + exportedBadge
           + '<div style="color:var(--accent);font-weight:800;flex:1;text-align:right;">' + fmtEur(r.total_general) + '</div>'
-          + '<button onclick="caisseEditDay(\''+r.date+'\')" title="Modifier" style="background:rgba(255,107,0,0.15);border:1px solid var(--border2);color:var(--accent);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">✏️</button>'
-          + '<button onclick="caisseDeleteDay(\''+r.date+'\')" title="Supprimer" style="background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">🗑️</button>'
+          + '<button onclick="caisseEditDay(\''+r.date+'\')" title="Modifier" style="background:rgba(255,107,0,0.15);border:1px solid var(--border2);color:var(--accent);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:Raleway,sans-serif;letter-spacing:.5px;">✏️ Modifier</button>'
+          + '<button onclick="caisseDeleteDay(\''+r.date+'\')" title="Effacer cette caisse" style="background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:Raleway,sans-serif;letter-spacing:.5px;">🗑️ Effacer</button>'
           + '</div>'
           + '<div style="font-size:12px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap;">'
           + '<span>CB: '+fmtEur(r.cb)+'</span>'
@@ -3485,7 +3492,7 @@ initSmsPolling();
 
   async function deleteDay(date){
     const label = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-    if(!confirm('Supprimer la caisse du ' + label + ' ?\n\nElle sera retirée du tableur ODS au prochain export.')) return;
+    if(!confirm('Effacer la caisse du ' + label + ' ?\n\n⚠️ Pense à FERMER LibreOffice avant le prochain export ODS, sinon le fichier sera verrouillé.\n\nLes valeurs seront retirées du tableur lors de l\'export suivant.')) return;
     try {
       const getRes = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=eq.' + date + '&select=*', {
         headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
@@ -4250,7 +4257,7 @@ initSmsPolling();
         try { writable = await handle.createWritable(); }
         catch(e1){
           try { await handle.getFile(); writable = await handle.createWritable(); }
-          catch(e2){ throw new Error('Le fichier .ods a changé pendant l\'opération. Ferme-le, attends la sync, puis relance.'); }
+          catch(e2){ throw new Error('Fichier verrouillé. FERME LibreOffice (et attends la sync OneDrive), puis relance.'); }
         }
         await writable.write(blob);
         await writable.close();
