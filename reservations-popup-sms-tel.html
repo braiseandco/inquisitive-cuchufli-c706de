@@ -411,6 +411,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 #caisse-toast.error{background:rgba(229,57,53,0.95);border-color:rgba(229,57,53,0.7);}
 
 #screen-caisse .spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--c-gold);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+
+/* Tablette/tactile : la caisse n'affiche que la SAISIE.
+   L'historique + export ODS + creation de mois restent sur le PC du gerant. */
+@media (hover: none) and (pointer: coarse){
+  #screen-caisse .stab[data-caisse-page="historique"]{display:none;}
+}
 </style>
 </head>
 <body>
