@@ -3186,4 +3186,1161 @@ document.getElementById('sms-btn-skip').addEventListener('click', async function
 });
 
 initSmsPolling();
-</script></body></html>
+</script>
+
+<!-- ══════════════════════ CAISSE ══════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  const SUPABASE_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
+  const SCRIPT_CAISSE_URL = 'https://script.google.com/macros/s/AKfycbzCgO7t0mPOgqZh3a-F9g9CiL7LPislZQZdKvIVTyvGdERRg7Q8JtxiHHWP23piJM2G/exec';
+
+  const JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const CV_DENOMS = [10, 20, 25, 50];
+  const EMETTEURS = ['edenred','sodexo','up','bimpli'];
+  const EMETTEUR_NAMES = { edenred:'Edenred', sodexo:'Sodexo / Pluxee', up:'Groupe Up', bimpli:'Bimpli' };
+
+  let trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
+  let currentEmetteur = null;
+  let inited = false;
+
+  // ── INIT (lazy: au 1er clic sur l'onglet) ──
+  function init(){
+    if(inited) return;
+    inited = true;
+    const now = new Date();
+    document.getElementById('dateInput').value = now.toISOString().split('T')[0];
+    document.getElementById('dayBadge').textContent = JOURS[now.getDay()];
+    EMETTEURS.forEach(e => renderTRItems(e));
+  }
+
+  function onDateChange(){
+    const v = document.getElementById('dateInput').value;
+    if(!v) return;
+    document.getElementById('dayBadge').textContent = JOURS[new Date(v + 'T12:00:00').getDay()];
+  }
+
+  // ── SOUS-TABS Saisie/Historique ──
+  function switchPage(name){
+    document.querySelectorAll('#screen-caisse .c-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('caisse-page-' + name).classList.add('active');
+    document.querySelectorAll('#screen-caisse .stab[data-caisse-page]').forEach(b => b.classList.toggle('active', b.dataset.caissePage === name));
+    if(name === 'historique') loadHistory();
+  }
+  document.querySelectorAll('#screen-caisse .stab[data-caisse-page]').forEach(b => {
+    b.addEventListener('click', () => switchPage(b.dataset.caissePage));
+  });
+
+  // ── TICKETS RESTAURANT ──
+  function renderTRItems(emetteur){
+    const items = trData[emetteur];
+    const html = Object.keys(items).sort((a,b) => parseFloat(a)-parseFloat(b)).map(montant => {
+      const qty = items[montant];
+      const subtotal = parseFloat(montant) * qty;
+      return '<div class="tr-item">'
+        + '<div class="tr-montant">' + parseFloat(montant).toFixed(2) + ' €</div>'
+        + '<div class="tr-qty"><input type="number" id="tr_'+emetteur+'_'+montant+'" value="'+qty+'" min="0" oninput="caisseUpdateTRQty(\''+emetteur+'\',\''+montant+'\',this.value)"><span class="tr-qty-label">tickets</span></div>'
+        + '<div class="tr-subtotal">' + fmtEur(subtotal) + '</div>'
+        + '<button class="btn-remove-tr" onclick="caisseRemoveTRValue(\''+emetteur+'\',\''+montant+'\')">✕</button>'
+        + '</div>';
+    }).join('');
+    document.getElementById(emetteur + 'Items').innerHTML = html;
+    updateEmetteurTotal(emetteur);
+    calcTotal();
+  }
+
+  function openAddTRModal(emetteur){
+    currentEmetteur = emetteur;
+    document.getElementById('modalEmetteur').textContent = EMETTEUR_NAMES[emetteur];
+    document.getElementById('modalMontant').value = '';
+    document.getElementById('modalQuantite').value = '1';
+    document.getElementById('modalSubtotal').textContent = '0,00 €';
+    document.getElementById('modalAddTR').classList.add('open');
+    setTimeout(() => document.getElementById('modalMontant').focus(), 100);
+  }
+  function closeAddTRModal(){
+    document.getElementById('modalAddTR').classList.remove('open');
+    currentEmetteur = null;
+  }
+  function updateModalSubtotal(){
+    const montant = parseFloat(document.getElementById('modalMontant').value) || 0;
+    const qty = parseInt(document.getElementById('modalQuantite').value) || 1;
+    document.getElementById('modalSubtotal').textContent = fmtEur(montant * qty);
+  }
+  function saveTRValue(){
+    const montant = document.getElementById('modalMontant').value;
+    const qty = parseInt(document.getElementById('modalQuantite').value) || 1;
+    if(!montant || parseFloat(montant) <= 0){ showToast('Montant invalide', true); return; }
+    if(qty <= 0){ showToast('Quantité invalide', true); return; }
+    if(trData[currentEmetteur][montant]){ showToast('Cette valeur existe déjà', true); return; }
+    trData[currentEmetteur][montant] = qty;
+    renderTRItems(currentEmetteur);
+    closeAddTRModal();
+    showToast('✓ ' + qty + ' ticket(s) de ' + parseFloat(montant).toFixed(2) + '€ ajouté(s)');
+  }
+  function removeTRValue(emetteur, montant){
+    delete trData[emetteur][montant];
+    renderTRItems(emetteur);
+  }
+  function updateTRQty(emetteur, montant, qty){
+    trData[emetteur][montant] = parseInt(qty) || 0;
+    updateEmetteurTotal(emetteur);
+    calcTotal();
+  }
+  function updateEmetteurTotal(emetteur){
+    const items = trData[emetteur];
+    const total = Object.keys(items).reduce((s,m) => s + parseFloat(m) * items[m], 0);
+    document.getElementById(emetteur + 'Total').textContent = fmtEur(total);
+  }
+  function getTRTotal(){
+    let total = 0;
+    EMETTEURS.forEach(e => { Object.keys(trData[e]).forEach(m => { total += parseFloat(m) * trData[e][m]; }); });
+    return total;
+  }
+
+  // ── CHÈQUES VACANCES ──
+  function cvStep(id, val){
+    const el = document.getElementById(id);
+    let v = parseInt(el.value) || 0;
+    v = Math.max(0, v + val);
+    el.value = v;
+    calcCV();
+  }
+  function calcCV(){
+    let total1020 = 0, total2550 = 0;
+    CV_DENOMS.forEach(d => {
+      const n = parseInt(document.getElementById('cv' + d).value) || 0;
+      const sub = n * d;
+      const subEl = document.getElementById('cvSub' + d);
+      if(subEl) subEl.textContent = fmtEur(sub);
+      if(d === 10 || d === 20) total1020 += sub;
+      else total2550 += sub;
+    });
+    document.getElementById('cvTotal_10_20').textContent = fmtEur(total1020);
+    document.getElementById('cvTotal_25_50').textContent = fmtEur(total2550);
+    document.getElementById('cvTotalGlobal').textContent = fmtEur(total1020 + total2550);
+    calcTotal();
+  }
+  function getCVTotal(){
+    return CV_DENOMS.reduce((s,d) => s + (parseInt(document.getElementById('cv' + d).value) || 0) * d, 0);
+  }
+
+  // ── CALCUL TOTAL ──
+  function calcTotal(){
+    const total = getNum('cb') + getNum('cheque') + getNum('esp') + getTRTotal() + getCVTotal();
+    document.getElementById('totalDisplay').textContent = fmtEur(total);
+    checkTVA();
+  }
+  function checkTVA(){
+    const total = parseNum(document.getElementById('totalDisplay').textContent);
+    const t10 = getNum('ttc10'), t20 = getNum('ttc20');
+    const status = document.getElementById('tvaStatus');
+    if(t10 === 0 && t20 === 0){ status.style.display = 'none'; return; }
+    status.style.display = 'block';
+    const diff = Math.abs(total - (t10 + t20));
+    if(diff < 0.01){
+      status.style.background = 'rgba(67,160,71,0.15)';
+      status.style.color = '#a5d6a7';
+      status.textContent = '✅ Ventilation TVA correcte';
+    } else {
+      status.style.background = 'rgba(229,57,53,0.15)';
+      status.style.color = '#ef9a9a';
+      status.textContent = '⚠️ Écart TVA : ' + fmtEur(total - (t10 + t20));
+    }
+  }
+
+  // ── SAUVEGARDE ──
+  async function saveCaisse(){
+    const dateVal = document.getElementById('dateInput').value;
+    if(!dateVal){ showToast('Sélectionne une date', true); return; }
+    const trTotal = getTRTotal();
+    const cvTotal = getCVTotal();
+    const totalGen = getNum('cb') + getNum('cheque') + getNum('esp') + trTotal + cvTotal;
+    const body = {
+      date: dateVal,
+      jour_semaine: JOURS[new Date(dateVal + 'T12:00:00').getDay()],
+      cb: getNum('cb'), cheque: getNum('cheque'), tr: trTotal, cv: cvTotal, esp: getNum('esp'),
+      ttc10: getNum('ttc10'), ttc20: getNum('ttc20'),
+      fond_caisse: getNum('fondCaisse'), offerts: getNum('offerts'),
+      couverts: parseInt(document.getElementById('couverts').value) || 0,
+      notes: document.getElementById('notes').value || null,
+      tr_data: JSON.stringify(trData),
+      cv_10: parseInt(document.getElementById('cv10').value) || 0,
+      cv_20: parseInt(document.getElementById('cv20').value) || 0,
+      cv_25: parseInt(document.getElementById('cv25').value) || 0,
+      cv_50: parseInt(document.getElementById('cv50').value) || 0,
+      updated_at: new Date().toISOString()
+    };
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = '⏳ Enregistrement...';
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?on_conflict=date', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY, 'Prefer':'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(body)
+      });
+      if(!res.ok){ const err = await res.text(); showToast('Erreur ' + res.status + ' : ' + err.slice(0,80), true); throw new Error(err); }
+      if(SCRIPT_CAISSE_URL && !SCRIPT_CAISSE_URL.includes('COLLER')){
+        try {
+          await fetch(SCRIPT_CAISSE_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(Object.assign({}, body, { total_general: totalGen })) });
+        } catch(e){ console.warn('Email non envoyé :', e); }
+      }
+      showToast('✅ Caisse enregistrée !');
+      resetForm();
+    } catch(e){
+      showToast('Erreur enregistrement', true);
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Enregistrer la caisse';
+    }
+  }
+  function resetForm(){
+    ['cb','cheque','esp','ttc10','ttc20','fondCaisse','offerts','couverts','notes'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    CV_DENOMS.forEach(d => {
+      document.getElementById('cv' + d).value = '';
+      const sub = document.getElementById('cvSub' + d);
+      if(sub) sub.textContent = '0,00 €';
+    });
+    document.getElementById('cvTotal_10_20').textContent = '0,00 €';
+    document.getElementById('cvTotal_25_50').textContent = '0,00 €';
+    document.getElementById('cvTotalGlobal').textContent = '0,00 €';
+    document.getElementById('tvaStatus').style.display = 'none';
+    trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
+    EMETTEURS.forEach(e => renderTRItems(e));
+    calcTotal();
+  }
+
+  // ── HISTORIQUE ──
+  async function loadHistory(){
+    const list = document.getElementById('historyList');
+    list.innerHTML = '<div style="text-align:center;padding:40px;"><div class="spinner"></div></div>';
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?order=date.desc&limit=30', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const data = await res.json();
+      if(!data.length){ list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">Aucune donnée</div>'; return; }
+      list.innerHTML = data.map(r => {
+        const exportedBadge = r.exported_to_ods_at
+          ? '<span title="Déjà exporté" style="background:rgba(67,160,71,0.15);color:#a5d6a7;border:1px solid rgba(67,160,71,0.5);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">📊 Exporté</span>'
+          : '<span title="Non encore exporté" style="background:rgba(255,107,0,0.10);color:var(--accent);border:1px solid var(--border2);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;">○ À exporter</span>';
+        return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:15px;margin-bottom:10px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">'
+          + '<div style="font-weight:800;">' + new Date(r.date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short',day:'2-digit',month:'short'}) + '</div>'
+          + exportedBadge
+          + '<div style="color:var(--accent);font-weight:800;flex:1;text-align:right;">' + fmtEur(r.total_general) + '</div>'
+          + '<button onclick="caisseEditDay(\''+r.date+'\')" title="Modifier" style="background:rgba(255,107,0,0.15);border:1px solid var(--border2);color:var(--accent);border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">✏️</button>'
+          + '<button onclick="caisseDeleteDay(\''+r.date+'\')" title="Supprimer" style="background:rgba(229,57,53,0.15);border:1px solid rgba(229,57,53,0.4);color:#ef9a9a;border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;">🗑️</button>'
+          + '</div>'
+          + '<div style="font-size:12px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap;">'
+          + '<span>CB: '+fmtEur(r.cb)+'</span>'
+          + '<span>TR: '+fmtEur(r.tr)+'</span>'
+          + '<span>CV: '+fmtEur(r.cv)+'</span>'
+          + '<span>Esp: '+fmtEur(r.esp)+'</span>'
+          + '<span>Cvts: '+(r.couverts || 0)+'</span>'
+          + '</div></div>';
+      }).join('');
+    } catch(e){ list.innerHTML = '<div style="color:#ef9a9a;padding:20px;">Erreur de chargement</div>'; }
+  }
+
+  async function editDay(date){
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=eq.' + date + '&select=*', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const data = await res.json();
+      if(!data.length){ showToast('Introuvable', true); return; }
+      const r = data[0];
+      switchPage('saisie');
+      document.getElementById('dateInput').value = r.date;
+      document.getElementById('dayBadge').textContent = JOURS[new Date(r.date + 'T12:00:00').getDay()];
+      document.getElementById('cb').value = r.cb || '';
+      document.getElementById('cheque').value = r.cheque || '';
+      document.getElementById('esp').value = r.esp || '';
+      document.getElementById('ttc10').value = r.ttc10 || '';
+      document.getElementById('ttc20').value = r.ttc20 || '';
+      document.getElementById('fondCaisse').value = r.fond_caisse || '';
+      document.getElementById('offerts').value = r.offerts || '';
+      document.getElementById('couverts').value = r.couverts || '';
+      document.getElementById('notes').value = r.notes || '';
+      document.getElementById('cv10').value = r.cv_10 || 0;
+      document.getElementById('cv20').value = r.cv_20 || 0;
+      document.getElementById('cv25').value = r.cv_25 || 0;
+      document.getElementById('cv50').value = r.cv_50 || 0;
+      try { trData = JSON.parse(r.tr_data || '{}'); } catch(e){ trData = {edenred:{},sodexo:{},up:{},bimpli:{}}; }
+      EMETTEURS.forEach(e => { if(!trData[e]) trData[e] = {}; renderTRItems(e); updateEmetteurTotal(e); });
+      calcCV(); calcTotal(); checkTVA();
+      showToast('Journée chargée — modifie puis enregistre');
+    } catch(e){ showToast('Erreur : ' + e.message, true); }
+  }
+
+  async function deleteDay(date){
+    const label = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+    if(!confirm('Supprimer la caisse du ' + label + ' ?\n\nElle sera retirée du tableur ODS au prochain export.')) return;
+    try {
+      const getRes = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=eq.' + date + '&select=*', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const arr = await getRes.json();
+      if(!arr.length){ showToast('Introuvable', true); return; }
+      const row = arr[0];
+      if(row.exported_to_ods_at){
+        await fetch(SUPABASE_URL + '/rest/v1/caisse_pending_deletions', {
+          method:'POST',
+          headers: { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY },
+          body: JSON.stringify({ date: row.date, was_exported: true, snapshot: row })
+        });
+      }
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=eq.' + date, {
+        method:'DELETE',
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      if(!res.ok) throw new Error(await res.text());
+      showToast('✅ Caisse supprimée');
+      loadHistory();
+    } catch(e){ showToast('Erreur : ' + e.message, true); }
+  }
+
+  // ── EXPORT CSV ──
+  async function exportCSV(){
+    showToast('Préparation export...');
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?order=date.asc&limit=1000', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const data = await res.json();
+      const headers = ['DATE','CB','CHQ','TR','CV','ESP','TOTAL GENERAL','TTC 10%','TTC 20%','COUVERTS','OFFERTS','CV 10','CV 20','CV 25','CV 50'];
+      const rows = data.map(r => [
+        new Date(r.date + 'T12:00:00').toLocaleDateString('fr-FR'),
+        r.cb||0, r.cheque||0, r.tr||0, r.cv||0, r.esp||0,
+        r.total_general||0, r.ttc10||0, r.ttc20||0,
+        r.couverts||0, r.offerts||0,
+        r.cv_10||0, r.cv_20||0, r.cv_25||0, r.cv_50||0
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(v => typeof v === 'number' ? v.toString().replace('.', ',') : v).join(';')).join('\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'caisse_' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+      showToast('✅ Export téléchargé !');
+    } catch(e){ showToast('Erreur export', true); }
+  }
+
+  // ── EXPORT ODS (chiffre2026.ods) ──
+  const MOIS_FR_ODS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
+  const NS_TEXT  = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+  const ODS_DB = 'caisse-handles', ODS_STORE = 'handles', ODS_KEY = 'ods';
+
+  function odsHandleDB(){
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(ODS_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(ODS_STORE);
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  }
+  async function saveOdsHandle(h){
+    const db = await odsHandleDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(ODS_STORE, 'readwrite');
+      tx.objectStore(ODS_STORE).put(h, ODS_KEY);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function getOdsHandle(){
+    const db = await odsHandleDB();
+    return new Promise((res) => {
+      const tx = db.transaction(ODS_STORE, 'readonly');
+      const req = tx.objectStore(ODS_STORE).get(ODS_KEY);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => res(null);
+    });
+  }
+  async function clearOdsHandle(){
+    const db = await odsHandleDB();
+    return new Promise((res) => {
+      const tx = db.transaction(ODS_STORE, 'readwrite');
+      tx.objectStore(ODS_STORE).delete(ODS_KEY);
+      tx.oncomplete = () => res(); tx.onerror = () => res();
+    });
+  }
+  async function ensureOdsPermission(h, write){
+    const opts = { mode: write ? 'readwrite' : 'read' };
+    if(h.queryPermission && (await h.queryPermission(opts)) === 'granted') return true;
+    if(h.requestPermission && (await h.requestPermission(opts)) === 'granted') return true;
+    return false;
+  }
+  async function pickOdsFile(replace){
+    if(!window.showOpenFilePicker){ showToast('Ton navigateur ne supporte pas la liaison automatique. Utilise le sélecteur manuel.', true); return; }
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description:'Fichier ODS', accept:{'application/vnd.oasis.opendocument.spreadsheet':['.ods']} }],
+        multiple: false
+      });
+      if(!(await ensureOdsPermission(h, true))){ showToast('Permission refusée', true); return; }
+      await saveOdsHandle(h);
+      await refreshOdsLinkedZone();
+      showToast('✅ Fichier lié : ' + h.name);
+    } catch(e){ if(e.name !== 'AbortError') showToast('Erreur : ' + e.message, true); }
+  }
+  async function unlinkOdsFile(){
+    if(!confirm('Délier le fichier ODS ?')) return;
+    await clearOdsHandle();
+    await refreshOdsLinkedZone();
+    showToast('Fichier délié');
+  }
+  async function refreshOdsLinkedZone(){
+    const h = await getOdsHandle();
+    const linkedZone = document.getElementById('odsLinkedZone');
+    const pickZone = document.getElementById('odsPickZone');
+    if(h){
+      document.getElementById('odsLinkedName').textContent = h.name;
+      linkedZone.style.display = 'block';
+      pickZone.style.display = 'none';
+    } else {
+      linkedZone.style.display = 'none';
+      pickZone.style.display = 'block';
+    }
+  }
+  function openODSModal(){
+    document.getElementById('odsMonth').value = new Date().toISOString().slice(0,7);
+    document.getElementById('odsFile').value = '';
+    document.getElementById('modalODS').classList.add('open');
+    refreshOdsLinkedZone();
+  }
+  function closeODSModal(){ document.getElementById('modalODS').classList.remove('open'); }
+
+  // ── CREATION DE MOIS (clone) ──
+  const MOIS_FR_ODS_NOACC = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+  const MOIS_FR_ODS_CAPS  = ['JANVIER','FEVRIER','MARS','AVRIL','MAI','JUIN','JUILLET','AOUT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DECEMBRE'];
+  const JOUR_CODE_FR = { 1:'M', 2:'M', 3:'J', 4:'V', 5:'S', 6:'D' };
+
+  function jsWeekdayToWeekday(jsDay){ return (jsDay + 6) % 7; }
+
+  async function openMonthModal(){
+    const handle = await getOdsHandle();
+    if(!handle){ showToast('Lie d\'abord ton fichier ODS dans la modal Export', true); return; }
+    if(!(await ensureOdsPermission(handle, true))){ showToast('Permission refusée', true); return; }
+    let file;
+    try { file = await handle.getFile(); }
+    catch(e){ showToast('Fichier inaccessible : ' + e.message, true); return; }
+    const buf = await file.arrayBuffer();
+    if(typeof JSZip === 'undefined'){ showToast('Librairie ZIP non chargée', true); return; }
+    const zip = await JSZip.loadAsync(buf);
+    const xml = await zip.file('content.xml').async('string');
+    const sheetNames = [...xml.matchAll(/<table:table\b[^>]*\btable:name="([^"]+)"/g)].map(m => m[1]);
+    const recapSheets  = sheetNames.filter(s => /^[a-zàâéèêëïîôùûç]+_\d{4}$/i.test(s));
+    const caisseSheets = sheetNames.filter(s => /^caisse/i.test(s));
+    document.getElementById('monthSrcRecap').innerHTML  = recapSheets.map(s => '<option value="'+s+'">'+s+'</option>').join('');
+    document.getElementById('monthSrcCaisse').innerHTML = caisseSheets.map(s => '<option value="'+s+'">'+s+'</option>').join('');
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    document.getElementById('monthTarget').value = next.getFullYear() + '-' + String(next.getMonth() + 1).padStart(2, '0');
+    recomputeTargetNames();
+    document.getElementById('monthTarget').onchange = recomputeTargetNames;
+    document.getElementById('modalMonth').classList.add('open');
+  }
+  function recomputeTargetNames(){
+    const v = document.getElementById('monthTarget').value;
+    if(!v) return;
+    const [y, m] = v.split('-').map(Number);
+    const mn = MOIS_FR_ODS_NOACC[m - 1];
+    document.getElementById('monthTgtRecap').value  = mn + '_' + y;
+    document.getElementById('monthTgtCaisse').value = 'caisse' + mn;
+  }
+  function closeMonthModal(){ document.getElementById('modalMonth').classList.remove('open'); }
+
+  // (Les fonctions de clone XML / ODS export sont reprises telles quelles du fichier caisse/index.html)
+  function findTableBlock(xml, name){
+    const re = new RegExp('<table:table\\b[^>]*\\btable:name="' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>[\\s\\S]*?</table:table>');
+    const m = xml.match(re);
+    if(!m) return null;
+    return { block: m[0], start: m.index, end: m.index + m[0].length };
+  }
+  function shiftRowRefs(xml, deltaOrFn){
+    const fn = (typeof deltaOrFn === 'function') ? deltaOrFn : (n => n + deltaOrFn);
+    return xml.replace(/(\.\$?[A-Z]+\$?)(\d+)/g, (m, prefix, num) => prefix + fn(parseInt(num)));
+  }
+  function clearCellValuesAndDisplay(xml){
+    xml = xml.replace(/\s+office:value="[^"]*"/g, '');
+    xml = xml.replace(/<text:p\b[^>]*>([\s\S]*?)<\/text:p>/g, (m, content) => {
+      const textOnly = content.replace(/<[^>]+>/g, '').trim();
+      if(/^([-\d\s.,]+|#DIV\/0\s*!?|-+\s*€?\s*|0[,.]?\d*)$/.test(textOnly)) return '<text:p/>';
+      return m;
+    });
+    return xml;
+  }
+  function extractRows(innerXml){ return innerXml.match(/<table:table-row\b[^>]*>[\s\S]*?<\/table:table-row>/g) || []; }
+  function getFirstCellText(rowXml){
+    const firstCell = rowXml.match(/<table:table-cell\b[^>]*>([\s\S]*?)<\/table:table-cell>/);
+    if(!firstCell) return '';
+    const txt = [...firstCell[1].matchAll(/<text:p[^>]*>([^<]*)<\/text:p>/g)].map(m => m[1]).join('');
+    return txt.trim();
+  }
+  function firstRowRef(xml){ const m = xml.match(/\.\$?[A-Z]+\$?(\d+)/); return m ? parseInt(m[1]) : null; }
+  function monthCalendarWeeks(year, month){
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const weeks = []; let cur = [];
+    for(let d = 1; d <= daysInMonth; d++){
+      const dt = new Date(year, month - 1, d);
+      const wd = jsWeekdayToWeekday(dt.getDay());
+      if(wd === 0){ if(cur.length) weeks.push(cur); cur = []; continue; }
+      cur.push({ y: year, m: month, d, wd });
+    }
+    if(cur.length) weeks.push(cur);
+    return { weeks, daysInMonth };
+  }
+
+  function cloneRecapInXml(xml, srcName, tgtName, year, month){
+    const found = findTableBlock(xml, srcName);
+    if(!found) throw new Error('Feuille recap source introuvable: ' + srcName);
+    if(findTableBlock(xml, tgtName)) throw new Error('Feuille ' + tgtName + ' existe déjà');
+    const opener = found.block.match(/^<table:table\b[^>]*?>/)[0];
+    const inner = found.block.slice(opener.length, -('</table:table>'.length));
+    const cols = (inner.match(/<table:table-column\b[^>]*(?:\/>|>[\s\S]*?<\/table:table-column>)/g) || []).join('');
+    const rows = extractRows(inner);
+    if(rows.length < 3) throw new Error('Feuille recap source trop courte');
+    let totalIdx = -1;
+    for(let i = 1; i < rows.length; i++){ if(/SUM\(/.test(rows[i]) || /TOTAL GENE/.test(rows[i])){ totalIdx = i; break; } }
+    if(totalIdx < 0) throw new Error('TOTAL row introuvable');
+    const headerTpl = rows[0];
+    let dataTpl = null, emptyTpl = null;
+    for(let i = 1; i < totalIdx; i++){
+      const r = rows[i]; const hasDate = /office:date-value=/.test(r);
+      if(!dataTpl && hasDate) dataTpl = r;
+      if(!emptyTpl && !hasDate) emptyTpl = r;
+      if(dataTpl && emptyTpl) break;
+    }
+    if(!dataTpl) throw new Error('Template data row introuvable');
+    if(!emptyTpl) emptyTpl = dataTpl;
+    const totalTpl = rows[totalIdx];
+    const dataTplRef = firstRowRef(dataTpl) || 2;
+    const newOpener = opener.replace(new RegExp('(table:name=")' + srcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(")'), '$1' + tgtName + '$2');
+    function makeDataRow(d, excelRow){
+      let r = dataTpl;
+      const iso = d.y + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0');
+      const disp = d.d + '/' + d.m + '/' + String(d.y).slice(-2);
+      r = r.replace(/office:date-value="\d{4}-\d{2}-\d{2}"/, 'office:date-value="'+iso+'"');
+      r = r.replace(/(<text:p[^>]*>)\d{1,2}\/\d{1,2}\/\d{2}(<\/text:p>)/, '$1'+disp+'$2');
+      const delta = excelRow - dataTplRef;
+      if(delta) r = shiftRowRefs(r, delta);
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    function makeTotalRow(lastDataExcelRow){
+      let r = totalTpl;
+      r = r.replace(/(SUM\(\[\.\$?[A-Z]+\$?2:\.\$?[A-Z]+\$?)\d+(\]\))/g, '$1' + lastDataExcelRow + '$2');
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    const { daysInMonth } = monthCalendarWeeks(year, month);
+    const newRows = [headerTpl]; let excelRow = 2;
+    for(let day = 1; day <= daysInMonth; day++){
+      const dt = new Date(year, month - 1, day);
+      const wd = jsWeekdayToWeekday(dt.getDay());
+      if(wd === 0) newRows.push(emptyTpl);
+      else newRows.push(makeDataRow({y:year,m:month,d:day,wd}, excelRow));
+      excelRow++;
+    }
+    newRows.push(makeTotalRow(daysInMonth + 1));
+    const newBlock = newOpener + cols + newRows.join('') + '</table:table>';
+    return xml.slice(0, found.end) + newBlock + xml.slice(found.end);
+  }
+
+  function cloneCaisseInXml(xml, srcName, tgtName, year, month){
+    const found = findTableBlock(xml, srcName);
+    if(!found) throw new Error('Feuille caisse source introuvable: ' + srcName);
+    if(findTableBlock(xml, tgtName)) throw new Error('Feuille ' + tgtName + ' existe déjà');
+    const opener = found.block.match(/^<table:table\b[^>]*?>/)[0];
+    const inner = found.block.slice(opener.length, -('</table:table>'.length));
+    const cols = (inner.match(/<table:table-column\b[^>]*(?:\/>|>[\s\S]*?<\/table:table-column>)/g) || []).join('');
+    const rows = extractRows(inner);
+    if(rows.length < 5) throw new Error('Feuille caisse source trop courte');
+    let idxFirstData = -1, idxFirstWeekTotal = -1, idxTotal = -1, idxTotalMois = -1;
+    for(let i = 2; i < rows.length; i++){
+      const r = rows[i]; const a = getFirstCellText(r);
+      if(idxFirstData < 0 && /office:date-value=/.test(r)) idxFirstData = i;
+      if(idxFirstWeekTotal < 0 && a === 'TOTAL SEMAINE') idxFirstWeekTotal = i;
+      if(idxTotal < 0 && a === 'TOTAL' && idxFirstWeekTotal >= 0 && i > idxFirstWeekTotal && idxTotalMois < 0) idxTotal = i;
+      if(a === 'TOTAL MOIS' && idxTotalMois < 0){ idxTotalMois = i; break; }
+    }
+    if(idxFirstData < 0 || idxFirstWeekTotal < 0 || idxTotal < 0 || idxTotalMois < 0) throw new Error('Templates caisse introuvables');
+    const titleTpl=rows[0], headerTpl=rows[1], dataTpl=rows[idxFirstData], weekTotalTpl=rows[idxFirstWeekTotal], totalTpl=rows[idxTotal], totalMoisTpl=rows[idxTotalMois];
+    const trSection = rows.slice(idxTotalMois + 1);
+    const dataTplRef = firstRowRef(dataTpl) || 3;
+    function makeTitleRow(){
+      let r = titleTpl;
+      for(let i = 0; i < MOIS_FR_ODS_CAPS.length; i++){
+        const cap = MOIS_FR_ODS_CAPS[i];
+        if(r.includes(cap)){ r = r.split(cap).join(MOIS_FR_ODS_CAPS[month - 1]); break; }
+      }
+      r = r.replace(/\b20\d{2}\b/, String(year));
+      return r;
+    }
+    function makeDataRow(d, excelRow){
+      let r = dataTpl;
+      const iso = d.y + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0');
+      const disp = String(d.d).padStart(2,'0') + '/' + String(d.m).padStart(2,'0') + '/' + String(d.y).slice(-2);
+      r = r.replace(/office:date-value="\d{4}-\d{2}-\d{2}"/, 'office:date-value="'+iso+'"');
+      r = r.replace(/(<text:p[^>]*>)\d{1,2}\/\d{1,2}\/\d{2}(<\/text:p>)/, '$1'+disp+'$2');
+      const code = JOUR_CODE_FR[d.wd];
+      if(code) r = r.replace(/(<table:table-cell\b[^>]*>\s*<text:p[^>]*>)[MJVSD](<\/text:p>\s*<\/table:table-cell>)/, '$1'+code+'$2');
+      const delta = excelRow - dataTplRef;
+      if(delta) r = shiftRowRefs(r, delta);
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    function makeWeekTotalRow(firstExcel, lastExcel){
+      let r = weekTotalTpl;
+      r = r.replace(/(SUM\(\[\.\$?[A-Z]+\$?)\d+(:\.\$?[A-Z]+\$?)\d+(\]\))/g, '$1'+firstExcel+'$2'+lastExcel+'$3');
+      const selfRow = lastExcel + 1;
+      r = r.replace(/<table:table-cell\b[^>]*?(?:\/>|>[\s\S]*?<\/table:table-cell>)/g, (cell) => {
+        const fmlM = cell.match(/table:formula="([^"]+)"/);
+        if(!fmlM) return cell;
+        const fml = fmlM[1];
+        if(/SUM/.test(fml)) return cell;
+        const refs = [...fml.matchAll(/\.\$?([A-Z]+)\$?(\d+)/g)];
+        if(!refs.length) return cell;
+        const cols = new Set(refs.map(x => x[1]));
+        const rs = new Set(refs.map(x => x[2]));
+        if(cols.size > 1 && rs.size === 1){
+          const newFml = fml.replace(/(\.\$?[A-Z]+\$?)\d+/g, '$1' + selfRow);
+          return cell.replace(fml, newFml);
+        }
+        return cell;
+      });
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    function makeTotalRow(weekTotalExcelRows, selfExcel){
+      let r = totalTpl;
+      r = r.replace(/<table:table-cell\b[^>]*?(?:\/>|>[\s\S]*?<\/table:table-cell>)/g, (cell) => {
+        const fmlM = cell.match(/table:formula="([^"]+)"/);
+        if(!fmlM) return cell;
+        const fml = fmlM[1];
+        const refs = [...fml.matchAll(/\.\$?([A-Z]+)\$?(\d+)/g)];
+        if(!refs.length) return cell;
+        const cols = new Set(refs.map(x => x[1]));
+        const rs = new Set(refs.map(x => x[2]));
+        if(cols.size === 1 && rs.size > 1){
+          const col = [...cols][0];
+          const sum = weekTotalExcelRows.map(r => '[.'+col+r+']').join('+');
+          const newFml = (fml.startsWith('of:') ? 'of:' : '') + '=' + sum;
+          return cell.replace(fml, newFml);
+        } else if(cols.size > 1 && rs.size === 1){
+          const newFml = fml.replace(/(\.\$?[A-Z]+\$?)\d+/g, '$1' + selfExcel);
+          return cell.replace(fml, newFml);
+        }
+        return cell;
+      });
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    function makeTotalMoisRow(totalExcelRow){
+      let r = totalMoisTpl;
+      r = shiftRowRefs(r, () => totalExcelRow);
+      r = clearCellValuesAndDisplay(r); return r;
+    }
+    const { weeks, daysInMonth } = monthCalendarWeeks(year, month);
+    const newRows = [makeTitleRow(), headerTpl];
+    let excelRow = 3;
+    const weekTotalExcelRows = [];
+    for(const w of weeks){
+      const first = excelRow;
+      for(const d of w){ newRows.push(makeDataRow(d, excelRow)); excelRow++; }
+      const last = excelRow - 1;
+      newRows.push(makeWeekTotalRow(first, last));
+      weekTotalExcelRows.push(excelRow);
+      excelRow++;
+    }
+    const totalExcelRow = excelRow;
+    newRows.push(makeTotalRow(weekTotalExcelRows, totalExcelRow)); excelRow++;
+    newRows.push(makeTotalMoisRow(totalExcelRow)); excelRow++;
+    const srcTrFirstExcel = idxTotalMois + 2;
+    const dstTrFirstExcel = excelRow;
+    const trDelta = dstTrFirstExcel - srcTrFirstExcel;
+    for(const srcRow of trSection){
+      let r = srcRow;
+      if(trDelta !== 0) r = shiftRowRefs(r, trDelta);
+      r = clearCellValuesAndDisplay(r);
+      newRows.push(r);
+    }
+    const newOpener = opener.replace(new RegExp('(table:name=")' + srcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(")'), '$1' + tgtName + '$2');
+    const newBlock = newOpener + cols + newRows.join('') + '</table:table>';
+    return xml.slice(0, found.end) + newBlock + xml.slice(found.end);
+  }
+
+  async function createMonth(){
+    const monthVal = document.getElementById('monthTarget').value;
+    const srcRecap  = document.getElementById('monthSrcRecap').value;
+    const srcCaisse = document.getElementById('monthSrcCaisse').value;
+    const tgtRecap  = document.getElementById('monthTgtRecap').value.trim();
+    const tgtCaisse = document.getElementById('monthTgtCaisse').value.trim();
+    if(!monthVal || !srcRecap || !srcCaisse || !tgtRecap || !tgtCaisse){ showToast('Champs manquants', true); return; }
+    const [year, month] = monthVal.split('-').map(Number);
+    const btn = document.getElementById('btnCreateMonth');
+    btn.disabled = true; btn.textContent = '⏳ Création...';
+    try {
+      const handle = await getOdsHandle();
+      if(!handle) throw new Error('Aucun fichier ODS lié');
+      if(!(await ensureOdsPermission(handle, true))) throw new Error('Permission refusée');
+      const file = await handle.getFile();
+      const buf  = await file.arrayBuffer();
+      if(typeof JSZip === 'undefined') throw new Error('Librairie ZIP non chargée');
+      const zip = await JSZip.loadAsync(buf);
+      let xml = await zip.file('content.xml').async('string');
+      xml = cloneRecapInXml(xml, srcRecap, tgtRecap, year, month);
+      xml = cloneCaisseInXml(xml, srcCaisse, tgtCaisse, year, month);
+      zip.file('content.xml', xml);
+      const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
+      let writable;
+      try { writable = await handle.createWritable(); }
+      catch(e1){
+        try { await handle.getFile(); writable = await handle.createWritable(); }
+        catch(e2){ throw new Error('Fichier verrouillé (LibreOffice ouvert ? OneDrive sync ?)'); }
+      }
+      await writable.write(blob);
+      await writable.close();
+      showToast('✅ ' + tgtRecap + ' + ' + tgtCaisse + ' ajoutés dans le fichier');
+      closeMonthModal();
+    } catch(e){ console.error(e); showToast('Erreur : ' + e.message, true); }
+    finally { btn.disabled = false; btn.textContent = '✓ Créer dans le fichier lié'; }
+  }
+
+  // ── DOM helpers pour processODS ──
+  function getCellAt(rowEl, targetCol){
+    let col = 0;
+    for(const cell of [...rowEl.children]){
+      if(cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+      const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+      if(targetCol < col + repeat){
+        if(repeat === 1) return cell;
+        const before = targetCol - col;
+        const after  = col + repeat - targetCol - 1;
+        cell.removeAttribute('table:number-columns-repeated');
+        if(before > 0){
+          const b = cell.cloneNode(true);
+          if(before > 1) b.setAttribute('table:number-columns-repeated', String(before));
+          rowEl.insertBefore(b, cell);
+        }
+        if(after > 0){
+          const a = cell.cloneNode(true);
+          if(after > 1) a.setAttribute('table:number-columns-repeated', String(after));
+          if(cell.nextSibling) rowEl.insertBefore(a, cell.nextSibling); else rowEl.appendChild(a);
+        }
+        return cell;
+      }
+      col += repeat;
+    }
+    return null;
+  }
+  function setNumberCell(doc, cell, value){
+    if(cell == null) return;
+    if(cell.hasAttribute('table:formula')) return;
+    if(value == null || value === '' || isNaN(value)) return;
+    cell.setAttribute('office:value-type', 'float');
+    cell.setAttribute('office:value', String(value));
+    while(cell.firstChild) cell.removeChild(cell.firstChild);
+    const p = doc.createElementNS(NS_TEXT, 'p');
+    p.textContent = String(value).replace('.', ',');
+    cell.appendChild(p);
+  }
+  const TR_MAPPING = { 'UP DEJEUNER':'up', 'PLUXEE':'sodexo', 'BIMPLI':'bimpli', 'EDENRED':'edenred' };
+  function cellText(cell){ if(!cell) return ''; return [...cell.getElementsByTagNameNS(NS_TEXT, 'p')].map(p => p.textContent).join(''); }
+  function cellNumber(cell){ if(!cell) return null; const v = cell.getAttribute('office:value'); if(v !== null && v !== '') return parseFloat(v); return null; }
+  function* iterRowCells(row){
+    let col = 0;
+    for(const cell of row.children){
+      if(cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+      const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+      yield { cell, col, repeat };
+      col += repeat;
+    }
+  }
+  function aggregateTR(rows){
+    const totals = { up:{}, sodexo:{}, bimpli:{}, edenred:{} };
+    for(const r of rows){
+      if(!r.tr_data) continue;
+      let data;
+      try { data = typeof r.tr_data === 'string' ? JSON.parse(r.tr_data) : r.tr_data; } catch(e){ continue; }
+      for(const e of Object.keys(totals)){
+        const d = data[e] || {};
+        for(const [m, q] of Object.entries(d)){
+          const mv = parseFloat(m); const qv = parseInt(q) || 0;
+          if(!isFinite(mv) || !qv) continue;
+          const key = mv.toFixed(2);
+          totals[e][key] = (totals[e][key] || 0) + qv;
+        }
+      }
+    }
+    return totals;
+  }
+  function colToLetter(n){ let s = ''; n = n + 1; while(n > 0){ n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); } return s; }
+  function expandSumRange(formula, oldLastValueCol){
+    if(!formula) return formula;
+    const oldLet = colToLetter(oldLastValueCol);
+    const newLet = colToLetter(oldLastValueCol + 1);
+    return formula.replace(/(\[\.[A-Z]+\d+:\.)([A-Z]+)(\d+\])/g, (m, start, letters, end) => letters === oldLet ? start + newLet + end : m);
+  }
+  function findLabelCol(row, target){
+    const up = target.toUpperCase();
+    for(const {cell, col} of iterRowCells(row)){
+      if(cellText(cell).toUpperCase().trim() === up) return col;
+    }
+    return -1;
+  }
+  function setCachedNumber(doc, cell, value){
+    if(cell == null) return;
+    cell.setAttribute('office:value-type', 'float');
+    cell.setAttribute('office:value', String(value));
+    while(cell.firstChild) cell.removeChild(cell.firstChild);
+    const p = doc.createElementNS(NS_TEXT, 'p');
+    p.textContent = String(Math.round(value * 100) / 100).replace('.', ',');
+    cell.appendChild(p);
+  }
+  function insertCellAt(doc, row, pos){
+    const existing = getCellAt(row, pos);
+    const newCell = doc.createElementNS(NS_TABLE, 'table-cell');
+    if(existing) row.insertBefore(newCell, existing); else row.appendChild(newCell);
+    return newCell;
+  }
+  function fillTRSections(doc, sheet, trTotals){
+    const rows = [...sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')];
+    let countWritten = 0, countCreated = 0;
+    for(let i = 0; i < rows.length - 2; i++){
+      const headerRow = rows[i], nombreRow = rows[i+1], totalRow = rows[i+2];
+      const label = cellText([...headerRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+      if(!TR_MAPPING[label]) continue;
+      const nombreLbl = cellText([...nombreRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+      const totalLbl  = cellText([...totalRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+      if(nombreLbl !== 'NOMBRE' || totalLbl !== 'TOTAL') continue;
+      const emetteur = TR_MAPPING[label];
+      const totals = { ...(trTotals[emetteur] || {}) };
+      for(const {cell: headerCell, col} of iterRowCells(headerRow)){
+        if(col === 0) continue;
+        const v = cellNumber(headerCell);
+        if(v == null || v === 0) continue;
+        const key = v.toFixed(2);
+        if(!(key in totals)) continue;
+        const add = totals[key];
+        delete totals[key];
+        if(!add) continue;
+        const targetCell = getCellAt(nombreRow, col);
+        const current = cellNumber(targetCell) || 0;
+        setNumberCell(doc, targetCell, current + add);
+        countWritten++;
+      }
+      const remaining = Object.entries(totals).filter(([,q]) => q > 0).sort((a,b) => parseFloat(a[0]) - parseFloat(b[0]));
+      if(!remaining.length) continue;
+      let totalTicketCol = findLabelCol(headerRow, 'TOTAL TICKET');
+      if(totalTicketCol < 0) continue;
+      const headerRowNum = i + 1;
+      const nombreRowNum = i + 2;
+      const sampleHeader = getCellAt(headerRow, totalTicketCol - 1);
+      const sampleNombre = getCellAt(nombreRow, totalTicketCol - 1);
+      const sampleTotal  = getCellAt(totalRow,  totalTicketCol - 1);
+      const styleH = sampleHeader && sampleHeader.getAttribute('table:style-name');
+      const styleN = sampleNombre && sampleNombre.getAttribute('table:style-name');
+      const styleT = sampleTotal  && sampleTotal.getAttribute('table:style-name');
+      for(const [key, qty] of remaining){
+        const value = parseFloat(key);
+        const oldLastValueCol = totalTicketCol - 1;
+        const cellH = insertCellAt(doc, headerRow, totalTicketCol);
+        if(styleH) cellH.setAttribute('table:style-name', styleH);
+        cellH.setAttribute('office:value-type', 'float');
+        cellH.setAttribute('office:value', String(value));
+        const pH = doc.createElementNS(NS_TEXT, 'p'); pH.textContent = String(value).replace('.', ','); cellH.appendChild(pH);
+        const cellN = insertCellAt(doc, nombreRow, totalTicketCol);
+        if(styleN) cellN.setAttribute('table:style-name', styleN);
+        cellN.setAttribute('office:value-type', 'float');
+        cellN.setAttribute('office:value', String(qty));
+        const pN = doc.createElementNS(NS_TEXT, 'p'); pN.textContent = String(qty); cellN.appendChild(pN);
+        const cellT = insertCellAt(doc, totalRow, totalTicketCol);
+        if(styleT) cellT.setAttribute('table:style-name', styleT);
+        const newLet = colToLetter(totalTicketCol);
+        cellT.setAttribute('table:formula', 'of:=[.'+newLet+headerRowNum+']*[.'+newLet+nombreRowNum+']');
+        cellT.setAttribute('office:value-type', 'float');
+        cellT.setAttribute('office:value', String(value * qty));
+        const pT = doc.createElementNS(NS_TEXT, 'p'); pT.textContent = String(value * qty).replace('.', ','); cellT.appendChild(pT);
+        for(const {cell, col} of iterRowCells(nombreRow)){
+          if(col === totalTicketCol + 1 || col === totalTicketCol + 2){
+            const f = cell.getAttribute('table:formula');
+            if(f && /SUM\(/i.test(f)) cell.setAttribute('table:formula', expandSumRange(f, oldLastValueCol));
+          }
+        }
+        totalTicketCol++;
+        countCreated++;
+      }
+      const finalTotalTicketCol = findLabelCol(headerRow, 'TOTAL TICKET');
+      if(finalTotalTicketCol > 0){
+        const lastValueCol = finalTotalTicketCol - 1;
+        let totalTickets = 0, totalValeur = 0;
+        for(let c = 1; c <= lastValueCol; c++){
+          const v = cellNumber(getCellAt(headerRow, c));
+          const q = cellNumber(getCellAt(nombreRow, c));
+          if(q != null) totalTickets += q;
+          if(v != null && q != null) totalValeur += v * q;
+        }
+        const tcell = getCellAt(nombreRow, finalTotalTicketCol);
+        if(tcell) setCachedNumber(doc, tcell, totalTickets);
+        const vcell = getCellAt(nombreRow, finalTotalTicketCol + 1);
+        if(vcell) setCachedNumber(doc, vcell, totalValeur);
+      }
+    }
+    return { countWritten, countCreated };
+  }
+  function clearNumberCell(cell){
+    if(!cell) return;
+    if(cell.hasAttribute('table:formula')) return;
+    cell.removeAttribute('office:value');
+    cell.removeAttribute('office:value-type');
+    while(cell.firstChild) cell.removeChild(cell.firstChild);
+  }
+  function rowDateYmd(rowEl, dateCol){
+    let col = 0;
+    for(const cell of rowEl.children){
+      if(cell.localName !== 'table-cell' && cell.localName !== 'covered-table-cell') continue;
+      const repeat = parseInt(cell.getAttribute('table:number-columns-repeated') || '1');
+      if(dateCol >= col && dateCol < col + repeat){
+        return cell.getAttribute('office:date-value') || null;
+      }
+      col += repeat;
+    }
+    return null;
+  }
+
+  async function processODS(){
+    const month = document.getElementById('odsMonth').value;
+    if(!month){ showToast('Choisis un mois', true); return; }
+    const handle = await getOdsHandle();
+    const fileInput = document.getElementById('odsFile');
+    let sourceFile = null, sourceName = null, useHandle = false;
+    if(handle){
+      if(!(await ensureOdsPermission(handle, true))){ showToast('Permission refusée sur le fichier lié', true); return; }
+      sourceFile = await handle.getFile();
+      sourceName = handle.name;
+      useHandle = true;
+    } else if(fileInput.files.length){
+      sourceFile = fileInput.files[0];
+      sourceName = sourceFile.name;
+    } else {
+      showToast('Lie ton fichier .ods ou sélectionne-le', true); return;
+    }
+    const btn = document.getElementById('btnProcessODS');
+    btn.disabled = true; btn.textContent = '⏳ Traitement…';
+    try {
+      if(typeof JSZip === 'undefined') throw new Error('Librairie ZIP non chargée');
+      const [year, monthNum] = month.split('-').map(Number);
+      const monthName = MOIS_FR_ODS[monthNum - 1];
+      const firstDay = year + '-' + String(monthNum).padStart(2,'0') + '-01';
+      const lastDate = new Date(year, monthNum, 0);
+      const lastDay = year + '-' + String(monthNum).padStart(2,'0') + '-' + String(lastDate.getDate()).padStart(2,'0');
+      const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=gte.' + firstDay + '&date=lte.' + lastDay + '&exported_to_ods_at=is.null&select=*', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const rows = await res.json();
+      const delRes = await fetch(SUPABASE_URL + '/rest/v1/caisse_pending_deletions?date=gte.' + firstDay + '&date=lte.' + lastDay + '&select=*', {
+        headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+      });
+      const pendingDels = await delRes.json();
+      if(!rows.length && !pendingDels.length) throw new Error('Aucune nouvelle saisie ni suppression à propager');
+      const byDate = {};
+      rows.forEach(r => { byDate[r.date] = r; });
+      const buf = await sourceFile.arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
+      const xmlText = await zip.file('content.xml').async('string');
+      const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+      const tables = doc.getElementsByTagNameNS(NS_TABLE, 'table');
+      let sheetRecap = null, sheetCaisse = null;
+      for(const t of tables){
+        const name = (t.getAttribute('table:name') || '').toLowerCase();
+        if(!sheetRecap && name.includes(monthName) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
+        if(!sheetCaisse && name.startsWith('caisse') && name.includes(monthName)) sheetCaisse = t;
+      }
+      if(!sheetRecap) throw new Error('Onglet "' + monthName + '_' + year + '" introuvable');
+      if(!sheetCaisse) throw new Error('Onglet "caisse ' + monthName + '" introuvable');
+      let countDeleted = 0, countTRSubtracted = 0;
+      for(const del of pendingDels){
+        const ymd = del.date;
+        for(const row of sheetRecap.getElementsByTagNameNS(NS_TABLE, 'table-row')){
+          if(rowDateYmd(row, 0) !== ymd) continue;
+          for(const c of [1,2,3,4,5,7,8]) clearNumberCell(getCellAt(row, c));
+          break;
+        }
+        for(const row of sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')){
+          if(rowDateYmd(row, 1) !== ymd) continue;
+          for(const c of [2,3,4,5,6,9,10,11,12]) clearNumberCell(getCellAt(row, c));
+          break;
+        }
+        const snap = del.snapshot || {};
+        let snapTrData = null;
+        try { snapTrData = snap.tr_data ? (typeof snap.tr_data === 'string' ? JSON.parse(snap.tr_data) : snap.tr_data) : null; } catch(e){ snapTrData = null; }
+        if(snapTrData){
+          const sheetRows = [...sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')];
+          for(let i = 0; i < sheetRows.length - 1; i++){
+            const label = cellText([...sheetRows[i].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+            if(!TR_MAPPING[label]) continue;
+            const nextLabel = cellText([...sheetRows[i+1].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+            if(nextLabel !== 'NOMBRE') continue;
+            const emetteur = TR_MAPPING[label];
+            const dataEm = snapTrData[emetteur] || {};
+            for(const [m, q] of Object.entries(dataEm)){
+              const mv = parseFloat(m); const qv = parseInt(q) || 0;
+              if(!isFinite(mv) || !qv) continue;
+              const key = mv.toFixed(2);
+              for(const {cell: headerCell, col} of iterRowCells(sheetRows[i])){
+                if(col === 0) continue;
+                const v = cellNumber(headerCell);
+                if(v == null || v.toFixed(2) !== key) continue;
+                const cell = getCellAt(sheetRows[i+1], col);
+                const cur = cellNumber(cell) || 0;
+                setNumberCell(doc, cell, Math.max(0, cur - qv));
+                countTRSubtracted++;
+                break;
+              }
+            }
+          }
+        }
+        countDeleted++;
+      }
+      let countRecap = 0;
+      for(const row of sheetRecap.getElementsByTagNameNS(NS_TABLE, 'table-row')){
+        const ymd = rowDateYmd(row, 0);
+        if(!ymd || !byDate[ymd]) continue;
+        const r = byDate[ymd];
+        setNumberCell(doc, getCellAt(row, 1), r.cb);
+        setNumberCell(doc, getCellAt(row, 2), r.cheque);
+        setNumberCell(doc, getCellAt(row, 3), r.tr);
+        setNumberCell(doc, getCellAt(row, 4), r.cv);
+        setNumberCell(doc, getCellAt(row, 5), r.esp);
+        setNumberCell(doc, getCellAt(row, 7), r.ttc10);
+        setNumberCell(doc, getCellAt(row, 8), r.ttc20);
+        countRecap++;
+      }
+      let countCaisse = 0;
+      for(const row of sheetCaisse.getElementsByTagNameNS(NS_TABLE, 'table-row')){
+        const ymd = rowDateYmd(row, 1);
+        if(!ymd || !byDate[ymd]) continue;
+        const r = byDate[ymd];
+        setNumberCell(doc, getCellAt(row, 2), r.total_general);
+        setNumberCell(doc, getCellAt(row, 3), r.offerts);
+        setNumberCell(doc, getCellAt(row, 4), r.couverts);
+        setNumberCell(doc, getCellAt(row, 5), r.carte_fidelite);
+        setNumberCell(doc, getCellAt(row, 6), r.divers);
+        setNumberCell(doc, getCellAt(row, 9),  r.cv_10);
+        setNumberCell(doc, getCellAt(row, 10), r.cv_20);
+        setNumberCell(doc, getCellAt(row, 11), r.cv_25);
+        setNumberCell(doc, getCellAt(row, 12), r.cv_50);
+        countCaisse++;
+      }
+      const trTotals = aggregateTR(rows);
+      const { countWritten: countTR, countCreated } = fillTRSections(doc, sheetCaisse, trTotals);
+      let newXml = new XMLSerializer().serializeToString(doc);
+      if(!newXml.startsWith('<?xml')) newXml = '<?xml version="1.0" encoding="UTF-8"?>\n' + newXml;
+      zip.file('content.xml', newXml);
+      const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
+      if(useHandle){
+        let writable;
+        try { writable = await handle.createWritable(); }
+        catch(e1){
+          try { await handle.getFile(); writable = await handle.createWritable(); }
+          catch(e2){ throw new Error('Le fichier .ods a changé pendant l\'opération. Ferme-le, attends la sync, puis relance.'); }
+        }
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = sourceName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      if(rows.length){
+        const now = new Date().toISOString();
+        const datesToMark = rows.map(r => r.date);
+        try {
+          await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?date=in.(' + datesToMark.join(',') + ')', {
+            method:'PATCH',
+            headers: { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY, 'Prefer':'return=minimal' },
+            body: JSON.stringify({ exported_to_ods_at: now })
+          });
+        } catch(e){ console.warn('mark exported failed', e); }
+      }
+      if(pendingDels.length){
+        const ids = pendingDels.map(d => d.id);
+        try {
+          await fetch(SUPABASE_URL + '/rest/v1/caisse_pending_deletions?id=in.(' + ids.join(',') + ')', {
+            method:'DELETE',
+            headers: { 'apikey':SUPABASE_KEY, 'Authorization':'Bearer ' + SUPABASE_KEY }
+          });
+        } catch(e){ console.warn('clear pending dels failed', e); }
+      }
+      closeODSModal();
+      const parts = [];
+      if(rows.length) parts.push(rows.length + ' journée(s) ajoutée(s)');
+      if(countDeleted) parts.push(countDeleted + ' journée(s) retirée(s)');
+      if(countTR > 0) parts.push(countTR + ' TR additionnés');
+      if(countTRSubtracted > 0) parts.push(countTRSubtracted + ' TR retirés');
+      if(countCreated > 0) parts.push(countCreated + ' nouvelle(s) dénomination(s) créée(s)');
+      const prefix = useHandle ? '✅ Fichier mis à jour' : '✅ Fichier téléchargé';
+      showToast(prefix + ' : ' + parts.join(' · '));
+    } catch(e){ console.error(e); showToast('Erreur : ' + e.message, true); }
+    finally { btn.disabled = false; btn.textContent = '⬇️ Remplir et enregistrer'; }
+  }
+
+  // ── UTILITAIRES ──
+  function stepField(id, val){
+    const el = document.getElementById(id);
+    let v = parseInt(el.value) || 0;
+    v = Math.max(0, v + val);
+    el.value = v;
+  }
+  function getNum(id){ return parseFloat(document.getElementById(id).value) || 0; }
+  function parseNum(str){ return parseFloat(str.replace(/\s/g,'').replace('€','').replace(',','.')) || 0; }
+  function fmtEur(n){ return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €'; }
+  function showToast(msg, isError){
+    const t = document.getElementById('caisse-toast');
+    if(!t) return;
+    t.textContent = msg;
+    t.className = (isError ? 'error ' : '') + 'show';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  // ── EXPOSITION des handlers sur window pour les onclick="" ──
+  window.caisseOnDateChange = onDateChange;
+  window.caisseCalcTotal = calcTotal;
+  window.caisseCalcCV = calcCV;
+  window.caisseCvStep = cvStep;
+  window.caisseStepField = stepField;
+  window.caisseCheckTVA = checkTVA;
+  window.caisseSave = saveCaisse;
+  window.caisseOpenAddTRModal = openAddTRModal;
+  window.caisseCloseAddTRModal = closeAddTRModal;
+  window.caisseUpdateModalSubtotal = updateModalSubtotal;
+  window.caisseSaveTRValue = saveTRValue;
+  window.caisseRemoveTRValue = removeTRValue;
+  window.caisseUpdateTRQty = updateTRQty;
+  window.caisseOpenODSModal = openODSModal;
+  window.caisseCloseODSModal = closeODSModal;
+  window.caisseOpenMonthModal = openMonthModal;
+  window.caisseCloseMonthModal = closeMonthModal;
+  window.caisseExportCSV = exportCSV;
+  window.caissePickOdsFile = pickOdsFile;
+  window.caisseUnlinkOdsFile = unlinkOdsFile;
+  window.caisseProcessODS = processODS;
+  window.caisseCreateMonth = createMonth;
+  window.caisseEditDay = editDay;
+  window.caisseDeleteDay = deleteDay;
+
+  // ── INIT LAZY : au 1er affichage de l'onglet Caisse ──
+  const tabCaisse = document.getElementById('tab-caisse');
+  if(tabCaisse){
+    tabCaisse.addEventListener('click', init, { once: false });
+  }
+  // Si on arrive directement avec l'onglet déjà actif (rare), init immédiat
+  if(document.getElementById('screen-caisse')?.classList.contains('active')) init();
+
+})();
+</script>
+</body></html>
