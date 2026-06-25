@@ -28,10 +28,13 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 
   /* DATE BAR */
-  .date-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 18px;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
-  .date-bar input[type="date"]{flex:1;background:none;border:none;color:var(--text);font-size:18px;font-family:'DM Sans',sans-serif;font-weight:700;outline:none;color-scheme:dark;pointer-events:none;opacity:0.95;}
-  .date-bar .lock-icon{color:var(--gold);font-size:14px;flex-shrink:0;}
-  .day-badge{background:var(--gold);color:var(--bg);font-size:12px;font-weight:800;padding:6px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;}
+  .date-bar{display:flex;align-items:stretch;gap:8px;margin-bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+  .date-pill{flex:1;background:transparent;border:2px solid transparent;border-radius:12px;padding:12px 14px;cursor:pointer;text-align:center;font-family:'DM Sans',sans-serif;color:var(--text-dim);transition:all .15s;}
+  .date-pill .pill-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;}
+  .date-pill .pill-date{font-size:16px;font-weight:700;display:block;}
+  .date-pill.active{background:var(--gold);color:var(--bg);border-color:var(--gold);}
+  .date-pill.active .pill-label{color:var(--bg);}
+  .date-pill:not(.active):hover{border-color:var(--border);color:var(--text);}
 
   /* SECTION TITLE */
   .section-title{font-size:12px;font-weight:800;color:var(--gold-dim);text-transform:uppercase;letter-spacing:2px;margin:25px 0 15px;display:flex;align-items:center;gap:10px;}
@@ -131,9 +134,15 @@
 <div id="page-saisie" class="page active">
 
   <div class="date-bar">
-    <span class="lock-icon" title="Date verrouillée sur aujourd'hui">🔒</span>
-    <input type="date" id="dateInput" readonly tabindex="-1">
-    <div class="day-badge" id="dayBadge">Lundi</div>
+    <button type="button" class="date-pill" id="pillHier" onclick="selectDate('hier')">
+      <span class="pill-label">Hier</span>
+      <span class="pill-date" id="pillHierDate">—</span>
+    </button>
+    <button type="button" class="date-pill active" id="pillToday" onclick="selectDate('today')">
+      <span class="pill-label">Aujourd'hui</span>
+      <span class="pill-date" id="pillTodayDate">—</span>
+    </button>
+    <input type="hidden" id="dateInput">
   </div>
 
   <!-- ENCAISSEMENTS CB / CHQ -->
@@ -376,31 +385,39 @@ let trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
 let currentEmetteur = null;
 
 // ── INIT ──────────────────────────────────────────────────────
-function todayISO() {
-  const d = new Date();
+function isoFromDate(d) {
   return d.getFullYear() + '-' +
     String(d.getMonth() + 1).padStart(2, '0') + '-' +
     String(d.getDate()).padStart(2, '0');
 }
+function todayISO() { return isoFromDate(new Date()); }
+function yesterdayISO() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return isoFromDate(d);
+}
+function shortFr(iso) {
+  return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR',
+    { weekday:'short', day:'2-digit', month:'short' });
+}
+
+function selectDate(which) {
+  const iso = which === 'hier' ? yesterdayISO() : todayISO();
+  document.getElementById('dateInput').value = iso;
+  document.getElementById('pillToday').classList.toggle('active', which === 'today');
+  document.getElementById('pillHier').classList.toggle('active', which === 'hier');
+}
 
 function init() {
   const now = new Date();
-  const iso = todayISO();
   document.getElementById('headerDate').innerHTML =
     JOURS[now.getDay()] + '<br>' +
     now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  const di = document.getElementById('dateInput');
-  di.value = iso;
-  di.min = iso;
-  di.max = iso;
-  document.getElementById('dayBadge').textContent = JOURS[now.getDay()];
+  document.getElementById('pillTodayDate').textContent = shortFr(todayISO());
+  document.getElementById('pillHierDate').textContent = shortFr(yesterdayISO());
+  // Defaut intelligent : avant 14h = la caisse concerne hier (rattrapage matin)
+  const defaultPill = now.getHours() < 14 ? 'hier' : 'today';
+  selectDate(defaultPill);
   EMETTEURS.forEach(e => renderTRItems(e));
-}
-
-function onDateChange() {
-  const v = document.getElementById('dateInput').value;
-  if (!v) return;
-  document.getElementById('dayBadge').textContent = JOURS[new Date(v + 'T12:00:00').getDay()];
 }
 
 // ── TICKETS RESTAURANT ────────────────────────────────────────
@@ -540,8 +557,30 @@ function checkTVA() {
 
 // ── SAUVEGARDE ────────────────────────────────────────────────
 async function saveCaisse() {
-  const dateVal = todayISO();
-  document.getElementById('dateInput').value = dateVal;
+  const dateVal = document.getElementById('dateInput').value;
+  if (dateVal !== todayISO() && dateVal !== yesterdayISO()) {
+    showToast('Date invalide — recharge la page', true); return;
+  }
+
+  // Garde-fou : si cette date a deja un ODS valide, demander confirmation
+  try {
+    const check = await fetch(SUPABASE_URL +
+      '/rest/v1/caisse_journaliere?date=eq.' + dateVal +
+      '&select=exported_to_ods_at,total_general', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const existing = await check.json();
+    if (existing[0] && existing[0].exported_to_ods_at) {
+      const when = new Date(existing[0].exported_to_ods_at)
+        .toLocaleString('fr-FR', { dateStyle:'short', timeStyle:'short' });
+      const ok = confirm(
+        'La caisse du ' + shortFr(dateVal) +
+        ' a deja ete validee (' + fmtEur(existing[0].total_general) + ' le ' + when + ').\n\n' +
+        'Confirmer pour ECRASER les donnees existantes ?'
+      );
+      if (!ok) return;
+    }
+  } catch(e) { /* en cas d echec du check, on laisse passer */ }
 
   const trTotal = getTRTotal();
   const cvTotal = getCVTotal();
