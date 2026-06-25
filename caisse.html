@@ -29,7 +29,8 @@
 
   /* DATE BAR */
   .date-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 18px;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
-  .date-bar input[type="date"]{flex:1;background:none;border:none;color:var(--text);font-size:18px;font-family:'DM Sans',sans-serif;font-weight:700;outline:none;color-scheme:dark;}
+  .date-bar input[type="date"]{flex:1;background:none;border:none;color:var(--text);font-size:18px;font-family:'DM Sans',sans-serif;font-weight:700;outline:none;color-scheme:dark;pointer-events:none;opacity:0.95;}
+  .date-bar .lock-icon{color:var(--gold);font-size:14px;flex-shrink:0;}
   .day-badge{background:var(--gold);color:var(--bg);font-size:12px;font-weight:800;padding:6px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;flex-shrink:0;}
 
   /* SECTION TITLE */
@@ -130,7 +131,8 @@
 <div id="page-saisie" class="page active">
 
   <div class="date-bar">
-    <input type="date" id="dateInput" onchange="onDateChange()">
+    <span class="lock-icon" title="Date verrouillée sur aujourd'hui">🔒</span>
+    <input type="date" id="dateInput" readonly tabindex="-1">
     <div class="day-badge" id="dayBadge">Lundi</div>
   </div>
 
@@ -374,12 +376,23 @@ let trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
 let currentEmetteur = null;
 
 // ── INIT ──────────────────────────────────────────────────────
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 function init() {
   const now = new Date();
+  const iso = todayISO();
   document.getElementById('headerDate').innerHTML =
     JOURS[now.getDay()] + '<br>' +
     now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  document.getElementById('dateInput').value = now.toISOString().split('T')[0];
+  const di = document.getElementById('dateInput');
+  di.value = iso;
+  di.min = iso;
+  di.max = iso;
   document.getElementById('dayBadge').textContent = JOURS[now.getDay()];
   EMETTEURS.forEach(e => renderTRItems(e));
 }
@@ -527,8 +540,8 @@ function checkTVA() {
 
 // ── SAUVEGARDE ────────────────────────────────────────────────
 async function saveCaisse() {
-  const dateVal = document.getElementById('dateInput').value;
-  if (!dateVal) { showToast('Sélectionne une date', true); return; }
+  const dateVal = todayISO();
+  document.getElementById('dateInput').value = dateVal;
 
   const trTotal = getTRTotal();
   const cvTotal = getCVTotal();
