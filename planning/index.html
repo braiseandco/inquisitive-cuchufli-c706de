@@ -2187,7 +2187,7 @@ function _contratPageHtml(emp, wk, dateSign) {
 // CSS commun pour la fenêtre d'impression
 function _contratPrintCss() {
   return `
-    @page { size:A4; margin:14mm 14mm; }
+    @page { size:A4; margin:14mm; }
     body { font-family: 'Helvetica',Arial,sans-serif; font-size:10.5pt; color:#111; line-height:1.5; margin:0; padding:18px; background:#eee; }
     .contrat-page { background:#fff; padding:18mm 16mm; max-width:210mm; margin:0 auto 24px; box-shadow:0 2px 12px rgba(0,0,0,.2); page-break-after:always; }
     .contrat-page:last-child { page-break-after:auto; }
@@ -2206,9 +2206,10 @@ function _contratPrintCss() {
     .sign-sub { font-style:italic; font-size:8.5pt; color:#555; margin-top:2px; }
     .sign-name { margin-top:6px; font-size:10pt; }
     .sign-box { height:60px; border:1px dashed #bbb; border-radius:4px; margin-top:8px; background:#fcfcfc; }
-    .toolbar { position:fixed; top:10px; right:10px; z-index:9999; }
-    .toolbar button { padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+    .toolbar { position:fixed; top:10px; right:10px; z-index:9999; display:flex; align-items:center; gap:10px; background:#fff; padding:8px 12px; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,.18); }
+    .toolbar button { padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
     .toolbar button:hover { background:#000; }
+    .toolbar-hint { font-size:11.5px; color:#666; line-height:1.3; max-width:220px; }
     @media print {
       .toolbar { display:none; }
       body { background:#fff; padding:0; }
@@ -2220,7 +2221,7 @@ function _contratPrintCss() {
 function _openContratPrintWindow(title, innerHtml) {
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${_contratPrintCss()}</style></head><body>
-    <div class="toolbar"><button onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button></div>
+    <div class="toolbar"><button onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button><span class="toolbar-hint">Dans la boîte d'impression, décochez<br><b>« En-têtes et pieds de page »</b></span></div>
     ${innerHtml}
   </body></html>`);
   w.document.close();
