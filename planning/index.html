@@ -2420,7 +2420,8 @@ async function computeMonthlyRecap(mois) {
   const firstDay = new Date(year, monthNum - 1, 1);
   const lastDay  = new Date(year, monthNum, 0);
 
-  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+  // Inclut les archivés : ils seront filtrés ensuite si pas de données dans la période
+  const recapEmployees = await GET('employees?select=*&order=display_order.asc,name.asc');
 
   const mondays = [];
   const cur = getMonday(firstDay);
@@ -2460,7 +2461,7 @@ async function computeMonthlyRecap(mois) {
   };
 
   const recap = [];
-  for (const emp of employees) {
+  for (const emp of recapEmployees) {
     let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, absentHours = 0;
     const absDates = []; // {date, type: 'vacation'|'arret'|'accident'}
     for (const monday of mondays) {
@@ -2846,7 +2847,8 @@ async function computeWeeklyRecap(fromYmd, toYmd) {
   }
   if (!mondays.length) return null;
 
-  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+  // Inclut les archivés : ils seront filtrés ensuite si pas de données dans la période
+  const recapEmployees = await GET('employees?select=*&order=display_order.asc,name.asc');
 
   const fetchStart = mondays[0];
   const fetchEnd = new Date(mondays[mondays.length - 1]);
@@ -2867,7 +2869,7 @@ async function computeWeeklyRecap(fromYmd, toYmd) {
   };
 
   const rows = [];
-  for (const emp of employees) {
+  for (const emp of recapEmployees) {
     const empOv = ovIdx[emp.id] || {};
     const weeks = mondays.map(monday => {
       let totalH = 0, repas = 0, conges = 0, arret = 0, abs = 0, accident = 0, hasAny = false;
