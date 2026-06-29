@@ -568,6 +568,30 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       </p>
     </div>
 
+    <!-- Récap hebdomadaire : heures semaine par semaine pour chaque employé -->
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="section-title" style="margin-bottom:8px">📅 Récap hebdomadaire (par employé)</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6">
+        Pour chaque employé : heures travaillées, repas pris et absences/congés/arrêts, ventilés semaine par semaine sur la période choisie.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Période</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setWeeklyPeriod(4)">4 dernières sem.</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setWeeklyPeriod(8)">8 dernières sem.</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setWeeklyPeriod(12)">12 dernières sem.</button>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="setWeeklyPeriodMonth()">Ce mois</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="form-input" type="date" id="recapWeeklyFrom" style="flex:1">
+          <span style="color:var(--text-dim);font-size:12px">→</span>
+          <input class="form-input" type="date" id="recapWeeklyTo" style="flex:1">
+        </div>
+      </div>
+      <button class="btn-primary" style="width:100%;margin-top:8px" onclick="loadWeeklyRecap()">📥 Charger le récap hebdomadaire</button>
+      <div id="recapWeeklyView"></div>
+    </div>
+
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
       <div class="section-title" style="margin-bottom:12px">PDF par employé</div>
       <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">Toutes les semaines travaillées pour un employé.</p>
@@ -2809,6 +2833,237 @@ function printRecapSalaires() {
   openPrintOverlay(html);
 }
 
+// ═══ RÉCAP HEBDOMADAIRE (heures/repas/absences semaine par semaine) ═══
+let weeklyRecapData = null;
+
+function setWeeklyPeriod(nWeeks) {
+  const today = new Date();
+  const fromMonday = getMonday(new Date(today));
+  fromMonday.setDate(fromMonday.getDate() - 7 * (nWeeks - 1));
+  document.getElementById('recapWeeklyFrom').value = dateStr(fromMonday);
+  document.getElementById('recapWeeklyTo').value = dateStr(today);
+}
+function setWeeklyPeriodMonth() {
+  const today = new Date();
+  const from = new Date(today.getFullYear(), today.getMonth(), 1);
+  const to   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  document.getElementById('recapWeeklyFrom').value = dateStr(from);
+  document.getElementById('recapWeeklyTo').value   = dateStr(to);
+}
+
+async function computeWeeklyRecap(fromYmd, toYmd) {
+  const [fy, fm, fd] = fromYmd.split('-').map(Number);
+  const [ty, tm, td] = toYmd.split('-').map(Number);
+  const startMonday = getMonday(new Date(fy, fm - 1, fd));
+  const endMonday   = getMonday(new Date(ty, tm - 1, td));
+
+  const mondays = [];
+  const cur = new Date(startMonday);
+  while (cur <= endMonday) {
+    mondays.push(new Date(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  if (!mondays.length) return null;
+
+  if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+
+  const fetchStart = mondays[0];
+  const fetchEnd = new Date(mondays[mondays.length - 1]);
+  fetchEnd.setDate(fetchEnd.getDate() + 6);
+  const allOv = await GET(`weekly_overrides?date=gte.${dateStr(fetchStart)}&date=lte.${dateStr(fetchEnd)}&select=*`);
+  const ovIdx = {};
+  allOv.forEach(o => { (ovIdx[o.employee_id] = ovIdx[o.employee_id] || {})[o.date] = o; });
+
+  const isMornActive = ov => {
+    if (!ov || !ov.start_time || !ov.end_time) return false;
+    const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    return s !== 'absent' && s !== 'repos' && s !== 'accident';
+  };
+  const isEveActive = ov => {
+    if (!ov || !ov.evening_start || !ov.evening_end) return false;
+    const s = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
+    return s !== 'absent' && s !== 'repos' && s !== 'accident';
+  };
+
+  const rows = [];
+  for (const emp of employees) {
+    const empOv = ovIdx[emp.id] || {};
+    const weeks = mondays.map(monday => {
+      let totalH = 0, repas = 0, conges = 0, arret = 0, abs = 0, accident = 0, hasAny = false;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday); d.setDate(d.getDate() + i);
+        const ov = empOv[dateStr(d)];
+        if (!ov) continue;
+        hasAny = true;
+        totalH += calcDayHours(ov);
+        if (isMornActive(ov)) repas += 1;
+        if (isEveActive(ov))  repas += 1;
+        if      (ov.status === 'vacation') conges   += 1;
+        else if (ov.status === 'arret')    arret    += 1;
+        else if (ov.status === 'accident') accident += 1;
+        else if (ov.status === 'absent')   abs      += 1;
+        else {
+          if      (ov.morn_status === 'arret')    arret    += 0.5;
+          else if (ov.morn_status === 'accident') accident += 0.5;
+          else if (ov.morn_status === 'absent')   abs      += 0.5;
+          if      (ov.eve_status  === 'arret')    arret    += 0.5;
+          else if (ov.eve_status  === 'accident') accident += 0.5;
+          else if (ov.eve_status  === 'absent')   abs      += 0.5;
+        }
+      }
+      return {totalH, repas, conges, arret, abs, accident, hasAny};
+    });
+    if (!weeks.some(w => w.hasAny)) continue;
+    const totalH = weeks.reduce((s, w) => s + w.totalH, 0);
+    const totalRepas = weeks.reduce((s, w) => s + w.repas, 0);
+    rows.push({emp, weeks, totalH, totalRepas});
+  }
+  rows.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
+  return {mondays, rows};
+}
+
+function fmtH1(h) {
+  if (!h) return '—';
+  const v = Math.round(h * 10) / 10;
+  return (Number.isInteger(v) ? v.toString() : v.toFixed(1).replace('.', ',')) + 'h';
+}
+
+async function loadWeeklyRecap() {
+  const from = document.getElementById('recapWeeklyFrom').value;
+  const to   = document.getElementById('recapWeeklyTo').value;
+  const container = document.getElementById('recapWeeklyView');
+  if (!from || !to) { toast('Choisis une période'); return; }
+  if (from > to) { toast('La date de début doit être avant la fin'); return; }
+  const data = await computeWeeklyRecap(from, to);
+  if (!data || !data.rows.length) { weeklyRecapData = null; container.innerHTML = ''; toast('Aucune donnée pour cette période'); return; }
+  weeklyRecapData = data;
+  renderWeeklyRecap();
+}
+
+function renderWeeklyRecap() {
+  const container = document.getElementById('recapWeeklyView');
+  const {mondays, rows} = weeklyRecapData;
+  const fj = n => Number.isInteger(n) ? n : n.toString().replace('.', ',');
+
+  const head = mondays.map(m => {
+    const sun = new Date(m); sun.setDate(sun.getDate() + 6);
+    return `<th style="text-align:center;padding:6px 6px;font-size:10px;color:var(--text-dim);white-space:nowrap;border-left:1px solid var(--border)">${fmtDate(m)}<br>→ ${fmtDate(sun)}</th>`;
+  }).join('');
+
+  const body = rows.map(r => {
+    const cells = r.weeks.map(w => {
+      if (!w.hasAny) return `<td style="text-align:center;color:var(--text-faint);padding:6px 4px;border-left:1px solid var(--border)">—</td>`;
+      const tags = [];
+      if (w.conges   > 0) tags.push(`<span style="color:#90caf9">${fj(w.conges)}c</span>`);
+      if (w.arret    > 0) tags.push(`<span style="color:#ffb74d">${fj(w.arret)}arr</span>`);
+      if (w.accident > 0) tags.push(`<span style="color:#f48fb1">${fj(w.accident)}AT</span>`);
+      if (w.abs      > 0) tags.push(`<span style="color:#ef9a9a">${fj(w.abs)}abs</span>`);
+      return `<td style="text-align:center;padding:6px 4px;border-left:1px solid var(--border);white-space:nowrap">
+        <div style="font-weight:700">${fmtH1(w.totalH)}</div>
+        ${w.repas > 0 ? `<div style="font-size:10px;color:var(--text-dim)">${w.repas} repas</div>` : ''}
+        ${tags.length ? `<div style="font-size:10px;margin-top:2px">${tags.join(' ')}</div>` : ''}
+      </td>`;
+    }).join('');
+    return `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px;font-weight:600;white-space:nowrap">${r.emp.name}</td>
+      ${cells}
+      <td style="text-align:center;padding:6px 8px;border-left:2px solid var(--accent2);background:rgba(229,57,53,.06);font-weight:700;white-space:nowrap">
+        ${fmtH1(r.totalH)}
+        <div style="font-size:10px;color:var(--text-dim);font-weight:400">${r.totalRepas} repas</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <p style="font-size:11px;color:var(--text-dim);margin:14px 0 6px">${rows.length} employé${rows.length>1?'s':''} · ${mondays.length} semaine${mondays.length>1?'s':''}</p>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px">
+      <table style="border-collapse:collapse;font-size:12px;width:100%;min-width:520px">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;color:var(--text-dim);font-size:11px">Employé</th>
+          ${head}
+          <th style="text-align:center;padding:6px 8px;color:var(--accent2);font-size:11px;border-left:2px solid var(--accent2)">TOTAL</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+    <p style="font-size:10px;color:var(--text-faint);margin-top:6px;line-height:1.6">
+      Cellule : heures · repas ·
+      <span style="color:#90caf9">c</span>=congés,
+      <span style="color:#ffb74d">arr</span>=arrêt,
+      <span style="color:#f48fb1">AT</span>=accident,
+      <span style="color:#ef9a9a">abs</span>=absence.
+      Les fractions = demi-journées.
+    </p>
+    <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printWeeklyRecap()">📄 Générer le PDF du récap hebdomadaire</button>`;
+}
+
+function printWeeklyRecap() {
+  if (!weeklyRecapData || !weeklyRecapData.rows.length) { toast('Charge d\'abord la période'); return; }
+  const {mondays, rows} = weeklyRecapData;
+  const fmtH2 = h => h ? (Math.round(h * 100) / 100).toString().replace('.', ',') + 'h' : '—';
+  const fj = n => Number.isInteger(n) ? n : n.toString().replace('.', ',');
+
+  const headCells = mondays.map(m => {
+    const sun = new Date(m); sun.setDate(sun.getDate() + 6);
+    return `<th>${fmtDate(m)}<br>→ ${fmtDate(sun)}</th>`;
+  }).join('');
+
+  let sumH = 0, sumR = 0;
+  const bodyRows = rows.map(r => {
+    sumH += r.totalH; sumR += r.totalRepas;
+    const cells = r.weeks.map(w => {
+      if (!w.hasAny) return `<td style="text-align:center;color:#aaa">—</td>`;
+      const tags = [];
+      if (w.conges   > 0) tags.push(`${fj(w.conges)}c`);
+      if (w.arret    > 0) tags.push(`${fj(w.arret)}arr`);
+      if (w.accident > 0) tags.push(`${fj(w.accident)}AT`);
+      if (w.abs      > 0) tags.push(`${fj(w.abs)}abs`);
+      return `<td style="text-align:center">
+        <strong>${fmtH2(w.totalH)}</strong>
+        ${w.repas > 0 ? `<br><span style="font-size:8pt;color:#666">${w.repas} repas</span>` : ''}
+        ${tags.length ? `<br><span style="font-size:8pt;color:#444">${tags.join(' · ')}</span>` : ''}
+      </td>`;
+    }).join('');
+    return `<tr><td><strong>${r.emp.name}</strong></td>${cells}<td style="text-align:center;background:#f3f3f3"><strong>${fmtH2(r.totalH)}</strong><br><span style="font-size:8pt;color:#666">${r.totalRepas} repas</span></td></tr>`;
+  }).join('');
+
+  const lastSun = new Date(mondays[mondays.length - 1]); lastSun.setDate(lastSun.getDate() + 6);
+  const periode = `du ${fmtDate(mondays[0])} ${mondays[0].getFullYear()} au ${fmtDate(lastSun)} ${lastSun.getFullYear()}`;
+
+  const footCells = mondays.map((_, i) => {
+    const wT = rows.reduce((s, r) => s + r.weeks[i].totalH, 0);
+    const wR = rows.reduce((s, r) => s + r.weeks[i].repas, 0);
+    return `<td style="text-align:center"><strong>${fmtH2(wT)}</strong>${wR > 0 ? `<br><span style="font-size:8pt;color:#666">${wR} repas</span>` : ''}</td>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap hebdomadaire</title>
+  <style>
+    @page { size:A4 landscape; margin:10mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:9pt; color:#111; margin:0; padding:18px; background:#fff; }
+    h1 { text-align:center; font-size:14pt; margin:0 0 4px; letter-spacing:.5px; }
+    .subtitle { text-align:center; font-size:10pt; color:#555; margin-bottom:14px; }
+    table { width:100%; border-collapse:collapse; margin-top:6px; }
+    th, td { border:1px solid #999; padding:5px 6px; text-align:left; font-size:8.5pt; }
+    th { background:#eee; font-weight:700; text-align:center; font-size:8pt; white-space:nowrap; }
+    tfoot td { font-weight:700; background:#f6f6f6; }
+    .legende { margin-top:14px; font-size:8.5pt; color:#555; }
+    .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
+    @media print { .print-btn { display:none; } body { padding:0; } }
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
+  <h1>Récap hebdomadaire des heures</h1>
+  <div class="subtitle">SAS ARP BIGANOS · ${periode}</div>
+  <table>
+    <thead><tr><th style="text-align:left">Employé</th>${headCells}<th>TOTAL</th></tr></thead>
+    <tbody>${bodyRows}</tbody>
+    <tfoot><tr><td>TOTAL (${rows.length} employé${rows.length>1?'s':''})</td>${footCells}<td style="text-align:center"><strong>${fmtH2(sumH)}</strong><br><span style="font-size:8pt;color:#666">${sumR} repas</span></td></tr></tfoot>
+  </table>
+  <p class="legende">Légende cellule : heures travaillées · nombre de repas · <strong>c</strong>=congés payés · <strong>arr</strong>=arrêt maladie · <strong>AT</strong>=accident du travail · <strong>abs</strong>=absence non justifiée. Les fractions = demi-journées.</p>
+  </body></html>`;
+
+  openPrintOverlay(html);
+}
+
 async function deleteContrat(id, nom, dateGen) {
   if (!confirm(`Supprimer le contrat de ${nom} (généré le ${dateGen}) ?\n\nCette action est irréversible.`)) return;
   try {
@@ -2940,6 +3195,11 @@ async function loadSettingsTab() {
   document.getElementById('customRptTo').value = dateStr(today);
   // Récap mensuel : mois en cours par défaut
   document.getElementById('recapMois').value = today.toISOString().slice(0,7);
+  // Récap hebdomadaire : 4 dernières semaines par défaut
+  const wkFrom = getMonday(new Date(today));
+  wkFrom.setDate(wkFrom.getDate() - 7 * 3);
+  document.getElementById('recapWeeklyFrom').value = dateStr(wkFrom);
+  document.getElementById('recapWeeklyTo').value = dateStr(today);
   loadSettings();
   // Rapports : on inclut les employés archivés pour garder l'accès à leur historique
   reportEmps = await GET('employees?select=*&order=display_order.asc,name.asc');
