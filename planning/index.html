@@ -2738,18 +2738,23 @@ function printRecapMensuel() {
   const weekTotalsRepas = mondays.map(() => 0);
 
   const rows = recap.map(r => {
-    sumSup += r.totalSup; sumRepas += r.totalRepas;
+    // Extras (sans contrat hebdo) : toutes les heures sont a payer au-dela du salaire de base
+    const isExtra = r.emp.heures_hebdo_contrat == null;
+    const rowSupTotal = isExtra ? r.totalH : r.totalSup;
+    sumSup += rowSupTotal; sumRepas += r.totalRepas;
     // Indexe le breakdown par date du lundi pour acces direct
     const wkByMon = {};
     (r.weeklyBreakdown || []).forEach(w => { wkByMon[dateStr(w.monday)] = w; });
     const cells = mondays.map((m, i) => {
       const w = wkByMon[dateStr(m)];
       if (!w) return `<td style="text-align:center;color:#aaa">—</td>`;
-      weekTotalsSup[i]   += w.weekSup;
+      const cellSup = isExtra ? w.weekH : w.weekSup;
+      weekTotalsSup[i]   += cellSup;
       weekTotalsRepas[i] += w.weekRepas;
-      const supTxt = w.weekSup > 0.01
-        ? `<strong style="color:#b00">${fmtH2(w.weekSup)}</strong>`
-        : '<span style="color:#888">0h sup</span>';
+      const supLabel = isExtra ? '' : ' sup';
+      const supTxt = cellSup > 0.01
+        ? `<strong style="color:#b00">${fmtH2(cellSup)}${supLabel}</strong>`
+        : `<span style="color:#888">0h${supLabel}</span>`;
       const repasTxt = w.weekRepas > 0
         ? `${w.weekRepas} repas`
         : '<span style="color:#aaa">— repas</span>';
@@ -2757,13 +2762,16 @@ function printRecapMensuel() {
         ${supTxt}<br><span style="font-size:8.5pt;color:#555">${repasTxt}</span>
       </td>`;
     }).join('');
-    const salaireCell = r.emp.salaire_base_net != null ? fmtEuros(+r.emp.salaire_base_net) : '—';
+    const salaireCell = r.emp.salaire_base_net != null
+      ? fmtEuros(+r.emp.salaire_base_net)
+      : '<span style="color:#888">extra</span>';
+    const totalSupLabel = isExtra ? '' : ' sup';
     return `<tr>
       <td><strong>${r.emp.name}</strong></td>
       <td style="text-align:right">${salaireCell}</td>
       ${cells}
       <td style="text-align:center;background:#f6f6f6">
-        <strong style="color:#b00">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</strong>
+        <strong style="color:#b00">${rowSupTotal > 0.01 ? fmtH2(rowSupTotal) + totalSupLabel : '—'}</strong>
         <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
       </td>
     </tr>`;
