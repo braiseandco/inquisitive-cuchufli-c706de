@@ -2781,12 +2781,15 @@ function printRecapMensuel() {
           <strong style="color:#b00">${rowSupTotal > 0.01 ? fmtH2(rowSupTotal) + totalSupLabel : '—'}</strong>
           <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
         </td>`;
-    // Contenu de la cellule "Net a verser" : net en euros si saisi, sinon heures saisies, sinon "-"
-    let netContent = '—';
-    if (r.netVerseEdited) netContent = fmtEuros(r.netVerse);
-    else if (r.totalHEdited || r.totalSupEdited || r.totalRepasEdited) netContent = fmtH2(r.totalH);
+    // Cellule "Net a verser" : empile chaque valeur saisie manuellement par l'utilisateur
+    const parts = [];
+    if (r.netVerseEdited)    parts.push(`<strong>${fmtEuros(r.netVerse)}</strong>`);
+    if (r.totalHEdited)      parts.push(`${fmtH2(r.totalH)} total`);
+    if (r.totalSupEdited)    parts.push(`${fmtH2(r.totalSup)} sup`);
+    if (r.totalRepasEdited)  parts.push(`${r.totalRepas} repas`);
+    const netContent = parts.length ? parts.join('<br>') : '—';
     const netCell = showNet
-      ? `<td style="text-align:right;background:#eaf4ea"><strong>${netContent}</strong></td>`
+      ? `<td style="text-align:right;background:#eaf4ea;font-size:9.5pt;line-height:1.5">${netContent}</td>`
       : '';
     return `<tr>
       <td><strong>${r.emp.name}</strong></td>
