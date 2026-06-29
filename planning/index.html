@@ -2674,39 +2674,26 @@ function printRecapMensuel() {
   const recap = recapRows, moisLabel = recapMoisLabel;
   const fmtH2 = fmtHeures;
 
-  const fj = n => Number.isInteger(n) ? n : n.toString().replace('.', ',');
-  let sumBase = 0, sumRepas = 0, sumSup = 0, sumConges = 0, sumAbs = 0;
+  let sumBase = 0, sumRepas = 0, sumSup = 0;
   const rows = recap.map(r => {
-    const baseDue = baseProrataOf(r);
-    sumBase += baseDue; sumRepas += r.totalRepas; sumSup += r.totalSup;
-    sumConges += r.congesJours; sumAbs += r.absJours;
-    const hebdo = r.emp.heures_hebdo_contrat != null ? (+r.emp.heures_hebdo_contrat).toString().replace('.',',') + 'h/sem' : '—';
-    const isProrata = r.presenceRatio != null && r.presenceRatio < 0.999;
-    const baseCell = r.emp.salaire_base_net == null
-      ? '—'
-      : (isProrata
-          ? `${fmtEuros(baseDue)}<br><span style="font-size:8.5pt;color:#888">prorata ${r.presenceDays}/${r.daysInMonth}j</span>`
-          : fmtEuros(baseDue));
+    const heuresBase = Math.max(0, r.totalH - r.totalSup);
+    sumBase += heuresBase; sumRepas += r.totalRepas; sumSup += r.totalSup;
     return `<tr>
       <td>${r.emp.name}</td>
-      <td>${hebdo}</td>
-      <td style="text-align:center">${r.nbSemaines}</td>
-      <td style="text-align:right">${baseCell}</td>
-      <td style="text-align:center">${r.totalRepas}</td>
+      <td style="text-align:right">${fmtH2(heuresBase)}</td>
       <td style="text-align:right">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</td>
-      <td style="text-align:center">${r.congesJours > 0 ? fj(r.congesJours) : '—'}</td>
-      <td style="text-align:center">${r.absJours > 0 ? fj(r.absJours) : '—'}</td>
+      <td style="text-align:center">${r.totalRepas}</td>
     </tr>`;
   }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap ${moisLabel}</title>
   <style>
-    @page { size:A4 landscape; margin:12mm; }
-    body { font-family:'Helvetica',Arial,sans-serif; font-size:10pt; color:#111; margin:0; padding:18px; background:#fff; }
-    h1 { text-align:center; font-size:15pt; margin:0 0 4px; letter-spacing:.5px; }
-    .subtitle { text-align:center; font-size:10.5pt; color:#555; margin-bottom:16px; }
+    @page { size:A4; margin:14mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:11pt; color:#111; margin:0; padding:18px; background:#fff; }
+    h1 { text-align:center; font-size:16pt; margin:0 0 4px; letter-spacing:.5px; }
+    .subtitle { text-align:center; font-size:11pt; color:#555; margin-bottom:18px; }
     table { width:100%; border-collapse:collapse; margin-top:6px; }
-    th, td { border:1px solid #999; padding:6px 8px; text-align:left; font-size:9.5pt; }
+    th, td { border:1px solid #999; padding:7px 9px; text-align:left; font-size:10.5pt; }
     th { background:#eee; font-weight:700; }
     tfoot td { font-weight:700; background:#f6f6f6; }
     .obs { margin-top:18px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
@@ -2722,24 +2709,18 @@ function printRecapMensuel() {
     <thead>
       <tr>
         <th>Employé</th>
-        <th>Contrat</th>
-        <th style="text-align:center">Sem.</th>
-        <th style="text-align:right">Salaire net de base</th>
+        <th style="text-align:right">Heures de base</th>
+        <th style="text-align:right">Heures sup</th>
         <th style="text-align:center">Repas</th>
-        <th style="text-align:right">H. sup</th>
-        <th style="text-align:center">Congés</th>
-        <th style="text-align:center">Absence</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="3">TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
-        <td style="text-align:right">${fmtEuros(sumBase)}</td>
-        <td style="text-align:center">${sumRepas}</td>
+        <td>TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
+        <td style="text-align:right">${fmtH2(sumBase)}</td>
         <td style="text-align:right">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</td>
-        <td style="text-align:center">${sumConges > 0 ? fj(sumConges) : '—'}</td>
-        <td style="text-align:center">${sumAbs > 0 ? fj(sumAbs) : '—'}</td>
+        <td style="text-align:center">${sumRepas}</td>
       </tr>
     </tfoot>
   </table>
