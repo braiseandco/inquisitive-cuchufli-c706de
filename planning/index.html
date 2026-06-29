@@ -2845,7 +2845,6 @@ function printRecapMensuel() {
     </thead>
     <tbody>${rows}</tbody>
   </table>
-  <p style="margin-top:10px;font-size:8.5pt;color:#666">Sous chaque semaine : heures supplémentaires (au-delà du contrat hebdo) et nombre de repas pris.</p>
   ${recapObservations.trim() ? `<div class="obs"><div class="obs-title">Observations</div><div class="obs-body">${escapeHtml(recapObservations).replace(/\n/g, '<br>')}</div></div>` : ''}
   </body></html>`;
 
