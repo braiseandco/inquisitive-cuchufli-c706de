@@ -2464,6 +2464,7 @@ async function computeMonthlyRecap(mois) {
   for (const emp of recapEmployees) {
     let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, absentHours = 0;
     const absDates = []; // {date, type: 'vacation'|'arret'|'accident'}
+    const weeklyBreakdown = []; // [{monday, weekH, weekSup, weekRepas, hasAny}] pour le PDF detaille
     for (const monday of mondays) {
       let weekH = 0, weekServices = 0, hasAny = false;
       for (let i = 0; i < 7; i++) {
@@ -2504,9 +2505,10 @@ async function computeMonthlyRecap(mois) {
       totalH += weekH;
       totalRepas += weekServices;
       nbSemaines += 1;
-      if (emp.heures_hebdo_contrat != null && weekH > +emp.heures_hebdo_contrat) {
-        totalSup += weekH - +emp.heures_hebdo_contrat;
-      }
+      const weekSup = (emp.heures_hebdo_contrat != null && weekH > +emp.heures_hebdo_contrat)
+        ? weekH - +emp.heures_hebdo_contrat : 0;
+      totalSup += weekSup;
+      weeklyBreakdown.push({monday: new Date(monday), weekH, weekSup, weekRepas: weekServices});
     }
     // Prorata mois : jours calendaires de présence (arrivée/départ dans le mois)
     const firstYmd = dateStr(firstDay), lastYmd = dateStr(lastDay);
@@ -2524,7 +2526,7 @@ async function computeMonthlyRecap(mois) {
       presenceDays = 0; presenceRatio = 0;
     }
     if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0)
-      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours, presenceDays, presenceRatio, daysInMonth, absDates, ovByDate: ovIdx[emp.id] || {}});
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, absentHours, presenceDays, presenceRatio, daysInMonth, absDates, ovByDate: ovIdx[emp.id] || {}, weeklyBreakdown});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2676,15 +2678,29 @@ function printRecapMensuel() {
   const fmtH2 = fmtHeures;
 
   let sumBase = 0, sumRepas = 0, sumSup = 0;
+  const fmtSemLabel = monday => {
+    const sun = new Date(monday); sun.setDate(sun.getDate() + 6);
+    return `${fmtDate(monday)} → ${fmtDate(sun)}`;
+  };
   const rows = recap.map(r => {
     const heuresBase = Math.max(0, r.totalH - r.totalSup);
     sumBase += heuresBase; sumRepas += r.totalRepas; sumSup += r.totalSup;
-    return `<tr>
-      <td>${r.emp.name}</td>
-      <td style="text-align:right">${fmtH2(heuresBase)}</td>
-      <td style="text-align:right">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</td>
-      <td style="text-align:center">${r.totalRepas}</td>
+    const empRow = `<tr class="emp-row">
+      <td><strong>${r.emp.name}</strong></td>
+      <td style="text-align:right"><strong>${fmtH2(heuresBase)}</strong></td>
+      <td style="text-align:right"><strong>${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</strong></td>
+      <td style="text-align:center"><strong>${r.totalRepas}</strong></td>
     </tr>`;
+    const weekRows = (r.weeklyBreakdown || []).map(w => {
+      const wBase = Math.max(0, w.weekH - w.weekSup);
+      return `<tr class="week-row">
+        <td style="padding-left:22px;color:#555;font-size:9.5pt">↳ Sem. ${fmtSemLabel(w.monday)}</td>
+        <td style="text-align:right;color:#555;font-size:9.5pt">${fmtH2(wBase)}</td>
+        <td style="text-align:right;color:${w.weekSup > 0.01 ? '#b00' : '#555'};font-size:9.5pt">${w.weekSup > 0.01 ? fmtH2(w.weekSup) : '—'}</td>
+        <td style="text-align:center;color:#555;font-size:9.5pt">${w.weekRepas || '—'}</td>
+      </tr>`;
+    }).join('');
+    return empRow + weekRows;
   }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap ${moisLabel}</title>
@@ -2696,7 +2712,9 @@ function printRecapMensuel() {
     table { width:100%; border-collapse:collapse; margin-top:6px; }
     th, td { border:1px solid #999; padding:7px 9px; text-align:left; font-size:10.5pt; }
     th { background:#eee; font-weight:700; }
-    tfoot td { font-weight:700; background:#f6f6f6; }
+    .emp-row td { background:#f9f9f9; border-top:2px solid #999; }
+    .week-row td { padding:4px 9px; background:#fff; }
+    tfoot td { font-weight:700; background:#f0f0f0; border-top:2px solid #444; }
     .obs { margin-top:18px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
     .obs-title { font-size:10pt; font-weight:700; margin-bottom:6px; letter-spacing:.3px; }
     .obs-body { font-size:10pt; line-height:1.5; color:#222; white-space:pre-wrap; }
