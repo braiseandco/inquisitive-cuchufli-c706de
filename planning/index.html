@@ -2578,12 +2578,13 @@ async function computeMonthlyRecap(mois) {
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
-  return {recap, year, monthNum, moisLabel: `${MOIS_FR[monthNum - 1]} ${year}`};
+  return {recap, year, monthNum, moisLabel: `${MOIS_FR[monthNum - 1]} ${year}`, mondays};
 }
 
 // Données du mois chargé, ajustables avant génération du PDF.
 let recapRows = null;
 let recapMoisLabel = '';
+let recapMondays = [];
 let recapObservations = '';
 
 // Construit le texte d'observations automatiques (1 ligne par plage consécutive d'absence)
@@ -2675,6 +2676,7 @@ async function loadRecapEditable() {
   recapRows = data.recap;
   recapRows.forEach(r => { r.netVerse = recapNetEstime(r); });
   recapMoisLabel = data.moisLabel;
+  recapMondays = data.mondays || [];
   recapObservations = buildAutoObservations(recapRows);
   renderRecapEditable();
 }
@@ -2722,48 +2724,67 @@ function renderRecapEditable() {
 
 function printRecapMensuel() {
   if (!recapRows || !recapRows.length) { toast('Charge d\'abord un mois'); return; }
-  const recap = recapRows, moisLabel = recapMoisLabel;
+  const recap = recapRows, moisLabel = recapMoisLabel, mondays = recapMondays;
   const fmtH2 = fmtHeures;
-
-  let sumBase = 0, sumRepas = 0, sumSup = 0;
   const fmtSemLabel = monday => {
     const sun = new Date(monday); sun.setDate(sun.getDate() + 6);
-    return `${fmtDate(monday)} → ${fmtDate(sun)}`;
+    return `${fmtDate(monday)}<br>→ ${fmtDate(sun)}`;
   };
+
+  const headCells = mondays.map(m => `<th>${fmtSemLabel(m)}</th>`).join('');
+
+  let sumSup = 0, sumRepas = 0;
+  const weekTotalsSup = mondays.map(() => 0);
+  const weekTotalsRepas = mondays.map(() => 0);
+
   const rows = recap.map(r => {
-    const heuresBase = Math.max(0, r.totalH - r.totalSup);
-    sumBase += heuresBase; sumRepas += r.totalRepas; sumSup += r.totalSup;
-    const empRow = `<tr class="emp-row">
-      <td><strong>${r.emp.name}</strong></td>
-      <td style="text-align:right"><strong>${fmtH2(heuresBase)}</strong></td>
-      <td style="text-align:right"><strong>${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</strong></td>
-      <td style="text-align:center"><strong>${r.totalRepas}</strong></td>
-    </tr>`;
-    const weekRows = (r.weeklyBreakdown || []).map(w => {
-      const wBase = Math.max(0, w.weekH - w.weekSup);
-      return `<tr class="week-row">
-        <td style="padding-left:22px;color:#555;font-size:9.5pt">↳ Sem. ${fmtSemLabel(w.monday)}</td>
-        <td style="text-align:right;color:#555;font-size:9.5pt">${fmtH2(wBase)}</td>
-        <td style="text-align:right;color:${w.weekSup > 0.01 ? '#b00' : '#555'};font-size:9.5pt">${w.weekSup > 0.01 ? fmtH2(w.weekSup) : '—'}</td>
-        <td style="text-align:center;color:#555;font-size:9.5pt">${w.weekRepas || '—'}</td>
-      </tr>`;
+    sumSup += r.totalSup; sumRepas += r.totalRepas;
+    // Indexe le breakdown par date du lundi pour acces direct
+    const wkByMon = {};
+    (r.weeklyBreakdown || []).forEach(w => { wkByMon[dateStr(w.monday)] = w; });
+    const cells = mondays.map((m, i) => {
+      const w = wkByMon[dateStr(m)];
+      if (!w) return `<td style="text-align:center;color:#aaa">—</td>`;
+      weekTotalsSup[i]   += w.weekSup;
+      weekTotalsRepas[i] += w.weekRepas;
+      const supTxt = w.weekSup > 0.01
+        ? `<strong style="color:#b00">${fmtH2(w.weekSup)}</strong>`
+        : '<span style="color:#888">0h sup</span>';
+      const repasTxt = w.weekRepas > 0
+        ? `${w.weekRepas} repas`
+        : '<span style="color:#aaa">— repas</span>';
+      return `<td style="text-align:center">
+        ${supTxt}<br><span style="font-size:8.5pt;color:#555">${repasTxt}</span>
+      </td>`;
     }).join('');
-    return empRow + weekRows;
+    const salaireCell = r.emp.salaire_base_net != null ? fmtEuros(+r.emp.salaire_base_net) : '—';
+    return `<tr>
+      <td><strong>${r.emp.name}</strong></td>
+      <td style="text-align:right">${salaireCell}</td>
+      ${cells}
+      <td style="text-align:center;background:#f6f6f6">
+        <strong style="color:#b00">${r.totalSup > 0.01 ? fmtH2(r.totalSup) : '—'}</strong>
+        <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
+      </td>
+    </tr>`;
   }).join('');
+
+  const footCells = mondays.map((_, i) => `<td style="text-align:center">
+    <strong style="color:#b00">${weekTotalsSup[i] > 0.01 ? fmtH2(weekTotalsSup[i]) : '—'}</strong>
+    <br><span style="font-size:8.5pt;color:#555">${weekTotalsRepas[i]} repas</span>
+  </td>`).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap ${moisLabel}</title>
   <style>
-    @page { size:A4; margin:14mm; }
-    body { font-family:'Helvetica',Arial,sans-serif; font-size:11pt; color:#111; margin:0; padding:18px; background:#fff; }
-    h1 { text-align:center; font-size:16pt; margin:0 0 4px; letter-spacing:.5px; }
-    .subtitle { text-align:center; font-size:11pt; color:#555; margin-bottom:18px; }
+    @page { size:A4 landscape; margin:10mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:10pt; color:#111; margin:0; padding:14px; background:#fff; }
+    h1 { text-align:center; font-size:15pt; margin:0 0 4px; letter-spacing:.5px; }
+    .subtitle { text-align:center; font-size:10.5pt; color:#555; margin-bottom:14px; }
     table { width:100%; border-collapse:collapse; margin-top:6px; }
-    th, td { border:1px solid #999; padding:7px 9px; text-align:left; font-size:10.5pt; }
-    th { background:#eee; font-weight:700; }
-    .emp-row td { background:#f9f9f9; border-top:2px solid #999; }
-    .week-row td { padding:4px 9px; background:#fff; }
+    th, td { border:1px solid #999; padding:6px 7px; text-align:left; font-size:9.5pt; vertical-align:middle; }
+    th { background:#eee; font-weight:700; text-align:center; font-size:9pt; white-space:nowrap; }
     tfoot td { font-weight:700; background:#f0f0f0; border-top:2px solid #444; }
-    .obs { margin-top:18px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
+    .obs { margin-top:14px; border:1px solid #999; padding:10px 12px; background:#fafafa; }
     .obs-title { font-size:10pt; font-weight:700; margin-bottom:6px; letter-spacing:.3px; }
     .obs-body { font-size:10pt; line-height:1.5; color:#222; white-space:pre-wrap; }
     .print-btn { position:fixed; top:10px; right:10px; padding:9px 18px; background:#222; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; }
@@ -2775,22 +2796,22 @@ function printRecapMensuel() {
   <table>
     <thead>
       <tr>
-        <th>Employé</th>
-        <th style="text-align:right">Heures de base</th>
-        <th style="text-align:right">Heures sup</th>
-        <th style="text-align:center">Repas</th>
+        <th style="text-align:left">Employé</th>
+        <th style="text-align:right">Salaire de base</th>
+        ${headCells}
+        <th>TOTAL</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
       <tr>
-        <td>TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
-        <td style="text-align:right">${fmtH2(sumBase)}</td>
-        <td style="text-align:right">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</td>
-        <td style="text-align:center">${sumRepas}</td>
+        <td colspan="2">TOTAL (${recap.length} employé${recap.length>1?'s':''})</td>
+        ${footCells}
+        <td style="text-align:center"><strong style="color:#b00">${sumSup > 0.01 ? fmtH2(sumSup) : '—'}</strong><br><span style="font-size:8.5pt;color:#555">${sumRepas} repas</span></td>
       </tr>
     </tfoot>
   </table>
+  <p style="margin-top:10px;font-size:8.5pt;color:#666">Sous chaque semaine : heures supplémentaires (au-delà du contrat hebdo) et nombre de repas pris.</p>
   ${recapObservations.trim() ? `<div class="obs"><div class="obs-title">Observations</div><div class="obs-body">${escapeHtml(recapObservations).replace(/\n/g, '<br>')}</div></div>` : ''}
   </body></html>`;
 
