@@ -2694,9 +2694,9 @@ function renderRecapEditable() {
     const sub = hebdo + (abs.length ? ' · ' + abs.join(' · ') : '');
     return `<tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 6px">${r.emp.name}<div style="font-size:10px;color:var(--text-faint)">${sub}</div></td>
-      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalH*100)/100}" oninput="recapRows[${i}].totalH=parseFloat(this.value)||0" style="${inp}"></td>
-      <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0" style="${inp};width:44px"></td>
-      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalSup*100)/100}" oninput="recapRows[${i}].totalSup=parseFloat(this.value)||0" style="${inp}"></td>
+      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalH*100)/100}" oninput="recapRows[${i}].totalH=parseFloat(this.value)||0;recapRows[${i}].totalHEdited=true" style="${inp}"></td>
+      <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0;recapRows[${i}].totalRepasEdited=true" style="${inp};width:44px"></td>
+      <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalSup*100)/100}" oninput="recapRows[${i}].totalSup=parseFloat(this.value)||0;recapRows[${i}].totalSupEdited=true" style="${inp}"></td>
       <td style="text-align:center"><input type="number" step="10" min="0" value="${r.netVerse}" oninput="recapRows[${i}].netVerse=parseFloat(this.value)||0;recapRows[${i}].netVerseEdited=true" style="${inp};width:72px;font-weight:700;color:#a5d6a7"></td>
     </tr>`;
   }).join('');
@@ -2736,16 +2736,17 @@ function printRecapMensuel() {
   let sumSup = 0, sumRepas = 0;
   const weekTotalsSup = mondays.map(() => 0);
   const weekTotalsRepas = mondays.map(() => 0);
-  // Affiche colonne "Net a verser" seulement si l'utilisateur a saisi au moins une valeur a la main
-  const showNet = recap.some(r => r.netVerseEdited);
+  const isEdited = r => r.netVerseEdited || r.totalHEdited || r.totalSupEdited || r.totalRepasEdited;
+  // Affiche colonne "Net a verser" si l'utilisateur a modifie quoi que ce soit (heures, repas, sup ou net)
+  const showNet = recap.some(isEdited);
 
   const rows = recap.map(r => {
     // Extras (sans contrat hebdo) : toutes les heures sont a payer au-dela du salaire de base
     const isExtra = r.emp.heures_hebdo_contrat == null;
     const rowSupTotal = isExtra ? r.totalH : r.totalSup;
-    // Si l'utilisateur a saisi un net a verser, on masque les heures sup pour cet employe
-    // (le net englobe deja la remuneration des heures sup)
-    const hideSup = !!r.netVerseEdited;
+    // Si l'utilisateur a saisi quoi que ce soit, on masque les heures sup pour cet employe
+    // (le comptable fera le calcul du net a partir de la valeur saisie)
+    const hideSup = isEdited(r);
     if (!hideSup) sumSup += rowSupTotal;
     sumRepas += r.totalRepas;
     // Indexe le breakdown par date du lundi pour acces direct
@@ -2780,8 +2781,12 @@ function printRecapMensuel() {
           <strong style="color:#b00">${rowSupTotal > 0.01 ? fmtH2(rowSupTotal) + totalSupLabel : '—'}</strong>
           <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
         </td>`;
+    // Contenu de la cellule "Net a verser" : net en euros si saisi, sinon heures saisies, sinon "-"
+    let netContent = '—';
+    if (r.netVerseEdited) netContent = fmtEuros(r.netVerse);
+    else if (r.totalHEdited || r.totalSupEdited || r.totalRepasEdited) netContent = fmtH2(r.totalH);
     const netCell = showNet
-      ? `<td style="text-align:right;background:#eaf4ea"><strong>${r.netVerseEdited ? fmtEuros(r.netVerse) : '—'}</strong></td>`
+      ? `<td style="text-align:right;background:#eaf4ea"><strong>${netContent}</strong></td>`
       : '';
     return `<tr>
       <td><strong>${r.emp.name}</strong></td>
