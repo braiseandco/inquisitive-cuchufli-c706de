@@ -2697,7 +2697,7 @@ function renderRecapEditable() {
       <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalH*100)/100}" oninput="recapRows[${i}].totalH=parseFloat(this.value)||0" style="${inp}"></td>
       <td style="text-align:center"><input type="number" step="1" min="0" value="${r.totalRepas}" oninput="recapRows[${i}].totalRepas=parseInt(this.value)||0" style="${inp};width:44px"></td>
       <td style="text-align:center"><input type="number" step="0.5" min="0" value="${Math.round(r.totalSup*100)/100}" oninput="recapRows[${i}].totalSup=parseFloat(this.value)||0" style="${inp}"></td>
-      <td style="text-align:center"><input type="number" step="10" min="0" value="${r.netVerse}" oninput="recapRows[${i}].netVerse=parseFloat(this.value)||0" style="${inp};width:72px;font-weight:700;color:#a5d6a7"></td>
+      <td style="text-align:center"><input type="number" step="10" min="0" value="${r.netVerse}" oninput="recapRows[${i}].netVerse=parseFloat(this.value)||0;recapRows[${i}].netVerseEdited=true" style="${inp};width:72px;font-weight:700;color:#a5d6a7"></td>
     </tr>`;
   }).join('');
   container.innerHTML = `
@@ -2736,12 +2736,18 @@ function printRecapMensuel() {
   let sumSup = 0, sumRepas = 0;
   const weekTotalsSup = mondays.map(() => 0);
   const weekTotalsRepas = mondays.map(() => 0);
+  // Affiche colonne "Net a verser" seulement si l'utilisateur a saisi au moins une valeur a la main
+  const showNet = recap.some(r => r.netVerseEdited);
 
   const rows = recap.map(r => {
     // Extras (sans contrat hebdo) : toutes les heures sont a payer au-dela du salaire de base
     const isExtra = r.emp.heures_hebdo_contrat == null;
     const rowSupTotal = isExtra ? r.totalH : r.totalSup;
-    sumSup += rowSupTotal; sumRepas += r.totalRepas;
+    // Si l'utilisateur a saisi un net a verser, on masque les heures sup pour cet employe
+    // (le net englobe deja la remuneration des heures sup)
+    const hideSup = !!r.netVerseEdited;
+    if (!hideSup) sumSup += rowSupTotal;
+    sumRepas += r.totalRepas;
     // Indexe le breakdown par date du lundi pour acces direct
     const wkByMon = {};
     (r.weeklyBreakdown || []).forEach(w => { wkByMon[dateStr(w.monday)] = w; });
@@ -2749,31 +2755,40 @@ function printRecapMensuel() {
       const w = wkByMon[dateStr(m)];
       if (!w) return `<td style="text-align:center;color:#aaa">—</td>`;
       const cellSup = isExtra ? w.weekH : w.weekSup;
-      weekTotalsSup[i]   += cellSup;
+      if (!hideSup) weekTotalsSup[i] += cellSup;
       weekTotalsRepas[i] += w.weekRepas;
       const supLabel = isExtra ? '' : ' sup';
-      const supTxt = cellSup > 0.01
-        ? `<strong style="color:#b00">${fmtH2(cellSup)}${supLabel}</strong>`
-        : `<span style="color:#888">0h${supLabel}</span>`;
+      const supTxt = hideSup
+        ? ''
+        : (cellSup > 0.01
+            ? `<strong style="color:#b00">${fmtH2(cellSup)}${supLabel}</strong><br>`
+            : `<span style="color:#888">0h${supLabel}</span><br>`);
       const repasTxt = w.weekRepas > 0
         ? `${w.weekRepas} repas`
         : '<span style="color:#aaa">— repas</span>';
       return `<td style="text-align:center">
-        ${supTxt}<br><span style="font-size:8.5pt;color:#555">${repasTxt}</span>
+        ${supTxt}<span style="font-size:8.5pt;color:#555">${repasTxt}</span>
       </td>`;
     }).join('');
     const salaireCell = r.emp.salaire_base_net != null
       ? fmtEuros(+r.emp.salaire_base_net)
       : '<span style="color:#888">extra</span>';
     const totalSupLabel = isExtra ? '' : ' sup';
+    const totalCell = hideSup
+      ? `<td style="text-align:center;background:#f6f6f6">${r.totalRepas} repas</td>`
+      : `<td style="text-align:center;background:#f6f6f6">
+          <strong style="color:#b00">${rowSupTotal > 0.01 ? fmtH2(rowSupTotal) + totalSupLabel : '—'}</strong>
+          <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
+        </td>`;
+    const netCell = showNet
+      ? `<td style="text-align:right;background:#eaf4ea"><strong>${r.netVerseEdited ? fmtEuros(r.netVerse) : '—'}</strong></td>`
+      : '';
     return `<tr>
       <td><strong>${r.emp.name}</strong></td>
       <td style="text-align:right">${salaireCell}</td>
       ${cells}
-      <td style="text-align:center;background:#f6f6f6">
-        <strong style="color:#b00">${rowSupTotal > 0.01 ? fmtH2(rowSupTotal) + totalSupLabel : '—'}</strong>
-        <br><span style="font-size:8.5pt;color:#555">${r.totalRepas} repas</span>
-      </td>
+      ${totalCell}
+      ${netCell}
     </tr>`;
   }).join('');
 
@@ -2808,6 +2823,7 @@ function printRecapMensuel() {
         <th style="text-align:right">Salaire de base</th>
         ${headCells}
         <th>TOTAL</th>
+        ${showNet ? '<th style="background:#eaf4ea">Net à verser</th>' : ''}
       </tr>
     </thead>
     <tbody>${rows}</tbody>
