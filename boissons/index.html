@@ -539,12 +539,8 @@
     <span id="panier-articles" class="panier-empty">Aucun article sélectionné</span>
     <span id="panier-total" class="panier-total hidden"></span>
   </div>
-  <button class="btn-send" id="btn-send" disabled onclick="envoyerSMS()">
-    📨 Commander par SMS
-  </button>
-  <button class="btn-send" id="btn-send-email" disabled onclick="envoyerLebihanEmail()"
-          style="background:var(--surf3);font-size:13px">
-    ✉️ Commander par email
+  <button class="btn-send" id="btn-send" disabled onclick="openConfirmLebihan()">
+    📨 Commander
   </button>
   <button class="btn-reset" id="btn-reset" onclick="resetCommande()">Tout réinitialiser</button>
 </div>
@@ -589,7 +585,7 @@
 <div class="overlay" id="overlay-confirm">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Confirmer la commande</div>
+    <div class="modal-title">Commander Le Bihan</div>
 
     <div class="modal-section">
       <div class="ms-label">Date de commande</div>
@@ -606,23 +602,35 @@
       <div class="ms-val" id="conf-total"></div>
     </div>
 
-    <div class="modal-section">
-      <div class="ms-label">Fournisseur</div>
-      <div class="ms-val" id="conf-fournisseur"></div>
-    </div>
-
-    <div id="conf-no-tel" class="alert-banner hidden">
-      ⚠️ Numéro fournisseur non configuré — allez dans les réglages (⚙️) pour le renseigner.
-    </div>
-
     <div class="modal-actions">
-      <a class="btn-primary" id="conf-sms-btn" href="#">
-        📨 Ouvrir SMS pour envoyer la commande
-      </a>
-      <a class="btn-secondary" id="conf-mail-btn" href="#">
-        ✉️ Recevoir la copie par email
-      </a>
-      <button class="btn-close" onclick="closeConfirm(); confirmSent()">
+      <div id="conf-lebihan-tel1-section">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS Le Bihan · <span id="conf-lebihan-tel1-num" style="font-size:11px"></span></div>
+        <a class="btn-primary" id="conf-lebihan-sms1" href="#">
+          📨 SMS — Le Bihan
+        </a>
+      </div>
+      <div id="conf-lebihan-tel1-missing" class="alert-banner hidden" style="margin-top:8px">
+        ⚠️ Numéro Le Bihan non configuré — allez dans les réglages (⚙️) pour le renseigner.
+      </div>
+
+      <div style="margin-top:8px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS copie · <span style="font-size:11px">0766860735</span></div>
+        <a class="btn-primary" id="conf-lebihan-sms2" href="#" style="background:var(--surf3);color:var(--text)">
+          📨 SMS — 0766860735
+        </a>
+      </div>
+
+      <div id="conf-lebihan-mail-section" style="margin-top:8px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · <span id="conf-lebihan-mail-dest" style="font-size:11px"></span></div>
+        <a class="btn-primary" id="conf-lebihan-mail" href="#" style="background:var(--surf3);color:var(--text)">
+          ✉️ Email — Le Bihan
+        </a>
+      </div>
+      <div id="conf-lebihan-mail-missing" class="alert-banner hidden" style="margin-top:8px">
+        ⚠️ Email non configuré — allez dans les réglages (⚙️) pour le renseigner.
+      </div>
+
+      <button class="btn-close" onclick="closeConfirmLebihan(); confirmSent()">
         ✓ Commande envoyée — terminer
       </button>
     </div>
@@ -1195,7 +1203,6 @@ function updatePanier() {
   const articlesEl = document.getElementById('panier-articles');
   const totalEl    = document.getElementById('panier-total');
   const btnSend      = document.getElementById('btn-send');
-  const btnSendEmail = document.getElementById('btn-send-email');
   const badge        = document.getElementById('badge-commande');
 
   if (ids.length === 0) {
@@ -1203,7 +1210,6 @@ function updatePanier() {
     articlesEl.className = 'panier-empty';
     totalEl.classList.add('hidden');
     btnSend.disabled = true;
-    btnSendEmail.disabled = true;
     badge.classList.add('hidden');
   } else {
     articlesEl.textContent = `${ids.length} réf. · ${nbArticles} unité${nbArticles > 1 ? 's' : ''}`;
@@ -1211,7 +1217,6 @@ function updatePanier() {
     totalEl.textContent = fmt(totalHT) + ' HT';
     totalEl.classList.remove('hidden');
     btnSend.disabled = false;
-    btnSendEmail.disabled = !(settings.emailFourn || settings.email);
     badge.textContent = ids.length;
     badge.classList.remove('hidden');
   }
@@ -1251,34 +1256,9 @@ function updateSundayInfo() {
 }
 
 /* ═══════════════ CONFIRMATION / SMS ═══════════════ */
-function envoyerSMS() {
-  const ids = Object.keys(commande).filter(id => commande[id] > 0);
-  if (!ids.length) return;
+const LEBIHAN_TEL_BIS = '0766860735';
 
-  const now = new Date();
-  const smsLines = [];
-
-  ids.forEach(id => {
-    const p = produits.find(x => x.id === id);
-    if (!p) return;
-    smsLines.push(`${commande[id]}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
-  });
-  if (gratuit) {
-    const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) smsLines.push(`1x ${pg.nom} (GRATUIT)`);
-  }
-
-  const note = (localStorage.getItem('bc_note') || '').trim();
-  const msg = `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
-    + smsLines.join('\n')
-    + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nMerci de confirmer la réception de la commande par SMS.`;
-
-  ouvrirSms(settings.telFourn || '', msg);
-  confirmSent();
-}
-
-function _buildLebihanMsg(now) {
+function _buildLebihanLines() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
   const lines = [];
   ids.forEach(id => {
@@ -1290,20 +1270,100 @@ function _buildLebihanMsg(now) {
     const pg = produits.find(x => x.id === gratuit);
     if (pg && !commande[gratuit]) lines.push(`1x ${pg.nom} (GRATUIT)`);
   }
+  return lines;
+}
+
+function _buildLebihanSmsMsg(now) {
   const note = (localStorage.getItem('bc_note') || '').trim();
   return `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
-    + lines.join('\n')
+    + _buildLebihanLines().join('\n')
+    + (note ? `\n\nNote : ${note}` : '')
+    + `\n\nMerci de confirmer la réception de la commande par SMS.`;
+}
+
+function _buildLebihanMsg(now) {
+  const note = (localStorage.getItem('bc_note') || '').trim();
+  return `COMMANDE BRAISE & CO - ${now.toLocaleDateString('fr-FR')}\n\n`
+    + _buildLebihanLines().join('\n')
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception de la commande.`;
 }
 
-function envoyerLebihanEmail() {
-  const dest = settings.emailFourn || settings.email;
-  if (!dest) return;
+function openConfirmLebihan() {
+  const ids = Object.keys(commande).filter(id => commande[id] > 0);
+  if (!ids.length) return;
+
   const now = new Date();
+
+  let linesHtml = '';
+  ids.forEach(id => {
+    const p = produits.find(x => x.id === id);
+    if (!p) return;
+    const tag = gratuit === id ? ' <span style="color:var(--accent);font-weight:700">GRATUIT</span>' : '';
+    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${commande[id]}</span></div>`;
+  });
+  if (gratuit) {
+    const pg = produits.find(x => x.id === gratuit);
+    if (pg && !commande[gratuit]) {
+      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">1</span></div>`;
+    }
+  }
+
+  const totalHT = ids.reduce((s, id) => {
+    const p = produits.find(x => x.id === id);
+    return s + (p ? p.prix * commande[id] : 0);
+  }, 0);
+
+  document.getElementById('conf-date').textContent  = fmtDate(now);
+  document.getElementById('conf-lines').innerHTML   = linesHtml;
+  document.getElementById('conf-total').textContent = fmt(totalHT) + ' HT';
+
+  const smsMsg  = _buildLebihanSmsMsg(now);
+  const mailMsg = _buildLebihanMsg(now);
   const subject = `Commande Le Bihan — Braise & Co — ${now.toLocaleDateString('fr-FR')}`;
-  window.location.href = buildMailtoUrl(dest, subject, _buildLebihanMsg(now));
-  confirmSent();
+
+  // SMS 1 (Le Bihan)
+  const tel1 = (settings.telFourn || '').trim();
+  const tel1Section = document.getElementById('conf-lebihan-tel1-section');
+  const tel1Missing = document.getElementById('conf-lebihan-tel1-missing');
+  if (tel1) {
+    document.getElementById('conf-lebihan-tel1-num').textContent = tel1;
+    const btn1 = document.getElementById('conf-lebihan-sms1');
+    btn1.href = '#';
+    btn1.onclick = (e) => { e.preventDefault(); ouvrirSms(tel1, smsMsg); };
+    tel1Section.classList.remove('hidden');
+    tel1Missing.classList.add('hidden');
+  } else {
+    tel1Section.classList.add('hidden');
+    tel1Missing.classList.remove('hidden');
+  }
+
+  // SMS 2 (numéro fixe 0766860735)
+  const btn2 = document.getElementById('conf-lebihan-sms2');
+  btn2.href = '#';
+  btn2.onclick = (e) => { e.preventDefault(); ouvrirSms(LEBIHAN_TEL_BIS, smsMsg); };
+
+  // Email
+  const dest = (settings.emailFourn || settings.email || '').trim();
+  const mailSection = document.getElementById('conf-lebihan-mail-section');
+  const mailMissing = document.getElementById('conf-lebihan-mail-missing');
+  if (dest) {
+    document.getElementById('conf-lebihan-mail-dest').textContent = dest;
+    const btnMail = document.getElementById('conf-lebihan-mail');
+    btnMail.href = '#';
+    btnMail.onclick = (e) => { e.preventDefault(); window.location.href = buildMailtoUrl(dest, subject, mailMsg); };
+    mailSection.classList.remove('hidden');
+    mailMissing.classList.add('hidden');
+  } else {
+    mailSection.classList.add('hidden');
+    mailMissing.classList.remove('hidden');
+  }
+
+  document.getElementById('overlay-confirm').classList.add('open');
+}
+
+function closeConfirmLebihan() {
+  document.getElementById('overlay-confirm').classList.remove('open');
 }
 
 function confirmSent() {
