@@ -356,6 +356,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 #screen-caisse .stepper{display:flex;align-items:center;gap:8px;margin-left:auto;}
 #screen-caisse .step-btn{width:44px;height:44px;border-radius:12px;border:1px solid var(--c-border);background:var(--c-surface);color:var(--c-gold);font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.1s;}
 #screen-caisse .step-btn:active{background:var(--c-gold);color:var(--bg);transform:scale(0.92);}
+#screen-caisse .field-calc-btn{width:38px;height:38px;flex-shrink:0;border-radius:10px;border:1px solid var(--c-border);background:var(--c-surface);color:var(--c-gold);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.1s;}
+#screen-caisse .field-calc-btn:active{background:var(--c-gold);color:var(--bg);transform:scale(0.92);}
+.calc-line{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;margin-bottom:8px;}
+.calc-line-sign{font-weight:900;font-size:16px;width:16px;text-align:center;}
+.calc-line-sign.plus{color:#66bb6a;}
+.calc-line-sign.minus{color:#ef5350;}
+.calc-line-amount{flex:1;font-weight:700;font-size:15px;color:var(--text);}
+.calc-line-del{background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:2px 6px;}
 
 #screen-caisse .emetteur-section{background:rgba(255,165,0,0.04);border:1px solid var(--c-border);border-radius:18px;padding:18px;margin-bottom:20px;}
 #screen-caisse .emetteur-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid var(--c-border);}
@@ -451,6 +459,31 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <button class="btn-modal-save" onclick="caisseSaveTRValue()">✓ Ajouter</button>
     <button class="btn-modal-cancel" onclick="caisseCloseAddTRModal()">Annuler</button>
+  </div>
+</div>
+
+<!-- MODAL CALCULATRICE (CB / Espèces) -->
+<div class="caisse-modal" id="modalCalc">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span id="modalCalcTitle">Calculatrice</span>
+      <button onclick="caisseCloseCalcModal()" style="background:none;border:none;color:var(--text-dim);font-size:28px;cursor:pointer;">✕</button>
+    </div>
+    <div id="calcLines" style="margin-bottom:12px;"></div>
+    <div class="modal-field">
+      <label>Montant (€)</label>
+      <input type="number" id="calcInputAmount" placeholder="0.00" step="0.01" min="0" inputmode="decimal" onkeydown="if(event.key==='Enter'){event.preventDefault();caisseCalcAddLine(1);}">
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:15px;">
+      <button class="btn-modal-save" style="margin-top:0;background:linear-gradient(135deg,#43a047,#2e7d32);" onclick="caisseCalcAddLine(1)">➕ Ajouter</button>
+      <button class="btn-modal-save" id="calcMinusBtn" style="margin-top:0;background:linear-gradient(135deg,#e53935,#b71c1c);" onclick="caisseCalcAddLine(-1)">➖ Soustraire</button>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:15px;text-align:center;margin-bottom:15px;">
+      <div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Total</div>
+      <div style="font-family:'Cinzel',serif;font-size:28px;color:var(--accent);font-weight:700;" id="calcTotalDisplay">0,00 €</div>
+    </div>
+    <button class="btn-modal-save" onclick="caisseCalcValidate()">✓ Valider</button>
+    <button class="btn-modal-cancel" onclick="caisseCloseCalcModal()">Annuler</button>
   </div>
 </div>
 
@@ -680,6 +713,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <div class="field">
           <div class="field-icon">💳</div>
           <div class="field-label"><span>Carte Bleue (CB)</span><input type="number" id="cb" placeholder="0.00" step="0.01" min="0" oninput="caisseCalcTotal()"></div>
+          <button class="field-calc-btn" onclick="caisseOpenCalcModal('cb', false)" title="Additionner plusieurs montants CB">🧮</button>
           <div class="field-suffix">€</div>
         </div>
         <div class="field">
@@ -779,6 +813,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <div class="field">
           <div class="field-icon">💶</div>
           <div class="field-label"><span>Espèces (Cash)</span><input type="number" id="esp" placeholder="0.00" step="0.01" min="0" oninput="caisseCalcTotal()"></div>
+          <button class="field-calc-btn" onclick="caisseOpenCalcModal('esp', true)" title="Additionner / soustraire des montants">🧮</button>
           <div class="field-suffix">€</div>
         </div>
 
@@ -3312,6 +3347,60 @@ initSmsPolling();
     return total;
   }
 
+  // ── CALCULATRICE (CB / Espèces) ──
+  let calcTarget = null, calcAllowMinus = false, calcLines = [];
+  function openCalcModal(targetId, allowMinus){
+    calcTarget = targetId;
+    calcAllowMinus = allowMinus;
+    calcLines = [];
+    const current = getNum(targetId);
+    if(current > 0) calcLines.push({ amount: current, sign: 1 });
+    document.getElementById('modalCalcTitle').textContent = targetId === 'cb' ? 'Additionner les CB' : 'Espèces : addition / soustraction';
+    document.getElementById('calcMinusBtn').style.display = allowMinus ? '' : 'none';
+    document.getElementById('calcInputAmount').value = '';
+    renderCalcLines();
+    document.getElementById('modalCalc').classList.add('open');
+    setTimeout(() => document.getElementById('calcInputAmount').focus(), 100);
+  }
+  function closeCalcModal(){
+    document.getElementById('modalCalc').classList.remove('open');
+    calcTarget = null;
+  }
+  function calcAddLine(sign){
+    const input = document.getElementById('calcInputAmount');
+    const amount = parseFloat(input.value);
+    if(!amount || amount <= 0){ showToast('Montant invalide', true); return; }
+    calcLines.push({ amount, sign: calcAllowMinus ? sign : 1 });
+    input.value = '';
+    input.focus();
+    renderCalcLines();
+  }
+  function calcRemoveLine(idx){
+    calcLines.splice(idx, 1);
+    renderCalcLines();
+  }
+  function calcCurrentTotal(){
+    return calcLines.reduce((s, l) => s + l.sign * l.amount, 0);
+  }
+  function renderCalcLines(){
+    const html = calcLines.map((l, idx) =>
+      '<div class="calc-line">'
+      + '<span class="calc-line-sign ' + (l.sign < 0 ? 'minus' : 'plus') + '">' + (l.sign < 0 ? '−' : '+') + '</span>'
+      + '<span class="calc-line-amount">' + fmtEur(l.amount) + '</span>'
+      + '<button class="calc-line-del" onclick="caisseCalcRemoveLine(' + idx + ')">✕</button>'
+      + '</div>'
+    ).join('');
+    document.getElementById('calcLines').innerHTML = html || '<div style="text-align:center;color:var(--text-dim);font-size:13px;padding:8px;">Aucun montant ajouté</div>';
+    document.getElementById('calcTotalDisplay').textContent = fmtEur(calcCurrentTotal());
+  }
+  function calcValidate(){
+    if(!calcTarget) return;
+    const total = Math.max(0, calcCurrentTotal());
+    document.getElementById(calcTarget).value = total.toFixed(2);
+    calcTotal();
+    closeCalcModal();
+  }
+
   // ── CHÈQUES VACANCES ──
   function cvStep(id, val){
     const el = document.getElementById(id);
@@ -4333,6 +4422,11 @@ initSmsPolling();
   window.caisseSaveTRValue = saveTRValue;
   window.caisseRemoveTRValue = removeTRValue;
   window.caisseUpdateTRQty = updateTRQty;
+  window.caisseOpenCalcModal = openCalcModal;
+  window.caisseCloseCalcModal = closeCalcModal;
+  window.caisseCalcAddLine = calcAddLine;
+  window.caisseCalcRemoveLine = calcRemoveLine;
+  window.caisseCalcValidate = calcValidate;
   window.caisseOpenODSModal = openODSModal;
   window.caisseCloseODSModal = closeODSModal;
   window.caisseOpenMonthModal = openMonthModal;
