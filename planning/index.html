@@ -3614,7 +3614,12 @@ async function printPlanningReport(week) {
   // N'inclure que les employés réellement planifiés cette semaine (override ou signature).
   // Les horaires de base seuls ne prouvent pas qu'un employé était présent (ex : embauche ultérieure).
   const activeIds = new Set([...allOv.map(o => o.employee_id), ...allSigs.map(s => s.employee_id)]);
-  const weekEmps = rptEmps.filter(emp => activeIds.has(emp.id) && empActiveInRange(emp, weekStart, weekEnd));
+  // Un employé archivé ne reste visible que sur une semaine déjà passée (preuve de présence
+  // signée à conserver) : sur une semaine future/en cours, un override laissé en base après
+  // archivage (ex : semaine générée depuis les horaires de base avant l'archivage) ne doit pas le
+  // faire réapparaître sur le PDF alors qu'il n'est plus dans le planning de l'appli.
+  const todayStr = dateStr(new Date());
+  const weekEmps = rptEmps.filter(emp => activeIds.has(emp.id) && empActiveInRange(emp, weekStart, weekEnd) && (!emp.archived || weekEnd < todayStr));
 
   const COLS = [
     {label:'Mardi',      d:dates[1], dn:2, svc:'day'},
