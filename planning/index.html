@@ -3916,14 +3916,15 @@ async function saveFermeture() {
   while (cur <= last) { dates.push(dateStr(cur)); cur.setDate(cur.getDate() + 1); }
 
   // Construire les overrides pour tous les employés × toutes les dates
-  const isOff = currentFermStatus === 'repos';
-  const status = isOff ? 'present' : currentFermStatus;
+  const isVacation = currentFermStatus === 'vacation';
+  const status = isVacation ? 'vacation' : 'present';
+  const svcStatus = isVacation ? null : currentFermStatus; // 'repos' | 'absent'
   const rows = [];
   for (const emp of employees) {
     for (const d of dates) {
       rows.push({
         employee_id: emp.id, date: d,
-        status, is_off: isOff,
+        status, morn_status: svcStatus, eve_status: svcStatus,
         start_time: null, break_start: null, break_end: null, end_time: null,
         evening_start: null, evening_break_start: null, evening_break_end: null, evening_end: null,
         note: 'Fermeture exceptionnelle'
