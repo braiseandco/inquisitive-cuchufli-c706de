@@ -3935,9 +3935,15 @@ async function saveFermeture() {
 
   // Le statut ne s'applique qu'aux services réellement planifiés : un jour de repos
   // contractuel reste un repos et ne doit pas gonfler le décompte d'absence.
-  const allSched = await GET('schedules?select=*');
+  // Les extras n'ont pas d'horaire de base : leur override déjà saisi fait foi.
+  const [allSched, existingOv] = await Promise.all([
+    GET('schedules?select=*'),
+    GET(`weekly_overrides?date=gte.${start}&date=lte.${end}&select=*`)
+  ]);
   const schedIdx = {};
   allSched.forEach(s => { (schedIdx[s.employee_id] = schedIdx[s.employee_id] || {})[s.day_of_week] = s; });
+  const ovIdx = {};
+  existingOv.forEach(o => { (ovIdx[o.employee_id] = ovIdx[o.employee_id] || {})[o.date] = o; });
 
   const isVacation = currentFermStatus === 'vacation';
   const status = isVacation ? 'vacation' : 'present';
@@ -3948,8 +3954,9 @@ async function saveFermeture() {
     for (const d of dates) {
       const dow = new Date(d + 'T12:00').getDay() || 7;
       const sched = (schedIdx[emp.id] || {})[dow];
-      const mornPlanned = !!(sched && !sched.is_off && sched.start_time);
-      const evePlanned  = !!(sched && !sched.is_off && sched.evening_start);
+      const ov = (ovIdx[emp.id] || {})[d];
+      const mornPlanned = !!(sched && !sched.is_off && sched.start_time) || !!(ov && ov.start_time);
+      const evePlanned  = !!(sched && !sched.is_off && sched.evening_start) || !!(ov && ov.evening_start);
       if (!mornPlanned && !evePlanned) continue;
       rows.push({
         employee_id: emp.id, date: d,
