@@ -3933,9 +3933,10 @@ async function saveFermeture() {
   const last = new Date(end + 'T12:00');
   while (cur <= last) { dates.push(dateStr(cur)); cur.setDate(cur.getDate() + 1); }
 
-  // Le statut ne s'applique qu'aux services réellement planifiés : un jour de repos
-  // contractuel reste un repos et ne doit pas gonfler le décompte d'absence.
-  // Les extras n'ont pas d'horaire de base : leur override déjà saisi fait foi.
+  // Pré-remplissage : le statut ne s'applique qu'aux services planifiés, les autres
+  // passent en repos — sans jamais sauter un jour, car les jours de repos sont permutés
+  // au besoin d'une semaine à l'autre. L'override déjà saisi prime sur l'horaire de base
+  // (extras, ou repos échangé), et le résultat reste ajustable jour par jour.
   const [allSched, existingOv] = await Promise.all([
     GET('schedules?select=*'),
     GET(`weekly_overrides?date=gte.${start}&date=lte.${end}&select=*`)
@@ -3955,9 +3956,10 @@ async function saveFermeture() {
       const dow = new Date(d + 'T12:00').getDay() || 7;
       const sched = (schedIdx[emp.id] || {})[dow];
       const ov = (ovIdx[emp.id] || {})[d];
-      const mornPlanned = !!(sched && !sched.is_off && sched.start_time) || !!(ov && ov.start_time);
-      const evePlanned  = !!(sched && !sched.is_off && sched.evening_start) || !!(ov && ov.evening_start);
-      if (!mornPlanned && !evePlanned) continue;
+      const mornPlanned = ov ? (!!ov.start_time || ov.morn_status === svcStatus)
+                             : !!(sched && !sched.is_off && sched.start_time);
+      const evePlanned  = ov ? (!!ov.evening_start || ov.eve_status === svcStatus)
+                             : !!(sched && !sched.is_off && sched.evening_start);
       rows.push({
         employee_id: emp.id, date: d,
         status,
@@ -3969,7 +3971,9 @@ async function saveFermeture() {
       });
     }
   }
-  if (!rows.length) { toast('Aucun service planifié sur cette période'); return; }
+  if (!rows.length) { toast('Aucun employé à traiter'); return; }
+  const nbSvc = isVacation ? 0 : rows.reduce((n, r) =>
+    n + (r.morn_status === svcStatus ? 1 : 0) + (r.eve_status === svcStatus ? 1 : 0), 0);
 
   try {
     // Envoyer par lots de 50 pour éviter des payloads trop lourds
@@ -3981,7 +3985,9 @@ async function saveFermeture() {
       });
     }
     closeModal('modalFermeture');
-    toast(`Fermeture appliquée — ${rows.length} jours-employés sur ${dates.length} jours`);
+    toast(isVacation
+      ? `Fermeture appliquée — ${employees.length} employés × ${dates.length} jours`
+      : `Fermeture appliquée — ${nbSvc} services · vérifie les repos permutés`);
     loadPlanningTab();
   } catch(e) {
     toast('Erreur : ' + e.message);
