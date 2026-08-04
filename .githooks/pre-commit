@@ -1,31 +1,70 @@
 #!/usr/bin/env bash
-# Pre-commit hook: bump cache version in sw-compteur.js if compteur-social.html changes.
-# Active via: git config core.hooksPath .githooks
+# Pre-commit hook — activé via: git config core.hooksPath .githooks
+#
+# 1) bump du cache de sw-compteur.js quand le compteur change
+# 2) bump automatique de la version des apps dès qu'une source d'app est touchée
+#
+# Le (2) existe parce qu'oublier ce bump ne casse rien au moment du commit : le
+# site est bien déployé, mais les apps installées sur les postes n'ont aucun
+# moyen de savoir qu'elles doivent se recharger, et continuent d'exécuter leur
+# ancien code pendant des jours.
 set -e
 
 STAGED="$(git diff --cached --name-only)"
-SW_FILE="sw-compteur.js"
 
-needs_bump=0
-echo "$STAGED" | grep -qE '^(compteur-social\.html|images/)' && needs_bump=1
-echo "$STAGED" | grep -qE "^${SW_FILE}$" && needs_bump=0  # déjà modifié manuellement → ne pas écraser
+# ─── 1) Cache sw-compteur.js ─────────────────────────────────────────────
+bump_compteur() {
+  local SW_FILE="sw-compteur.js"
+  echo "$STAGED" | grep -qE '^(compteur-social\.html|images/)' || return 0
+  echo "$STAGED" | grep -qE "^${SW_FILE}$" && return 0  # modifié à la main → ne pas écraser
+  [ -f "$SW_FILE" ] || return 0
 
-if [ "$needs_bump" -eq 0 ]; then
-  exit 0
-fi
+  local current next
+  current="$(grep -oE "bc-compteur-v[0-9]+" "$SW_FILE" | head -1 | grep -oE '[0-9]+$')"
+  if [ -z "$current" ]; then
+    echo "[pre-commit] ATTENTION: version cache introuvable dans $SW_FILE, skip."
+    return 0
+  fi
+  next=$((current + 1))
+  sed -i.bak "s/bc-compteur-v${current}/bc-compteur-v${next}/" "$SW_FILE"
+  rm -f "${SW_FILE}.bak"
+  git add "$SW_FILE"
+  echo "[pre-commit] sw-compteur.js cache bumpé: v${current} -> v${next}"
+}
 
-if [ ! -f "$SW_FILE" ]; then
-  exit 0
-fi
+# ─── 2) Version des apps ─────────────────────────────────────────────────
+bump_app_version() {
+  # Seules les sources qui composent réellement les apps déclenchent un bump :
+  # toucher au README ou au .gitignore ne doit pas faire recharger les tablettes.
+  echo "$STAGED" | grep -qE '\.(html|js)$' || return 0
+  [ -f version.json ] || return 0
 
-current="$(grep -oE "bc-compteur-v[0-9]+" "$SW_FILE" | head -1 | grep -oE '[0-9]+$')"
-if [ -z "$current" ]; then
-  echo "[pre-commit] ATTENTION: version cache introuvable dans $SW_FILE, skip."
-  exit 0
-fi
+  local cur cur_date n new today
+  today="$(date +%Y-%m-%d)"
+  cur="$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' version.json | sed 's/.*"\([^"]*\)"$/\1/')"
+  cur_date="${cur%.*}"
+  if [ "$cur_date" = "$today" ]; then
+    n=$(( ${cur##*.} + 1 ))
+  else
+    n=1
+  fi
+  new="${today}.${n}"
 
-next=$((current + 1))
-sed -i.bak "s/bc-compteur-v${current}/bc-compteur-v${next}/" "$SW_FILE"
-rm -f "${SW_FILE}.bak"
-git add "$SW_FILE"
-echo "[pre-commit] sw-compteur.js cache bumpé: v${current} -> v${next}"
+  printf '{"version":"%s"}\n' "$new" > version.json
+  git add version.json
+
+  # Toutes les apps passent à la même version : une seule d'entre elles restée
+  # en arrière suffirait à la faire se recharger en boucle à chaque ouverture.
+  local f
+  for f in $(grep -rl "const APP_VERSION = '" --include='*.html' . | grep -v '^\./\.claude/'); do
+    sed -i.bak "s/const APP_VERSION = '[^']*'/const APP_VERSION = '${new}'/" "$f"
+    rm -f "${f}.bak"
+    git add "$f"
+  done
+
+  echo "[pre-commit] version des apps bumpée -> $new"
+}
+
+bump_compteur
+bump_app_version
+exit 0

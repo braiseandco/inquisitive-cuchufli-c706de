@@ -73,4 +73,7 @@
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState === 'visible') auto();
   });
+  // Un poste qui reste ouvert tout le service ne change jamais de visibilité :
+  // sans ce rappel, il ne verrait aucune mise à jour de la journée.
+  setInterval(auto, 20 * 60 * 1000);
 })();
