@@ -1,0 +1,23 @@
+# Repo public (GitHub Pages) : rien de nominatif ni de comptable ne doit y entrer.
+
+# Documents RH, juridiques, fournisseurs
+*.docx
+*.doc
+*.odt
+*.pdf
+
+# Comptabilite / caisse
+*.ods
+*.xlsx
+*.xls
+*.csv
+!extras-app/data/exemple_planning.csv
+
+# Outillage local Claude Code (worktrees, permissions machine)
+.claude/
+!.claude/settings.json
+
+# Systeme
+desktop.ini
+Thumbs.db
+.DS_Store
