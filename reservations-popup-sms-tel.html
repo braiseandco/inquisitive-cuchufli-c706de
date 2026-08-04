@@ -3058,7 +3058,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-08-04.2';
+const APP_VERSION = '2026-08-04.3';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3323,15 +3323,18 @@ initSmsPolling();
     document.getElementById('modalSubtotal').textContent = fmtEur(montant * qty);
   }
   function saveTRValue(){
-    const montant = document.getElementById('modalMontant').value;
+    const montantRaw = document.getElementById('modalMontant').value;
     const qty = parseInt(document.getElementById('modalQuantite').value) || 1;
-    if(!montant || parseFloat(montant) <= 0){ showToast('Montant invalide', true); return; }
+    if(!montantRaw || parseFloat(montantRaw) <= 0){ showToast('Montant invalide', true); return; }
     if(qty <= 0){ showToast('Quantité invalide', true); return; }
+    // Clé normalisée à 2 décimales : "8.3" et "8.30" doivent retrouver la même
+    // ligne au lieu d'en créer une seconde.
+    const montant = parseFloat(montantRaw).toFixed(2);
     if(trData[currentEmetteur][montant]){ showToast('Cette valeur existe déjà', true); return; }
     trData[currentEmetteur][montant] = qty;
     renderTRItems(currentEmetteur);
     closeAddTRModal();
-    showToast('✓ ' + qty + ' ticket(s) de ' + parseFloat(montant).toFixed(2) + '€ ajouté(s)');
+    showToast('✓ ' + qty + ' ticket(s) de ' + montant + '€ ajouté(s)');
   }
   function removeTRValue(emetteur, montant){
     delete trData[emetteur][montant];
@@ -4258,14 +4261,22 @@ initSmsPolling();
       const xmlText = await zip.file('content.xml').async('string');
       const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
       const tables = doc.getElementsByTagNameNS(NS_TABLE, 'table');
+      // "Créer un mois" nomme les onglets sans accent (aout_2026, caisseaout) :
+      // la comparaison doit ignorer les accents, sinon février/août/décembre
+      // ne sont jamais trouvés.
+      const sansAccent = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const monthKey = sansAccent(monthName);
+      const allNames = [];
       let sheetRecap = null, sheetCaisse = null;
       for(const t of tables){
-        const name = (t.getAttribute('table:name') || '').toLowerCase();
-        if(!sheetRecap && name.includes(monthName) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
-        if(!sheetCaisse && name.startsWith('caisse') && name.includes(monthName)) sheetCaisse = t;
+        const raw = t.getAttribute('table:name') || '';
+        allNames.push(raw);
+        const name = sansAccent(raw);
+        if(!sheetRecap && name.includes(monthKey) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
+        if(!sheetCaisse && name.startsWith('caisse') && name.includes(monthKey)) sheetCaisse = t;
       }
-      if(!sheetRecap) throw new Error('Onglet "' + monthName + '_' + year + '" introuvable');
-      if(!sheetCaisse) throw new Error('Onglet "caisse ' + monthName + '" introuvable');
+      if(!sheetRecap) throw new Error('Onglet "' + monthName + '_' + year + '" introuvable. Onglets présents : ' + allNames.join(', '));
+      if(!sheetCaisse) throw new Error('Onglet "caisse ' + monthName + '" introuvable. Onglets présents : ' + allNames.join(', '));
       let countDeleted = 0, countTRSubtracted = 0;
       for(const del of pendingDels){
         const ymd = del.date;
