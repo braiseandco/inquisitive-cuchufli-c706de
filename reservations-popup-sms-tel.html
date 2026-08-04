@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Résa — SMS Tél">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest-popup-sms-tel.json">
+<script src="/update-check.js" defer></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Braise &amp; Co — Réservations</title>
 <script>
@@ -3057,7 +3058,8 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-08-04.1';
+const APP_VERSION = '2026-08-04.2';
+window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -3069,42 +3071,13 @@ async function checkAndUpdate(){
     btn.style.animation=''; btn.style.pointerEvents='';
     if(!data.version || data.version===APP_VERSION){ toast("Déjà à jour ✓",'ok'); return; }
     if(confirm('🆕 Nouvelle version disponible !\n\nMettre à jour maintenant ?')){
-      if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
-      if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
-      window.location.href = window.location.pathname + '?_v=' + Date.now();
+      await window.braiseForceUpdate();
     }
   }catch(e){ btn.style.animation=''; btn.style.pointerEvents=''; toast('Erreur vérification','ko'); }
 }
 
-// Vérification automatique : sans elle, une machine dont le service worker sert
-// encore un vieux cache reste bloquée sur son build tant que personne ne clique
-// sur le bouton de mise à jour.
-async function autoCheckVersion(){
-  try{
-    const res = await fetch('/version.json?_v='+Date.now(),{cache:'no-store'});
-    if(!res.ok) return;
-    const data = await res.json();
-    if(!data.version || data.version === APP_VERSION) return;
-    // Ne pas recharger sous les doigts de quelqu'un qui saisit une résa :
-    // on retentera au prochain retour sur l'app.
-    if(document.querySelector('.overlay.open,.caisse-modal.open,.edit-table-modal.open,.table-panel.open')) return;
-    // version.json est partagé par les 4 apps : si le bump vient d'une autre app,
-    // l'écart ne se résorbera jamais ici. Un seul rechargement auto par version,
-    // sinon on boucle à l'infini.
-    if(sessionStorage.getItem('autoUpdateTried') === data.version) return;
-    sessionStorage.setItem('autoUpdateTried', data.version);
-    if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
-    if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
-    window.location.href = window.location.pathname + '?_v=' + Date.now();
-  }catch(e){}
-}
-
 // ── INIT ──────────────────────────────────────────────────────
 document.getElementById('displayed-version').textContent = APP_VERSION;
-autoCheckVersion();
-document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible') autoCheckVersion();
-});
 loadResas(); // affichage rapide (sans noms de tables)
 getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // rechargement avec noms corrects
 

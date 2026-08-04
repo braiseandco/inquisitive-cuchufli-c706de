@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Caisse">
 <meta name="theme-color" content="#c8a96e">
 <link rel="manifest" href="manifest.json">
+<script src="/update-check.js" defer></script>
 <link rel="apple-touch-icon" href="../icon-192.png">
 <title>Caisse — Braise &amp; Co</title>
 <script>
@@ -138,7 +139,7 @@
   <div class="header-top">
     <div class="logo">
       <img src="../icon-192.png" alt="Braise &amp; Co">
-      <div class="logo-text">Braise &amp; Co <span>Caisse</span></div>
+      <div class="logo-text">Braise &amp; Co <span>Caisse</span> <small id="appVersion" style="font-size:10px;color:var(--text-dim);font-weight:400"></small></div>
     </div>
     <div class="header-date" id="headerDate">Lundi<br>16 mars 2026</div>
   </div>
@@ -1925,6 +1926,10 @@ function parseNum(str) {
 function fmtEur(n) {
   return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
+
+const APP_VERSION = '2026-08-04.2';
+window.APP_VERSION = APP_VERSION;
+document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 
 function showToast(msg, isError) {
   const t = document.getElementById('toast');

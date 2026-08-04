@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Réservations">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
+<script src="/update-check.js" defer></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Braise &amp; Co — Réservations</title>
 <script>
@@ -2344,7 +2345,8 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-04-07.3';
+const APP_VERSION = '2026-08-04.2';
+window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -2356,9 +2358,7 @@ async function checkAndUpdate(){
     btn.style.animation=''; btn.style.pointerEvents='';
     if(!data.version || data.version===APP_VERSION){ toast("Déjà à jour ✓",'ok'); return; }
     if(await showConfirm('🆕 Nouvelle version disponible ! Mettre à jour ?')){
-      if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
-      if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
-      window.location.href = window.location.pathname + '?_v=' + Date.now();
+      await window.braiseForceUpdate();
     }
   }catch(e){ btn.style.animation=''; btn.style.pointerEvents=''; toast('Erreur vérification','ko'); }
 }

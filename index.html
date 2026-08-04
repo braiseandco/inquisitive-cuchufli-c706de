@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#0a0a0f">
 <script>window.location.replace('reservations.html');</script>
 <link rel="manifest" href="manifest.json">
+<script src="/update-check.js" defer></script>
 <title>Braise &amp; Co — Réservations</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Raleway:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1546,7 +1547,8 @@ document.getElementById('fusion-confirm').onclick = async function () {
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-03-21.5';
+const APP_VERSION = '2026-08-04.2';
+window.APP_VERSION = APP_VERSION;
 const VERSION_URL = '/version.json';
 
 async function checkAndUpdate(){
@@ -1566,17 +1568,8 @@ async function checkAndUpdate(){
     }
     // Nouvelle version disponible
     if(confirm('🆕 Nouvelle version disponible !\n\nVersion actuelle : '+APP_VERSION+'\nNouvelle version : '+remoteVer+'\n\nMettre à jour maintenant ?')){
-      // Vider les caches Service Worker
-      if('serviceWorker' in navigator){
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r=>r.unregister()));
-      }
-      if('caches' in window){
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k=>caches.delete(k)));
-      }
-      // Rechargement forcé depuis le serveur
-      location.reload(true);
+      // Purge + rechargement, et signal aux autres apps ouvertes
+      await window.braiseForceUpdate();
     }
   }catch(e){
     btn.classList.remove('spin');
