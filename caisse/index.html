@@ -523,15 +523,18 @@ function updateModalSubtotal() {
 }
 
 function saveTRValue() {
-  const montant = document.getElementById('modalMontant').value;
+  const montantRaw = document.getElementById('modalMontant').value;
   const qty = parseInt(document.getElementById('modalQuantite').value) || 1;
-  if (!montant || parseFloat(montant) <= 0) { showToast('Montant invalide', true); return; }
+  if (!montantRaw || parseFloat(montantRaw) <= 0) { showToast('Montant invalide', true); return; }
   if (qty <= 0) { showToast('Quantité invalide', true); return; }
+  // Clé normalisée (2 décimales) pour qu'une même dénomination retapée sous une autre
+  // forme ("8.3" vs "8.30") retrouve toujours la même ligne au lieu d'en créer une nouvelle.
+  const montant = parseFloat(montantRaw).toFixed(2);
   if (trData[currentEmetteur][montant]) { showToast('Cette valeur existe déjà', true); return; }
   trData[currentEmetteur][montant] = qty;
   renderTRItems(currentEmetteur);
   closeAddTRModal();
-  showToast('✓ ' + qty + ' ticket(s) de ' + parseFloat(montant).toFixed(2) + '€ ajouté(s)');
+  showToast('✓ ' + qty + ' ticket(s) de ' + montant + '€ ajouté(s)');
 }
 
 function removeTRValue(emetteur, montant) {
@@ -842,6 +845,9 @@ async function exportCSV() {
 
 // ── EXPORT ODS (chiffre2026.ods) ──────────────────────────────
 const MOIS_FR_ODS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+// Les onglets créés par "Créer un mois" sont sans accent (aout_2026, caisseaout) :
+// on compare toujours en version normalisée sans accent.
+const sansAccent = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const NS_TABLE = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
 const NS_TEXT  = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
 
@@ -1500,6 +1506,7 @@ function insertCellAt(doc, row, pos) {
 function fillTRSections(doc, sheet, trTotals) {
   const rows = [...sheet.getElementsByTagNameNS(NS_TABLE, 'table-row')];
   let countWritten = 0, countCreated = 0;
+  const sectionTotals = []; // adresses + cumuls de chaque section, pour réparer le total général en bas de page
   for (let i = 0; i < rows.length - 2; i++) {
     const headerRow = rows[i], nombreRow = rows[i+1], totalRow = rows[i+2];
     const label = cellText([...headerRow.children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
@@ -1510,6 +1517,8 @@ function fillTRSections(doc, sheet, trTotals) {
 
     const emetteur = TR_MAPPING[label];
     const totals = { ...(trTotals[emetteur] || {}) };
+    const headerRowNum = i + 1;     // ODS rows are 1-indexed in formulas
+    const nombreRowNum = i + 2;
 
     // 1) Pour chaque colonne existante dans l'ODS dont l'app a une saisie : on ADDITIONNE
     //    le delta à la valeur déjà présente (manuelle ou issue d'un précédent export).
@@ -1531,56 +1540,56 @@ function fillTRSections(doc, sheet, trTotals) {
 
     // 2) Insérer de nouvelles colonnes pour les dénominations restantes (par valeur croissante)
     const remaining = Object.entries(totals).filter(([,q]) => q > 0).sort((a,b) => parseFloat(a[0]) - parseFloat(b[0]));
-    if (!remaining.length) continue;
     let totalTicketCol = findLabelCol(headerRow, 'TOTAL TICKET');
     if (totalTicketCol < 0) continue;
-    const headerRowNum = i + 1;     // ODS rows are 1-indexed in formulas
-    const nombreRowNum = i + 2;
-    // Récupérer le style des cellules adjacentes pour conserver la mise en forme
-    const sampleHeader = getCellAt(headerRow, totalTicketCol - 1);
-    const sampleNombre = getCellAt(nombreRow, totalTicketCol - 1);
-    const sampleTotal  = getCellAt(totalRow,  totalTicketCol - 1);
-    const styleH = sampleHeader && sampleHeader.getAttribute('table:style-name');
-    const styleN = sampleNombre && sampleNombre.getAttribute('table:style-name');
-    const styleT = sampleTotal  && sampleTotal.getAttribute('table:style-name');
 
-    for (const [key, qty] of remaining) {
-      const value = parseFloat(key);
-      const oldLastValueCol = totalTicketCol - 1; // dernière col valeur AVANT insertion
+    if (remaining.length) {
+      // Récupérer le style des cellules adjacentes pour conserver la mise en forme
+      const sampleHeader = getCellAt(headerRow, totalTicketCol - 1);
+      const sampleNombre = getCellAt(nombreRow, totalTicketCol - 1);
+      const sampleTotal  = getCellAt(totalRow,  totalTicketCol - 1);
+      const styleH = sampleHeader && sampleHeader.getAttribute('table:style-name');
+      const styleN = sampleNombre && sampleNombre.getAttribute('table:style-name');
+      const styleT = sampleTotal  && sampleTotal.getAttribute('table:style-name');
 
-      // Header
-      const cellH = insertCellAt(doc, headerRow, totalTicketCol);
-      if (styleH) cellH.setAttribute('table:style-name', styleH);
-      cellH.setAttribute('office:value-type', 'float');
-      cellH.setAttribute('office:value', String(value));
-      const pH = doc.createElementNS(NS_TEXT, 'p'); pH.textContent = String(value).replace('.', ','); cellH.appendChild(pH);
+      for (const [key, qty] of remaining) {
+        const value = parseFloat(key);
+        const oldLastValueCol = totalTicketCol - 1; // dernière col valeur AVANT insertion
 
-      // NOMBRE
-      const cellN = insertCellAt(doc, nombreRow, totalTicketCol);
-      if (styleN) cellN.setAttribute('table:style-name', styleN);
-      cellN.setAttribute('office:value-type', 'float');
-      cellN.setAttribute('office:value', String(qty));
-      const pN = doc.createElementNS(NS_TEXT, 'p'); pN.textContent = String(qty); cellN.appendChild(pN);
+        // Header
+        const cellH = insertCellAt(doc, headerRow, totalTicketCol);
+        if (styleH) cellH.setAttribute('table:style-name', styleH);
+        cellH.setAttribute('office:value-type', 'float');
+        cellH.setAttribute('office:value', String(value));
+        const pH = doc.createElementNS(NS_TEXT, 'p'); pH.textContent = String(value).replace('.', ','); cellH.appendChild(pH);
 
-      // TOTAL : formule = header × nombre
-      const cellT = insertCellAt(doc, totalRow, totalTicketCol);
-      if (styleT) cellT.setAttribute('table:style-name', styleT);
-      const newLet = colToLetter(totalTicketCol);
-      cellT.setAttribute('table:formula', `of:=[.${newLet}${headerRowNum}]*[.${newLet}${nombreRowNum}]`);
-      cellT.setAttribute('office:value-type', 'float');
-      cellT.setAttribute('office:value', String(value * qty));
-      const pT = doc.createElementNS(NS_TEXT, 'p'); pT.textContent = String(value * qty).replace('.', ','); cellT.appendChild(pT);
+        // NOMBRE
+        const cellN = insertCellAt(doc, nombreRow, totalTicketCol);
+        if (styleN) cellN.setAttribute('table:style-name', styleN);
+        cellN.setAttribute('office:value-type', 'float');
+        cellN.setAttribute('office:value', String(qty));
+        const pN = doc.createElementNS(NS_TEXT, 'p'); pN.textContent = String(qty); cellN.appendChild(pN);
 
-      // Bumper les formules SUM des cellules TOTAL TICKET/VALEUR (qui sont maintenant en pos +1 et +2)
-      for (const {cell, col} of iterRowCells(nombreRow)) {
-        if (col === totalTicketCol + 1 || col === totalTicketCol + 2) {
-          const f = cell.getAttribute('table:formula');
-          if (f && /SUM\(/i.test(f)) cell.setAttribute('table:formula', expandSumRange(f, oldLastValueCol));
+        // TOTAL : formule = header × nombre
+        const cellT = insertCellAt(doc, totalRow, totalTicketCol);
+        if (styleT) cellT.setAttribute('table:style-name', styleT);
+        const newLet = colToLetter(totalTicketCol);
+        cellT.setAttribute('table:formula', `of:=[.${newLet}${headerRowNum}]*[.${newLet}${nombreRowNum}]`);
+        cellT.setAttribute('office:value-type', 'float');
+        cellT.setAttribute('office:value', String(value * qty));
+        const pT = doc.createElementNS(NS_TEXT, 'p'); pT.textContent = String(value * qty).replace('.', ','); cellT.appendChild(pT);
+
+        // Bumper les formules SUM des cellules TOTAL TICKET/VALEUR (qui sont maintenant en pos +1 et +2)
+        for (const {cell, col} of iterRowCells(nombreRow)) {
+          if (col === totalTicketCol + 1 || col === totalTicketCol + 2) {
+            const f = cell.getAttribute('table:formula');
+            if (f && /SUM\(/i.test(f)) cell.setAttribute('table:formula', expandSumRange(f, oldLastValueCol));
+          }
         }
-      }
 
-      totalTicketCol++; // décalé d'une position pour la prochaine insertion
-      countCreated++;
+        totalTicketCol++; // décalé d'une position pour la prochaine insertion
+        countCreated++;
+      }
     }
 
     // 3) Recalcule la valeur cachée de TOTAL TICKET et TOTAL VALEUR pour cette section,
@@ -1600,6 +1609,35 @@ function fillTRSections(doc, sheet, trTotals) {
       if (tcell) setCachedNumber(doc, tcell, totalTickets);
       const vcell = getCellAt(nombreRow, finalTotalTicketCol + 1);
       if (vcell) setCachedNumber(doc, vcell, totalValeur);
+      // Adresse à jour de ces cellules, pour le total général en bas de page (voir étape 4)
+      sectionTotals.push({
+        ticketAddr: `${colToLetter(finalTotalTicketCol)}${nombreRowNum}`,
+        valeurAddr: `${colToLetter(finalTotalTicketCol + 1)}${nombreRowNum}`,
+        totalTickets, totalValeur
+      });
+    }
+  }
+
+  // 4) Répare le total général "TOTAL TICKET" / "TOTAL" en bas de la feuille : ses formules
+  //    pointent vers des adresses figées qui deviennent fausses dès qu'une colonne est insérée
+  //    dans une section au-dessus (cf. étape 2). On les regénère à partir des adresses à jour.
+  if (sectionTotals.length) {
+    for (let k = 0; k < rows.length - 1; k++) {
+      const lbl0 = cellText([...rows[k].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+      if (lbl0 !== 'TOTAL TICKET') continue;
+      const lbl1 = cellText([...rows[k+1].children].find(c => c.localName === 'table-cell')).toUpperCase().trim();
+      if (lbl1 !== 'TOTAL') continue;
+      const ticketCell = getCellAt(rows[k], 1);
+      const valeurCell = getCellAt(rows[k+1], 1);
+      if (ticketCell) {
+        ticketCell.setAttribute('table:formula', 'of:=' + sectionTotals.map(s => `[.${s.ticketAddr}]`).join('+'));
+        setCachedNumber(doc, ticketCell, sectionTotals.reduce((s,x) => s + x.totalTickets, 0));
+      }
+      if (valeurCell) {
+        valeurCell.setAttribute('table:formula', 'of:=' + sectionTotals.map(s => `[.${s.valeurAddr}]`).join('+'));
+        setCachedNumber(doc, valeurCell, sectionTotals.reduce((s,x) => s + x.totalValeur, 0));
+      }
+      break;
     }
   }
   return { countWritten, countCreated };
@@ -1700,14 +1738,18 @@ async function processODS() {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
 
     const tables = doc.getElementsByTagNameNS(NS_TABLE, 'table');
+    const monthKey = sansAccent(monthName);
+    const allNames = [];
     let sheetRecap = null, sheetCaisse = null;
     for (const t of tables) {
-      const name = (t.getAttribute('table:name') || '').toLowerCase();
-      if (!sheetRecap && name.includes(monthName) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
-      if (!sheetCaisse && name.startsWith('caisse') && name.includes(monthName)) sheetCaisse = t;
+      const raw = t.getAttribute('table:name') || '';
+      allNames.push(raw);
+      const name = sansAccent(raw);
+      if (!sheetRecap && name.includes(monthKey) && name.includes(String(year)) && !name.startsWith('caisse')) sheetRecap = t;
+      if (!sheetCaisse && name.startsWith('caisse') && name.includes(monthKey)) sheetCaisse = t;
     }
-    if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable`);
-    if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable`);
+    if (!sheetRecap) throw new Error(`Onglet "${monthName}_${year}" introuvable. Onglets présents : ${allNames.join(', ')}`);
+    if (!sheetCaisse) throw new Error(`Onglet "caisse ${monthName}" introuvable. Onglets présents : ${allNames.join(', ')}`);
 
     // === PROPAGATION DES SUPPRESSIONS (déduit ce que l'app avait précédemment exporté) ===
     let countDeleted = 0, countTRSubtracted = 0;
