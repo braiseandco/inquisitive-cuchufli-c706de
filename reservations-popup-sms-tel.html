@@ -14,6 +14,12 @@
   if('serviceWorker' in navigator){
     window.addEventListener('load', function(){
       navigator.serviceWorker.register('sw.js').then(function(reg){
+        // Force la re-verification du script sw.js : sans ca un SW installe reste
+        // en place tant que le navigateur ne decide pas de le revalider.
+        reg.update();
+        document.addEventListener('visibilitychange', function(){
+          if(document.visibilityState === 'visible') reg.update();
+        });
         // Dès qu'un nouveau SW est trouvé, on attend qu'il soit actif puis on recharge
         reg.addEventListener('updatefound', function(){
           var newSW = reg.installing;
@@ -3051,7 +3057,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-07-05.1';
+const APP_VERSION = '2026-08-04.1';
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
   btn.style.animation='spin .7s linear infinite';
@@ -3070,8 +3076,35 @@ async function checkAndUpdate(){
   }catch(e){ btn.style.animation=''; btn.style.pointerEvents=''; toast('Erreur vérification','ko'); }
 }
 
+// Vérification automatique : sans elle, une machine dont le service worker sert
+// encore un vieux cache reste bloquée sur son build tant que personne ne clique
+// sur le bouton de mise à jour.
+async function autoCheckVersion(){
+  try{
+    const res = await fetch('/version.json?_v='+Date.now(),{cache:'no-store'});
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.version || data.version === APP_VERSION) return;
+    // Ne pas recharger sous les doigts de quelqu'un qui saisit une résa :
+    // on retentera au prochain retour sur l'app.
+    if(document.querySelector('.overlay.open,.caisse-modal.open,.edit-table-modal.open,.table-panel.open')) return;
+    // version.json est partagé par les 4 apps : si le bump vient d'une autre app,
+    // l'écart ne se résorbera jamais ici. Un seul rechargement auto par version,
+    // sinon on boucle à l'infini.
+    if(sessionStorage.getItem('autoUpdateTried') === data.version) return;
+    sessionStorage.setItem('autoUpdateTried', data.version);
+    if('serviceWorker' in navigator){ const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }
+    if('caches' in window){ const keys=await caches.keys(); await Promise.all(keys.map(k=>caches.delete(k))); }
+    window.location.href = window.location.pathname + '?_v=' + Date.now();
+  }catch(e){}
+}
+
 // ── INIT ──────────────────────────────────────────────────────
 document.getElementById('displayed-version').textContent = APP_VERSION;
+autoCheckVersion();
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible') autoCheckVersion();
+});
 loadResas(); // affichage rapide (sans noms de tables)
 getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // rechargement avec noms corrects
 
