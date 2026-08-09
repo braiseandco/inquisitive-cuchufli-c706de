@@ -618,6 +618,26 @@ function checkTVA() {
 }
 
 // ── SAUVEGARDE ────────────────────────────────────────────────
+// Une journée déjà exportée doit repartir dans l'ODS après modification.
+// On l'accompagne d'une "suppression en attente" : dans le tableur les TR
+// sont cumulés (et non remplacés), il faut donc retirer l'ancienne version
+// avant que l'export ne réécrive la nouvelle.
+async function stageReexport(date) {
+  const H = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/caisse_journaliere?date=eq.${date}&select=*`, { headers: H });
+    const prev = (await res.json())[0];
+    if (!prev || !prev.exported_to_ods_at) return;
+    const pend = await fetch(`${SUPABASE_URL}/rest/v1/caisse_pending_deletions?date=eq.${date}&select=id`, { headers: H });
+    if ((await pend.json()).length) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/caisse_pending_deletions`, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, H),
+      body: JSON.stringify({ date: prev.date, was_exported: true, snapshot: prev })
+    });
+  } catch(e) { console.warn('stageReexport', e); }
+}
+
 async function saveCaisse() {
   const dateVal = document.getElementById('dateInput').value;
   if (!dateVal) { showToast('Sélectionne une date', true); return; }
@@ -645,6 +665,7 @@ async function saveCaisse() {
     cv_20:        parseInt(document.getElementById('cv20').value) || 0,
     cv_25:        parseInt(document.getElementById('cv25').value) || 0,
     cv_50:        parseInt(document.getElementById('cv50').value) || 0,
+    exported_to_ods_at: null,
     updated_at:   new Date().toISOString()
   };
 
@@ -652,6 +673,7 @@ async function saveCaisse() {
   btn.disabled = true; btn.textContent = '⏳ Enregistrement...';
 
   try {
+    await stageReexport(dateVal);
     const res = await fetch(SUPABASE_URL + '/rest/v1/caisse_journaliere?on_conflict=date', {
       method: 'POST',
       headers: {
@@ -1927,7 +1949,7 @@ function fmtEur(n) {
   return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
 
-const APP_VERSION = '2026-08-04.4';
+const APP_VERSION = '2026-08-09.1';
 window.APP_VERSION = APP_VERSION;
 document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 
