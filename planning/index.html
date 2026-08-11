@@ -75,6 +75,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .day-badge.absent{background:rgba(229,57,53,.2);color:#ef9a9a;}
 .day-badge.vacation{background:rgba(30,136,229,.15);color:#90caf9;}
 .day-badge.off{background:rgba(240,237,232,.07);color:var(--text-faint);}
+.day-badge.fin{background:rgba(171,71,188,.18);color:#ce93d8;}
 .day-sig-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Raleway',sans-serif;flex-shrink:0;}
 .day-signed{font-size:11px;font-weight:700;color:#a5d6a7;flex-shrink:0;}
 
@@ -141,6 +142,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .wt-accident{color:#f48fb1;font-weight:700;}
 .wt-partielle{color:#4dd0e1;font-weight:700;}
 .wt-conge{color:#90caf9;}
+.wt-fin{color:#ce93d8;font-weight:700;}
 .wt-ecole{color:#ce93d8;}
 .wt-total{font-weight:700;color:var(--accent2);background:rgba(229,57,53,.06) !important;white-space:nowrap;}
 
@@ -794,8 +796,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     <div class="override-opts">
       <div class="ov-opt selected" id="ov-present" onclick="selectOv('present')">Présent</div>
       <div class="ov-opt" id="ov-vacation" onclick="selectOv('vacation')">Congé</div>
+      <div class="ov-opt" id="ov-fin_essai" onclick="selectOv('fin_essai')">Fin d'essai</div>
     </div>
     <p style="font-size:11px;color:var(--text2);margin:4px 0 8px;">Pour Absent/Malade : cliquez sur le bouton du service concerné (matin ou soir) pour choisir son statut.</p>
+    <p id="ovFinEssaiHint" style="display:none;font-size:11px;color:#ce93d8;margin:4px 0 8px;line-height:1.5;">🔚 <strong>Dernier jour travaillé</strong> : garde les horaires ci-dessous. Les jours suivants de la semaine passent en « Fin d'essai » (0 h) et l'employé disparaît des semaines suivantes.</p>
     <div id="ovTimeFields">
       <div class="form-group">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1262,7 +1266,10 @@ async function renderSignWeek() {
 
     let cls = '', badgeHtml = '', info = '';
     if (ov) {
-      if (ov.status === 'off') {
+      if (ov.fin_essai && ov.status === 'off') {
+        cls = 'off'; badgeHtml = '<span class="day-badge fin">🔚 Fin d\'essai</span>'; info = 'Fin de période d\'essai';
+      }
+      else if (ov.status === 'off') {
         cls = 'off'; badgeHtml = '<span class="day-badge off">Repos</span>'; info = 'Repos';
       }
       else if (ov.status === 'absent')   { cls = 'absent';   badgeHtml = '<span class="day-badge absent">Absent</span>';   info = 'Absent'; }
@@ -1281,6 +1288,7 @@ async function renderSignWeek() {
         else if (es === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Soir malade</span>');
         else if (es === 'accident') badges.push('<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1;font-size:9px">Soir AT</span>');
         else if (es === 'partielle') badges.push('<span class="day-badge absent" style="background:rgba(77,208,225,.2);color:#4dd0e1;font-size:9px">Soir act. part.</span>');
+        if (ov.fin_essai) badges.push('<span class="day-badge fin" style="font-size:9px">🔚 Dernier jour</span>');
         badgeHtml = badges.join(' ');
         info = ov.start_time ? fmtHours(ov) : (ms && ms !== 'on' ? '' : '—');
       }
@@ -1716,7 +1724,9 @@ async function loadEmpWeek() {
     const isToday = ds === todayStr;
 
     let body = '';
-    if (!row || row.is_off) {
+    if (row && row.fin_essai && row.status === 'off') {
+      body = '<span class="wt-fin" style="font-size:13px">🔚 Fin d\'essai</span>';
+    } else if (!row || row.is_off) {
       body = '<span class="wt-repos" style="font-size:13px">Repos</span>';
     } else if (row.status === 'absent') {
       body = '<span class="wt-absent" style="font-size:13px">Absent</span>';
@@ -1740,9 +1750,12 @@ async function loadEmpWeek() {
         }
       }
     }
+    if (row && row.fin_essai && row.status !== 'off') {
+      body += '<div style="font-size:11px;color:#ce93d8;font-weight:700;margin-top:3px">🔚 Dernier jour (fin d\'essai)</div>';
+    }
     const totalStr = dayH > 0 ? `<span style="font-weight:700;color:var(--accent2);font-size:14px">${dayH.toFixed(1).replace('.0','')}h</span>` : '';
     const border = isToday ? 'var(--accent)' : 'var(--border)';
-    const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation' && row.status !== 'arret';
+    const isWorked = row && !row.is_off && row.status !== 'absent' && row.status !== 'vacation' && row.status !== 'arret' && !(row.fin_essai && row.status === 'off');
     const sigServices = sigByDate[ds] || {};
     const sigImg = sigServices['midi'] || sigServices['soir'] || null;
     const sigBlock = sigImg
@@ -2076,6 +2089,7 @@ async function loadPlanningTab() {
       const click = `onclick="openOverride('${emp.id}','${ds}',${col.dn-1})"`;
       if (col.closed) return `<td class="wt-repos" style="opacity:.5">Repos</td>`;
       if (!hasOvThisWeek) return `<td class="wt-repos" ${click}>—</td>`;
+      if (ov && ov.fin_essai && ov.status === 'off') return `<td class="wt-fin" ${click}>🔚 Fin d'essai</td>`;
       if (!ov || ov.status === 'off') return `<td class="wt-repos" ${click}>Repos</td>`;
       if (ov.status === 'vacation')   return `<td class="wt-conge" ${click}>Congé</td>`;
       // Déterminer l'état effectif par service (nouveau: morn_status/eve_status, fallback: ancien status global)
@@ -3772,8 +3786,11 @@ async function openOverride(empId, dateS, dayIdx) {
     const ov    = Array.isArray(ovRes)    ? ovRes[0]    : null;
     const sched = Array.isArray(schedRes) ? schedRes[0] : null;
 
-    // Déterminer le statut global (present ou vacation)
-    const globalStatus = (ov && ov.status === 'vacation') ? 'vacation' : 'present';
+    // Déterminer le statut global (present, vacation ou fin d'essai)
+    // fin_essai + status 'off' = jour rempli automatiquement après le départ → rouvrir en "présent"
+    const globalStatus = (ov && ov.status === 'vacation') ? 'vacation'
+                       : (ov && ov.fin_essai && ov.status !== 'off') ? 'fin_essai'
+                       : 'present';
     selectOv(globalStatus);
     const st = (v, fb) => v ? String(v).slice(0,5) : fb;
     document.getElementById('ovStart').value      = st(ov?.start_time  || sched?.start_time,  '09:00');
@@ -3830,10 +3847,11 @@ async function openOverride(empId, dateS, dayIdx) {
 
 function selectOv(status) {
   currentOvStatus = status;
-  ['present','vacation'].forEach(s => {
+  ['present','vacation','fin_essai'].forEach(s => {
     document.getElementById('ov-'+s).classList.toggle('selected', s===status);
   });
   document.getElementById('ovTimeFields').style.display = status === 'vacation' ? 'none' : '';
+  document.getElementById('ovFinEssaiHint').style.display = status === 'fin_essai' ? '' : 'none';
 }
 
 // Helper: applique un état (on/repos/absent/arret) à un toggle + son bloc de champs
@@ -3867,6 +3885,23 @@ async function saveOverride() {
     const {empId, date, dayIdx} = overrideTarget;
     const hasEvening = EVENING_DAY_IDX.has(dayIdx);
     const isVacation = currentOvStatus === 'vacation';
+    const isFinEssai = currentOvStatus === 'fin_essai';
+
+    // Jours restants de la semaine (lendemain → dimanche) à basculer en "fin d'essai"
+    const finEssaiDates = [];
+    if (isFinEssai) {
+      const emp = employees.find(e => e.id === empId);
+      const sunday = new Date(getMonday(new Date(date + 'T12:00')));
+      sunday.setDate(sunday.getDate() + 6);
+      const sundayYmd = dateStr(sunday);
+      const cur = new Date(date + 'T12:00');
+      cur.setDate(cur.getDate() + 1);
+      while (dateStr(cur) <= sundayYmd) { finEssaiDates.push(dateStr(cur)); cur.setDate(cur.getDate() + 1); }
+      const suite = finEssaiDates.length
+        ? `Les ${finEssaiDates.length} jour(s) suivant(s) de la semaine passeront en « Fin d'essai » (0 h).`
+        : `C'est le dernier jour de la semaine : aucun jour à basculer.`;
+      if (!confirm(`Fin de période d'essai de ${emp ? emp.name : 'cet employé'} au ${date} ?\n${date} reste travaillé avec ses horaires.\n${suite}\nIl n'apparaîtra plus dans les semaines suivantes.`)) return;
+    }
 
     const mornState = isVacation ? 'on' : (document.getElementById('ovMornToggle').dataset.state || 'on');
     const eveState  = (isVacation || !hasEvening) ? 'on' : (document.getElementById('ovEveToggle').dataset.state || 'on');
@@ -3891,12 +3926,33 @@ async function saveOverride() {
       evening_break_start: (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningBreakStart').value : null,
       evening_break_end:   (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningBreakEnd').value   : null,
       evening_end:         (!isVacation && hasEvening && eveWorks) ? document.getElementById('ovEveningEnd').value        : null,
-      note: document.getElementById('ovNote').value || null
+      note: document.getElementById('ovNote').value || null,
+      fin_essai: isFinEssai
     };
     await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(body),
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+
+    if (isFinEssai) {
+      if (finEssaiDates.length) {
+        await sb('weekly_overrides?on_conflict=employee_id,date', {
+          method:'POST',
+          body: JSON.stringify(finEssaiDates.map(d => ({
+            employee_id: empId, date: d, status: 'off',
+            morn_status: null, eve_status: null,
+            start_time: null, break_start: null, break_end: null, end_time: null,
+            evening_start: null, evening_break_start: null, evening_break_end: null, evening_end: null,
+            note: null, fin_essai: true
+          }))),
+          headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+      }
+      // date_depart : l'employé sort des semaines et des récaps suivants (comme une démission)
+      await PATCH(`employees?id=eq.${empId}`, {date_depart: date});
+      const emp = employees.find(e => e.id === empId);
+      if (emp) emp.date_depart = date;
+    }
+
     closeModal('modalOverride');
-    toast('Modifié !');
+    toast(isFinEssai ? 'Fin de période d\'essai enregistrée' : 'Modifié !');
     if (document.getElementById('emp-week').classList.contains('active')) loadEmpWeek();
     else loadPlanningTab();
   } catch(e) {
