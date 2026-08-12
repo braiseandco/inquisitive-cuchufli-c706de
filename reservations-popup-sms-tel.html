@@ -3058,7 +3058,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-08-11.1';
+const APP_VERSION = '2026-08-12.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3258,20 +3258,37 @@ initSmsPolling();
   let trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
   let currentEmetteur = null;
   let inited = false;
+  // true dès que la date a été choisie explicitement (sélecteur ou "Modifier")
+  let dateTouched = false;
+
+  function todayISO(){
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  }
+  function setDate(iso){
+    document.getElementById('dateInput').value = iso;
+    document.getElementById('dayBadge').textContent = JOURS[new Date(iso + 'T12:00:00').getDay()];
+  }
+  // L'app reste ouverte plusieurs jours (PWA) : sans ça la date resterait figée
+  // sur le jour d'ouverture et la saisie écraserait la journée précédente.
+  function refreshDateIfStale(){
+    if(dateTouched) return;
+    const t = todayISO();
+    if(document.getElementById('dateInput').value !== t) setDate(t);
+  }
 
   // ── INIT (lazy: au 1er clic sur l'onglet) ──
   function init(){
     if(inited) return;
     inited = true;
-    const now = new Date();
-    document.getElementById('dateInput').value = now.toISOString().split('T')[0];
-    document.getElementById('dayBadge').textContent = JOURS[now.getDay()];
+    setDate(todayISO());
     EMETTEURS.forEach(e => renderTRItems(e));
   }
 
   function onDateChange(){
     const v = document.getElementById('dateInput').value;
     if(!v) return;
+    dateTouched = true;
     document.getElementById('dayBadge').textContent = JOURS[new Date(v + 'T12:00:00').getDay()];
   }
 
@@ -3485,6 +3502,10 @@ initSmsPolling();
   async function saveCaisse(){
     const dateVal = document.getElementById('dateInput').value;
     if(!dateVal){ showToast('Sélectionne une date', true); return; }
+    if(dateVal !== todayISO()){
+      const label = new Date(dateVal + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
+      if(!confirm('⚠️ Tu enregistres la caisse du ' + label + ', pas celle d\'aujourd\'hui.\n\nSi cette journée existe déjà, elle sera écrasée.\n\nContinuer ?')) return;
+    }
     const trTotal = getTRTotal();
     const cvTotal = getCVTotal();
     const totalGen = getNum('cb') + getNum('cheque') + getNum('esp') + trTotal + cvTotal;
@@ -3528,6 +3549,7 @@ initSmsPolling();
     }
   }
   function resetForm(){
+    dateTouched = false;
     ['cb','cheque','esp','ttc10','ttc20','fondCaisse','offerts','couverts','notes'].forEach(id => {
       document.getElementById(id).value = '';
     });
@@ -3587,8 +3609,8 @@ initSmsPolling();
       if(!data.length){ showToast('Introuvable', true); return; }
       const r = data[0];
       switchPage('saisie');
-      document.getElementById('dateInput').value = r.date;
-      document.getElementById('dayBadge').textContent = JOURS[new Date(r.date + 'T12:00:00').getDay()];
+      dateTouched = true;
+      setDate(r.date);
       document.getElementById('cb').value = r.cb || '';
       document.getElementById('cheque').value = r.cheque || '';
       document.getElementById('esp').value = r.esp || '';
@@ -4481,8 +4503,11 @@ initSmsPolling();
   // ── INIT LAZY : au 1er affichage de l'onglet Caisse ──
   const tabCaisse = document.getElementById('tab-caisse');
   if(tabCaisse){
-    tabCaisse.addEventListener('click', init, { once: false });
+    tabCaisse.addEventListener('click', () => { init(); refreshDateIfStale(); });
   }
+  document.addEventListener('visibilitychange', () => {
+    if(inited && document.visibilityState === 'visible') refreshDateIfStale();
+  });
   // Si on arrive directement avec l'onglet déjà actif (rare), init immédiat
   if(document.getElementById('screen-caisse')?.classList.contains('active')) init();
 

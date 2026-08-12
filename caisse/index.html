@@ -461,21 +461,43 @@ const EMETTEUR_NAMES = { edenred:'Edenred', sodexo:'Sodexo / Pluxee', up:'Groupe
 
 let trData = { edenred:{}, sodexo:{}, up:{}, bimpli:{} };
 let currentEmetteur = null;
+// true dès que la date a été choisie explicitement (sélecteur ou "Modifier")
+let dateTouched = false;
+
+function todayISO() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+}
+function setDate(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  document.getElementById('headerDate').innerHTML =
+    JOURS[d.getDay()] + '<br>' +
+    d.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('dateInput').value = iso;
+  document.getElementById('dayBadge').textContent = JOURS[d.getDay()];
+}
+// L'app reste ouverte plusieurs jours (PWA) : sans ça la date resterait figée
+// sur le jour d'ouverture et la saisie écraserait la journée précédente.
+function refreshDateIfStale() {
+  if (dateTouched) return;
+  const t = todayISO();
+  if (document.getElementById('dateInput').value !== t) setDate(t);
+}
 
 // ── INIT ──────────────────────────────────────────────────────
 function init() {
-  const now = new Date();
-  document.getElementById('headerDate').innerHTML =
-    JOURS[now.getDay()] + '<br>' +
-    now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
-  document.getElementById('dateInput').value = now.toISOString().split('T')[0];
-  document.getElementById('dayBadge').textContent = JOURS[now.getDay()];
+  setDate(todayISO());
   EMETTEURS.forEach(e => renderTRItems(e));
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshDateIfStale();
+});
 
 function onDateChange() {
   const v = document.getElementById('dateInput').value;
   if (!v) return;
+  dateTouched = true;
   document.getElementById('dayBadge').textContent = JOURS[new Date(v + 'T12:00:00').getDay()];
 }
 
@@ -641,6 +663,10 @@ async function stageReexport(date) {
 async function saveCaisse() {
   const dateVal = document.getElementById('dateInput').value;
   if (!dateVal) { showToast('Sélectionne une date', true); return; }
+  if (dateVal !== todayISO()) {
+    const label = new Date(dateVal + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
+    if (!confirm('⚠️ Tu enregistres la caisse du ' + label + ', pas celle d\'aujourd\'hui.\n\nSi cette journée existe déjà, elle sera écrasée.\n\nContinuer ?')) return;
+  }
 
   const trTotal = getTRTotal();
   const cvTotal = getCVTotal();
@@ -707,6 +733,7 @@ async function saveCaisse() {
 }
 
 function resetForm() {
+  dateTouched = false;
   ['cb','cheque','esp','ttc10','ttc20','fondCaisse','offerts','couverts','notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
@@ -779,9 +806,8 @@ async function editDay(date) {
     const r = data[0];
     // Va sur la page Saisie + remplit les champs
     showPage('saisie');
-    const di = document.getElementById('dateInput');
-    di.value = r.date;
-    document.getElementById('dayBadge').textContent = JOURS[new Date(r.date + 'T12:00:00').getDay()];
+    dateTouched = true;
+    setDate(r.date);
     document.getElementById('cb').value      = r.cb || '';
     document.getElementById('cheque').value  = r.cheque || '';
     document.getElementById('esp').value     = r.esp || '';
@@ -1949,7 +1975,7 @@ function fmtEur(n) {
   return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
 
-const APP_VERSION = '2026-08-11.1';
+const APP_VERSION = '2026-08-12.1';
 window.APP_VERSION = APP_VERSION;
 document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 
