@@ -464,8 +464,12 @@ let currentEmetteur = null;
 // true dès que la date a été choisie explicitement (sélecteur ou "Modifier")
 let dateTouched = false;
 
-function todayISO() {
+// La caisse se fait après le service, souvent passé minuit : jusqu'à 5h du matin
+// la journée en cours reste celle de la veille.
+const BASCULE_JOURNEE_H = 5;
+function serviceDayISO() {
   const d = new Date();
+  if (d.getHours() < BASCULE_JOURNEE_H) d.setDate(d.getDate() - 1);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 }
 function setDate(iso) {
@@ -480,13 +484,13 @@ function setDate(iso) {
 // sur le jour d'ouverture et la saisie écraserait la journée précédente.
 function refreshDateIfStale() {
   if (dateTouched) return;
-  const t = todayISO();
+  const t = serviceDayISO();
   if (document.getElementById('dateInput').value !== t) setDate(t);
 }
 
 // ── INIT ──────────────────────────────────────────────────────
 function init() {
-  setDate(todayISO());
+  setDate(serviceDayISO());
   EMETTEURS.forEach(e => renderTRItems(e));
 }
 
@@ -663,9 +667,9 @@ async function stageReexport(date) {
 async function saveCaisse() {
   const dateVal = document.getElementById('dateInput').value;
   if (!dateVal) { showToast('Sélectionne une date', true); return; }
-  if (dateVal !== todayISO()) {
+  if (dateVal !== serviceDayISO()) {
     const label = new Date(dateVal + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long'});
-    if (!confirm('⚠️ Tu enregistres la caisse du ' + label + ', pas celle d\'aujourd\'hui.\n\nSi cette journée existe déjà, elle sera écrasée.\n\nContinuer ?')) return;
+    if (!confirm('⚠️ Tu enregistres la caisse du ' + label + ', pas celle du service en cours.\n\nSi cette journée existe déjà, elle sera écrasée.\n\nContinuer ?')) return;
   }
 
   const trTotal = getTRTotal();
@@ -1975,7 +1979,7 @@ function fmtEur(n) {
   return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
 
-const APP_VERSION = '2026-08-12.1';
+const APP_VERSION = '2026-08-16.1';
 window.APP_VERSION = APP_VERSION;
 document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 
