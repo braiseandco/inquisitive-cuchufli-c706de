@@ -375,6 +375,41 @@ function cuiRenderHistory() {
   cui$('cui-hist-list').innerHTML = list.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande.</div>';
 }
 
+
+/* ─── Récap achats par fournisseur (année / mois) ───
+   Montants = prix de la mercuriale au moment de la commande, pas la facture. */
+async function cuiOpenRecap(year) {
+  year = year || new Date().getFullYear();
+  cuiModal(`Achats ${year}`, '<div class="empty-state">Chargement…</div>');
+  let rows;
+  try {
+    rows = await cuiGET(`cmd_commandes?statut=in.(envoyee,confirmee,livree)&date_commande=gte.${year}-01-01&date_commande=lt.${year + 1}-01-01&select=fournisseur_id,date_commande,lignes:cmd_commande_lignes(quantite,prix)`);
+  } catch (e) { cuiModal(`Achats ${year}`, '<div class="empty-state">Erreur de connexion</div>'); return; }
+  const bySup = {}, byMonth = {};
+  let sansPrix = 0, total = 0;
+  rows.forEach(o => {
+    const t = cuiOrderTotal(o); total += t;
+    sansPrix += o.lignes.filter(l => l.prix == null).length;
+    const a = bySup[o.fournisseur_id] = bySup[o.fournisseur_id] || { n: 0, t: 0 }; a.n++; a.t += t;
+    const m = new Date(o.date_commande).getMonth(); byMonth[m] = (byMonth[m] || 0) + t;
+  });
+  const mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+  const supRows = Object.entries(bySup).sort((a, b) => b[1].t - a[1].t).map(([id, a]) => {
+    const s = cuiSup(id) || { nom: 'Fournisseur supprimé' };
+    return `<div class="order-line"><span>${s.emoji || ''} ${cuiEsc(s.nom)}<div class="prod-meta">${a.n} commande${a.n > 1 ? 's' : ''}</div></span><span class="order-line-qty">${cuiEur(a.t)}</span></div>`;
+  }).join('') || '<div class="prod-meta">Aucune commande cette année.</div>';
+  const maxM = Math.max(1, ...Object.values(byMonth));
+  const monthRows = mois.map((m, i) => `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="width:34px;color:var(--muted)">${m}</span><div style="flex:1;height:8px;background:var(--surf3);border-radius:4px;overflow:hidden"><div style="width:${Math.round((byMonth[i] || 0) / maxM * 100)}%;height:100%;background:var(--orange)"></div></div><span style="width:74px;text-align:right">${byMonth[i] ? cuiEur(byMonth[i]) : ''}</span></div>`).join('');
+  const y = new Date().getFullYear();
+  cuiModal(`Achats ${year}`, `
+    <div style="display:flex;gap:8px;margin-bottom:10px">${[y - 2, y - 1, y].map(k => `<button class="cui-chip ${k === year ? 'on' : ''}" onclick="cuiOpenRecap(${k})">${k}</button>`).join('')}</div>
+    <div class="modal-section"><div class="ms-label">Total HT estimé</div><div class="ms-val" style="font-size:22px;font-weight:800;color:var(--orange)">${cuiEur(total)}</div>
+      <div class="prod-meta">${rows.length} commande${rows.length > 1 ? 's' : ''}${sansPrix ? ` · ⚠️ ${sansPrix} ligne${sansPrix > 1 ? 's' : ''} sans prix (non comptée${sansPrix > 1 ? 's' : ''})` : ''}</div></div>
+    <div class="modal-section"><div class="ms-label">Par fournisseur</div>${supRows}</div>
+    <div class="modal-section"><div class="ms-label">Par mois</div>${monthRows}</div>
+    <div class="modal-actions"><button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
+}
+
 /* ─── Produit : ajout / édition ─── */
 function cuiOpenProdEdit(id) {
   const p = id ? CUI.prods.find(x => x.id === id) : { unite: 'Pièce(s)', categorie_id: (CUI.cat !== 'all' && CUI.cat !== 'fav') ? CUI.cat : null };
