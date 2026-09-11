@@ -433,7 +433,7 @@
 <!-- HEADER -->
 <div class="header">
   <div class="header-logo">
-    <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:36px;width:auto;object-fit:contain;display:block">
+    <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:52px;width:auto;object-fit:contain;display:block">
     <div class="header-sub">Commandes bar &amp; cuisine</div>
     <div id="header-serveur" onclick="openServeurSwitch()" style="font-size:11px;color:var(--orange);font-weight:700;margin-top:1px;display:none;cursor:pointer"></div>
   </div>
@@ -518,7 +518,7 @@
   <div id="cui-home">
     <div class="cat-label">Fournisseurs</div>
     <div class="cui-grid" id="cui-grid"></div>
-    <div class="cat-label" style="display:flex;justify-content:space-between;align-items:center">Dernières commandes <span><button class="cui-link" onclick="cuiOpenRecap()">📊 Récap achats</button> · <button class="cui-link" onclick="cuiOpenHistory()">Tout voir ›</button></span></div>
+    <div class="cat-label" style="display:flex;justify-content:space-between;align-items:center">Dernières commandes <button class="cui-link" onclick="cuiOpenHistory()">Tout voir ›</button></div>
     <div id="cui-orders"></div>
   </div>
   <div id="cui-sup" class="hidden">
@@ -888,7 +888,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-11.8';
+const APP_VERSION = '2026-09-11.9';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -2728,7 +2728,8 @@ function triggerInstall() {
   }
 }
 
-// Appui long sur le logo → débloquer l'onglet Historique
+// Appui long sur le logo (2 s) → accès patron : onglet Historique bar + récap des achats cuisine.
+// Volontairement absent des menus : les salariés utilisent l'appli.
 (function() {
   const logo = document.querySelector('.header-logo');
   logo.style.webkitTouchCallout = 'none';
@@ -2739,9 +2740,8 @@ function triggerInstall() {
   function startPress(e) {
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
-      const tab = document.getElementById('tab-historique');
-      tab.style.display = '';
-      switchTab('historique');
+      document.getElementById('tab-historique').style.display = '';
+      if (typeof cuiOpenRecap === 'function') cuiOpenRecap();
     }, 2000);
   }
   function cancelPress() { clearTimeout(pressTimer); }
