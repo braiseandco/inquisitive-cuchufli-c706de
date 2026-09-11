@@ -359,6 +359,54 @@
       align-items: center; gap: 8px;
     }
 
+    /* ── CUISINE (commandes fournisseurs) ── */
+    .tabs { overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { flex: 1 0 auto; padding: 11px 12px; white-space: nowrap; }
+    .cui-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 16px 12px; }
+    .cui-card {
+      position: relative; background: var(--surf); border: 1px solid var(--border); border-radius: 14px;
+      padding: 12px; text-align: left; color: var(--text); cursor: pointer; min-height: 96px;
+      display: flex; flex-direction: column; gap: 4px; font-family: inherit;
+    }
+    .cui-card:active { background: var(--surf2); }
+    .cui-card-emoji { font-size: 26px; line-height: 1; }
+    .cui-card-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+    .cui-card-meta { font-size: 11px; color: var(--muted); line-height: 1.35; }
+    .cui-card-add { border-style: dashed; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
+    .cui-badge {
+      position: absolute; top: 8px; right: 8px; background: var(--orange); color: #fff;
+      font-size: 11px; font-weight: 700; border-radius: 10px; padding: 2px 8px;
+    }
+    .cui-subhead {
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      background: var(--surf); border-bottom: 1px solid var(--border);
+    }
+    .cui-subtitle { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cui-subsub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cui-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px 6px; scrollbar-width: none; }
+    .cui-chips::-webkit-scrollbar { display: none; }
+    .cui-chip {
+      flex-shrink: 0; padding: 7px 13px; border-radius: 20px; background: var(--surf2); border: 1px solid var(--border);
+      font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; cursor: pointer; font-family: inherit;
+    }
+    .cui-chip.on { background: var(--orange); border-color: var(--orange); color: #fff; }
+    .cui-star { background: none; border: none; font-size: 18px; color: var(--dim); width: 26px; cursor: pointer; padding: 0; flex-shrink: 0; }
+    .cui-star.on { color: var(--warn); }
+    .cui-status {
+      display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 10px; background: var(--surf3); color: var(--muted); margin-left: 6px; vertical-align: middle;
+    }
+    .cui-status.envoyee { background: rgba(255,214,10,.15); color: var(--warn); }
+    .cui-status.confirmee { background: rgba(10,132,255,.18); color: #64b5f6; }
+    .cui-status.livree { background: rgba(48,209,88,.18); color: var(--ok); }
+    .cui-status.annulee { background: rgba(255,69,58,.18); color: var(--danger); }
+    .cui-order-row { cursor: pointer; }
+    .cui-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 13px; }
+    .cui-kv div span:first-child { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    .cui-row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cui-link { background: none; border: none; color: var(--orange); font-size: 12px; font-weight: 700; cursor: pointer; text-transform: none; letter-spacing: 0; }
+
     @media (min-width: 520px) {
       .panier-bar, .panier-bar { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
       #panier-bar-vin { max-width: 520px; left: 50%; transform: translateX(-50%); right: auto; width: 520px; }
@@ -386,7 +434,7 @@
 <div class="header">
   <div class="header-logo">
     <img src="../images/logo-blanc.png" alt="Braise & Co" style="height:36px;width:auto;object-fit:contain;display:block">
-    <div class="header-sub">Gestion Boissons</div>
+    <div class="header-sub">Commandes bar &amp; cuisine</div>
     <div id="header-serveur" onclick="openServeurSwitch()" style="font-size:11px;color:var(--orange);font-weight:700;margin-top:1px;display:none;cursor:pointer"></div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
@@ -408,6 +456,9 @@
 
 <!-- TABS -->
 <div class="tabs">
+  <div class="tab" onclick="switchTab('cuisine')" id="tab-cuisine">
+    🍳 Cuisine
+  </div>
   <div class="tab active" onclick="switchTab('commande')" id="tab-commande">
     Le Bihan <span class="tab-badge hidden" id="badge-commande">0</span>
   </div>
@@ -461,6 +512,49 @@
   <div id="alerts-zone"></div>
   <div id="stock-list"></div>
 </div>
+
+<!-- ══════════════════════ PANEL CUISINE ══════════════════════ -->
+<div class="panel" id="panel-cuisine">
+  <div id="cui-home">
+    <div class="cat-label">Fournisseurs</div>
+    <div class="cui-grid" id="cui-grid"></div>
+    <div class="cat-label" style="display:flex;justify-content:space-between;align-items:center">Dernières commandes <button class="cui-link" onclick="cuiOpenHistory()">Tout voir ›</button></div>
+    <div id="cui-orders"></div>
+  </div>
+  <div id="cui-sup" class="hidden">
+    <div class="cui-subhead">
+      <button class="besoins-back" onclick="cuiShowHome()">‹</button>
+      <div style="flex:1;min-width:0"><div class="cui-subtitle" id="cui-sup-title"></div><div class="cui-subsub" id="cui-sup-sub"></div></div>
+      <button class="btn-icon" onclick="cuiOpenSupEdit()" title="Fournisseur">⚙️</button>
+      <button class="btn-icon" onclick="cuiOpenProdEdit()" title="Ajouter un produit" style="color:var(--orange);font-size:22px">＋</button>
+    </div>
+    <div class="search-bar"><input type="search" class="search-input" id="cui-search" placeholder="Rechercher un produit…" autocomplete="off" oninput="cuiRenderProducts()"></div>
+    <div class="cui-chips" id="cui-chips"></div>
+    <div id="cui-list"></div>
+    <div style="padding:12px 16px 4px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Note pour le fournisseur</div>
+      <textarea id="cui-note" rows="2" class="settings-field" style="resize:vertical;font-family:inherit" placeholder="Ex : livraison avant 11h…" oninput="cuiSaveNote()"></textarea>
+    </div>
+  </div>
+  <div id="cui-hist" class="hidden">
+    <div class="cui-subhead">
+      <button class="besoins-back" onclick="cuiShowHome()">‹</button>
+      <div class="cui-subtitle" style="flex:1">Historique cuisine</div>
+      <select id="cui-hist-sup" class="settings-field" style="width:auto;max-width:50%;padding:8px 10px;font-size:13px" onchange="cuiRenderHistory()"></select>
+    </div>
+    <div id="cui-hist-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ BARRE CUISINE ══════════════════════ -->
+<div class="panier-bar" id="panier-bar-cuisine" style="display:none">
+  <div class="panier-info">
+    <span id="cui-bar-info" class="panier-empty">Aucun produit sélectionné</span>
+    <span class="panier-total" id="cui-bar-total"></span>
+  </div>
+  <button class="btn-send" id="cui-btn-send" disabled onclick="cuiOpenConfirm()">Commander</button>
+</div>
+<div class="overlay" id="overlay-cuisine"><div class="modal" id="cui-modal"></div></div>
 
 <!-- ══════════════════════ BARRE CAVE ══════════════════════ -->
 <div class="panier-bar" id="panier-bar-cave" style="display:none">
@@ -794,6 +888,9 @@
 </div>
 
 <script>
+const APP_VERSION = '2026-09-11.1';
+window.APP_VERSION = APP_VERSION;
+
 /* ═══════════════ SUPABASE ═══════════════ */
 const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
@@ -1090,18 +1187,21 @@ function switchTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).scrollIntoView({ inline: 'nearest', block: 'nearest' });
 
   document.getElementById('panier-bar').style.display           = name === 'commande' ? '' : 'none';
   document.getElementById('panier-bar-vin').style.display        = name === 'vin'      ? '' : 'none';
   document.getElementById('panier-bar-cave').style.display       = name === 'stock'    ? '' : 'none';
   document.getElementById('panier-bar-cocktail').style.display   = name === 'cocktail' ? '' : 'none';
   document.getElementById('panier-bar-cafe').style.display        = name === 'cafe'     ? '' : 'none';
+  if (name !== 'cuisine') document.getElementById('panier-bar-cuisine').style.display = 'none';
 
   if (name === 'stock')      renderStock();
   if (name === 'historique') renderHistorique();
   if (name === 'vin')        renderVin();
   if (name === 'cocktail')   renderCocktail();
   if (name === 'cafe')       renderCafe();
+  if (name === 'cuisine')    cuiOnTab();
 }
 
 /* ═══════════════ COMMANDE ═══════════════ */
@@ -2661,5 +2761,6 @@ if (_isIOS && !_isStandalone) {
   document.getElementById('ios-banner').classList.remove('hidden');
 }
 </script>
+<script src="cuisine.js"></script>
 </body>
 </html>
