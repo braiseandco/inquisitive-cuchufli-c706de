@@ -897,7 +897,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-12.4';
+const APP_VERSION = '2026-09-12.5';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1517,6 +1517,12 @@ function confirmSent() {
     note,
     serveur: settings.serveur || ''
   });
+
+  // Copie dans l'historique commun (réception du BL + contrôle de la facture Le Bihan)
+  if (typeof cuiSyncBarOrder === 'function') {
+    const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
+    cuiSyncBarOrder('Le Bihan', items, note).catch(e => console.error(e));
+  }
 
   commande = {};
   localStorage.removeItem('bc_note');

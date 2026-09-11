@@ -14,8 +14,8 @@ const facNum = s => { if (s == null) return null; s = String(s).replace(/\s| |�
 const facDate = s => { const m = /(\d\d)\/(\d\d)\/(\d{4})/.exec(s || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
 const facD = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 // Unités des factures → unités de l'appli, pour savoir si on peut comparer quantités et prix
-const FAC_UNITES = { KG: 'kilo', K: 'kilo', KILO: 'kilo', L: 'litre', PI: 'pièce', P: 'pièce', U: 'pièce', PC: 'pièce', PIECE: 'pièce', 'PIÈCE': 'pièce', BT: 'boîte', CT: 'carton', CO: 'carton', BD: 'bidon', SH: 'sachet', SA: 'sachet', SO: 'seau', LO: 'lot', COLIS: 'colis' };
-function facUniteApp(u) { u = (u || '').toLowerCase().replace(/\(s\)|s$/g, '').trim(); return { kilo: 'kilo', kg: 'kilo', litre: 'litre', 'pièce': 'pièce', piece: 'pièce', 'unité': 'pièce', 'boîte': 'boîte', boite: 'boîte', bouteille: 'bouteille', carton: 'carton', bidon: 'bidon', sachet: 'sachet', seau: 'seau', lot: 'lot', colis: 'colis', plateau: 'plateau', barquette: 'barquette', filet: 'filet' }[u] || u; }
+const FAC_UNITES = { KG: 'kilo', K: 'kilo', KILO: 'kilo', L: 'litre', PI: 'pièce', P: 'pièce', U: 'pièce', PC: 'pièce', PIECE: 'pièce', 'PIÈCE': 'pièce', BT: 'boîte', CT: 'carton', CO: 'carton', BD: 'bidon', SH: 'sachet', SA: 'sachet', SO: 'seau', LO: 'lot', COLIS: 'colis', FUT: 'fût', CAISSE: 'caisse', CARTON: 'carton', BIB: 'bib', BTL: 'bouteille', BOITE: 'boîte', TUBE: 'tube' };
+function facUniteApp(u) { u = (u || '').toLowerCase().replace(/\(s\)|s$/g, '').trim(); return { kilo: 'kilo', kg: 'kilo', litre: 'litre', 'pièce': 'pièce', piece: 'pièce', 'unité': 'pièce', 'boîte': 'boîte', boite: 'boîte', bouteille: 'bouteille', carton: 'carton', 'pack de 12': 'carton', 'pack de 6': 'carton', 'pack de 24': 'carton', bidon: 'bidon', 'fût': 'fût', fut: 'fût', bib: 'bib', tube: 'tube', sachet: 'sachet', seau: 'seau', lot: 'lot', colis: 'colis', plateau: 'plateau', barquette: 'barquette', filet: 'filet' }[u] || u; }
 const facNorm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
 /* ─── Chargement ─── */
@@ -194,7 +194,9 @@ const FAC_PARSEURS = {
       if ((m = /^Total(?: Factur[ée])? (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
       if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+ ?L|\S+)\s+(\d+\.\d{4})\s+(\d+\.\d{2})\s/.exec(t))) {
         const litres = /^(\d+) ?L$/.exec(m[5]);
-        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: m[4], cont: m[5], pu: facNum(m[6]), montant: facNum(m[7]), litres: litres ? +litres[1] : null });
+        const qte = facNum(m[3]), montant = facNum(m[7]), lt = litres ? +litres[1] : null;
+        // Le tarif Le Bihan (et l'appli) sont droits + éco-taxe compris : on recalcule ce prix à partir du montant
+        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte, unite: m[4], cont: m[5], pu_hd: facNum(m[6]), pu: qte ? Math.round(montant / qte / (lt || 1) * 1000) / 1000 : null, montant, litres: lt });
       }
     });
     if (avoir) { ['ht', 'tva', 'ttc'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
@@ -289,7 +291,8 @@ function facRapprocher(f) {
     const uf = FAC_UNITES[(l.unite || '').toUpperCase()] || null;
     const compat = p && uf && facUniteApp(p.unite) === uf;
     let statut, detail = '';
-    if (!o) { statut = 'sans_commande'; }
+    if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
+    else if (!o) { statut = 'sans_commande'; }
     else if (!cl) { statut = 'non_commande'; }
     else {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
@@ -297,13 +300,16 @@ function facRapprocher(f) {
       else if (cl.ecart) { statut = 'quantite'; detail = cl.ecart; }
       else statut = compat ? 'ok' : 'ok_unite';
     }
+    // Prix facturé ramené à l'unité de prix de l'appli (bar : à la bouteille pour les caisses)
+    const par = /de (\d+)/.exec(p ? p.conditionnement || '' : ''); const parCaisse = par && !l.litres && p && /caisse|carton|pack/i.test(p.unite) ? +par[1] : 1;
+    const puApp = l.pu ? Math.round(l.pu / parCaisse * 1000) / 1000 : null;
     let prix = null;
-    if (p && compat && p.prix != null && l.pu) prix = Math.round((l.pu - p.prix) / p.prix * 1000) / 10;
-    return { ...l, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix };
+    if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
+    return { ...l, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix, puApp };
   });
   // 3) reçu mais pas facturé
   const nonFactures = [];
-  commandes.forEach(o => o.lignes.forEach(cl => { if (!usedL.has(cl.id) && (cl.qte_recue == null || Number(cl.qte_recue) > 0)) nonFactures.push({ commande: o, cmdLigne: cl }); }));
+  if (!lj.avoir) commandes.forEach(o => o.lignes.forEach(cl => { if (!usedL.has(cl.id) && (cl.qte_recue == null || Number(cl.qte_recue) > 0)) nonFactures.push({ commande: o, cmdLigne: cl }); }));
   const ecarts = lignes.filter(l => l.statut === 'quantite' || l.statut === 'non_commande');
   return { commandes, lignes, nonFactures, ecarts, parBl };
 }
@@ -320,9 +326,9 @@ async function facOpen(id, relire) {
   }
   const rap = facRapprocher(f);
   const lj = f.lignes_json || {};
-  const stIcon = { ok: '✓', ok_unite: '✓', quantite: '⚠️', non_commande: '❓', sans_commande: '·' };
-  const stColor = { ok: 'var(--ok)', ok_unite: 'var(--ok)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)' };
-  const stLabel = { ok: 'conforme', ok_unite: 'reçu (unité différente, quantité non comparée)', quantite: 'écart', non_commande: 'pas dans la commande', sans_commande: 'aucune commande dans l\'appli' };
+  const stIcon = { ok: '✓', ok_unite: '✓', quantite: '⚠️', non_commande: '❓', sans_commande: '·', avoir: '↩' };
+  const stColor = { ok: 'var(--ok)', ok_unite: 'var(--ok)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)', avoir: 'var(--ok)' };
+  const stLabel = { ok: 'conforme', ok_unite: 'reçu (unité différente, quantité non comparée)', quantite: 'écart', non_commande: 'pas dans la commande', sans_commande: 'aucune commande dans l\'appli' , avoir: 'avoir / retour' };
   const lignesHtml = rap.lignes.map(l => `<div class="order-line" style="align-items:flex-start;gap:8px">
       <span style="color:${stColor[l.statut]};width:18px;flex-shrink:0">${stIcon[l.statut]}</span>
       <span style="flex:1;min-width:0">${cuiEsc(l.nom)}${l.produit ? '' : ' <span class="prod-meta">(produit inconnu)</span>'}
@@ -375,12 +381,12 @@ async function facValider(id) {
   const rap = facRapprocher(f);
   let maj = 0;
   for (const l of rap.lignes) {
-    if (!l.produit || !l.compat || !l.pu) continue;
-    if (Math.abs(Number(l.produit.prix || 0) - l.pu) < 0.005) continue;
+    if (!l.produit || !l.compat || !l.puApp || l.qte < 0) continue;
+    if (Math.abs(Number(l.produit.prix || 0) - l.puApp) < 0.005) continue;
     try {
-      await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { prix: l.pu, updated_at: new Date().toISOString() });
-      await cuiPOST('cmd_prix_historique', { produit_id: l.produit.id, prix: l.pu, source: 'facture ' + (f.numero || ''), date: f.date_facture || cuiIso(Date.now()) });
-      l.produit.prix = l.pu; maj++;
+      await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { prix: l.puApp, updated_at: new Date().toISOString() });
+      await cuiPOST('cmd_prix_historique', { produit_id: l.produit.id, prix: l.puApp, source: 'facture ' + (f.numero || ''), date: f.date_facture || cuiIso(Date.now()) });
+      l.produit.prix = l.puApp; maj++;
     } catch (e) { console.error(e); }
   }
   await facStatut(id, 'validee');

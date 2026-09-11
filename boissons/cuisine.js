@@ -491,6 +491,33 @@ function cuiOpenReclamation(id) {
     </div>`);
 }
 
+/* ─── Commandes du bar (Le Bihan) : copie dans l'historique commun ───
+   L'onglet Le Bihan garde son fonctionnement (SMS), mais la commande est aussi enregistrée
+   ici pour la réception du BL et le contrôle de la facture. */
+async function cuiSyncBarOrder(nomFournisseur, items, note) {
+  if (!CUI.loaded) await cuiLoad(true);
+  const sup = CUI.sups.find(s => facNormNom(s.nom) === facNormNom(nomFournisseur));
+  if (!sup) { console.warn('Fournisseur bar inconnu :', nomFournisseur); return; }
+  const prods = CUI.prods.filter(p => p.fournisseur_id === sup.id);
+  const lignes = [];
+  for (const it of items) {
+    let p = it.code ? prods.find(x => x.reference === it.code) : null;
+    if (!p) p = prods.find(x => x.nom.toLowerCase() === it.nom.toLowerCase());
+    if (!p) {
+      const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: it.nom, unite: it.unite || 'Pièce(s)', prix: it.prix ?? null, reference: it.code || null, ordre: prods.length + lignes.length });
+      CUI.prods.push(row); p = row;
+    }
+    // Prix de ligne = prix de l'unité commandée (le bar stocke le litre pour les fûts, la bouteille pour les caisses)
+    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
+  }
+  const d = new Date(); const liv = new Date(d.getTime() + 2 * 864e5);
+  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: cuiNextNumero(), date_commande: d.toISOString(), date_livraison: cuiIso(liv), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
+  const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
+  CUI.orders.unshift({ ...cmd, lignes: rows });
+  cuiRender();
+}
+const facNormNom = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
 /* ─── Historique ─── */
 function cuiOpenHistory() {
   cui$('cui-hist-sup').innerHTML = '<option value="">Tous les fournisseurs</option>' + CUI.sups.map(s => `<option value="${s.id}">${cuiEsc(s.nom)}</option>`).join('');
