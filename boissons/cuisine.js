@@ -116,8 +116,18 @@ function cuiShowSup(id) {
 const cuiSupCats = () => CUI.cats.filter(c => c.fournisseur_id === CUI.supId);
 function cuiRenderChips() {
   const favs = CUI.prods.some(p => p.fournisseur_id === CUI.supId && p.favori);
-  const chips = [['all', 'Tous'], ...(favs ? [['fav', '★ Favoris']] : []), ...cuiSupCats().map(c => [c.id, c.nom]), ['__cats', '✎ Catégories']];
-  cui$('cui-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${CUI.cat === k ? 'on' : ''}" onclick="${k === '__cats' ? 'cuiOpenCats()' : `cuiSetCat('${k}')`}">${cuiEsc(l)}</button>`).join('');
+  const minis = CUI.prods.some(p => p.fournisseur_id === CUI.supId && p.stock_mini != null);
+  const chips = [['all', 'Tous'], ...(favs ? [['fav', '★ Favoris']] : []), ...cuiSupCats().map(c => [c.id, c.nom]), ['__cats', '✎ Catégories'], ...(minis ? [['__mini', '⚡ Pré-remplir minis']] : [])];
+  const act = { __cats: 'cuiOpenCats()', __mini: 'cuiPrefillMini()' };
+  cui$('cui-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${CUI.cat === k ? 'on' : ''}" onclick="${act[k] || `cuiSetCat('${k}')`}">${cuiEsc(l)}</button>`).join('');
+}
+// Le stock mini est une indication : on pré-remplit avec, puis on ajuste selon le stock réel
+function cuiPrefillMini() {
+  const d = cuiDraftFor(CUI.supId); const inCart = new Set((d ? d.lignes : []).map(l => l.produit_id));
+  const todo = CUI.prods.filter(p => p.fournisseur_id === CUI.supId && p.stock_mini != null && !inCart.has(p.id));
+  if (!todo.length) { cuiToast('Rien à pré-remplir'); return; }
+  todo.forEach(p => cuiSetQty(p.id, p.stock_mini));
+  cuiToast(`${todo.length} produit${todo.length > 1 ? 's' : ''} pré-rempli${todo.length > 1 ? 's' : ''} — ajustez selon le stock`);
 }
 function cuiSetCat(k) { CUI.cat = k; cuiRenderChips(); cuiRenderProducts(); }
 function cuiRenderProducts() {
@@ -143,7 +153,7 @@ function cuiProdRow(p, line) {
     <button class="cui-star ${p.favori ? 'on' : ''}" onclick="cuiToggleFav('${p.id}')">★</button>
     <div class="prod-info" onclick="cuiOpenProdEdit('${p.id}')">
       <div class="prod-name">${cuiEsc(p.nom)}</div>
-      <div class="prod-meta">${p.reference ? '<span class="prod-code">' + cuiEsc(p.reference) + '</span> · ' : ''}${cuiEsc(p.unite)}${p.prix != null ? ' · <b style="color:var(--text)">' + cuiEur(p.prix) + '</b>' : ''}${p.derniere_commande ? ' · ' + cuiD(p.derniere_commande) : ''}</div>
+      <div class="prod-meta">${p.reference ? '<span class="prod-code">' + cuiEsc(p.reference) + '</span> · ' : ''}${cuiEsc(p.unite)}${p.prix != null ? ' · <b style="color:var(--text)">' + cuiEur(p.prix) + '</b>' : ''}${p.stock_mini != null ? ' · <span style="color:var(--warn)">mini ' + cuiQty(p.stock_mini) + '</span>' : ''}${p.derniere_commande ? ' · ' + cuiD(p.derniere_commande) : ''}</div>
     </div>
     <div class="stepper">
       <button class="s-btn" onclick="cuiAddQty('${p.id}',-1)">−</button>
