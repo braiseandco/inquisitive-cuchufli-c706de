@@ -253,6 +253,8 @@ function cuiOrderText(o) {
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nN° ${o.numero} — livraison souhaitée le ${liv}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
 }
+// Un SMS ne part que vers un portable ; un standard (05, 02, 09) ne le recevrait pas
+function cuiIsMobile(tel) { return /^(\+33\s?|0)[67]/.test((tel || '').replace(/[\s.-]/g, '')); }
 function cuiOrderById(id) { return CUI.orders.find(x => x.id === id) || CUI._pending; }
 function cuiSendSms(id) {
   const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
@@ -260,14 +262,14 @@ function cuiSendSms(id) {
 }
 function cuiSendMail(id) {
   const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
-  window.location.href = buildMailtoUrl(s.email, `Commande Braise & Co ${o.numero} — livraison ${cuiD(o.date_livraison)}`, cuiOrderText(o));
+  window.location.href = buildMailtoUrl(s.email, `Commande Braise & Co ${o.numero} — livraison ${cuiD(o.date_livraison)}`, cuiOrderText(o)) + (s.email_cc ? '&cc=' + encodeURIComponent(s.email_cc) : '');
 }
 function cuiSendButtons(o) {
   const s = cuiSup(o.fournisseur_id) || {};
   return `
-    ${s.telephone ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS · ${cuiEsc(s.telephone)}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendSms('${o.id}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : ''}
+    ${cuiIsMobile(s.telephone) ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS · ${cuiEsc(s.telephone)}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendSms('${o.id}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : ''}
     ${s.email ? `<div style="font-size:12px;color:var(--muted);margin:8px 0 6px;font-weight:600">Email · ${cuiEsc(s.email)}</div><a class="btn-primary" href="#" style="background:var(--surf3);color:var(--text)" onclick="event.preventDefault();cuiSendMail('${o.id}')">✉️ Email — ${cuiEsc(s.nom)}</a>` : ''}
-    ${!s.telephone && !s.email ? '<div class="alert-banner" style="margin:0 0 8px">⚠️ Ni téléphone ni e-mail pour ce fournisseur — renseignez-les via ⚙️.</div>' : ''}
+    ${!cuiIsMobile(s.telephone) && !s.email ? '<div class="alert-banner" style="margin:0 0 8px">⚠️ Ni téléphone ni e-mail pour ce fournisseur — renseignez-les via ⚙️.</div>' : ''}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte (WhatsApp…)</button>`;
 }
 function cuiOpenConfirm() {
@@ -450,7 +452,7 @@ function cuiReclamationText(o) {
 function cuiReclamationSms(id) { const o = CUI.orders.find(x => x.id === id); ouvrirSms((cuiSup(o.fournisseur_id) || {}).telephone, cuiReclamationText(o)); }
 function cuiReclamationMail(id) {
   const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
-  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : o.numero} — Braise & Co`, cuiReclamationText(o));
+  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : o.numero} — Braise & Co`, cuiReclamationText(o)) + (s.email_cc ? '&cc=' + encodeURIComponent(s.email_cc) : '');
 }
 function cuiReclamationCopy(id) { navigator.clipboard.writeText(cuiReclamationText(CUI.orders.find(x => x.id === id))).then(() => cuiToast('📋 Copié')); }
 function cuiOpenReclamation(id) {
@@ -458,7 +460,7 @@ function cuiOpenReclamation(id) {
   cuiModal(`📣 Réclamation · ${cuiEsc(s.nom)}`, `
     <div class="modal-section"><div class="ms-label">Message</div><div class="ms-val" style="font-size:13px">${cuiEsc(cuiReclamationText(o))}</div></div>
     <div class="modal-actions">
-      ${s.telephone ? `<a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationSms('${id}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : ''}
+      ${cuiIsMobile(s.telephone) ? `<a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationSms('${id}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : ''}
       ${s.email ? `<a class="btn-primary" href="#" style="background:var(--surf3);color:var(--text)" onclick="event.preventDefault();cuiReclamationMail('${id}')">✉️ Email — ${cuiEsc(s.nom)}</a>` : ''}
       <button class="btn-secondary" onclick="cuiReclamationCopy('${id}')">📋 Copier le texte</button>
       <button class="btn-close" onclick="cuiOpenOrder('${id}')">Retour à la commande</button>
@@ -586,7 +588,7 @@ function cuiOpenSupEdit(isNew) {
   const s = isNew ? { delai_livraison_jours: 2 } : cuiSup(CUI.supId);
   cuiModal(isNew ? 'Nouveau fournisseur' : 'Fournisseur', `
     <div class="form-2col"><div class="form-row"><label>Nom</label><input id="cui-sNom" value="${cuiEsc(s.nom || '')}"></div><div class="form-row"><label>Emoji</label><input id="cui-sEmoji" value="${cuiEsc(s.emoji || '')}" placeholder="📦"></div></div>
-    <div class="form-row"><label>E-mail commandes</label><input id="cui-sEmail" type="email" value="${cuiEsc(s.email || '')}"></div>
+    <div class="form-2col"><div class="form-row"><label>E-mail commandes</label><input id="cui-sEmail" type="email" value="${cuiEsc(s.email || '')}"></div><div class="form-row"><label>Copie (cc)</label><input id="cui-sCc" type="email" value="${cuiEsc(s.email_cc || '')}"></div></div>
     <div class="form-2col"><div class="form-row"><label>Téléphone (SMS)</label><input id="cui-sTel" type="tel" value="${cuiEsc(s.telephone || '')}"></div><div class="form-row"><label>N° client</label><input id="cui-sNum" value="${cuiEsc(s.numero_client || '')}"></div></div>
     <div class="form-2col"><div class="form-row"><label>Jours de commande</label><input id="cui-sJours" value="${cuiEsc(s.jours_commande || '')}" placeholder="ex : dim. pour mar."></div><div class="form-row"><label>Délai livraison (jours)</label><input id="cui-sDelai" type="number" min="0" value="${s.delai_livraison_jours ?? 1}"></div></div>
     <div class="form-row"><label>Notes</label><input id="cui-sNotes" value="${cuiEsc(s.notes || '')}"></div>
@@ -598,7 +600,7 @@ function cuiOpenSupEdit(isNew) {
 }
 async function cuiSaveSup(isNew) {
   const nom = cui$('cui-sNom').value.trim(); if (!nom) { cuiToast('Nom obligatoire'); return; }
-  const data = { nom, emoji: cui$('cui-sEmoji').value.trim() || null, email: cui$('cui-sEmail').value.trim() || null, telephone: cui$('cui-sTel').value.trim() || null, numero_client: cui$('cui-sNum').value.trim() || null, jours_commande: cui$('cui-sJours').value.trim() || null, delai_livraison_jours: parseInt(cui$('cui-sDelai').value) || 0, notes: cui$('cui-sNotes').value.trim() || null };
+  const data = { nom, emoji: cui$('cui-sEmoji').value.trim() || null, email: cui$('cui-sEmail').value.trim() || null, email_cc: cui$('cui-sCc').value.trim() || null, telephone: cui$('cui-sTel').value.trim() || null, numero_client: cui$('cui-sNum').value.trim() || null, jours_commande: cui$('cui-sJours').value.trim() || null, delai_livraison_jours: parseInt(cui$('cui-sDelai').value) || 0, notes: cui$('cui-sNotes').value.trim() || null };
   try {
     if (isNew) { const [row] = await cuiPOST('cmd_fournisseurs', { ...data, ordre: CUI.sups.length }); CUI.sups.push(row); cuiCloseModal(); cuiShowSup(row.id); }
     else { const [row] = await cuiPATCH('cmd_fournisseurs?id=eq.' + CUI.supId, data); Object.assign(cuiSup(CUI.supId), row); cuiCloseModal(); cuiShowSup(CUI.supId); }
