@@ -63,6 +63,7 @@ function cuiRender() {
   if (!CUI.loaded) return;
   if (CUI.supId && !cui$('cui-sup').classList.contains('hidden')) { cuiRenderChips(); cuiRenderProducts(); cuiRenderBar(); }
   else if (!cui$('cui-hist').classList.contains('hidden')) cuiRenderHistory();
+  else if (!cui$('cui-fact').classList.contains('hidden')) { if (typeof facRender === 'function') facRender(); }
   else cuiRenderHome();
 }
 function cuiOnTab() {
@@ -75,7 +76,7 @@ document.addEventListener('visibilitychange', () => {
 
 /* ─── Accueil : fournisseurs + dernières commandes ─── */
 function cuiShowHome() {
-  cui$('cui-home').classList.remove('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden');
+  cui$('cui-home').classList.remove('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden');
   CUI.supId = null; cuiRenderHome(); cuiRenderBar();
 }
 function cuiRenderHome() {
@@ -110,7 +111,7 @@ function cuiShowSup(id) {
   const contact = s.mode_commande === 'sms' ? 'SMS ' + (s.telephone || '') : s.mode_commande === 'appel' ? '📞 ' + (s.telephone || '') : s.email;
   cui$('cui-sup-sub').textContent = [s.jours_commande, contact, s.commercial_nom ? s.commercial_nom + ' ' + (s.commercial_tel || '') : null].filter(Boolean).join(' · ');
   const d = cuiDraftFor(id); cui$('cui-note').value = d && d.note ? d.note : '';
-  cui$('cui-home').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-sup').classList.remove('hidden');
+  cui$('cui-home').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden'); cui$('cui-sup').classList.remove('hidden');
   cuiRenderChips(); cuiRenderProducts(); cuiRenderBar();
   cui$('panel-cuisine').scrollTop = 0;
 }
@@ -493,7 +494,7 @@ function cuiOpenReclamation(id) {
 /* ─── Historique ─── */
 function cuiOpenHistory() {
   cui$('cui-hist-sup').innerHTML = '<option value="">Tous les fournisseurs</option>' + CUI.sups.map(s => `<option value="${s.id}">${cuiEsc(s.nom)}</option>`).join('');
-  cui$('cui-home').classList.add('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.remove('hidden');
+  cui$('cui-home').classList.add('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-fact').classList.add('hidden'); cui$('cui-hist').classList.remove('hidden');
   CUI.supId = null; cuiRenderBar(); cuiRenderHistory();
 }
 function cuiRenderHistory() {
@@ -520,19 +521,25 @@ async function cuiOpenRecap(year) {
     const a = bySup[o.fournisseur_id] = bySup[o.fournisseur_id] || { n: 0, t: 0 }; a.n++; a.t += t;
     const m = new Date(o.date_commande).getMonth(); byMonth[m] = (byMonth[m] || 0) + t;
   });
+  // Montants réellement facturés (écran Factures), à côté de l'estimation des commandes
+  let fac = { bySup: {}, byMonth: {}, total: 0, n: 0 };
+  try { if (typeof facTotauxAnnee === 'function') fac = await facTotauxAnnee(year); } catch (e) { console.error(e); }
+  Object.keys(fac.bySup).forEach(id => { if (!bySup[id]) bySup[id] = { n: 0, t: 0 }; });
   const mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-  const supRows = Object.entries(bySup).sort((a, b) => b[1].t - a[1].t).map(([id, a]) => {
+  const supRows = Object.entries(bySup).sort((a, b) => (fac.bySup[b[0]] || b[1].t) - (fac.bySup[a[0]] || a[1].t)).map(([id, a]) => {
     const s = cuiSup(id) || { nom: 'Fournisseur supprimé' };
-    return `<div class="order-line"><span>${s.emoji || ''} ${cuiEsc(s.nom)}<div class="prod-meta">${a.n} commande${a.n > 1 ? 's' : ''}</div></span><span class="order-line-qty">${cuiEur(a.t)}</span></div>`;
+    const ft = fac.bySup[id];
+    return `<div class="order-line"><span>${s.emoji || ''} ${cuiEsc(s.nom)}<div class="prod-meta">${a.n} commande${a.n > 1 ? 's' : ''} · estimé ${cuiEur(a.t) || '—'}</div></span><span class="order-line-qty">${ft ? cuiEur(ft) : '<span style="color:var(--muted)">' + (cuiEur(a.t) || '—') + '</span>'}</span></div>`;
   }).join('') || '<div class="prod-meta">Aucune commande cette année.</div>';
+  if (fac.n) { Object.assign(byMonth, fac.byMonth); total = fac.total; }
   const maxM = Math.max(1, ...Object.values(byMonth));
   const monthRows = mois.map((m, i) => `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0"><span style="width:34px;color:var(--muted)">${m}</span><div style="flex:1;height:8px;background:var(--surf3);border-radius:4px;overflow:hidden"><div style="width:${Math.round((byMonth[i] || 0) / maxM * 100)}%;height:100%;background:var(--orange)"></div></div><span style="width:74px;text-align:right">${byMonth[i] ? cuiEur(byMonth[i]) : ''}</span></div>`).join('');
   const y = new Date().getFullYear();
   cuiModal(`Achats ${year}`, `
     <div style="display:flex;gap:8px;margin-bottom:10px">${[y - 2, y - 1, y].map(k => `<button class="cui-chip ${k === year ? 'on' : ''}" onclick="cuiOpenRecap(${k})">${k}</button>`).join('')}</div>
-    <div class="modal-section"><div class="ms-label">Total HT estimé</div><div class="ms-val" style="font-size:22px;font-weight:800;color:var(--orange)">${cuiEur(total)}</div>
-      <div class="prod-meta">${rows.length} commande${rows.length > 1 ? 's' : ''}${sansPrix ? ` · ⚠️ ${sansPrix} ligne${sansPrix > 1 ? 's' : ''} sans prix (non comptée${sansPrix > 1 ? 's' : ''})` : ''}</div></div>
-    <div class="modal-section"><div class="ms-label">Par fournisseur</div>${supRows}</div>
+    <div class="modal-section"><div class="ms-label">${fac.n ? 'Total HT facturé' : 'Total HT estimé'}</div><div class="ms-val" style="font-size:22px;font-weight:800;color:var(--orange)">${cuiEur(total)}</div>
+      <div class="prod-meta">${fac.n ? `${fac.n} facture${fac.n > 1 ? 's' : ''} · ` : ''}${rows.length} commande${rows.length > 1 ? 's' : ''}${sansPrix ? ` · ⚠️ ${sansPrix} ligne${sansPrix > 1 ? 's' : ''} sans prix` : ''}</div></div>
+    <div class="modal-section"><div class="ms-label">Par fournisseur${fac.n ? ' (facturé HT)' : ''}</div>${supRows}</div>
     <div class="modal-section"><div class="ms-label">Par mois</div>${monthRows}</div>
     <div class="modal-actions"><button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
 }

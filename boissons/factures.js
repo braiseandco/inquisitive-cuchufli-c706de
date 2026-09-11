@@ -1,0 +1,418 @@
+/* ═══════════════ FACTURES — contrôle facture ↔ commande ↔ réception ═══════════════
+   Espace patron (appui long sur le logo). Les PDF arrivent dans le bucket Supabase "factures"
+   via l'Apps Script d'import ; ici on les lit dans le navigateur (pdf.js, gratuit), on en
+   extrait les lignes selon le format de chaque fournisseur, puis on les rapproche des
+   commandes et réceptions saisies dans l'onglet Cuisine. S'appuie sur cuisine.js (CUI, cui*). */
+
+const FAC = { rows: [], filtre: 'a_controler', loaded: false };
+const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée' };
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ─── Utilitaires ─── */
+const facNum = s => { if (s == null) return null; s = String(s).replace(/\s| |€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = parseFloat(s); return isNaN(n) ? null : n; };
+const facDate = s => { const m = /(\d\d)\/(\d\d)\/(\d{4})/.exec(s || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+const facD = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+// Unités des factures → unités de l'appli, pour savoir si on peut comparer quantités et prix
+const FAC_UNITES = { KG: 'kilo', K: 'kilo', KILO: 'kilo', L: 'litre', PI: 'pièce', P: 'pièce', U: 'pièce', PC: 'pièce', PIECE: 'pièce', 'PIÈCE': 'pièce', BT: 'boîte', CT: 'carton', CO: 'carton', BD: 'bidon', SH: 'sachet', SA: 'sachet', SO: 'seau', LO: 'lot', COLIS: 'colis' };
+function facUniteApp(u) { u = (u || '').toLowerCase().replace(/\(s\)|s$/g, '').trim(); return { kilo: 'kilo', kg: 'kilo', litre: 'litre', 'pièce': 'pièce', piece: 'pièce', 'unité': 'pièce', 'boîte': 'boîte', boite: 'boîte', bouteille: 'bouteille', carton: 'carton', bidon: 'bidon', sachet: 'sachet', seau: 'seau', lot: 'lot', colis: 'colis', plateau: 'plateau', barquette: 'barquette', filet: 'filet' }[u] || u; }
+const facNorm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/* ─── Chargement ─── */
+async function facLoad() {
+  try {
+    FAC.rows = await cuiGET('cmd_factures?order=date_facture.desc.nullslast,created_at.desc&limit=300');
+    FAC.loaded = true;
+  } catch (e) { console.error(e); cuiToast('Factures : erreur de connexion'); }
+}
+function facSup(id) { return CUI.sups.find(s => s.id === id); }
+
+/* ─── Espace patron (appui long sur le logo) ─── */
+async function cuiOpenPatron() {
+  if (!CUI.loaded) await cuiLoad(true);
+  if (!FAC.loaded) await facLoad();
+  const n = FAC.rows.filter(f => f.statut === 'a_controler').length;
+  const c = FAC.rows.filter(f => f.statut === 'contestee').length;
+  cuiModal('Espace patron', `
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="cuiCloseModal();facShow()">🧾 Factures${n ? ` · ${n} à contrôler` : ''}${c ? ` · ${c} contestée${c > 1 ? 's' : ''}` : ''}</button>
+      <button class="btn-secondary" onclick="cuiOpenRecap()">📊 Récap des achats</button>
+      <button class="btn-secondary" onclick="cuiCloseModal();switchTab('historique')">🍺 Historique bar</button>
+      <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
+    </div>`);
+}
+
+/* ─── Liste ─── */
+async function facShow() {
+  switchTab('cuisine');
+  if (!FAC.loaded) await facLoad();
+  cui$('cui-home').classList.add('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden');
+  cui$('cui-fact').classList.remove('hidden');
+  CUI.supId = null; cuiRenderBar(); facRender();
+}
+function facHide() { cui$('cui-fact').classList.add('hidden'); cuiShowHome(); }
+function facSetFiltre(k) { FAC.filtre = k; facRender(); }
+function facRender() {
+  const counts = {}; FAC.rows.forEach(f => counts[f.statut] = (counts[f.statut] || 0) + 1);
+  const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['all', 'Toutes']];
+  cui$('cui-fact-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${FAC.filtre === k ? 'on' : ''}" onclick="facSetFiltre('${k}')">${l}${k !== 'all' && counts[k] ? ' · ' + counts[k] : ''}</button>`).join('');
+  const list = FAC.rows.filter(f => FAC.filtre === 'all' || f.statut === FAC.filtre);
+  cui$('cui-fact-list').innerHTML = list.map(f => {
+    const s = facSup(f.fournisseur_id) || {};
+    const r = f.ecarts_json || {};
+    return `<div class="hist-item cui-order-row" onclick="facOpen('${f.id}')">
+      <div class="hist-date">${facD(f.date_facture)}${f.date_echeance ? ' · échéance ' + facD(f.date_echeance) : ''}${f.envoye_comptable_at ? ' · comptable ✓' : ''}</div>
+      <div class="hist-summary">${s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')} <span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut] || f.statut}</span><span style="float:right;color:var(--orange)">${f.montant_ttc != null ? cuiEur(f.montant_ttc) + ' TTC' : ''}</span></div>
+      <div class="hist-detail">n° ${cuiEsc(f.numero || '—')}${f.montant_ht != null ? ' · ' + cuiEur(f.montant_ht) + ' HT' : ''}${r.nb_ecarts ? ` · <span style="color:var(--danger)">⚠️ ${r.nb_ecarts} écart${r.nb_ecarts > 1 ? 's' : ''}</span>` : r.nb_lignes ? ' · <span style="color:var(--ok)">✓ ' + r.nb_lignes + ' lignes</span>' : f.pdf_path ? ' · PDF non lu' : ' · saisie manuelle'}</div>
+    </div>`;
+  }).join('') || '<div class="empty-state">Aucune facture.</div>';
+}
+
+/* ─── Lecture du PDF (pdf.js) ─── */
+function facLoadPdfjs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  return new Promise((ok, ko) => {
+    const s = document.createElement('script'); s.src = PDFJS_URL;
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; ok(); };
+    s.onerror = () => ko(new Error('pdf.js introuvable'));
+    document.head.appendChild(s);
+  });
+}
+async function facFetchPdf(path) {
+  const r = await fetch(SB_URL + '/storage/v1/object/authenticated/factures/' + path, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+  if (!r.ok) throw new Error('PDF introuvable (' + r.status + ')');
+  return r.arrayBuffer();
+}
+// Reconstitue les lignes de texte du PDF (pdf.js rend des fragments positionnés)
+async function facPdfLines(buf) {
+  await facLoadPdfjs();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const lines = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(i => i.str && i.str.trim()).map(i => ({ x: i.transform[4], y: i.transform[5], s: i.str }));
+    items.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+    let cur = null;
+    items.forEach(i => {
+      if (!cur || Math.abs(cur.y - i.y) > 3) { cur = { y: i.y, parts: [] }; lines.push(cur); }
+      cur.parts.push(i);
+    });
+    lines.push({ y: -1, parts: [{ x: 0, s: '\f' }] });
+  }
+  return lines.map(l => l.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+
+/* ─── Parseurs : un par format de facture ───
+   Résultat : { bls:[{numero,date}], lignes:[{bl,ref,nom,qte,unite,pu,montant}], numero, date, echeance, ht, tva, ttc } */
+const FAC_PARSEURS = {
+  lodifrais(L) {
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /Num[ée]ro\s*:\s*F?(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      if ((m = /Date\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t)) && !r.date) r.date = facDate(m[1]);
+      if ((m = /BL N.{1,2}\s*(\w+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /PRELEVEMENTS\s+(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /Net .{1,2} payer\s*:\s*(\d{1,3}(?:\s?\d{3})*[.,]\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^([\d\s]+\.\d{2}) ([\d\s]+\.\d{2}) ([\d\s]+\.\d{2})$/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
+      if ((m = /^(?:[A-Z]\s+)?(\d{5,6})\s*(.+?)\s+(\d+(?:\.\d+)?)\s*([A-Z]{1,3})\s+(\d+\.\d{3})\s+(\d+\.\d{2})\s+\d{2}$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: m[4], pu: facNum(m[5]), montant: facNum(m[6]) });
+    });
+    return r;
+  },
+  ds(L) {
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /N[°º] Facture\s*:\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      if ((m = /Date\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t)) && !r.date) r.date = facDate(m[1]);
+      if ((m = /BL\s*:\s*(\d+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /plus tard le\s*:?\s*(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /^\d\s+[\d.,]+%\s+([\d\s.,]+?)\s+([\d\s.,]+)$/.exec(t)) && !r.ht) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
+      if ((m = /^(\d{1,3}(?:\s?\d{3})*[.,]\d{2})\s*€$/.exec(t)) && r.ttc == null) r.ttc = facNum(m[1]);
+      if ((m = /^[A-Z]\s+[A-Z]\s+(\d{5})\s+(.+?)\s+[A-Z]{2,3}\s+([A-Z]{2})\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+\d$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[4]), unite: m[3], pu: facNum(m[5]), montant: facNum(m[6]) });
+    });
+    return r;
+  },
+  jardins(L) {
+    const r = { bls: [], lignes: [] }; let bl = null, tot = 0;
+    L.forEach(t => {
+      let m;
+      if ((m = /(REL\d+) (\d\d\/\d\d\/\d{4})/.exec(t))) { r.numero = r.numero || m[1]; r.date = r.date || facDate(m[2]); }
+      if ((m = /^Facture (FC\/\d+\/\d+)/.exec(t)) && !/REL/.test(r.numero || '')) r.numero = r.numero || m[1];
+      if ((m = /BL(\d+) (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); r.date = r.date || facDate(m[2]); }
+      if ((m = /Total HT ([\d\s]+,\d{2}) €/.exec(t)) && tot === 0) { r.ht = facNum(m[1]); tot = 1; }
+      if ((m = /^Taxes ([\d\s]+,\d{2}) €/.exec(t)) && tot === 1) { r.tva = facNum(m[1]); tot = 2; }
+      if ((m = /Total TTC ([\d\s]+,\d{2}) €/.exec(t)) && tot === 2) { r.ttc = facNum(m[1]); tot = 3; }
+      if ((m = /^(.+?)\s+(Net|Pi[èe]ce)\s+(\d+(?:\.\d+)?)(?:\s+(\d+(?:\.\d+)?))?\s+(\d+,\d{3})\s+(\d+,\d{2})\s*€?$/.exec(t))) {
+        const net = m[2] === 'Net';
+        r.lignes.push({ bl, ref: null, nom: m[1].replace(/\s*DLC \S+/, '').replace(/\s+CAT\.\d.*$/, '').trim(), qte: net ? facNum(m[4] || m[3]) : facNum(m[3]), unite: net ? 'KG' : 'PI', colis: net && m[4] ? facNum(m[3]) : null, pu: facNum(m[5]), montant: facNum(m[6]) });
+      }
+    });
+    return r;
+  },
+  mericq(L) {
+    const r = { bls: [], lignes: [] }; let bl = null, prev = '';
+    L.forEach(t => {
+      let m;
+      if ((m = /^(\d{8}) (\d\d\/\d\d\/\d{4}) \d+$/.exec(t))) { r.numero = m[1]; r.date = facDate(m[2]); }
+      if ((m = /Liv No (\d+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /Ech[ée]ance au (\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /Totaux ([\d\s]+,\d{2}) ?€ ([\d\s]+,\d{2}) ?€ ([\d\s]+,\d{2}) ?€/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); r.ttc = facNum(m[3]); }
+      if ((m = /^(.*?)\s*(\d+,\d{2})\s+K\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+\d$/.exec(t))) {
+        r.lignes.push({ bl, ref: null, nom: m[1].trim() || prev, qte: facNum(m[2]), unite: 'KG', pu: facNum(m[3]), montant: facNum(m[4]) });
+      } else if ((m = /^(.*?)\s*(\d+)\s+(\d+,\d{2})\s+U\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+\d$/.exec(t))) {
+        r.lignes.push({ bl, ref: null, nom: m[1].trim() || prev, qte: facNum(m[2]), unite: 'PI', poids: facNum(m[3]), pu: facNum(m[4]), montant: facNum(m[5]) });
+      } else if (!/^\*+|^Total|^Pour tout|^veuillez|^Nombre/.test(t)) prev = t;
+    });
+    return r;
+  },
+  blason(L) {
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /\s(\d{8}) (\d\d\/\d\d\/\d{4})$/.exec(t)) && !r.numero) { r.numero = m[1]; r.date = facDate(m[2]); }
+      if ((m = /B\.L\. (\d+) .*Livr[ée] le (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; if (!r.bls.some(b => b.numero === bl)) r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /^(\d\d\/\d\d\/\d{4}) \d\d\/\d\d\/\d{4}$/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /^([\d\s]+,\d{2}) ([\d\s]+,\d{2}) ([\d\s]+,\d{2}) EUR$/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); r.ttc = facNum(m[3]); }
+      if ((m = /^(\d{6})\s+(.+?)\s+\d+\s+[A-Z]\s+(\d+,\d{3})\s+Kg\s+(\d+,\d{4})\s*\/Kg\s+(\d+,\d{4})\s*\/Kg\s+[A-Z]\s+(\d+,\d{2})$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: 'KG', pu: facNum(m[5]), montant: facNum(m[6]) });
+    });
+    return r;
+  },
+  yesfood(L) {
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /FACTURE N[°º]\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      if ((m = /^du (\d\d\/\d\d\/\d{4})/.exec(t))) r.date = r.date || facDate(m[1]);
+      if ((m = /^(\d{8}) (\d\d\/\d\d\/\d{4}) \S+ (\d\d\/\d\d\/\d{4})/.exec(t)) && !bl) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); r.echeance = facDate(m[3]); }
+      if ((m = /TOTAL TTC \(EUR\) ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /TOTAL TVA ([\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /^([\d\s]+,\d{2}) € \d+,\d{2}%/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(\d+)\s+([\d\s]+,\d{3})\s+(KG|PC|U)\s+(\d+,\d{3})\s+([\d\s]+,\d{2})$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[4]), unite: m[5], colis: facNum(m[3]), pu: facNum(m[6]), montant: facNum(m[7]) });
+    });
+    if (r.ttc != null && r.tva != null) r.ht = Math.round((r.ttc - r.tva) * 100) / 100;
+    return r;
+  },
+};
+function facParseurPour(f) {
+  const s = facSup(f.fournisseur_id); const n = facNorm(s ? s.nom : '');
+  if (n.includes('lodifrais')) return 'lodifrais';
+  if (n.includes('ds ') || n.includes('sirf')) return 'ds';
+  if (n.includes('jardins')) return 'jardins';
+  if (n.includes('mericq') || n.includes('merik')) return 'mericq';
+  if (n.includes('blason')) return 'blason';
+  if (n.includes('yesfood') || n.includes('yes food')) return 'yesfood';
+  return null;
+}
+async function facAnalyser(f, force) {
+  if (!f.pdf_path) return;
+  const parseur = facParseurPour(f);
+  const L = await facPdfLines(await facFetchPdf(f.pdf_path));
+  const res = parseur ? FAC_PARSEURS[parseur](L) : { bls: [], lignes: [] };
+  if (!res.ht && res.lignes.length) res.ht = Math.round(res.lignes.reduce((a, l) => a + (l.montant || 0), 0) * 100) / 100;
+  const patch = {
+    lignes_json: { parseur, bls: res.bls, lignes: res.lignes, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
+    numero: f.numero || res.numero || null,
+    date_facture: res.date || f.date_facture || null,
+    date_echeance: res.echeance || f.date_echeance || null,
+    montant_ht: res.ht ?? f.montant_ht ?? null, montant_tva: res.tva ?? f.montant_tva ?? null, montant_ttc: res.ttc ?? f.montant_ttc ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  Object.assign(f, patch);
+  const rap = facRapprocher(f);
+  f.ecarts_json = patch.ecarts_json = { nb_lignes: res.lignes.length, nb_ecarts: rap.ecarts.length, commandes: rap.commandes.map(c => c.id) };
+  await cuiPATCH('cmd_factures?id=eq.' + f.id, patch);
+  return rap;
+}
+
+/* ─── Rapprochement facture ↔ commandes ↔ réception ─── */
+function facTrouverProduit(f, l) {
+  const prods = CUI.prods.filter(p => p.fournisseur_id === f.fournisseur_id);
+  if (l.ref) { const p = prods.find(p => p.reference && p.reference.replace(/\D/g, '').replace(/^0+/, '') === String(l.ref).replace(/\D/g, '').replace(/^0+/, '')); if (p) return p; }
+  const mots = facNorm(l.nom).split(' ').filter(w => w.length > 2);
+  let best = null, score = 0;
+  prods.forEach(p => {
+    const pm = facNorm(p.nom).split(' ').filter(w => w.length > 2);
+    const hit = mots.filter(w => pm.some(x => x.startsWith(w.slice(0, 5)) || w.startsWith(x.slice(0, 5)))).length;
+    const sc = hit / Math.max(1, Math.min(mots.length, pm.length));
+    if (sc > score && hit >= 1) { score = sc; best = p; }
+  });
+  return score >= 0.5 ? best : null;
+}
+function facRapprocher(f) {
+  const lj = f.lignes_json || { bls: [], lignes: [] };
+  const orders = CUI.orders.filter(o => o.fournisseur_id === f.fournisseur_id && o.statut !== 'annulee' && o.statut !== 'brouillon');
+  // 1) commandes : par n° de BL saisi à la réception, sinon par date de livraison proche
+  const parBl = {};
+  const used = o => Object.values(parBl).includes(o);
+  lj.bls.forEach(b => {
+    const o = orders.find(o => o.numero_bl && o.numero_bl.replace(/\D/g, '') === String(b.numero).replace(/\D/g, ''));
+    if (o) parBl[b.numero] = o;
+  });
+  lj.bls.filter(b => !parBl[b.numero] && b.date).forEach(b => {
+    const d = new Date(b.date).getTime();
+    const o = orders.filter(o => !used(o) && !o.numero_bl).map(o => ({ o, dt: Math.abs(new Date(o.date_reception || o.date_livraison).getTime() - d) })).filter(x => x.dt <= 2 * 864e5).sort((a, b) => a.dt - b.dt).map(x => x.o)[0];
+    if (o) parBl[b.numero] = o;
+  });
+  const commandes = [...new Set(Object.values(parBl))];
+  // 2) lignes
+  const usedL = new Set();
+  const lignes = lj.lignes.map(l => {
+    const p = facTrouverProduit(f, l);
+    const o = l.bl ? parBl[l.bl] : commandes[0];
+    const cl = p && o ? o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) : null;
+    if (cl) usedL.add(cl.id);
+    const uf = FAC_UNITES[(l.unite || '').toUpperCase()] || null;
+    const compat = p && uf && facUniteApp(p.unite) === uf;
+    let statut, detail = '';
+    if (!o) { statut = 'sans_commande'; }
+    else if (!cl) { statut = 'non_commande'; }
+    else {
+      const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
+      if (compat && Math.abs(recu - l.qte) > 0.01) { statut = 'quantite'; detail = `facturé ${cuiQty(l.qte)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
+      else if (cl.ecart) { statut = 'quantite'; detail = cl.ecart; }
+      else statut = compat ? 'ok' : 'ok_unite';
+    }
+    let prix = null;
+    if (p && compat && p.prix != null && l.pu) prix = Math.round((l.pu - p.prix) / p.prix * 1000) / 10;
+    return { ...l, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix };
+  });
+  // 3) reçu mais pas facturé
+  const nonFactures = [];
+  commandes.forEach(o => o.lignes.forEach(cl => { if (!usedL.has(cl.id) && (cl.qte_recue == null || Number(cl.qte_recue) > 0)) nonFactures.push({ commande: o, cmdLigne: cl }); }));
+  const ecarts = lignes.filter(l => l.statut === 'quantite' || l.statut === 'non_commande');
+  return { commandes, lignes, nonFactures, ecarts, parBl };
+}
+
+/* ─── Détail d'une facture ─── */
+async function facOpen(id, relire) {
+  const f = FAC.rows.find(x => x.id === id); if (!f) return;
+  const s = facSup(f.fournisseur_id) || {};
+  const titre = `🧾 ${cuiEsc(s.nom || 'Facture')} · ${cuiEsc(f.numero || '')}`;
+  if (f.pdf_path && (!f.lignes_json || relire)) {
+    cuiModal(titre, '<div class="empty-state"><span style="display:inline-block;width:20px;height:20px;border:2px solid var(--dim);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite"></span><br><br>Lecture du PDF…</div>');
+    try { await facAnalyser(f, relire); facRender(); }
+    catch (e) { console.error(e); cuiToast('Lecture du PDF impossible : ' + e.message); }
+  }
+  const rap = facRapprocher(f);
+  const lj = f.lignes_json || {};
+  const stIcon = { ok: '✓', ok_unite: '✓', quantite: '⚠️', non_commande: '❓', sans_commande: '·' };
+  const stColor = { ok: 'var(--ok)', ok_unite: 'var(--ok)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)' };
+  const stLabel = { ok: 'conforme', ok_unite: 'reçu (unité différente, quantité non comparée)', quantite: 'écart', non_commande: 'pas dans la commande', sans_commande: 'aucune commande dans l\'appli' };
+  const lignesHtml = rap.lignes.map(l => `<div class="order-line" style="align-items:flex-start;gap:8px">
+      <span style="color:${stColor[l.statut]};width:18px;flex-shrink:0">${stIcon[l.statut]}</span>
+      <span style="flex:1;min-width:0">${cuiEsc(l.nom)}${l.produit ? '' : ' <span class="prod-meta">(produit inconnu)</span>'}
+        <div class="prod-meta">${l.ref ? cuiEsc(l.ref) + ' · ' : ''}${cuiQty(l.qte)} ${cuiEsc(l.unite)} × ${cuiEur(l.pu)}${l.statut !== 'ok' ? ' · <span style="color:' + stColor[l.statut] + '">' + (l.detail || stLabel[l.statut]) + '</span>' : ''}${l.prix != null && Math.abs(l.prix) >= 0.5 ? ` · <span style="color:${Math.abs(l.prix) > 10 ? 'var(--warn)' : 'var(--muted)'}">prix ${l.prix > 0 ? '+' : ''}${l.prix} %</span>` : ''}</div>
+      </span>
+      <span class="order-line-qty">${cuiEur(l.montant)}</span>
+    </div>`).join('');
+  const nonFact = rap.nonFactures.map(x => `<div class="order-line"><span style="color:var(--muted)">↩ ${cuiEsc(x.cmdLigne.nom)}<div class="prod-meta">reçu ${cuiQty(x.cmdLigne.qte_recue ?? x.cmdLigne.quantite)} ${cuiEsc(x.cmdLigne.unite || '')} (${cuiEsc(x.commande.numero)}) — non facturé</div></span></div>`).join('');
+  const cmdHtml = lj.bls && lj.bls.length ? lj.bls.map(b => { const o = rap.parBl[b.numero]; return `<div class="prod-meta">BL ${cuiEsc(b.numero)} du ${facD(b.date)} → ${o ? `<b style="color:var(--text)">${cuiEsc(o.numero)}</b> (${o.date_reception ? 'réceptionnée ' + facD(o.date_reception) + (o.numero_bl ? ', BL ' + cuiEsc(o.numero_bl) : '') : 'livraison prévue ' + facD(o.date_livraison) + ', non réceptionnée'})` : '<span style="color:var(--warn)">aucune commande trouvée</span>'}</div>`; }).join('') : '<div class="prod-meta">Aucun bon de livraison identifié.</div>';
+  const nbE = rap.ecarts.length;
+  cuiModal(titre, `
+    <div class="modal-section"><div class="cui-kv">
+      <div><span>Statut</span><span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut]}</span></div><div><span>Date</span>${facD(f.date_facture)}</div>
+      <div><span>Échéance</span>${facD(f.date_echeance)}</div><div><span>Montants</span>${f.montant_ht != null ? cuiEur(f.montant_ht) + ' HT' : '—'}${f.montant_ttc != null ? ' · ' + cuiEur(f.montant_ttc) + ' TTC' : ''}</div>
+    </div>${f.note ? `<div style="margin-top:8px" class="ms-val">${cuiEsc(f.note)}</div>` : ''}</div>
+    <div class="modal-section"><div class="ms-label">Livraisons</div>${cmdHtml}</div>
+    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
+    <div class="modal-actions">
+      ${f.pdf_path ? `<button class="btn-secondary" onclick="facVoirPdf('${f.id}')">📄 Voir le PDF</button>` : ''}
+      <div class="cui-row-btns">
+        ${f.statut === 'a_controler' || f.statut === 'contestee' ? `<button class="btn-primary" onclick="facValider('${f.id}')">✓ Valider</button>` : ''}
+        ${f.statut === 'a_controler' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="facContester('${f.id}')">📣 Contester</button>` : ''}
+        ${f.statut === 'validee' ? `<button class="btn-secondary" onclick="facStatut('${f.id}','payee')">💶 Payée</button>` : ''}
+        ${f.statut === 'contestee' ? `<button class="btn-secondary" onclick="facContester('${f.id}')">📣 Relancer</button>` : ''}
+        <button class="btn-secondary" onclick="facEdit('${f.id}')">✏️ Modifier</button>
+        ${f.pdf_path ? `<button class="btn-secondary" onclick="facOpen('${f.id}', true)">↻ Relire le PDF</button>` : ''}
+      </div>
+      ${f.statut === 'a_controler' ? `<button class="btn-close" style="color:var(--danger)" onclick="facSupprimer('${f.id}')">Supprimer</button>` : ''}
+      <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
+    </div>`);
+}
+async function facVoirPdf(id) {
+  const f = FAC.rows.find(x => x.id === id);
+  try {
+    const buf = await facFetchPdf(f.pdf_path);
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    const w = window.open(url, '_blank');
+    if (!w) { const a = document.createElement('a'); a.href = url; a.download = (f.numero || 'facture') + '.pdf'; a.click(); }
+  } catch (e) { cuiToast('PDF indisponible'); }
+}
+async function facStatut(id, statut, extra) {
+  const f = FAC.rows.find(x => x.id === id);
+  const patch = { statut, ...(extra || {}), updated_at: new Date().toISOString() };
+  try { await cuiPATCH('cmd_factures?id=eq.' + id, patch); Object.assign(f, patch); facRender(); facOpen(id); }
+  catch (e) { cuiToast('Erreur'); }
+}
+// Valider = les prix facturés deviennent les prix de référence (quand l'unité est comparable)
+async function facValider(id) {
+  const f = FAC.rows.find(x => x.id === id);
+  const rap = facRapprocher(f);
+  let maj = 0;
+  for (const l of rap.lignes) {
+    if (!l.produit || !l.compat || !l.pu) continue;
+    if (Math.abs(Number(l.produit.prix || 0) - l.pu) < 0.005) continue;
+    try {
+      await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { prix: l.pu, updated_at: new Date().toISOString() });
+      await cuiPOST('cmd_prix_historique', { produit_id: l.produit.id, prix: l.pu, source: 'facture ' + (f.numero || ''), date: f.date_facture || cuiIso(Date.now()) });
+      l.produit.prix = l.pu; maj++;
+    } catch (e) { console.error(e); }
+  }
+  await facStatut(id, 'validee');
+  cuiToast(maj ? `Validée · ${maj} prix mis à jour` : 'Facture validée');
+}
+function facContester(id) {
+  const f = FAC.rows.find(x => x.id === id); const s = facSup(f.fournisseur_id) || {};
+  const rap = facRapprocher(f);
+  const lignes = rap.ecarts.map(l => `• ${l.nom}${l.ref ? ' (réf. ' + l.ref + ')' : ''} : ${l.statut === 'non_commande' ? 'facturé ' + cuiQty(l.qte) + ' ' + l.unite + ' — non commandé / non reçu' : l.detail}`).join('\n');
+  const txt = `Bonjour,\n\nBraise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''} — facture n° ${f.numero || ''} du ${facD(f.date_facture)}.\n\nNous contestons les lignes suivantes :\n${lignes || '(préciser)'}\n\nMerci de nous adresser un avoir.\n\nBraise & Co`;
+  FAC._txt = txt;
+  cuiModal(`📣 Contestation · ${cuiEsc(s.nom)}`, `
+    <div class="modal-section"><div class="ms-label">Message</div><textarea id="fac-c-txt" class="settings-field" rows="9" style="font-size:13px;font-family:inherit">${cuiEsc(txt)}</textarea></div>
+    <div class="modal-actions">
+      ${s.commercial_tel ? `<a class="btn-primary" href="#" onclick="event.preventDefault();ouvrirSms('${cuiEsc(s.commercial_tel.replace(/\\s/g, ''))}', document.getElementById('fac-c-txt').value)">📨 SMS — ${cuiEsc(s.commercial_nom || s.nom)}</a>` : ''}
+      ${s.email ? `<a class="btn-primary" href="#" style="${s.commercial_tel ? 'background:var(--surf3);color:var(--text)' : ''}" onclick="event.preventDefault();window.location.href=buildMailtoUrl('${cuiEsc(s.email)}', 'Contestation facture ${cuiEsc(f.numero || '')} — Braise & Co', document.getElementById('fac-c-txt').value) + cuiCc({email_cc: '${cuiEsc(s.email_cc || '')}'})">✉️ Email — ${cuiEsc(s.nom)}</a>` : ''}
+      <button class="btn-secondary" onclick="facStatut('${id}','contestee',{note: document.getElementById('fac-c-txt').value})">Marquer contestée</button>
+      <button class="btn-close" onclick="facOpen('${id}')">Retour</button>
+    </div>`);
+}
+async function facSupprimer(id) {
+  if (!confirm('Supprimer cette facture de l\'appli ? (le PDF reste chez le comptable)')) return;
+  try { await cuiDEL('cmd_factures?id=eq.' + id); FAC.rows = FAC.rows.filter(x => x.id !== id); cuiCloseModal(); facRender(); }
+  catch (e) { cuiToast('Erreur'); }
+}
+// Saisie / correction manuelle (factures papier : Lartigue, ou montants mal lus)
+function facEdit(id) {
+  const f = id ? FAC.rows.find(x => x.id === id) : { statut: 'a_controler', date_facture: cuiIso(Date.now()) };
+  cuiModal(id ? 'Modifier la facture' : 'Nouvelle facture (papier)', `
+    <div class="form-row"><label>Fournisseur</label><select id="fac-e-sup">${CUI.sups.map(s => `<option value="${s.id}" ${s.id === f.fournisseur_id ? 'selected' : ''}>${cuiEsc(s.nom)}</option>`).join('')}</select></div>
+    <div class="form-2col"><div class="form-row"><label>N° facture</label><input id="fac-e-num" value="${cuiEsc(f.numero || '')}"></div><div class="form-row"><label>Date</label><input id="fac-e-date" type="date" value="${f.date_facture || ''}"></div></div>
+    <div class="form-2col"><div class="form-row"><label>Total HT</label><input id="fac-e-ht" type="number" step="0.01" inputmode="decimal" value="${f.montant_ht ?? ''}"></div><div class="form-row"><label>Total TTC</label><input id="fac-e-ttc" type="number" step="0.01" inputmode="decimal" value="${f.montant_ttc ?? ''}"></div></div>
+    <div class="form-2col"><div class="form-row"><label>Échéance</label><input id="fac-e-ech" type="date" value="${f.date_echeance || ''}"></div><div class="form-row"><label>Statut</label><select id="fac-e-st">${Object.entries(FAC_STATUTS).map(([k, l]) => `<option value="${k}" ${k === f.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+    <div class="form-row"><label>Note</label><input id="fac-e-note" value="${cuiEsc(f.note || '')}"></div>
+    <div class="modal-actions"><button class="btn-primary" onclick="facSave('${id || ''}')">Enregistrer</button><button class="btn-close" onclick="${id ? `facOpen('${id}')` : 'cuiCloseModal()'}">Annuler</button></div>`);
+}
+async function facSave(id) {
+  const v = k => cui$('fac-e-' + k).value;
+  const ht = facNum(v('ht')), ttc = facNum(v('ttc'));
+  const data = { fournisseur_id: v('sup'), numero: v('num').trim() || null, date_facture: v('date') || null, date_echeance: v('ech') || null, montant_ht: ht, montant_ttc: ttc, montant_tva: ht != null && ttc != null ? Math.round((ttc - ht) * 100) / 100 : null, statut: v('st'), note: v('note').trim() || null, updated_at: new Date().toISOString() };
+  try {
+    if (id) { const [row] = await cuiPATCH('cmd_factures?id=eq.' + id, data); Object.assign(FAC.rows.find(x => x.id === id), row); facRender(); facOpen(id); }
+    else { const [row] = await cuiPOST('cmd_factures', data); FAC.rows.unshift(row); facRender(); facOpen(row.id); }
+    cuiToast('Enregistré');
+  } catch (e) { console.error(e); cuiToast('Erreur'); }
+}
+
+/* ─── Récap achats : montants réellement facturés par fournisseur ─── */
+async function facTotauxAnnee(year) {
+  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=fournisseur_id,montant_ht,date_facture,statut`);
+  const bySup = {}, byMonth = {}; let total = 0, n = 0;
+  rows.forEach(f => { const t = Number(f.montant_ht || 0); total += t; n++; bySup[f.fournisseur_id] = (bySup[f.fournisseur_id] || 0) + t; const m = new Date(f.date_facture).getMonth(); byMonth[m] = (byMonth[m] || 0) + t; });
+  return { bySup, byMonth, total, n };
+}

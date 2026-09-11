@@ -1,10 +1,11 @@
 // Service Worker — Commande Suivi Boisson
 // Network-first : toujours charger depuis le réseau, cache en fallback offline
 
-const CACHE = 'boissons-v3';
+const CACHE = 'boissons-v4';
 const STATIC_ASSETS = [
   '/boissons/index.html',
   '/boissons/cuisine.js',
+  '/boissons/factures.js',
   '/boissons/manifest.json',
   '/boissons/icon-192.png',
   '/boissons/icon-192-maskable.png',

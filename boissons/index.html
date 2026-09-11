@@ -544,6 +544,15 @@
     </div>
     <div id="cui-hist-list"></div>
   </div>
+  <div id="cui-fact" class="hidden">
+    <div class="cui-subhead">
+      <button class="besoins-back" onclick="facHide()">‹</button>
+      <div class="cui-subtitle" style="flex:1">🧾 Factures</div>
+      <button class="btn-icon" onclick="facEdit()" title="Saisir une facture papier" style="color:var(--orange);font-size:22px">＋</button>
+    </div>
+    <div class="cui-chips" id="cui-fact-chips"></div>
+    <div id="cui-fact-list"></div>
+  </div>
 </div>
 
 <!-- ══════════════════════ BARRE CUISINE ══════════════════════ -->
@@ -888,7 +897,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-11.10';
+const APP_VERSION = '2026-09-12.1';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -2741,7 +2750,7 @@ function triggerInstall() {
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
       document.getElementById('tab-historique').style.display = '';
-      if (typeof cuiOpenRecap === 'function') cuiOpenRecap();
+      if (typeof cuiOpenPatron === 'function') cuiOpenPatron();
     }, 2000);
   }
   function cancelPress() { clearTimeout(pressTimer); }
@@ -2762,5 +2771,6 @@ if (_isIOS && !_isStandalone) {
 }
 </script>
 <script src="cuisine.js"></script>
+<script src="factures.js"></script>
 </body>
 </html>
