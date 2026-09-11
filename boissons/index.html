@@ -897,7 +897,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-12.1';
+const APP_VERSION = '2026-09-12.2';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -978,12 +978,13 @@ async function loadFromSupabase() {
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
    DATA_VERSION : incrémenter pour forcer reset localStorage
 ═══════════════════════════════════════════════════ */
-const DATA_VERSION = 3;
+const DATA_VERSION = 4;
 
 const PRODUITS_DEFAUT = [
   // PRESSIONS
-  { id:'p001', code:'011717', nom:'Fût 20L Leffe Blonde 6.6°',        cat:'Pressions',       unite:'fût',       prix:90.48, min:2 },
-  { id:'p003', code:'010028', nom:'Fût 30L Stella Artois 5.2°',        cat:'Pressions',       unite:'fût',       prix:95.61, min:2 },
+  // Fûts : prix au litre (tarif Le Bihan), le total multiplie par les litres du fût
+  { id:'p001', code:'011717', nom:'Fût 20L Leffe Blonde 6.6°',        cat:'Pressions',       unite:'fût',       prix:4.524, litres:20, min:2 },
+  { id:'p003', code:'010028', nom:'Fût 30L Stella Artois 5.2°',        cat:'Pressions',       unite:'fût',       prix:3.187, litres:30, min:2 },
   // BIÈRES
   { id:'p004', code:'001553', nom:'1664 Blonde 33cl VC',               cat:'Bières',          unite:'carton',    prix:1.43,  min:1 },
   { id:'p005', code:'001108', nom:'Desperados 33cl VC',                cat:'Bières',          unite:'caisse',    prix:1.58,  min:1 },
@@ -1125,6 +1126,9 @@ function load() {
     const savedVer = parseInt(localStorage.getItem('bc_data_version') || '0', 10);
     // Réinitialiser les produits si nouvelle version
     if (savedVer < DATA_VERSION) {
+      // On garde les produits ajoutés à la main, seuls ceux du tarif sont rechargés
+      const perso = (JSON.parse(localStorage.getItem('bc_produits') || '[]') || []).filter(p => p.custom);
+      localStorage.setItem('bc_produits_perso', JSON.stringify(perso));
       localStorage.removeItem('bc_produits');
       localStorage.removeItem('bc_stockMin');
       localStorage.setItem('bc_data_version', DATA_VERSION);
@@ -1144,6 +1148,7 @@ function load() {
 
   if (!produits) {
     produits = PRODUITS_DEFAUT.map(p => ({ ...p, actif: true, custom: false }));
+    try { produits = produits.concat(JSON.parse(localStorage.getItem('bc_produits_perso') || '[]')); localStorage.removeItem('bc_produits_perso'); } catch(e) {}
   }
 }
 
@@ -1307,7 +1312,7 @@ function updatePanier() {
   const nbArticles = ids.reduce((s, id) => s + commande[id], 0);
   const totalHT = ids.reduce((s, id) => {
     const p = produits.find(x => x.id === id);
-    return s + (p ? p.prix * commande[id] : 0);
+    return s + (p ? p.prix * (p.litres || 1) * commande[id] : 0);
   }, 0);
 
   const articlesEl = document.getElementById('panier-articles');
@@ -1421,7 +1426,7 @@ function openConfirmLebihan() {
 
   const totalHT = ids.reduce((s, id) => {
     const p = produits.find(x => x.id === id);
-    return s + (p ? p.prix * commande[id] : 0);
+    return s + (p ? p.prix * (p.litres || 1) * commande[id] : 0);
   }, 0);
 
   document.getElementById('conf-date').textContent  = fmtDate(now);
@@ -1489,7 +1494,7 @@ function confirmSent() {
 
   const totalHT = ids.reduce((s, id) => {
     const p = produits.find(x => x.id === id);
-    return s + (p ? p.prix * commande[id] : 0);
+    return s + (p ? p.prix * (p.litres || 1) * commande[id] : 0);
   }, 0);
 
   historique.unshift({
