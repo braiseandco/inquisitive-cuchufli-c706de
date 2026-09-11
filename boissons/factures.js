@@ -182,6 +182,24 @@ const FAC_PARSEURS = {
     });
     return r;
   },
+  lebihan(L) {
+    // Facture ou AVOIR ; les fûts sont facturés au litre (Cont. = 30L), consignes à part
+    const r = { bls: [], lignes: [] }; let avoir = false;
+    L.forEach(t => {
+      let m;
+      if ((m = /(AVOIR|FACTURE)\s+VTE-(\d+) du (\d\d\/\d\d\/\d{4})/i.exec(t))) { avoir = /avoir/i.test(m[1]); r.numero = m[2]; r.date = facDate(m[3]); r.avoir = avoir; }
+      if ((m = /Date d.echeance\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /BL DU (\d\d\/\d\d)/.exec(t)) && r.date) r.bls.push({ numero: m[1], date: r.date.slice(0, 4) + '-' + m[1].split('/').reverse().join('-') });
+      if ((m = /^\d\s+[\d.]+ %\s+(\d+\.\d{2})\s+(\d+\.\d{2})/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
+      if ((m = /^Total(?: Factur[ée])? (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+ ?L|\S+)\s+(\d+\.\d{4})\s+(\d+\.\d{2})\s/.exec(t))) {
+        const litres = /^(\d+) ?L$/.exec(m[5]);
+        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: m[4], cont: m[5], pu: facNum(m[6]), montant: facNum(m[7]), litres: litres ? +litres[1] : null });
+      }
+    });
+    if (avoir) { ['ht', 'tva', 'ttc'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
+    return r;
+  },
   yesfood(L) {
     const r = { bls: [], lignes: [] }; let bl = null;
     L.forEach(t => {
@@ -207,6 +225,7 @@ function facParseurPour(f) {
   if (n.includes('mericq') || n.includes('merik')) return 'mericq';
   if (n.includes('blason')) return 'blason';
   if (n.includes('yesfood') || n.includes('yes food')) return 'yesfood';
+  if (n.includes('bihan')) return 'lebihan';
   return null;
 }
 async function facAnalyser(f, force) {
@@ -216,7 +235,7 @@ async function facAnalyser(f, force) {
   const res = parseur ? FAC_PARSEURS[parseur](L) : { bls: [], lignes: [] };
   if (!res.ht && res.lignes.length) res.ht = Math.round(res.lignes.reduce((a, l) => a + (l.montant || 0), 0) * 100) / 100;
   const patch = {
-    lignes_json: { parseur, bls: res.bls, lignes: res.lignes, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
+    lignes_json: { parseur, bls: res.bls, lignes: res.lignes, avoir: !!res.avoir, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
     numero: f.numero || res.numero || null,
     date_facture: res.date || f.date_facture || null,
     date_echeance: res.echeance || f.date_echeance || null,
@@ -293,7 +312,7 @@ function facRapprocher(f) {
 async function facOpen(id, relire) {
   const f = FAC.rows.find(x => x.id === id); if (!f) return;
   const s = facSup(f.fournisseur_id) || {};
-  const titre = `🧾 ${cuiEsc(s.nom || 'Facture')} · ${cuiEsc(f.numero || '')}`;
+  const titre = `${f.lignes_json && f.lignes_json.avoir ? '↩ Avoir' : '🧾'} ${cuiEsc(s.nom || 'Facture')} · ${cuiEsc(f.numero || '')}`;
   if (f.pdf_path && (!f.lignes_json || relire)) {
     cuiModal(titre, '<div class="empty-state"><span style="display:inline-block;width:20px;height:20px;border:2px solid var(--dim);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite"></span><br><br>Lecture du PDF…</div>');
     try { await facAnalyser(f, relire); facRender(); }
