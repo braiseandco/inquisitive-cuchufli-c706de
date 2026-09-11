@@ -98,7 +98,7 @@ function cuiOrderRow(o) {
   return `<div class="hist-item cui-order-row" onclick="cuiOpenOrder('${o.id}')">
     <div class="hist-date">${cuiDT(o.date_commande)} · livraison ${cuiD(o.date_livraison)}${o.commande_par ? ' · ' + cuiEsc(o.commande_par) : ''}</div>
     <div class="hist-summary">${s.emoji || '📦'} ${cuiEsc(s.nom || '?')} <span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span><span style="float:right;color:var(--orange)">${tot ? cuiEur(tot) : ''}</span></div>
-    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(o.numero || '')}</div>
+    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(o.numero || '')}${o.date_reception ? (cuiEcarts(o).length ? ` · <span style="color:var(--danger)">⚠️ ${cuiEcarts(o).length} écart${cuiEcarts(o).length > 1 ? 's' : ''}</span>` : ' · <span style="color:var(--ok)">✓ conforme</span>') : ''}</div>
   </div>`;
 }
 
@@ -324,13 +324,15 @@ function cuiOpenOrder(id) {
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
     </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Produits</div>
-      ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiLineTotal(l) != null ? ' · ' + cuiEur(cuiLineTotal(l)) : ''}</span></div>`).join('')}
+      ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiLineTotal(l) != null ? ' · ' + cuiEur(cuiLineTotal(l)) : ''}</span></div>`).join('')}
     </div>
+    ${o.date_reception ? `<div class="modal-section"><div class="ms-label">Réception</div><div class="ms-val">${cuiDT(o.date_reception)}${o.recu_par ? ' par ' + cuiEsc(o.recu_par) : ''}${o.numero_bl ? ' · BL ' + cuiEsc(o.numero_bl) : ''}<br>${cuiEcarts(o).length ? '<span style="color:var(--danger)">⚠️ ' + cuiEcarts(o).length + ' écart' + (cuiEcarts(o).length > 1 ? 's' : '') + '</span>' : '<span style="color:var(--ok)">✓ Conforme</span>'}${o.reception_note ? '<br>' + cuiEsc(o.reception_note) : ''}</div>
+      ${cuiEcarts(o).length ? `<button class="btn-secondary" style="margin-top:8px" onclick="cuiOpenReclamation('${o.id}')">📣 Réclamation fournisseur</button>` : ''}</div>` : ''}
     <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val">${cuiEur(cuiOrderTotal(o)) || '—'}</div></div>
     <div class="modal-actions">
       <div class="cui-row-btns">
         ${o.statut === 'envoyee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','confirmee')">✓ Confirmée</button>` : ''}
-        ${o.statut !== 'livree' && o.statut !== 'annulee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','livree')">📦 Livrée</button>` : ''}
+        ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="${o.date_reception ? '' : 'background:var(--orange);color:#fff'}" onclick="cuiOpenReception('${o.id}')">📦 ${o.date_reception ? 'Modifier la réception' : 'Réceptionner'}</button>` : ''}
         <button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="cuiSetStatus('${o.id}','annulee')">Annuler</button>` : ''}
       </div>
@@ -361,6 +363,96 @@ function cuiReorder(id) {
     rows.forEach((r, i) => d.lignes[i].id = r.id);
   });
   cuiShowSup(o.fournisseur_id); cuiToast('Panier pré-rempli');
+}
+
+
+/* ─── Réception de livraison : contrôle du BL ligne par ligne ─── */
+const CUI_PB = ['Abîmé', 'Périmé / DLC courte', 'Mauvais produit', 'Non commandé'];
+function cuiEcarts(o) { return o.lignes.filter(l => l.qte_recue != null && (Number(l.qte_recue) !== Number(l.quantite) || l.ecart)); }
+function cuiEcartHtml(l) {
+  if (l.qte_recue == null) return '';
+  const diff = Number(l.qte_recue) - Number(l.quantite);
+  if (!diff && !l.ecart) return ' · <span style="color:var(--ok)">✓ reçu</span>';
+  return ` · <span style="color:var(--danger)">${diff ? 'reçu ' + cuiQty(l.qte_recue) + ' / ' + cuiQty(l.quantite) : ''}${diff && l.ecart ? ' · ' : ''}${l.ecart ? cuiEsc(l.ecart) : ''}</span>`;
+}
+function cuiOpenReception(id) {
+  const o = CUI.orders.find(x => x.id === id); if (!o) return;
+  const s = cuiSup(o.fournisseur_id) || {};
+  CUI._rec = { id, lines: o.lignes.map(l => ({ id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : Number(l.quantite), ecart: l.ecart || '' })) };
+  cuiModal(`📦 Réception · ${cuiEsc(s.nom)}`, `
+    <div class="prod-meta" style="margin-bottom:10px">Commande ${cuiEsc(o.numero || '')} · livraison prévue ${cuiD(o.date_livraison)}. Comparez avec le bon de livraison : corrigez les quantités reçues, signalez un problème.</div>
+    <div class="form-2col">
+      <div class="form-row"><label>N° du BL (facultatif)</label><input id="cui-r-bl" value="${cuiEsc(o.numero_bl || '')}"></div>
+      <div class="form-row"><label>Réceptionné par</label><input id="cui-r-who" value="${cuiEsc(o.recu_par || cuiWho())}"></div>
+    </div>
+    <div class="modal-section" id="cui-r-lines">${CUI._rec.lines.map(cuiRecLine).join('')}</div>
+    <div class="form-row"><label>Remarque</label><input id="cui-r-note" value="${cuiEsc(o.reception_note || '')}" placeholder="ex : colis ouvert, chauffeur prévenu"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="cuiSaveReception()">✓ Valider la réception</button>
+      <button class="btn-secondary" onclick="cuiRecAllOk()">Tout est conforme</button>
+      <button class="btn-close" onclick="cuiOpenOrder('${id}')">Annuler</button>
+    </div>`);
+}
+function cuiRecLine(l, i) {
+  const bad = l.qte_recue !== l.quantite || l.ecart;
+  return `<div class="order-line" style="flex-direction:column;align-items:stretch;gap:6px;padding:9px 0" id="cui-rl-${i}">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="flex:1;${bad ? 'color:var(--danger)' : ''}">${cuiEsc(l.nom)}<div class="prod-meta">commandé : <b>${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}</b></div></span>
+      <span class="stepper"><button class="s-btn" style="width:30px;height:32px" onclick="cuiRecQty(${i},-1)">−</button><input type="number" inputmode="decimal" class="s-qty ${bad ? '' : 'active'}" style="width:48px;height:32px;font-size:15px;${bad ? 'border-color:var(--danger);color:var(--danger)' : ''}" value="${l.qte_recue}" onchange="cuiRecQty(${i},null,this.value)"><button class="s-btn plus" style="width:30px;height:32px" onclick="cuiRecQty(${i},1)">+</button></span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${CUI_PB.map(pb => `<button class="cui-chip ${l.ecart === pb ? 'on' : ''}" style="padding:4px 10px;font-size:11px" onclick="cuiRecPb(${i},'${pb}')">${pb}</button>`).join('')}</div>
+  </div>`;
+}
+function cuiRecRefresh(i) { const el = cui$('cui-rl-' + i); const t = document.createElement('div'); t.innerHTML = cuiRecLine(CUI._rec.lines[i], i); el.replaceWith(t.firstElementChild); }
+function cuiRecQty(i, delta, val) {
+  const l = CUI._rec.lines[i];
+  l.qte_recue = Math.max(0, val != null ? (parseFloat(String(val).replace(',', '.')) || 0) : l.qte_recue + delta);
+  cuiRecRefresh(i);
+}
+function cuiRecPb(i, pb) { const l = CUI._rec.lines[i]; l.ecart = l.ecart === pb ? '' : pb; cuiRecRefresh(i); }
+function cuiRecAllOk() { CUI._rec.lines.forEach((l, i) => { l.qte_recue = l.quantite; l.ecart = ''; cuiRecRefresh(i); }); }
+async function cuiSaveReception() {
+  const r = CUI._rec; const o = CUI.orders.find(x => x.id === r.id);
+  const patch = { statut: 'livree', date_reception: new Date().toISOString(), recu_par: cui$('cui-r-who').value.trim() || null, numero_bl: cui$('cui-r-bl').value.trim() || null, reception_note: cui$('cui-r-note').value.trim() || null, updated_at: new Date().toISOString() };
+  try {
+    await Promise.all(r.lines.map(l => cuiPATCH('cmd_commande_lignes?id=eq.' + l.id, { qte_recue: l.qte_recue, ecart: l.ecart || null })));
+    await cuiPATCH('cmd_commandes?id=eq.' + r.id, patch);
+    Object.assign(o, patch);
+    r.lines.forEach(l => { const x = o.lignes.find(y => y.id === l.id); if (x) { x.qte_recue = l.qte_recue; x.ecart = l.ecart || null; } });
+    cuiRender();
+    const n = cuiEcarts(o).length;
+    if (n) { cuiOpenReclamation(r.id); cuiToast(`${n} écart${n > 1 ? 's' : ''} relevé${n > 1 ? 's' : ''}`); }
+    else { cuiOpenOrder(r.id); cuiToast('✓ Livraison conforme'); }
+  } catch (e) { console.error(e); cuiToast('Erreur, réessayez'); }
+}
+function cuiReclamationText(o) {
+  const s = cuiSup(o.fournisseur_id) || {};
+  const lines = cuiEcarts(o).map(l => {
+    const diff = Number(l.qte_recue) - Number(l.quantite);
+    let m = `• ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''} : `;
+    if (diff < 0) m += `manque ${cuiQty(-diff)} ${l.unite || ''} (commandé ${cuiQty(l.quantite)}, reçu ${cuiQty(l.qte_recue)})`;
+    else if (diff > 0) m += `${cuiQty(diff)} ${l.unite || ''} en trop (commandé ${cuiQty(l.quantite)}, reçu ${cuiQty(l.qte_recue)})`;
+    if (l.ecart) m += (diff ? ' — ' : '') + l.ecart.toLowerCase() + (diff ? '' : ` (${cuiQty(l.quantite)} ${l.unite || ''})`);
+    return m;
+  }).join('\n');
+  return `Bonjour,\n\nBraise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''} — livraison du ${cuiD(o.date_reception)}${o.numero_bl ? ', BL n° ' + o.numero_bl : ''} (notre commande ${o.numero}).\n\nÉcarts constatés à la réception :\n${lines}\n${o.reception_note ? '\n' + o.reception_note + '\n' : ''}\nMerci de nous faire un avoir ou de compléter à la prochaine livraison.\n\n${o.recu_par || ''} — Braise & Co`;
+}
+function cuiReclamationSms(id) { const o = CUI.orders.find(x => x.id === id); ouvrirSms((cuiSup(o.fournisseur_id) || {}).telephone, cuiReclamationText(o)); }
+function cuiReclamationMail(id) {
+  const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
+  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : o.numero} — Braise & Co`, cuiReclamationText(o));
+}
+function cuiReclamationCopy(id) { navigator.clipboard.writeText(cuiReclamationText(CUI.orders.find(x => x.id === id))).then(() => cuiToast('📋 Copié')); }
+function cuiOpenReclamation(id) {
+  const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
+  cuiModal(`📣 Réclamation · ${cuiEsc(s.nom)}`, `
+    <div class="modal-section"><div class="ms-label">Message</div><div class="ms-val" style="font-size:13px">${cuiEsc(cuiReclamationText(o))}</div></div>
+    <div class="modal-actions">
+      ${s.telephone ? `<a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationSms('${id}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : ''}
+      ${s.email ? `<a class="btn-primary" href="#" style="background:var(--surf3);color:var(--text)" onclick="event.preventDefault();cuiReclamationMail('${id}')">✉️ Email — ${cuiEsc(s.nom)}</a>` : ''}
+      <button class="btn-secondary" onclick="cuiReclamationCopy('${id}')">📋 Copier le texte</button>
+      <button class="btn-close" onclick="cuiOpenOrder('${id}')">Retour à la commande</button>
+    </div>`);
 }
 
 /* ─── Historique ─── */
