@@ -163,7 +163,7 @@ const FAC_PARSEURS = {
     const r = { bls: [], lignes: [] }; let bl = null;
     L.forEach(t => {
       let m;
-      if ((m = /Num[ée]ro\s*:\s*F?(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      if ((m = /Num.{1,2}ro\s*:\s*F?(\d+)|Facture n.{1,2}:\s*F?(\d+)/.exec(t))) r.numero = r.numero || m[1] || m[2];
       if ((m = /Date\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t)) && !r.date) r.date = facDate(m[1]);
       if ((m = /BL N.{1,2}\s*(\w+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
       if ((m = /PRELEVEMENTS\s+(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
