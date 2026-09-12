@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-12.8';
+const APP_VERSION = '2026-09-12.9';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1063,6 +1063,20 @@ const PRODUITS_DEFAUT = [
 
 /* ═══════════════ COCKTAILS ═══════════════ */
 const COCKTAIL_TEL = '0673544939';
+
+// Commandes des onglets Vin / Cocktails / Café : copie dans l'historique commun (réception, factures, récap)
+// dès l'appui sur le bouton d'envoi ; une seule fois par panier identique.
+const barEnvoye = {};
+function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
+  const ids = Object.keys(panier).filter(id => panier[id] > 0);
+  if (!ids.length) return;
+  const empreinte = JSON.stringify(ids.sort().map(id => [id, panier[id]]));
+  if (barEnvoye[fournisseur] === empreinte) return;
+  barEnvoye[fournisseur] = empreinte;
+  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, qte: panier[id] }; });
+  const note = (localStorage.getItem(noteKey) || '').trim();
+  if (typeof cuiSyncBarOrder === 'function') cuiSyncBarOrder(fournisseur, items, note).catch(e => console.error(e));
+}
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
 const CAFE_PRODUITS = [
@@ -1752,6 +1766,7 @@ function envoyerSMSCocktail() {
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception par SMS.`;
 
+  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note');
   ouvrirSms(COCKTAIL_TEL, msg);
 }
 
@@ -1854,6 +1869,7 @@ function _buildCafeMsg(now) {
 
 function envoyerCafeSMS() {
   if (!settings.cafeTel) return;
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
   ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date()));
 }
 
@@ -1861,6 +1877,7 @@ function envoyerCafeEmail() {
   if (!settings.cafeEmail) return;
   const now = new Date();
   const subject = `Commande Café Richard — ${now.toLocaleDateString('fr-FR')}`;
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
   window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now));
 }
 
@@ -1895,7 +1912,7 @@ function openConfirmVin() {
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMain = document.getElementById('conf-vin-sms-main');
     btnVinMain.href = '#';
-    btnVinMain.onclick = (e) => { e.preventDefault(); ouvrirSms(VIN_TEL_MAIN, msg); };
+    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Plantins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MAIN, msg); };
     mainSection.classList.remove('hidden');
   } else {
     mainSection.classList.add('hidden');
@@ -1908,7 +1925,7 @@ function openConfirmVin() {
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
     btnVinMoscato.href = '#';
-    btnVinMoscato.onclick = (e) => { e.preventDefault(); ouvrirSms(VIN_TEL_MOSCATO, msg); };
+    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Moscato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MOSCATO, msg); };
     moscatoSection.classList.remove('hidden');
   } else {
     moscatoSection.classList.add('hidden');

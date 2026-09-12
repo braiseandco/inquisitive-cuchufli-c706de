@@ -523,7 +523,14 @@ function cuiOpenReclamation(id) {
 /* ─── Commandes du bar (Le Bihan) : copie dans l'historique commun ───
    L'onglet Le Bihan garde son fonctionnement (SMS), mais la commande est aussi enregistrée
    ici pour la réception du BL et le contrôle de la facture. */
-async function cuiSyncBarOrder(nomFournisseur, items, note) {
+// Les onglets du bar peuvent appeler plusieurs fois de suite (vin + moscato) : on sérialise pour des n° distincts
+let cuiSyncChaine = Promise.resolve();
+function cuiSyncBarOrder(nomFournisseur, items, note) {
+  const p = cuiSyncChaine.then(() => cuiSyncBarOrderNow(nomFournisseur, items, note));
+  cuiSyncChaine = p.catch(() => {});
+  return p;
+}
+async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
   if (!CUI.loaded) await cuiLoad(true);
   const sup = CUI.sups.find(s => facNormNom(s.nom) === facNormNom(nomFournisseur));
   if (!sup) { console.warn('Fournisseur bar inconnu :', nomFournisseur); return; }
@@ -533,7 +540,7 @@ async function cuiSyncBarOrder(nomFournisseur, items, note) {
     let p = it.code ? prods.find(x => x.reference === it.code) : null;
     if (!p) p = prods.find(x => x.nom.toLowerCase() === it.nom.toLowerCase());
     if (!p) {
-      const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: it.nom, unite: it.unite || 'Pièce(s)', prix: it.prix ?? null, reference: it.code || null, ordre: prods.length + lignes.length });
+      const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: it.nom, unite: it.unite || 'Pièce(s)', prix: it.prix ?? null, reference: it.code || null, conditionnement: it.parCaisse ? `${it.unite} de ${it.parCaisse}` : it.litres ? `${it.litres} L, prix au litre` : null, ordre: prods.length + lignes.length });
       CUI.prods.push(row); p = row;
     }
     // Prix de ligne = prix de l'unité commandée (le bar stocke le litre pour les fûts, la bouteille pour les caisses)
