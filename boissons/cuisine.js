@@ -85,12 +85,17 @@ const CUI_JOURS_COURT = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.']
 // Fournisseurs à commander aujourd'hui (rappel_jours) sans commande envoyée depuis ce matin
 function cuiRappels() {
   const now = new Date(); const jour = now.getDay(); const debut = new Date(now); debut.setHours(4, 0, 0, 0);
-  return CUI.sups.filter(s => s.actif !== false && (s.rappel_jours || []).includes(jour)
+  return CUI.sups.filter(s => (s.rappel_jours || []).includes(jour)
     && !CUI.orders.some(o => o.fournisseur_id === s.id && o.statut !== 'brouillon' && o.statut !== 'annulee' && new Date(o.date_commande) >= debut));
+}
+function cuiOuvrirRappel(id) {
+  const s = cuiSup(id);
+  if (s && s.actif === false && /bihan/i.test(s.nom) && typeof switchTab === 'function') switchTab('commande');
+  else cuiShowSup(id);
 }
 function cuiRenderHome() {
   const rap = cuiRappels();
-  cui$('cui-rappels').innerHTML = rap.length ? `<div class="alert-banner" style="margin:4px 16px 8px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="cuiShowSup('${rap[0].id}')"><span style="font-size:20px">⏰</span><span style="flex:1"><b>À commander aujourd'hui</b> : ${rap.map(s => (s.emoji || '') + ' ' + cuiEsc(s.nom)).join(', ')}</span><span>›</span></div>` : '';
+  cui$('cui-rappels').innerHTML = rap.length ? `<div class="alert-banner" style="margin:4px 16px 8px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="cuiOuvrirRappel('${rap[0].id}')"><span style="font-size:20px">⏰</span><span style="flex:1"><b>À commander aujourd'hui</b> : ${rap.map(s => (s.emoji || '') + ' ' + cuiEsc(s.nom)).join(', ')}</span><span>›</span></div>` : '';
   cui$('cui-grid').innerHTML = CUI.sups.filter(s => s.actif !== false).map(s => {
     const rappel = rap.includes(s);
     const d = cuiDraftFor(s.id); const n = d ? d.lignes.length : 0;
@@ -534,7 +539,7 @@ async function cuiSyncBarOrder(nomFournisseur, items, note) {
     // Prix de ligne = prix de l'unité commandée (le bar stocke le litre pour les fûts, la bouteille pour les caisses)
     lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
   }
-  const d = new Date(); const liv = new Date(d.getTime() + 2 * 864e5);
+  const d = new Date(); const liv = new Date(d.getTime() + (sup.delai_livraison_jours ?? 2) * 864e5);
   const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: cuiNextNumero(), date_commande: d.toISOString(), date_livraison: cuiIso(liv), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
   CUI.orders.unshift({ ...cmd, lignes: rows });

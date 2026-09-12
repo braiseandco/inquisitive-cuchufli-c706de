@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-12.7';
+const APP_VERSION = '2026-09-12.8';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -956,6 +956,16 @@ async function sbInsertCaveHistorique(row) {
 }
 
 async function saveToSupabase() {
+  try {
+    const distant = await sbGet('main');
+    if (distant && Array.isArray(distant.historique)) {
+      const cles = new Set(historique.map(h => h.date));
+      distant.historique.forEach(h => { if (!cles.has(h.date)) historique.push(h); });
+      historique.sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (historique.length > 100) historique.length = 100;
+      localStorage.setItem('bc_historique', JSON.stringify(historique));
+    }
+  } catch (e) {}
   await sbSet('main', {
     stock, stockBout, stockMin, settings, historique,
     commandeVin, commandeCocktail, commandeCafe
@@ -1447,7 +1457,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-tel1-num').textContent = tel1;
     const btn1 = document.getElementById('conf-lebihan-sms1');
     btn1.href = '#';
-    btn1.onclick = (e) => { e.preventDefault(); ouvrirSms(tel1, smsMsg); };
+    btn1.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(tel1, smsMsg); };
     tel1Section.classList.remove('hidden');
     tel1Missing.classList.add('hidden');
   } else {
@@ -1458,7 +1468,7 @@ function openConfirmLebihan() {
   // SMS 2 (numéro fixe 0766860735)
   const btn2 = document.getElementById('conf-lebihan-sms2');
   btn2.href = '#';
-  btn2.onclick = (e) => { e.preventDefault(); ouvrirSms(LEBIHAN_TEL_BIS, smsMsg); };
+  btn2.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(LEBIHAN_TEL_BIS, smsMsg); };
 
   // Email
   const dest = (settings.emailFourn || settings.email || '').trim();
@@ -1468,7 +1478,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-mail-dest').textContent = dest;
     const btnMail = document.getElementById('conf-lebihan-mail');
     btnMail.href = '#';
-    btnMail.onclick = (e) => { e.preventDefault(); window.location.href = buildMailtoUrl(dest, subject, mailMsg); };
+    btnMail.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); window.location.href = buildMailtoUrl(dest, subject, mailMsg); };
     mailSection.classList.remove('hidden');
     mailMissing.classList.add('hidden');
   } else {
@@ -1481,12 +1491,16 @@ function openConfirmLebihan() {
 
 function closeConfirmLebihan() {
   document.getElementById('overlay-confirm').classList.remove('open');
+  if (lebihanEnvoye && lebihanEnvoye === lebihanEmpreinte()) confirmSent();
 }
 
-function confirmSent() {
-  // Sauvegarder dans l'historique
+// Empreinte du panier au moment de l'envoi : évite le double enregistrement (SMS puis mail, ou "terminer")
+let lebihanEnvoye = '';
+const lebihanEmpreinte = () => JSON.stringify(Object.keys(commande).filter(id => commande[id] > 0).sort().map(id => [id, commande[id]]));
+function enregistrerEnvoiLebihan() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
-  if (!ids.length) return;
+  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return;
+  lebihanEnvoye = lebihanEmpreinte();
 
   const now = new Date();
   const lines = ids.map(id => {
@@ -1524,7 +1538,12 @@ function confirmSent() {
     const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
     cuiSyncBarOrder('Le Bihan', items, note).catch(e => console.error(e));
   }
+  saveToSupabase();
+}
 
+function confirmSent() {
+  enregistrerEnvoiLebihan();
+  if (!Object.keys(commande).filter(id => commande[id] > 0).length) return;
   commande = {};
   localStorage.removeItem('bc_note');
   const noteEl = document.getElementById('commande-note');
