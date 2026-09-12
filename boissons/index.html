@@ -516,6 +516,7 @@
 <!-- ══════════════════════ PANEL CUISINE ══════════════════════ -->
 <div class="panel" id="panel-cuisine">
   <div id="cui-home">
+    <div id="cui-rappels"></div>
     <div class="cat-label">Fournisseurs</div>
     <div class="cui-grid" id="cui-grid"></div>
     <div class="cat-label" style="display:flex;justify-content:space-between;align-items:center">Dernières commandes <button class="cui-link" onclick="cuiOpenHistory()">Tout voir ›</button></div>
@@ -897,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-12.6';
+const APP_VERSION = '2026-09-12.7';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -2784,5 +2785,6 @@ if (_isIOS && !_isStandalone) {
 </script>
 <script src="cuisine.js"></script>
 <script src="factures.js"></script>
+<script src="documents.js"></script>
 </body>
 </html>

@@ -5,7 +5,8 @@
    commandes et réceptions saisies dans l'onglet Cuisine. S'appuie sur cuisine.js (CUI, cui*). */
 
 const FAC = { rows: [], filtre: 'a_controler', loaded: false };
-const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée' };
+const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée', document: 'Document' };
+const FAC_EST_FACTURE = f => !f.type || f.type === 'facture' || f.type === 'avoir';
 const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -28,9 +29,11 @@ async function facLoad() {
 function facSup(id) { return CUI.sups.find(s => s.id === id); }
 
 /* ─── Espace patron (appui long sur le logo) ─── */
-async function cuiOpenPatron() {
+async function cuiOpenPatron(deverrouille) {
   if (!CUI.loaded) await cuiLoad(true);
+  if (!deverrouille && !facPatronOuvert()) return facDemanderPin();
   if (!FAC.loaded) await facLoad();
+  facAutoLire();
   const n = FAC.rows.filter(f => f.statut === 'a_controler').length;
   const c = FAC.rows.filter(f => f.statut === 'contestee').length;
   cuiModal('Espace patron', `
@@ -38,8 +41,47 @@ async function cuiOpenPatron() {
       <button class="btn-primary" onclick="cuiCloseModal();facShow()">🧾 Factures${n ? ` · ${n} à contrôler` : ''}${c ? ` · ${c} contestée${c > 1 ? 's' : ''}` : ''}</button>
       <button class="btn-secondary" onclick="cuiOpenRecap()">📊 Récap des achats</button>
       <button class="btn-secondary" onclick="cuiCloseModal();switchTab('historique')">🍺 Historique bar</button>
+      <button class="btn-close" onclick="facChangerPin()">Changer le code</button>
       <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
     </div>`);
+}
+
+/* ─── Code PIN de l'espace patron (partagé entre tablettes via cmd_parametres, 30 min de validité) ─── */
+function facPatronOuvert() { try { return Date.now() - (+sessionStorage.getItem('cui_patron_ok') || 0) < 30 * 60e3; } catch (e) { return false; } }
+async function facSha(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('braise:' + s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+async function facDemanderPin() {
+  let hash = null;
+  try { const r = await cuiGET('cmd_parametres?cle=eq.pin_patron&select=valeur'); hash = r.length ? r[0].valeur : null; } catch (e) { cuiToast('Connexion impossible'); return; }
+  const creation = !hash;
+  cuiModal(creation ? 'Créer le code patron' : 'Espace patron', `
+    <div class="prod-meta" style="margin-bottom:10px">${creation ? 'Premier accès : choisissez un code à 4 chiffres. Il sera demandé sur toutes les tablettes pour ouvrir les factures et le récap des achats.' : 'Code à 4 chiffres.'}</div>
+    <div style="text-align:center;font-size:32px;letter-spacing:14px;min-height:44px;padding:4px 0 10px" id="cui-pin-aff">····</div>
+    ${creation ? '<div class="prod-meta" style="text-align:center" id="cui-pin-etape">Saisissez le code</div>' : ''}
+    <div style="display:grid;grid-template-columns:repeat(3,72px);gap:10px;justify-content:center;margin:6px 0 12px">
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map(k => k === '' ? '<span></span>' : `<button class="cui-chip" style="height:56px;font-size:22px;justify-content:center" onclick="facPinTouche('${k}')">${k}</button>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn-close" onclick="cuiCloseModal()">Annuler</button></div>`);
+  FAC._pin = { saisie: '', hash, creation, premier: null };
+}
+async function facPinTouche(k) {
+  const p = FAC._pin; if (!p) return;
+  if (k === '⌫') p.saisie = p.saisie.slice(0, -1); else if (p.saisie.length < 4) p.saisie += k;
+  cui$('cui-pin-aff').textContent = (p.saisie.replace(/./g, '●') + '····').slice(0, 4);
+  if (p.saisie.length < 4) return;
+  const h = await facSha(p.saisie);
+  if (p.creation) {
+    if (!p.premier) { p.premier = h; p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cui$('cui-pin-etape').textContent = 'Confirmez le code'; return; }
+    if (h !== p.premier) { p.premier = null; p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cui$('cui-pin-etape').textContent = 'Les deux codes diffèrent, recommencez'; return; }
+    try { await cuiPOST('cmd_parametres', { cle: 'pin_patron', valeur: h }); } catch (e) { cuiToast('Erreur'); return; }
+    cuiToast('Code enregistré');
+  } else if (h !== p.hash) { p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cuiToast('Code incorrect'); return; }
+  try { sessionStorage.setItem('cui_patron_ok', String(Date.now())); } catch (e) {}
+  FAC._pin = null; cuiOpenPatron(true);
+}
+async function facChangerPin() {
+  if (!facPatronOuvert()) return;
+  try { await cuiDEL('cmd_parametres?cle=eq.pin_patron'); } catch (e) { cuiToast('Erreur'); return; }
+  facDemanderPin();
 }
 
 /* ─── Liste ─── */
@@ -53,17 +95,27 @@ async function facShow() {
 function facHide() { cui$('cui-fact').classList.add('hidden'); cuiShowHome(); }
 function facSetFiltre(k) { FAC.filtre = k; facRender(); }
 function facRender() {
-  const counts = {}; FAC.rows.forEach(f => counts[f.statut] = (counts[f.statut] || 0) + 1);
-  const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['all', 'Toutes']];
+  const counts = {}; FAC.rows.forEach(f => { const k = FAC_EST_FACTURE(f) ? f.statut : 'documents'; counts[k] = (counts[k] || 0) + 1; });
+  const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['all', 'Toutes'], ['documents', 'BL & confirmations']];
   cui$('cui-fact-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${FAC.filtre === k ? 'on' : ''}" onclick="facSetFiltre('${k}')">${l}${k !== 'all' && counts[k] ? ' · ' + counts[k] : ''}</button>`).join('');
-  const list = FAC.rows.filter(f => FAC.filtre === 'all' || f.statut === FAC.filtre);
+  const list = FAC.rows.filter(f => FAC.filtre === 'documents' ? !FAC_EST_FACTURE(f) : FAC_EST_FACTURE(f) && (FAC.filtre === 'all' || f.statut === FAC.filtre));
   const nonLues = FAC.rows.filter(f => f.pdf_path && !f.lignes_json).length;
   cui$('cui-fact-list').innerHTML = (nonLues ? `<button class="cui-chip" style="margin:6px 0 10px" onclick="facAnalyserTout()">📖 Lire les ${nonLues} PDF non lus</button>` : '') + list.map(f => {
     const s = facSup(f.fournisseur_id) || {};
     const r = f.ecarts_json || {};
+    if (!FAC_EST_FACTURE(f)) {
+      const o = r.commande ? CUI.orders.find(x => x.id === r.commande) : null;
+      const lib = { bl_rattache: o ? `BL posé sur la commande ${cuiEsc(o.numero || '')}` : 'BL rattaché', confirmee: o ? `commande ${cuiEsc(o.numero || '')} confirmée` : 'commande confirmée', commande_creee: o ? `commande ${cuiEsc(o.numero || '')} créée (hors appli)` : 'commande créée', sans_lignes: '<span style="color:var(--warn)">lignes non lues</span>' }[r.action] || (f.lignes_json ? 'lu' : 'non lu');
+      return `<div class="hist-item cui-order-row" onclick="${o ? `cuiOpenOrder('${o.id}')` : `facVoirPdf('${f.id}')`}">
+        <div class="hist-date">${facD(f.date_facture)} · ${DOC_TYPES[f.type] || f.type}</div>
+        <div class="hist-summary">${s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')} <span style="float:right;color:var(--muted);font-size:12px">n° ${cuiEsc(f.numero || '—')}</span></div>
+        <div class="hist-detail">${lib}</div>
+      </div>`;
+    }
+    const avoir = f.type === 'avoir' || (f.lignes_json && f.lignes_json.avoir);
     return `<div class="hist-item cui-order-row" onclick="facOpen('${f.id}')">
       <div class="hist-date">${facD(f.date_facture)}${f.date_echeance ? ' · échéance ' + facD(f.date_echeance) : ''}${f.envoye_comptable_at ? ' · comptable ✓' : ''}</div>
-      <div class="hist-summary">${s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')} <span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut] || f.statut}</span><span style="float:right;color:var(--orange)">${f.montant_ttc != null ? cuiEur(f.montant_ttc) + ' TTC' : ''}</span></div>
+      <div class="hist-summary">${avoir ? '↩' : s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')}${avoir ? ' <span class="cui-status livree">Avoir</span>' : ''} <span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut] || f.statut}</span><span style="float:right;color:var(--orange)">${f.montant_ttc != null ? cuiEur(f.montant_ttc) + ' TTC' : ''}</span></div>
       <div class="hist-detail">n° ${cuiEsc(f.numero || '—')}${f.montant_ht != null ? ' · ' + cuiEur(f.montant_ht) + ' HT' : ''}${r.nb_ecarts ? ` · <span style="color:var(--danger)">⚠️ ${r.nb_ecarts} écart${r.nb_ecarts > 1 ? 's' : ''}</span>` : r.nb_lignes ? ' · <span style="color:var(--ok)">✓ ' + r.nb_lignes + ' lignes</span>' : f.pdf_path ? ' · PDF non lu' : ' · saisie manuelle'}</div>
     </div>`;
   }).join('') || '<div class="empty-state">Aucune facture.</div>';
@@ -238,9 +290,15 @@ async function facAnalyser(f, force) {
   const L = await facPdfLines(await facFetchPdf(f.pdf_path));
   const res = parseur ? FAC_PARSEURS[parseur](L) : { bls: [], lignes: [] };
   if (!res.ht && res.lignes.length) res.ht = Math.round(res.lignes.reduce((a, l) => a + (l.montant || 0), 0) * 100) / 100;
+  // Avoir : détecté par le lecteur, par le script d'import ou par l'en-tête du PDF ; montants toujours en négatif
+  if (f.type === 'avoir' || L.slice(0, 40).some(t => /\bAVOIRS?\b(?!\s+de prix)|\bA\s+V\s+O\s+I\s+R\b/.test(t) && !/facture ou avoir/i.test(t))) res.avoir = true;
+  if (res.avoir) {
+    ['ht', 'tva', 'ttc'].forEach(k => { if (res[k] != null && res[k] > 0) res[k] = -res[k]; });
+    res.lignes.forEach(l => { if (l.montant > 0) l.montant = -l.montant; if (l.qte > 0) l.qte = -l.qte; });
+  }
   const patch = {
     lignes_json: { parseur, bls: res.bls, lignes: res.lignes, avoir: !!res.avoir, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
-    numero: f.numero || res.numero || null,
+    numero: f.numero || res.numero || null, type: res.avoir ? 'avoir' : (f.type || 'facture'),
     date_facture: res.date || f.date_facture || null,
     date_echeance: res.echeance || f.date_echeance || null,
     montant_ht: res.ht ?? f.montant_ht ?? null, montant_tva: res.tva ?? f.montant_tva ?? null, montant_ttc: res.ttc ?? f.montant_ttc ?? null,
@@ -259,7 +317,7 @@ async function facAnalyserTout() {
   let ok = 0, ko = 0;
   for (const f of todo) {
     cuiToast(`Lecture ${ok + ko + 1}/${todo.length}…`);
-    try { await facAnalyser(f); ok++; } catch (e) { console.error(f.numero, e); ko++; }
+    try { if (FAC_EST_FACTURE(f)) await facAnalyser(f); else await docTraiter(f); await cuiPATCH('cmd_factures?id=eq.' + f.id, { traite_at: new Date().toISOString() }); ok++; } catch (e) { console.error(f.numero, e); ko++; }
   }
   FAC.rows.sort((a, b) => (b.date_facture || '').localeCompare(a.date_facture || ''));
   facRender();
@@ -333,7 +391,7 @@ function facRapprocher(f) {
 async function facOpen(id, relire) {
   const f = FAC.rows.find(x => x.id === id); if (!f) return;
   const s = facSup(f.fournisseur_id) || {};
-  const titre = `${f.lignes_json && f.lignes_json.avoir ? '↩ Avoir' : '🧾'} ${cuiEsc(s.nom || 'Facture')} · ${cuiEsc(f.numero || '')}`;
+  const titre = `${f.type === 'avoir' || (f.lignes_json && f.lignes_json.avoir) ? '↩ Avoir' : '🧾'} ${cuiEsc(s.nom || 'Facture')} · ${cuiEsc(f.numero || '')}`;
   if (f.pdf_path && (!f.lignes_json || relire)) {
     cuiModal(titre, '<div class="empty-state"><span style="display:inline-block;width:20px;height:20px;border:2px solid var(--dim);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite"></span><br><br>Lecture du PDF…</div>');
     try { await facAnalyser(f, relire); facRender(); }
@@ -451,7 +509,7 @@ async function facSave(id) {
 
 /* ─── Récap achats : montants réellement facturés par fournisseur ─── */
 async function facTotauxAnnee(year, month) {
-  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=id,fournisseur_id,numero,montant_ht,date_facture,statut,lignes_json&order=date_facture`);
+  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&type=in.(facture,avoir)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=id,fournisseur_id,numero,montant_ht,date_facture,statut,lignes_json&order=date_facture`);
   const bySup = {}, byMonth = {}, nSup = {}, factures = []; let total = 0, n = 0, nonLues = 0;
   rows.forEach(f => {
     const m = new Date(f.date_facture).getMonth();
@@ -463,4 +521,26 @@ async function facTotauxAnnee(year, month) {
     factures.push({ id: f.id, fournisseur_id: f.fournisseur_id, numero: f.numero, date: f.date_facture, ht: t, avoir: !!(f.lignes_json && f.lignes_json.avoir) });
   });
   return { bySup, byMonth, nSup, factures, total, n, nonLues };
+}
+
+/* ─── Hausses de prix sur la période (historique des prix : factures, accusés, confirmations) ─── */
+async function facHaussesPrix(year, month) {
+  const rows = await cuiGET(`cmd_prix_historique?date=gte.${year - 1}-01-01&date=lt.${year + 1}-01-01&select=produit_id,prix,date,source,created_at&order=produit_id,date,created_at`);
+  const debut = month == null ? `${year}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const fin = month == null ? `${year + 1}-01-01` : `${month === 11 ? year + 1 : year}-${String((month + 1) % 12 + 1).padStart(2, '0')}-01`;
+  const parProduit = {}; let prev = null;
+  rows.forEach(r => {
+    // Seuls les prix constatés sur un document fournisseur comptent comme évolution (pas les saisies / imports)
+    const constate = /facture|avoir|accus|confirmation|relev/i.test(r.source || '');
+    if (constate && prev && prev.produit_id === r.produit_id && r.date >= debut && r.date < fin && prev.prix > 0 && Number(r.prix) !== Number(prev.prix)) {
+      const p = CUI.prods.find(x => x.id === r.produit_id);
+      if (p) {
+        const h = parProduit[p.id];
+        if (!h) parProduit[p.id] = { produit: p, avant: Number(prev.prix), apres: Number(r.prix), date: r.date, source: r.source };
+        else { h.apres = Number(r.prix); h.date = r.date; h.source = r.source; }
+      }
+    }
+    prev = r;
+  });
+  return Object.values(parProduit).map(h => ({ ...h, pct: Math.round((h.apres - h.avant) / h.avant * 1000) / 10 })).filter(h => Math.abs(h.pct) >= 0.5).sort((a, b) => b.pct - a.pct);
 }

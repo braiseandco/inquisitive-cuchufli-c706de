@@ -57,6 +57,7 @@ async function cuiLoad(silent) {
     ]);
     Object.assign(CUI, { sups, cats, prods, drafts, orders, loaded: true });
     cuiRender();
+    if (typeof facAutoLire === 'function') setTimeout(facAutoLire, 1500);
   } catch (e) { console.error(e); if (!silent) cuiToast('Cuisine : erreur de connexion'); }
 }
 function cuiRender() {
@@ -79,16 +80,27 @@ function cuiShowHome() {
   cui$('cui-home').classList.remove('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden');
   CUI.supId = null; cuiRenderHome(); cuiRenderBar();
 }
+const CUI_JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const CUI_JOURS_COURT = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+// Fournisseurs à commander aujourd'hui (rappel_jours) sans commande envoyée depuis ce matin
+function cuiRappels() {
+  const now = new Date(); const jour = now.getDay(); const debut = new Date(now); debut.setHours(4, 0, 0, 0);
+  return CUI.sups.filter(s => s.actif !== false && (s.rappel_jours || []).includes(jour)
+    && !CUI.orders.some(o => o.fournisseur_id === s.id && o.statut !== 'brouillon' && o.statut !== 'annulee' && new Date(o.date_commande) >= debut));
+}
 function cuiRenderHome() {
+  const rap = cuiRappels();
+  cui$('cui-rappels').innerHTML = rap.length ? `<div class="alert-banner" style="margin:4px 16px 8px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="cuiShowSup('${rap[0].id}')"><span style="font-size:20px">⏰</span><span style="flex:1"><b>À commander aujourd'hui</b> : ${rap.map(s => (s.emoji || '') + ' ' + cuiEsc(s.nom)).join(', ')}</span><span>›</span></div>` : '';
   cui$('cui-grid').innerHTML = CUI.sups.filter(s => s.actif !== false).map(s => {
+    const rappel = rap.includes(s);
     const d = cuiDraftFor(s.id); const n = d ? d.lignes.length : 0;
     const last = CUI.orders.find(o => o.fournisseur_id === s.id);
     const np = CUI.prods.filter(p => p.fournisseur_id === s.id).length;
-    return `<button class="cui-card" onclick="cuiShowSup('${s.id}')">
-      ${n ? `<span class="cui-badge">${n}</span>` : ''}
+    return `<button class="cui-card" onclick="cuiShowSup('${s.id}')" style="${rappel ? 'border-color:var(--orange)' : ''}">
+      ${n ? `<span class="cui-badge">${n}</span>` : rappel ? '<span class="cui-badge" style="background:var(--orange)">⏰</span>' : ''}
       <div class="cui-card-emoji">${s.emoji || '📦'}</div>
       <div class="cui-card-name">${cuiEsc(s.nom)}</div>
-      <div class="cui-card-meta">${np} produit${np > 1 ? 's' : ''}${last ? ' · ' + cuiD(last.date_commande) : ''}${s.jours_commande ? '<br>⏰ ' + cuiEsc(s.jours_commande) : ''}</div>
+      <div class="cui-card-meta">${np} produit${np > 1 ? 's' : ''}${last ? ' · ' + cuiD(last.date_commande) : ''}${(s.rappel_jours || []).length ? '<br>⏰ ' + s.rappel_jours.slice().sort().map(j => CUI_JOURS_COURT[j]).join(' ') : s.jours_commande ? '<br>⏰ ' + cuiEsc(s.jours_commande) : ''}</div>
     </button>`;
   }).join('') + `<button class="cui-card cui-card-add" onclick="cuiOpenSupEdit(true)">＋ Fournisseur</button>`;
   cui$('cui-orders').innerHTML = CUI.orders.slice(0, 6).map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande pour l\'instant.</div>';
@@ -347,7 +359,9 @@ function cuiOpenOrder(id) {
     <div class="modal-section"><div class="cui-kv">
       <div><span>Statut</span><span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span></div><div><span>Livraison</span>${cuiD(o.date_livraison)}</div>
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
-    </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}</div>
+    </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}
+    ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
+    ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Produits</div>
       ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiLineTotal(l) != null ? ' · ' + cuiEur(cuiLineTotal(l)) : ''}</span></div>`).join('')}
     </div>
@@ -403,11 +417,21 @@ function cuiEcartHtml(l) {
 function cuiOpenReception(id) {
   const o = CUI.orders.find(x => x.id === id); if (!o) return;
   const s = cuiSup(o.fournisseur_id) || {};
-  CUI._rec = { id, lines: o.lignes.map(l => ({ id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : Number(l.quantite), ecart: l.ecart || '' })) };
+  // BL reçu par mail : quantités livrées proposées d'office (unités compatibles seulement)
+  const bl = o.bl_json && !o.date_reception ? o.bl_json : null;
+  const qteBl = l => {
+    if (!bl) return null;
+    const bls = bl.lignes.filter(x => (x.produit_id && x.produit_id === l.produit_id) || (x.ref && l.reference && x.ref.replace(/^0+/, '') === String(l.reference).replace(/^0+/, '')));
+    if (!bls.length) return null;
+    const u = typeof FAC_UNITES !== 'undefined' ? FAC_UNITES[(bls[0].unite || '').toUpperCase()] : null;
+    if (u && typeof facUniteApp === 'function' && facUniteApp(l.unite) !== u) return null;
+    return bls.reduce((a, x) => a + Number(x.qte || 0), 0);
+  };
+  CUI._rec = { id, lines: o.lignes.map(l => { const q = qteBl(l); return { id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : q != null ? q : Number(l.quantite), ecart: l.ecart || '', bl: q != null }; }) };
   cuiModal(`📦 Réception · ${cuiEsc(s.nom)}`, `
-    <div class="prod-meta" style="margin-bottom:10px">Commande ${cuiEsc(o.numero || '')} · livraison prévue ${cuiD(o.date_livraison)}. Comparez avec le bon de livraison : corrigez les quantités reçues, signalez un problème.</div>
+    <div class="prod-meta" style="margin-bottom:10px">Commande ${cuiEsc(o.numero || '')} · livraison prévue ${cuiD(o.date_livraison)}. ${bl ? `<b>Bon de livraison ${cuiEsc(bl.numero || '')} reçu par mail</b> : les quantités livrées sont pré-remplies, vérifiez la marchandise et corrigez si besoin.` : 'Comparez avec le bon de livraison : corrigez les quantités reçues, signalez un problème.'}</div>
     <div class="form-2col">
-      <div class="form-row"><label>N° du BL (facultatif)</label><input id="cui-r-bl" value="${cuiEsc(o.numero_bl || '')}"></div>
+      <div class="form-row"><label>N° du BL (facultatif)</label><input id="cui-r-bl" value="${cuiEsc(o.numero_bl || (bl && bl.numero) || '')}"></div>
       <div class="form-row"><label>Réceptionné par</label><input id="cui-r-who" value="${cuiEsc(o.recu_par || cuiWho())}"></div>
     </div>
     <div class="modal-section" id="cui-r-lines">${CUI._rec.lines.map(cuiRecLine).join('')}</div>
@@ -422,7 +446,7 @@ function cuiRecLine(l, i) {
   const bad = l.qte_recue !== l.quantite || l.ecart;
   return `<div class="order-line" style="flex-direction:column;align-items:stretch;gap:6px;padding:9px 0" id="cui-rl-${i}">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="flex:1;${bad ? 'color:var(--danger)' : ''}">${cuiEsc(l.nom)}<div class="prod-meta">commandé : <b>${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}</b></div></span>
+      <span style="flex:1;${bad ? 'color:var(--danger)' : ''}">${cuiEsc(l.nom)}<div class="prod-meta">commandé : <b>${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}</b>${l.bl ? ' · <span style="color:var(--ok)">selon BL</span>' : ''}</div></span>
       <span class="stepper"><button class="s-btn" style="width:30px;height:32px" onclick="cuiRecQty(${i},-1)">−</button><input type="number" inputmode="decimal" class="s-qty ${bad ? '' : 'active'}" style="width:48px;height:32px;font-size:15px;${bad ? 'border-color:var(--danger);color:var(--danger)' : ''}" value="${l.qte_recue}" onchange="cuiRecQty(${i},null,this.value)"><button class="s-btn plus" style="width:30px;height:32px" onclick="cuiRecQty(${i},1)">+</button></span>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${CUI_PB.map(pb => `<button class="cui-chip ${l.ecart === pb ? 'on' : ''}" style="padding:4px 10px;font-size:11px" onclick="cuiRecPb(${i},'${pb}')">${pb}</button>`).join('')}</div>
@@ -568,8 +592,11 @@ async function cuiOpenRecap(year, month) {
   if (fac.n) { Object.assign(byMonth, fac.byMonth); total = fac.total; }
   const maxM = Math.max(1, ...Object.values(byMonth));
   const monthRows = month != null ? '' : `<div class="modal-section"><div class="ms-label">Par mois</div>${CUI_MOIS.map((m, i) => `<div onclick="cuiOpenRecap(${year},${i})" style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;cursor:pointer"><span style="width:34px;color:var(--muted)">${m}</span><div style="flex:1;height:8px;background:var(--surf3);border-radius:4px;overflow:hidden"><div style="width:${Math.round((byMonth[i] || 0) / maxM * 100)}%;height:100%;background:var(--orange)"></div></div><span style="width:74px;text-align:right">${byMonth[i] ? cuiEur(byMonth[i]) : ''}</span></div>`).join('')}</div>`;
+  let hausses = [];
+  try { if (typeof facHaussesPrix === 'function') hausses = await facHaussesPrix(year, month); } catch (e) { console.error(e); }
+  const haussesHtml = hausses.length ? `<div class="modal-section"><div class="ms-label">Prix en hausse ${month == null ? 'cette année' : 'ce mois-ci'}${hausses.filter(h => h.pct < 0).length ? ' (et baisses)' : ''}</div>${hausses.slice(0, 25).map(h => { const s = cuiSup(h.produit.fournisseur_id) || {}; return `<div class="order-line"><span>${cuiEsc(h.produit.nom)}<div class="prod-meta">${s.emoji || ''} ${cuiEsc(s.nom || '')} · ${cuiEur(h.avant)} → ${cuiEur(h.apres)} / ${cuiEsc(h.produit.unite || '')}${h.source ? ' · ' + cuiEsc(h.source) : ''}</div></span><span class="order-line-qty" style="color:${h.pct > 0 ? 'var(--danger)' : 'var(--ok)'}">${h.pct > 0 ? '+' : ''}${h.pct} %</span></div>`; }).join('')}${hausses.length > 25 ? `<div class="prod-meta">… et ${hausses.length - 25} autres</div>` : ''}</div>` : '';
   const y = new Date().getFullYear();
-  CUI._recap = { year, month, total, fac, sups, bySup };
+  CUI._recap = { year, month, total, fac, sups, bySup, hausses };
   cuiModal(titre, `
     <div style="display:flex;gap:8px;margin-bottom:8px">${[y - 2, y - 1, y].map(k => `<button class="cui-chip ${k === year ? 'on' : ''}" onclick="cuiOpenRecap(${k},${month})">${k}</button>`).join('')}</div>
     <div class="cui-chips" style="margin-bottom:10px"><button class="cui-chip ${month == null ? 'on' : ''}" onclick="cuiOpenRecap(${year})">Année</button>${CUI_MOIS.map((m, i) => `<button class="cui-chip ${i === month ? 'on' : ''}" onclick="cuiOpenRecap(${year},${i})">${m}</button>`).join('')}</div>
@@ -577,6 +604,7 @@ async function cuiOpenRecap(year, month) {
       <div class="prod-meta">${fac.n ? `${fac.n} facture${fac.n > 1 ? 's' : ''} · ` : ''}${nCmd} commande${nCmd > 1 ? 's' : ''}${sansPrix ? ` · ⚠️ ${sansPrix} ligne${sansPrix > 1 ? 's' : ''} sans prix` : ''}${fac.nonLues ? ` · <span style="color:var(--danger)">⚠️ ${fac.nonLues} facture${fac.nonLues > 1 ? 's' : ''} sans montant (PDF non lu)</span>` : ''}</div></div>
     <div class="modal-section"><div class="ms-label">Par fournisseur${fac.n ? ' (facturé HT)' : ''}</div>${supRows}</div>
     ${monthRows}
+    ${haussesHtml}
     <div class="modal-actions">
       <button class="btn-secondary" onclick="cuiRecapCopy()">📋 Copier le rapport</button>
       <button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
@@ -590,6 +618,7 @@ function cuiRecapCopy() {
     if (r.month != null) r.fac.factures.filter(f => f.fournisseur_id === id).forEach(f => lines.push(`   ${cuiD(f.date)} ${f.avoir ? 'avoir' : 'n°'} ${f.numero || '—'} : ${cuiEur(f.ht)}`));
   });
   lines.push('', `Total : ${cuiEur(r.total)} HT${r.fac.n ? '' : ' (estimé)'}`);
+  if (r.hausses && r.hausses.length) { lines.push('', 'Prix en hausse :'); r.hausses.slice(0, 25).forEach(h => lines.push(`   ${h.produit.nom} : ${cuiEur(h.avant)} → ${cuiEur(h.apres)} (${h.pct > 0 ? '+' : ''}${h.pct} %)`)); }
   if (r.fac.nonLues) lines.push(`(${r.fac.nonLues} facture(s) sans montant, non comptée(s))`);
   navigator.clipboard.writeText(lines.join('\n')).then(() => cuiToast('Rapport copié'));
 }
@@ -671,7 +700,8 @@ function cuiOpenSupEdit(isNew) {
     <div class="form-2col"><div class="form-row"><label>E-mail commandes</label><input id="cui-sEmail" type="email" value="${cuiEsc(s.email || '')}"></div><div class="form-row"><label>Copie (cc)</label><input id="cui-sCc" type="email" value="${cuiEsc(s.email_cc || '')}"></div></div>
     <div class="form-2col"><div class="form-row"><label>Téléphone</label><input id="cui-sTel" type="tel" value="${cuiEsc(s.telephone || '')}"></div><div class="form-row"><label>N° client</label><input id="cui-sNum" value="${cuiEsc(s.numero_client || '')}"></div></div>
     <div class="form-2col"><div class="form-row"><label>Commande par</label><select id="cui-sMode">${[['mail', 'E-mail'], ['sms', 'SMS (au téléphone ci-dessus)'], ['appel', 'Appel téléphonique']].map(([v, l]) => `<option value="${v}" ${(s.mode_commande || 'mail') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div><div class="form-row"><label>SMS copie (n°)</label><input id="cui-sSmsCc" type="tel" value="${cuiEsc(s.sms_copie_tel || '')}" placeholder="06 …"></div></div>
-    <div class="form-2col"><div class="form-row"><label>Jours de commande</label><input id="cui-sJours" value="${cuiEsc(s.jours_commande || '')}" placeholder="ex : dim. pour mar."></div><div class="form-row"><label>Délai livraison (jours)</label><input id="cui-sDelai" type="number" min="0" value="${s.delai_livraison_jours ?? 1}"></div></div>
+    <div class="form-2col"><div class="form-row"><label>Jours de commande (texte)</label><input id="cui-sJours" value="${cuiEsc(s.jours_commande || '')}" placeholder="ex : dim. pour mar."></div><div class="form-row"><label>Délai livraison (jours)</label><input id="cui-sDelai" type="number" min="0" value="${s.delai_livraison_jours ?? 1}"></div></div>
+    <div class="form-row"><label>Rappel « à commander aujourd'hui » les</label><div style="display:flex;gap:6px;flex-wrap:wrap">${[1, 2, 3, 4, 5, 6, 0].map(j => `<button type="button" class="cui-chip cui-sRappel ${(s.rappel_jours || []).includes(j) ? 'on' : ''}" data-j="${j}" onclick="this.classList.toggle('on')">${CUI_JOURS[j].slice(0, 3)}</button>`).join('')}</div></div>
     <div class="form-2col"><div class="form-row"><label>Commercial</label><input id="cui-sComNom" value="${cuiEsc(s.commercial_nom || '')}" placeholder="Prénom Nom"></div><div class="form-row"><label>Portable commercial (SMS)</label><input id="cui-sComTel" type="tel" value="${cuiEsc(s.commercial_tel || '')}" placeholder="06 …"></div></div>
     <div class="form-row"><label>Notes</label><input id="cui-sNotes" value="${cuiEsc(s.notes || '')}"></div>
     <div class="modal-actions">
@@ -682,7 +712,7 @@ function cuiOpenSupEdit(isNew) {
 }
 async function cuiSaveSup(isNew) {
   const nom = cui$('cui-sNom').value.trim(); if (!nom) { cuiToast('Nom obligatoire'); return; }
-  const data = { nom, emoji: cui$('cui-sEmoji').value.trim() || null, email: cui$('cui-sEmail').value.trim() || null, email_cc: cui$('cui-sCc').value.trim() || null, mode_commande: cui$('cui-sMode').value, sms_copie_tel: cui$('cui-sSmsCc').value.trim() || null, telephone: cui$('cui-sTel').value.trim() || null, numero_client: cui$('cui-sNum').value.trim() || null, jours_commande: cui$('cui-sJours').value.trim() || null, delai_livraison_jours: parseInt(cui$('cui-sDelai').value) || 0, commercial_nom: cui$('cui-sComNom').value.trim() || null, commercial_tel: cui$('cui-sComTel').value.trim() || null, notes: cui$('cui-sNotes').value.trim() || null };
+  const data = { nom, emoji: cui$('cui-sEmoji').value.trim() || null, email: cui$('cui-sEmail').value.trim() || null, email_cc: cui$('cui-sCc').value.trim() || null, mode_commande: cui$('cui-sMode').value, sms_copie_tel: cui$('cui-sSmsCc').value.trim() || null, telephone: cui$('cui-sTel').value.trim() || null, numero_client: cui$('cui-sNum').value.trim() || null, jours_commande: cui$('cui-sJours').value.trim() || null, rappel_jours: [...document.querySelectorAll('.cui-sRappel.on')].map(b => +b.dataset.j), delai_livraison_jours: parseInt(cui$('cui-sDelai').value) || 0, commercial_nom: cui$('cui-sComNom').value.trim() || null, commercial_tel: cui$('cui-sComTel').value.trim() || null, notes: cui$('cui-sNotes').value.trim() || null };
   try {
     if (isNew) { const [row] = await cuiPOST('cmd_fournisseurs', { ...data, ordre: CUI.sups.length }); CUI.sups.push(row); cuiCloseModal(); cuiShowSup(row.id); }
     else { const [row] = await cuiPATCH('cmd_fournisseurs?id=eq.' + CUI.supId, data); Object.assign(cuiSup(CUI.supId), row); cuiCloseModal(); cuiShowSup(CUI.supId); }
