@@ -12,10 +12,10 @@ const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf
 
 /* ─── Utilitaires ─── */
 const facNum = s => { if (s == null) return null; s = String(s).replace(/\s| |€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = parseFloat(s); return isNaN(n) ? null : n; };
-const facDate = s => { const m = /(\d\d)\/(\d\d)\/(\d{4})/.exec(s || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+const facDate = s => { const m = /(\d\d)[\/.](\d\d)[\/.](\d{4}|\d{2})\b/.exec(s || ''); return m ? `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2]}-${m[1]}` : null; };
 const facD = d => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 // Unités des factures → unités de l'appli, pour savoir si on peut comparer quantités et prix
-const FAC_UNITES = { KG: 'kilo', K: 'kilo', KILO: 'kilo', L: 'litre', PI: 'pièce', P: 'pièce', U: 'pièce', PC: 'pièce', PIECE: 'pièce', 'PIÈCE': 'pièce', BT: 'boîte', CT: 'carton', CO: 'carton', BD: 'bidon', SH: 'sachet', SA: 'sachet', SO: 'seau', LO: 'lot', COLIS: 'colis', FUT: 'fût', CAISSE: 'caisse', CARTON: 'carton', BIB: 'bib', BTL: 'bouteille', BOITE: 'boîte', TUBE: 'tube' };
+const FAC_UNITES = { KG: 'kilo', K: 'kilo', KILO: 'kilo', L: 'litre', PI: 'pièce', P: 'pièce', U: 'pièce', PC: 'pièce', PIECE: 'pièce', 'PIÈCE': 'pièce', BT: 'boîte', CT: 'carton', CO: 'carton', BD: 'bidon', SH: 'sachet', SA: 'sachet', SO: 'seau', LO: 'lot', COLIS: 'colis', FUT: 'fût', CAISSE: 'caisse', CARTON: 'carton', BIB: 'bib', BTL: 'bouteille', BIB: 'bib', BOITE: 'boîte', TUBE: 'tube' };
 function facUniteApp(u) { u = (u || '').toLowerCase().replace(/\(s\)|s$/g, '').trim(); return { kilo: 'kilo', kg: 'kilo', litre: 'litre', 'pièce': 'pièce', piece: 'pièce', 'unité': 'pièce', 'boîte': 'boîte', boite: 'boîte', bouteille: 'bouteille', carton: 'carton', 'pack de 12': 'carton', 'pack de 6': 'carton', 'pack de 24': 'carton', bidon: 'bidon', 'fût': 'fût', fut: 'fût', bib: 'bib', tube: 'tube', sachet: 'sachet', seau: 'seau', lot: 'lot', colis: 'colis', plateau: 'plateau', barquette: 'barquette', filet: 'filet' }[u] || u; }
 const facNorm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -255,6 +255,71 @@ const FAC_PARSEURS = {
     if (avoir) { ['ht', 'tva', 'ttc'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
     return r;
   },
+  cafe(L) {
+    // Café Richard : n° de facture à 10 chiffres en fin d'en-tête, dates jj/mm/aa, lignes "REF QTE DESIGNATION PU MNT T"
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /^\d{4} \d+ \d+ \S+ .* (\d\d\/\d\d\/\d\d) (\d{10}) L\d+$/.exec(t))) { r.date = facDate(m[1]); r.numero = m[2]; }
+      if ((m = /^BL n[°º] (\d+) du (\d\d\/\d\d\/\d\d)/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /^Echéance:\s*(\d\d\/\d\d\/\d\d)/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /TOTAL H\.T\. ([\d\s]+,\d{2})/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /TOTAL T\.V\.A\. ([\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /TOTAL T\.T\.C\. ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^(\d{6}) (\d+) (.+?) (\d+,\d{2}) (\d+,\d{2}) \d$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[3].trim(), qte: facNum(m[2]), unite: 'PC', pu: facNum(m[4]), montant: facNum(m[5]) });
+      else if ((m = /^(\d{6}) (\d+) (.+?) (Gratuité.*|Mise à disposition)$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[3].trim() + ' (' + m[4].toLowerCase() + ')', qte: facNum(m[2]), unite: 'PC', pu: 0, montant: 0 });
+    });
+    return r;
+  },
+  cocktails(L) {
+    const r = { bls: [], lignes: [] };
+    L.forEach(t => {
+      let m;
+      if ((m = /^(F\d{8}) (\d\d\/\d\d\/\d\d) \d+ /.exec(t))) { r.numero = m[1]; r.date = facDate(m[2]); }
+      if ((m = /Echéance : le (\d\d\/\d\d\/\d\d)/.exec(t))) r.echeance = facDate(m[1]);
+      if ((m = /Total HT ([\d\s]+,\d{2})/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /^Total TVA ([\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /Total TTC ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^([A-Z]{2}\d{2,3}) (.+?) (\d+) (\d+,\d{2}) ([\d\s]+,\d{2}) V\d+$/.exec(t)))
+        r.lignes.push({ bl: null, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: 'PC', pu: facNum(m[4]), montant: facNum(m[5]) });
+    });
+    return r;
+  },
+  platins(L) {
+    // SAS des Platins : "PRODUCTEUR — VIN … • Bouteille 75.0 cl", le libellé peut déborder sur la ligne suivante
+    const r = { bls: [], lignes: [] };
+    L.forEach(t => {
+      let m;
+      if ((m = /^FACTURE (\d{4}-\d{2}-\d{4})/.exec(t))) r.numero = m[1];
+      if ((m = /^(\d\d\/\d\d\/\d{4}) (\d\d\/\d\d\/\d{4}) (\d+) /.exec(t))) { r.date = facDate(m[1]); r.echeance = facDate(m[2]); r.bls.push({ numero: m[3], date: r.date }); }
+      if ((m = /Total HT ([\d\s]+,\d{2})$/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /^Total TVA ([\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /Total TTC ([\d\s]+,\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^(.+?) (\d+) \d+,\d % (\d+,\d{2}) ([\d\s]+,\d{2})$/.exec(t))) {
+        let nom = m[1].replace(/\s*•.*$/, '').trim(); if (nom.includes(' — ')) nom = nom.split(' — ').pop();
+        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: null, nom: nom.replace(/\s+(CRD|FR-BIO-01|Bio¹?)\b/g, '').trim(), qte: facNum(m[2]), unite: /Bib/i.test(t) ? 'BIB' : 'BTL', pu: facNum(m[3]), montant: facNum(m[4]) });
+      }
+    });
+    return r;
+  },
+  carniato(L) {
+    // Carniato : quantités en cartons × bouteilles, prix à la bouteille, droits d'accises en plus
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /^(\d{9}) (\d+) (\d\d\.\d\d\.\d{4}) /.exec(t))) { r.numero = m[1]; r.date = facDate(m[3]); }
+      if ((m = /^BL N[°º](\d+) du (\d\d\.\d\d\.\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
+      if ((m = /^(\d{5}) (?:\d{2})?(.+?) (\d,\d{2}) (\d+) (\d+) (\d+,\d{2}) .*? (\d+) (\d+,\d{2}) A\d ([\d\s]+,\d{2}) /.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim() + ' ' + m[3] + ' L', qte: facNum(m[7]), unite: 'BTL', cartons: facNum(m[4]), parCarton: facNum(m[5]), pu: facNum(m[8]), montant: facNum(m[9]) });
+      if ((m = /^PARTICIPATION AU TRANSPORT (\d+,\d{2})/.exec(t))) r.lignes.push({ bl, ref: null, nom: 'Participation au transport', qte: 1, unite: 'PC', pu: facNum(m[1]), montant: facNum(m[1]) });
+      if ((m = /CALCUL T\.V\.A\. TOTAL ([\d\s]+,\d{2})$/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = / TOTAL ([\d\s]+,\d{2})$/.exec(t)) && /^A\d /.test(t)) r.tva = facNum(m[1]);
+      if ((m = /^TOTAL T\.T\.C\. ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+    });
+    return r;
+  },
   yesfood(L) {
     const r = { bls: [], lignes: [] }; let bl = null;
     L.forEach(t => {
@@ -282,6 +347,10 @@ function facParseurPour(f) {
   if (n.includes('blason')) return 'blason';
   if (n.includes('yesfood') || n.includes('yes food')) return 'yesfood';
   if (n.includes('bihan')) return 'lebihan';
+  if (n.includes('richard')) return 'cafe';
+  if (n.includes('cocktail')) return 'cocktails';
+  if (n.includes('platins') || n.includes('plantins')) return 'platins';
+  if (n.includes('carniato')) return 'carniato';
   return null;
 }
 async function facAnalyser(f, force) {
@@ -298,7 +367,7 @@ async function facAnalyser(f, force) {
   }
   const patch = {
     lignes_json: { parseur, bls: res.bls, lignes: res.lignes, avoir: !!res.avoir, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
-    numero: f.numero || res.numero || null, type: res.avoir ? 'avoir' : (f.type || 'facture'),
+    numero: res.numero || f.numero || null, type: res.avoir ? 'avoir' : (f.type || 'facture'),
     date_facture: res.date || f.date_facture || null,
     date_echeance: res.echeance || f.date_echeance || null,
     montant_ht: res.ht ?? f.montant_ht ?? null, montant_tva: res.tva ?? f.montant_tva ?? null, montant_ttc: res.ttc ?? f.montant_ttc ?? null,
