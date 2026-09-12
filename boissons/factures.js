@@ -57,7 +57,8 @@ function facRender() {
   const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['all', 'Toutes']];
   cui$('cui-fact-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${FAC.filtre === k ? 'on' : ''}" onclick="facSetFiltre('${k}')">${l}${k !== 'all' && counts[k] ? ' · ' + counts[k] : ''}</button>`).join('');
   const list = FAC.rows.filter(f => FAC.filtre === 'all' || f.statut === FAC.filtre);
-  cui$('cui-fact-list').innerHTML = list.map(f => {
+  const nonLues = FAC.rows.filter(f => f.pdf_path && !f.lignes_json).length;
+  cui$('cui-fact-list').innerHTML = (nonLues ? `<button class="cui-chip" style="margin:6px 0 10px" onclick="facAnalyserTout()">📖 Lire les ${nonLues} PDF non lus</button>` : '') + list.map(f => {
     const s = facSup(f.fournisseur_id) || {};
     const r = f.ecarts_json || {};
     return `<div class="hist-item cui-order-row" onclick="facOpen('${f.id}')">
@@ -206,13 +207,14 @@ const FAC_PARSEURS = {
     const r = { bls: [], lignes: [] }; let bl = null;
     L.forEach(t => {
       let m;
-      if ((m = /FACTURE N[°º]\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      if ((m = /(FACTURE|AVOIR) N[°º]\s*(\d+)/.exec(t))) { r.numero = r.numero || m[2]; if (m[1] === 'AVOIR') r.avoir = true; }
       if ((m = /^du (\d\d\/\d\d\/\d{4})/.exec(t))) r.date = r.date || facDate(m[1]);
+      if ((m = /^(\d\d\/\d\d\/\d{4}) LCR/.exec(t))) r.echeance = r.echeance || facDate(m[1]);
       if ((m = /^(\d{8}) (\d\d\/\d\d\/\d{4}) \S+ (\d\d\/\d\d\/\d{4})/.exec(t)) && !bl) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); r.echeance = facDate(m[3]); }
-      if ((m = /TOTAL TTC \(EUR\) ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
-      if ((m = /TOTAL TVA ([\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
-      if ((m = /^([\d\s]+,\d{2}) € \d+,\d{2}%/.exec(t))) r.ht = facNum(m[1]);
-      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(\d+)\s+([\d\s]+,\d{3})\s+(KG|PC|U)\s+(\d+,\d{3})\s+([\d\s]+,\d{2})$/.exec(t)))
+      if ((m = /TOTAL TTC \(EUR\) (-?[\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /TOTAL TVA (-?[\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /^(-?[\d\s]+,\d{2}) € \d+,\d{2}%/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(-?\d+)\s+(-?[\d\s]+,\d{3})\s+(KG|PC|U)\s+(\d+,\d{3})\s+(-?[\d\s]+,\d{2})$/.exec(t)))
         r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[4]), unite: m[5], colis: facNum(m[3]), pu: facNum(m[6]), montant: facNum(m[7]) });
     });
     if (r.ttc != null && r.tva != null) r.ht = Math.round((r.ttc - r.tva) * 100) / 100;
@@ -249,6 +251,19 @@ async function facAnalyser(f, force) {
   f.ecarts_json = patch.ecarts_json = { nb_lignes: res.lignes.length, nb_ecarts: rap.ecarts.length, commandes: rap.commandes.map(c => c.id) };
   await cuiPATCH('cmd_factures?id=eq.' + f.id, patch);
   return rap;
+}
+
+// Lecture en série des PDF importés par le script (montants, dates, n°), sans les ouvrir un par un
+async function facAnalyserTout() {
+  const todo = FAC.rows.filter(f => f.pdf_path && !f.lignes_json);
+  let ok = 0, ko = 0;
+  for (const f of todo) {
+    cuiToast(`Lecture ${ok + ko + 1}/${todo.length}…`);
+    try { await facAnalyser(f); ok++; } catch (e) { console.error(f.numero, e); ko++; }
+  }
+  FAC.rows.sort((a, b) => (b.date_facture || '').localeCompare(a.date_facture || ''));
+  facRender();
+  cuiToast(`${ok} facture${ok > 1 ? 's' : ''} lue${ok > 1 ? 's' : ''}${ko ? ` · ${ko} en erreur` : ''}`);
 }
 
 /* ─── Rapprochement facture ↔ commandes ↔ réception ─── */
@@ -435,9 +450,17 @@ async function facSave(id) {
 }
 
 /* ─── Récap achats : montants réellement facturés par fournisseur ─── */
-async function facTotauxAnnee(year) {
-  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=fournisseur_id,montant_ht,date_facture,statut`);
-  const bySup = {}, byMonth = {}; let total = 0, n = 0;
-  rows.forEach(f => { const t = Number(f.montant_ht || 0); total += t; n++; bySup[f.fournisseur_id] = (bySup[f.fournisseur_id] || 0) + t; const m = new Date(f.date_facture).getMonth(); byMonth[m] = (byMonth[m] || 0) + t; });
-  return { bySup, byMonth, total, n };
+async function facTotauxAnnee(year, month) {
+  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=id,fournisseur_id,numero,montant_ht,date_facture,statut,lignes_json&order=date_facture`);
+  const bySup = {}, byMonth = {}, nSup = {}, factures = []; let total = 0, n = 0, nonLues = 0;
+  rows.forEach(f => {
+    const m = new Date(f.date_facture).getMonth();
+    if (month != null && m !== month) return;
+    if (f.montant_ht == null) { nonLues++; return; }
+    const t = Number(f.montant_ht); total += t; n++;
+    bySup[f.fournisseur_id] = (bySup[f.fournisseur_id] || 0) + t; nSup[f.fournisseur_id] = (nSup[f.fournisseur_id] || 0) + 1;
+    byMonth[m] = (byMonth[m] || 0) + t;
+    factures.push({ id: f.id, fournisseur_id: f.fournisseur_id, numero: f.numero, date: f.date_facture, ht: t, avoir: !!(f.lignes_json && f.lignes_json.avoir) });
+  });
+  return { bySup, byMonth, nSup, factures, total, n, nonLues };
 }
