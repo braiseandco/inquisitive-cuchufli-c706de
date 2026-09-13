@@ -822,7 +822,7 @@ async function loadAdminSms(){
     {key:'sms1',label:'SMS Côte de bœuf',msg:"Cette semaine, c'est côte de bœuf à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥"},
     {key:'sms2',label:'SMS Cochon de lait',msg:"Cette semaine, c'est cochon de lait à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥"},
     {key:'sms3',label:'SMS Semaine',msg:"Venez cette semaine au Braise & Co (vendredi soir et dimanche midi), on vous offre votre apéritif ! (un seul apéritif par réservation) 🔥"},
-    {key:'sms4',label:'SMS Viande fraîche',msg:"Nouveau au Braise & Co : rumsteck frais en boule sous vide (2 à 3 kg, possibilité de la congeler en arrivant chez vous) à emporter, tarif spécial lancement 19,90 €/kg ! Ça vous tente ? Répondez OUI à ce SMS 🔥"},
+    {key:'sms4',label:'SMS Viande fraîche',msg:"Nouveau au Braise & Co : rumsteack frais en boule sous vide à emporter à la maison !! (2 à 3 kg, possibilité de la congeler en arrivant chez vous), tarif spécial lancement 19,90 €/kg ! Ça vous tente ? Répondez OUI à ce SMS 🔥"},
   ];
   const smsSendable=(sentAt,lastVisit)=>{if(!sentAt)return true;if(!lastVisit)return false;return new Date(lastVisit)>new Date(sentAt);};
   const box = document.getElementById('admin-sms-list');
