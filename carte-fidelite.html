@@ -822,12 +822,13 @@ async function loadAdminSms(){
     {key:'sms1',label:'SMS Côte de bœuf',msg:"Cette semaine, c'est côte de bœuf à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥"},
     {key:'sms2',label:'SMS Cochon de lait',msg:"Cette semaine, c'est cochon de lait à volonté ! Vendredi soir et dimanche midi, venez au Braise & Co, nous vous offrons votre apéritif. 🔥"},
     {key:'sms3',label:'SMS Semaine',msg:"Venez cette semaine au Braise & Co (vendredi soir et dimanche midi), on vous offre votre apéritif ! (un seul apéritif par réservation) 🔥"},
+    {key:'sms4',label:'SMS Viande fraîche',msg:"Nouveau au Braise & Co : nos viandes fraîches à emporter (côte de bœuf, pièces du boucher...), non cuisinées, pour vos grillades à la maison ! Ça vous tente ? Répondez OUI à ce SMS 🔥"},
   ];
   const smsSendable=(sentAt,lastVisit)=>{if(!sentAt)return true;if(!lastVisit)return false;return new Date(lastVisit)>new Date(sentAt);};
   const box = document.getElementById('admin-sms-list');
   if(!box) return;
   try{
-    const clients = await sbFetch('clients?select=id,prenom,nom,tel,last_visit,created_at,sms1_sent_at,sms2_sent_at,sms3_sent_at&order=created_at.asc&limit=500');
+    const clients = await sbFetch('clients?select=id,prenom,nom,tel,last_visit,created_at,sms1_sent_at,sms2_sent_at,sms3_sent_at,sms4_sent_at&order=created_at.asc&limit=500');
     const statsEl=document.getElementById('admin-stats-count');
     if(statsEl) statsEl.textContent=clients?clients.length:0;
     if(!clients||!clients.length){box.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-faint);font-size:13px;">Aucun client inscrit</div>';return;}
