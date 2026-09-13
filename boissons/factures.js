@@ -438,7 +438,8 @@ function facRapprocher(f) {
     else if (!cl) { statut = 'non_commande'; }
     else {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
-      if (compat && Math.abs(recu - l.qte) > 0.01) { statut = 'quantite'; detail = `facturé ${cuiQty(l.qte)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
+      const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
+      if (compat && Math.abs(recu - l.qte) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(l.qte)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
       else if (cl.ecart) { statut = 'quantite'; detail = cl.ecart; }
       else statut = compat ? 'ok' : 'ok_unite';
     }

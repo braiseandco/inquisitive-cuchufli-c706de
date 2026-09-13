@@ -412,11 +412,20 @@ function cuiReorder(id) {
 
 /* ─── Réception de livraison : contrôle du BL ligne par ligne ─── */
 const CUI_PB = ['Abîmé', 'Périmé / DLC courte', 'Mauvais produit', 'Non commandé'];
-function cuiEcarts(o) { return o.lignes.filter(l => l.qte_recue != null && (Number(l.qte_recue) !== Number(l.quantite) || l.ecart)); }
+// Produits pesés (viande, poisson, fruits & légumes au kilo) : la quantité livrée varie forcément
+// autour de la quantité commandée. Jusqu'à 10 % d'écart, ce n'est pas une anomalie.
+const CUI_TOLERANCE_POIDS = 0.10;
+function cuiPese(l) { return /^(kilo|kg|kilos?|kilo\(s\))$/i.test((l.unite || '').trim()); }
+function cuiQteOk(l, recu) {
+  const cmd = Number(l.quantite), r = Number(recu);
+  if (r === cmd) return true;
+  return cuiPese(l) && cmd > 0 && Math.abs(r - cmd) / cmd <= CUI_TOLERANCE_POIDS;
+}
+function cuiEcarts(o) { return o.lignes.filter(l => l.qte_recue != null && (!cuiQteOk(l, l.qte_recue) || l.ecart)); }
 function cuiEcartHtml(l) {
   if (l.qte_recue == null) return '';
   const diff = Number(l.qte_recue) - Number(l.quantite);
-  if (!diff && !l.ecart) return ' · <span style="color:var(--ok)">✓ reçu</span>';
+  if (cuiQteOk(l, l.qte_recue) && !l.ecart) return ` · <span style="color:var(--ok)">✓ reçu${diff ? ' ' + cuiQty(l.qte_recue) : ''}</span>`;
   return ` · <span style="color:var(--danger)">${diff ? 'reçu ' + cuiQty(l.qte_recue) + ' / ' + cuiQty(l.quantite) : ''}${diff && l.ecart ? ' · ' : ''}${l.ecart ? cuiEsc(l.ecart) : ''}</span>`;
 }
 function cuiOpenReception(id) {
@@ -448,7 +457,7 @@ function cuiOpenReception(id) {
     </div>`);
 }
 function cuiRecLine(l, i) {
-  const bad = l.qte_recue !== l.quantite || l.ecart;
+  const bad = !cuiQteOk(l, l.qte_recue) || l.ecart;
   return `<div class="order-line" style="flex-direction:column;align-items:stretch;gap:6px;padding:9px 0" id="cui-rl-${i}">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="flex:1;${bad ? 'color:var(--danger)' : ''}">${cuiEsc(l.nom)}<div class="prod-meta">commandé : <b>${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}</b>${l.bl ? ' · <span style="color:var(--ok)">selon BL</span>' : ''}</div></span>
