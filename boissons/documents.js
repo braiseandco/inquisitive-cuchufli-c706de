@@ -92,10 +92,24 @@ function docTrouverCommande(f, res) {
   if (o) return o;
   const ref = new Date(f.type === 'bl' ? (res.date_livraison || res.date) : (res.date || res.date_livraison)).getTime();
   if (isNaN(ref)) return null;
+  // Plusieurs commandes proches (Choco + téléphone le même jour) : on prend celle dont les références
+  // sont dans le document, une commande sans aucune référence commune n'est jamais rattachée
+  const refs = res.lignes.map(l => docRef(l.ref)).filter(Boolean);
+  const hits = o => (o.lignes || []).filter(l => refs.includes(docRef(l.reference))).length;
   const cands = orders.filter(o => f.type === 'bl' ? !o.bl_json && !o.numero_bl : !o.confirmation_json)
-    .map(o => ({ o, dt: Math.abs(new Date(f.type === 'bl' ? (o.date_livraison || o.date_commande) : o.date_commande).getTime() - ref) }))
-    .filter(x => x.dt <= 2.5 * 864e5).sort((a, b) => a.dt - b.dt);
+    .map(o => ({ o, hits: hits(o), dt: Math.abs(new Date(f.type === 'bl' ? (o.date_livraison || o.date_commande) : o.date_commande).getTime() - ref) }))
+    .filter(x => x.dt <= 2.5 * 864e5 && (x.hits > 0 || !refs.length)).sort((a, b) => b.hits - a.hits || a.dt - b.dt);
   return cands.length ? cands[0].o : null;
+}
+const docRef = r => r ? String(r).replace(/\D/g, '').replace(/^0+/, '') : '';
+// Prix dans l'unité de l'appli : le fournisseur peut facturer au kilo une quantité en pièces
+// (Lodifrais : "2.000 PI KG 1.900 19.00" = 2 seaux à 9,50 €) → on repart du montant de la ligne
+function docPrixUnite(p, l) {
+  const uq = FAC_UNITES[(l.unite || '').toUpperCase()], up = FAC_UNITES[(l.unite_prix || l.unite || '').toUpperCase()];
+  const ua = facUniteApp(p.unite);
+  if (up && ua === up && l.pu != null) return l.pu;
+  if (uq && ua === uq && l.montant != null && l.qte) return Math.round(l.montant / l.qte * 1000) / 1000;
+  return null;
 }
 function docProduitPour(f, l) { return facTrouverProduit({ fournisseur_id: f.fournisseur_id }, l); }
 async function docAppliquerBl(f, res, o) {
@@ -121,10 +135,10 @@ async function docCreerCommande(f, res) {
   for (const l of res.lignes) {
     let p = docProduitPour(f, l);
     if (!p) {
-      const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: docNomPropre(l.nom), unite: FAC_UNITES[(l.unite || '').toUpperCase()] === 'kilo' ? 'Kilo(s)' : 'Pièce(s)', prix: l.pu ?? null, reference: l.ref || null, ordre: 900 + prods.length + lignes.length });
+      const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: docNomPropre(l.nom), unite: FAC_UNITES[(l.unite || '').toUpperCase()] === 'kilo' ? 'Kilo(s)' : 'Pièce(s)', prix: (l.montant != null && l.qte) ? Math.round(l.montant / l.qte * 1000) / 1000 : l.pu ?? null, reference: l.ref || null, ordre: 900 + prods.length + lignes.length });
       CUI.prods.push(row); p = row;
     }
-    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: l.pu ?? p.prix ?? null, quantite: l.qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? l.qte : null });
+    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: docPrixUnite(p, l) ?? p.prix ?? null, quantite: l.qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? l.qte : null });
   }
   const estBl = f.type === 'bl';
   const [cmd] = await cuiPOST('cmd_commandes', {
@@ -145,15 +159,14 @@ const docNomPropre = s => s.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCas
 // Prix du jour repris de l'accusé / confirmation (même unité de prix), historique tracé
 async function docMajPrix(f, res, o) {
   for (const l of res.lignes) {
-    const p = docProduitPour(f, l); if (!p || l.pu == null) continue;
-    const up = FAC_UNITES[(l.unite_prix || l.unite || '').toUpperCase()];
-    if (!up || facUniteApp(p.unite) !== up) continue;
-    if (p.prix != null && Math.abs(p.prix - l.pu) < 0.005) continue;
+    const p = docProduitPour(f, l); if (!p) continue;
+    const prix = docPrixUnite(p, l);
+    if (prix == null || (p.prix != null && Math.abs(p.prix - prix) < 0.005)) continue;
     try {
-      await cuiPATCH('cmd_produits?id=eq.' + p.id, { prix: l.pu }); p.prix = l.pu;
-      await cuiPOST('cmd_prix_historique', { produit_id: p.id, prix: l.pu, source: `${DOC_TYPES[f.type]} ${res.numero || ''}`.trim(), date: res.date || cuiIso(new Date()) });
-      const cl = o.lignes.find(x => x.produit_id === p.id);
-      if (cl && cl.prix !== l.pu) { await cuiPATCH('cmd_commande_lignes?id=eq.' + cl.id, { prix: l.pu }); cl.prix = l.pu; }
+      await cuiPATCH('cmd_produits?id=eq.' + p.id, { prix }); p.prix = prix;
+      await cuiPOST('cmd_prix_historique', { produit_id: p.id, prix, source: `${DOC_TYPES[f.type]} ${res.numero || ''}`.trim(), date: res.date || cuiIso(new Date()) });
+      const cl = (o.lignes || []).find(x => x.produit_id === p.id);
+      if (cl && cl.prix !== prix) { await cuiPATCH('cmd_commande_lignes?id=eq.' + cl.id, { prix }); cl.prix = prix; }
     } catch (e) { console.error(e); }
   }
 }
