@@ -41,8 +41,14 @@ function cuiToast(m) {
 }
 const cuiSup = id => CUI.sups.find(s => s.id === id);
 const cuiDraftFor = supId => CUI.drafts.find(d => d.fournisseur_id === supId);
-const cuiLineTotal = l => (l.prix != null && l.quantite) ? l.prix * l.quantite : null;
-const cuiOrderTotal = o => (o.lignes || []).reduce((a, l) => a + (cuiLineTotal(l) || 0), 0);
+// Ligne de l'accusé de réception / confirmation du fournisseur (même référence) : le fournisseur
+// facture parfois au kilo une quantité en pièces, son montant de ligne fait foi sur prix × quantité
+const cuiRefNum = r => r ? String(r).replace(/\D/g, '').replace(/^0+/, '') : '';
+const cuiConfLigne = (o, l) => o && o.confirmation_json && l.reference ? (o.confirmation_json.lignes || []).find(c => cuiRefNum(c.ref) === cuiRefNum(l.reference)) : null;
+const cuiLineTotal = (l, o) => { const c = cuiConfLigne(o, l); if (c && c.montant != null) return c.montant; return (l.prix != null && l.quantite) ? l.prix * l.quantite : null; };
+const cuiOrderTotal = o => o.confirmation_json && o.confirmation_json.ht != null ? o.confirmation_json.ht : (o.lignes || []).reduce((a, l) => a + (cuiLineTotal(l, o) || 0), 0);
+const CUI_UNITES_FOURN = { KG: 'kg', L: 'L', PI: 'pièce(s)', SO: 'seau(x)', SA: 'sac(s)', BT: 'boîte(s)', LO: 'lot(s)', CT: 'carton(s)', CO: 'carton(s)', BD: 'bidon(s)', PO: 'pot(s)' };
+const cuiConfQte = (o, l) => { const c = cuiConfLigne(o, l); if (!c || c.qte == null) return ''; if (!c.qte) return ' · <span style="color:var(--danger)">rupture</span>'; const un = u => CUI_UNITES_FOURN[u] || (u || '').toLowerCase(); const u = (c.unite_prix && c.unite_prix !== c.unite && c.montant && c.pu) ? ` = ${cuiQty(Math.round(c.montant / c.pu * 100) / 100)} ${un(c.unite_prix)}` : ''; return ` · confirmé ${cuiQty(c.qte)} ${un(c.unite)}${u}`; };
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée' }[s] || s);
 
 /* ─── Chargement ─── */
@@ -368,11 +374,11 @@ function cuiOpenOrder(id) {
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Produits</div>
-      ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiLineTotal(l) != null ? ' · ' + cuiEur(cuiLineTotal(l)) : ''}</span></div>`).join('')}
+      ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiConfQte(o, l)}${cuiLineTotal(l, o) != null ? ' · ' + cuiEur(cuiLineTotal(l, o)) : ''}</span></div>`).join('')}
     </div>
     ${o.date_reception ? `<div class="modal-section"><div class="ms-label">Réception</div><div class="ms-val">${cuiDT(o.date_reception)}${o.recu_par ? ' par ' + cuiEsc(o.recu_par) : ''}${o.numero_bl ? ' · BL ' + cuiEsc(o.numero_bl) : ''}<br>${cuiEcarts(o).length ? '<span style="color:var(--danger)">⚠️ ' + cuiEcarts(o).length + ' écart' + (cuiEcarts(o).length > 1 ? 's' : '') + '</span>' : '<span style="color:var(--ok)">✓ Conforme</span>'}${o.reception_note ? '<br>' + cuiEsc(o.reception_note) : ''}</div>
       ${cuiEcarts(o).length ? `<button class="btn-secondary" style="margin-top:8px" onclick="cuiOpenReclamation('${o.id}')">📣 Réclamation fournisseur</button>` : ''}</div>` : ''}
-    <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val">${cuiEur(cuiOrderTotal(o)) || '—'}</div></div>
+    <div class="modal-section"><div class="ms-label">Montant HT ${o.confirmation_json && o.confirmation_json.ht != null ? 'confirmé par le fournisseur' : 'estimé'}</div><div class="ms-val">${cuiEur(cuiOrderTotal(o)) || '—'}</div></div>
     <div class="modal-actions">
       <div class="cui-row-btns">
         ${o.statut === 'envoyee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','confirmee')">✓ Confirmée</button>` : ''}
