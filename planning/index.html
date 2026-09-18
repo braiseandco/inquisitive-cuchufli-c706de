@@ -3805,6 +3805,7 @@ async function openOverride(empId, dateS, dayIdx) {
     ]);
     const ov    = Array.isArray(ovRes)    ? ovRes[0]    : null;
     const sched = Array.isArray(schedRes) ? schedRes[0] : null;
+    overrideTarget.wasEcole = !!ov && ov.morn_status === 'ecole';
 
     // Déterminer le statut global (present, vacation ou fin d'essai)
     // fin_essai + status 'off' = jour rempli automatiquement après le départ → rouvrir en "présent"
@@ -3952,6 +3953,25 @@ async function saveOverride() {
     await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(body),
       headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
 
+    // École posée sur le mardi (1er jour de la semaine) : le reste de la semaine passe en école, modifiable ensuite jour par jour
+    const ecoleWeek = dayIdx === 1 && mornState === 'ecole' && !overrideTarget.wasEcole;
+    if (ecoleWeek) {
+      const rows = [];
+      const cur = new Date(date + 'T12:00');
+      for (let i = 2; i <= 6; i++) {
+        cur.setDate(cur.getDate() + 1);
+        rows.push({
+          employee_id: empId, date: dateStr(cur), status: 'present',
+          morn_status: 'ecole', eve_status: EVENING_DAY_IDX.has(i) ? 'ecole' : null,
+          start_time: null, break_start: null, break_end: null, end_time: null,
+          evening_start: null, evening_break_start: null, evening_break_end: null, evening_end: null,
+          note: null, fin_essai: false
+        });
+      }
+      await sb('weekly_overrides?on_conflict=employee_id,date', {method:'POST', body: JSON.stringify(rows),
+        headers:{'Prefer':'resolution=merge-duplicates,return=representation'}});
+    }
+
     if (isFinEssai) {
       if (finEssaiDates.length) {
         await sb('weekly_overrides?on_conflict=employee_id,date', {
@@ -3972,7 +3992,7 @@ async function saveOverride() {
     }
 
     closeModal('modalOverride');
-    toast(isFinEssai ? 'Fin de période d\'essai enregistrée' : 'Modifié !');
+    toast(isFinEssai ? 'Fin de période d\'essai enregistrée' : ecoleWeek ? 'École toute la semaine' : 'Modifié !');
     if (document.getElementById('emp-week').classList.contains('active')) loadEmpWeek();
     else loadPlanningTab();
   } catch(e) {
