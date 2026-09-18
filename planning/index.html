@@ -143,7 +143,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .wt-partielle{color:#4dd0e1;font-weight:700;}
 .wt-conge{color:#90caf9;}
 .wt-fin{color:#ce93d8;font-weight:700;}
-.wt-ecole{color:#ce93d8;}
+.wt-ecole{color:#ba68c8;font-weight:700;}
 .wt-total{font-weight:700;color:var(--accent2);background:rgba(229,57,53,.06) !important;white-space:nowrap;}
 
 /* Signatures tab */
@@ -181,6 +181,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .day-toggle.arret{background:rgba(229,57,53,.15);color:#ef9a9a;border-color:rgba(229,57,53,.4);}
 .day-toggle.accident{background:rgba(244,143,177,.15);color:#f48fb1;border-color:rgba(244,143,177,.45);}
 .day-toggle.partielle{background:rgba(77,208,225,.15);color:#4dd0e1;border-color:rgba(77,208,225,.45);}
+.day-toggle.ecole{background:rgba(186,104,200,.15);color:#ce93d8;border-color:rgba(186,104,200,.45);}
 .time-input{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px;font-family:'Raleway',sans-serif;width:90px;}
 .sep{color:var(--text-faint);}
 .preset-select{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12px;font-family:'Raleway',sans-serif;font-weight:600;width:100%;margin-bottom:8px;cursor:pointer;outline:none;}
@@ -798,7 +799,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="ov-opt" id="ov-vacation" onclick="selectOv('vacation')">Congé</div>
       <div class="ov-opt" id="ov-fin_essai" onclick="selectOv('fin_essai')">Fin d'essai</div>
     </div>
-    <p style="font-size:11px;color:var(--text2);margin:4px 0 8px;">Pour Absent/Malade : cliquez sur le bouton du service concerné (matin ou soir) pour choisir son statut.</p>
+    <p style="font-size:11px;color:var(--text2);margin:4px 0 8px;">Pour Absent/Malade/École : cliquez sur le bouton du service concerné (matin ou soir) pour choisir son statut.</p>
     <p id="ovFinEssaiHint" style="display:none;font-size:11px;color:#ce93d8;margin:4px 0 8px;line-height:1.5;">🔚 <strong>Dernier jour travaillé</strong> : garde les horaires ci-dessous. Les jours suivants de la semaine passent en « Fin d'essai » (0 h) et l'employé disparaît des semaines suivantes.</p>
     <div id="ovTimeFields">
       <div class="form-group">
@@ -1284,10 +1285,12 @@ async function renderSignWeek() {
         else if (ms === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Matin malade</span>');
         else if (ms === 'accident') badges.push('<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1;font-size:9px">Matin AT</span>');
         else if (ms === 'partielle') badges.push('<span class="day-badge absent" style="background:rgba(77,208,225,.2);color:#4dd0e1;font-size:9px">Matin act. part.</span>');
+        else if (ms === 'ecole') badges.push('<span class="day-badge absent" style="background:rgba(186,104,200,.2);color:#ce93d8;font-size:9px">🎓 Matin école</span>');
         if (es === 'absent') badges.push('<span class="day-badge absent" style="font-size:9px">Soir absent</span>');
         else if (es === 'arret') badges.push('<span class="day-badge absent" style="background:rgba(255,183,77,.2);color:#ffb74d;font-size:9px">Soir malade</span>');
         else if (es === 'accident') badges.push('<span class="day-badge absent" style="background:rgba(244,143,177,.2);color:#f48fb1;font-size:9px">Soir AT</span>');
         else if (es === 'partielle') badges.push('<span class="day-badge absent" style="background:rgba(77,208,225,.2);color:#4dd0e1;font-size:9px">Soir act. part.</span>');
+        else if (es === 'ecole') badges.push('<span class="day-badge absent" style="background:rgba(186,104,200,.2);color:#ce93d8;font-size:9px">🎓 Soir école</span>');
         if (ov.fin_essai) badges.push('<span class="day-badge fin" style="font-size:9px">🔚 Dernier jour</span>');
         badgeHtml = badges.join(' ');
         info = ov.start_time ? fmtHours(ov) : (ms && ms !== 'on' ? '' : '—');
@@ -1737,6 +1740,8 @@ async function loadEmpWeek() {
         const mH = calcSvc(row.start_time, row.break_start, row.break_end, row.end_time);
         const pause = row.break_start ? ` <span style="font-size:10px;color:var(--text-faint)">⏸${fmtT(row.break_start)}-${fmtT(row.break_end)}</span>` : '';
         body += `<div style="font-size:13px">☀️ ${fmtT(row.start_time)} → ${fmtT(row.end_time)}${pause} <span style="color:var(--accent2);font-weight:700">${(mH/60).toFixed(1).replace('.0','')}h</span></div>`;
+      } else if (row.morn_status === 'ecole') {
+        body += '<div style="font-size:13px" class="wt-ecole">🎓 École' + (hasEvening ? ' midi' : '') + '</div>';
       } else if (hasEvening) {
         body += '<div style="font-size:12px;color:var(--text-faint);font-style:italic">☀️ Repos midi</div>';
       }
@@ -1745,6 +1750,8 @@ async function loadEmpWeek() {
           const eH = calcSvc(row.evening_start, row.evening_break_start, row.evening_break_end, row.evening_end);
           const epause = row.evening_break_start ? ` <span style="font-size:10px;color:var(--text-faint)">⏸${fmtT(row.evening_break_start)}-${fmtT(row.evening_break_end)}</span>` : '';
           body += `<div style="font-size:13px;color:var(--accent3)">🌙 ${fmtT(row.evening_start)} → ${fmtT(row.evening_end)}${epause} <span style="color:var(--accent2);font-weight:700">${(eH/60).toFixed(1).replace('.0','')}h</span></div>`;
+        } else if (row.eve_status === 'ecole') {
+          body += '<div style="font-size:13px" class="wt-ecole">🎓 École soir</div>';
         } else {
           body += '<div style="font-size:12px;color:var(--text-faint);font-style:italic">🌙 Repos soir</div>';
         }
@@ -2100,6 +2107,7 @@ async function loadPlanningTab() {
       const badgeMalade = `<div style="font-size:9px;color:#ffb74d;font-weight:700;margin-top:2px">🤒 Malade</div>`;
       if (svcState === 'accident') return `<td class="wt-accident" ${click}>🩹 AT</td>`;
       if (svcState === 'partielle') return `<td class="wt-partielle" ${click}>⏸ Act. part.</td>`;
+      if (svcState === 'ecole') return `<td class="wt-ecole" ${click}>🎓 École</td>`;
       if (svcState === 'absent') return `<td class="wt-absent" ${click}>Absent</td>`;
       if (svcState === 'arret') {
         const hasTime = isMorn ? ov.start_time : ov.evening_start;
@@ -2530,22 +2538,22 @@ async function computeMonthlyRecap(mois) {
   const isMornActive = ov => {
     if (!ov || !ov.start_time || !ov.end_time) return false;
     const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle' && s !== 'ecole';
   };
   const isEveActive = ov => {
     if (!ov || !ov.evening_start || !ov.evening_end) return false;
     const s = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle' && s !== 'ecole';
   };
 
   const recap = [];
   for (const emp of recapEmployees) {
-    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, partielleJours = 0, absentHours = 0;
-    const absDates = []; // {date, type: 'vacation'|'arret'|'accident'|'partielle'}
+    let totalH = 0, totalRepas = 0, totalSup = 0, nbSemaines = 0, congesJours = 0, arretJours = 0, absJours = 0, accidentJours = 0, partielleJours = 0, ecoleJours = 0, absentHours = 0;
+    const absDates = []; // {date, type: 'vacation'|'arret'|'accident'|'partielle'|'ecole'}
     const weeklyBreakdown = []; // [{monday, weekH, weekSup, weekRepas, weekAbs}] pour le PDF detaille
     for (const monday of mondays) {
       let weekH = 0, weekServices = 0, hasAny = false;
-      let wConges = 0, wArret = 0, wAccident = 0, wAbs = 0, wPartielle = 0;
+      let wConges = 0, wArret = 0, wAccident = 0, wAbs = 0, wPartielle = 0, wEcole = 0;
       for (let i = 0; i < 7; i++) {
         const d = new Date(monday); d.setDate(d.getDate() + i);
         // Démission : ignore les jours apres le dernier jour travaille
@@ -2577,10 +2585,12 @@ async function computeMonthlyRecap(mois) {
           else if (ov.morn_status === 'accident') { accidentJours += 0.5; wAccident += 0.5; dayTypes.add('accident'); }
           else if (ov.morn_status === 'absent') { absJours += 0.5; wAbs += 0.5; }
           else if (ov.morn_status === 'partielle') { partielleJours += 0.5; wPartielle += 0.5; dayTypes.add('partielle'); }
+          else if (ov.morn_status === 'ecole') { ecoleJours += 0.5; wEcole += 0.5; dayTypes.add('ecole'); }
           if (ov.eve_status === 'arret') { arretJours += 0.5; wArret += 0.5; dayTypes.add('arret'); }
           else if (ov.eve_status === 'accident') { accidentJours += 0.5; wAccident += 0.5; dayTypes.add('accident'); }
           else if (ov.eve_status === 'absent') { absJours += 0.5; wAbs += 0.5; }
           else if (ov.eve_status === 'partielle') { partielleJours += 0.5; wPartielle += 0.5; dayTypes.add('partielle'); }
+          else if (ov.eve_status === 'ecole') { ecoleJours += 0.5; wEcole += 0.5; dayTypes.add('ecole'); }
         }
         dayTypes.forEach(type => absDates.push({date: dayYmd, type}));
       }
@@ -2591,7 +2601,7 @@ async function computeMonthlyRecap(mois) {
       const weekSup = (emp.heures_hebdo_contrat != null && weekH > +emp.heures_hebdo_contrat)
         ? weekH - +emp.heures_hebdo_contrat : 0;
       totalSup += weekSup;
-      weeklyBreakdown.push({monday: new Date(monday), weekH, weekSup, weekRepas: weekServices, wConges, wArret, wAccident, wAbs, wPartielle});
+      weeklyBreakdown.push({monday: new Date(monday), weekH, weekSup, weekRepas: weekServices, wConges, wArret, wAccident, wAbs, wPartielle, wEcole});
     }
     // Prorata mois : jours calendaires de présence (arrivée/départ dans le mois)
     const firstYmd = dateStr(firstDay), lastYmd = dateStr(lastDay);
@@ -2608,8 +2618,8 @@ async function computeMonthlyRecap(mois) {
     } else {
       presenceDays = 0; presenceRatio = 0;
     }
-    if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0 || partielleJours > 0)
-      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, partielleJours, absentHours, presenceDays, presenceRatio, daysInMonth, absDates, ovByDate: ovIdx[emp.id] || {}, weeklyBreakdown});
+    if (totalH > 0 || totalRepas > 0 || congesJours > 0 || arretJours > 0 || absJours > 0 || accidentJours > 0 || partielleJours > 0 || ecoleJours > 0)
+      recap.push({emp, totalH, totalRepas, totalSup, nbSemaines, congesJours, arretJours, absJours, accidentJours, partielleJours, ecoleJours, absentHours, presenceDays, presenceRatio, daysInMonth, absDates, ovByDate: ovIdx[emp.id] || {}, weeklyBreakdown});
   }
 
   recap.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
@@ -2624,7 +2634,7 @@ let recapObservations = '';
 
 // Construit le texte d'observations automatiques (1 ligne par plage consécutive d'absence)
 function buildAutoObservations(recap) {
-  const labels = { vacation: 'Congé payé', arret: 'Arrêt maladie', accident: 'Accident du travail', partielle: 'Activité partielle' };
+  const labels = { vacation: 'Congé payé', arret: 'Arrêt maladie', accident: 'Accident du travail', partielle: 'Activité partielle', ecole: 'École (CFA)' };
   const fmtJM = ymd => {
     const [y, m, d] = ymd.split('-').map(Number);
     return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
@@ -2650,7 +2660,7 @@ function buildAutoObservations(recap) {
   recap.forEach(r => {
     const byType = {};
     (r.absDates || []).forEach(({date, type}) => { (byType[type] = byType[type] || new Set()).add(date); });
-    ['accident', 'arret', 'vacation', 'partielle'].forEach(type => {
+    ['accident', 'arret', 'vacation', 'partielle', 'ecole'].forEach(type => {
       if (!byType[type]) return;
       const dates = [...byType[type]].sort();
       let start = dates[0], prev = dates[0];
@@ -2727,6 +2737,7 @@ function renderRecapEditable() {
     if (r.accidentJours > 0) abs.push(`<span style="color:#f48fb1">${fmtJours(r.accidentJours)} AT</span>`);
     if (r.absJours > 0)    abs.push(`<span style="color:#ef9a9a">${fmtJours(r.absJours)} absence</span>`);
     if (r.partielleJours > 0) abs.push(`<span style="color:#4dd0e1">${fmtJours(r.partielleJours)} act. partielle</span>`);
+    if (r.ecoleJours > 0) abs.push(`<span style="color:#ce93d8">${fmtJours(r.ecoleJours)} école</span>`);
     const sub = hebdo + (abs.length ? ' · ' + abs.join(' · ') : '');
     return `<tr style="border-top:1px solid var(--border)">
       <td style="padding:6px 6px">${r.emp.name}<div style="font-size:10px;color:var(--text-faint)">${sub}</div></td>
@@ -2810,6 +2821,7 @@ function printRecapMensuel() {
       if (w.wArret > 0)    tags.push(`<span style="color:#e65100">${fj(w.wArret)}j arrêt</span>`);
       if (w.wConges > 0)   tags.push(`<span style="color:#1565c0">${fj(w.wConges)}j congé</span>`);
       if (w.wAbs > 0)      tags.push(`<span style="color:#b00">${fj(w.wAbs)}j abs</span>`);
+      if (w.wEcole > 0)    tags.push(`<span style="color:#6a1b9a">${fj(w.wEcole)}j école</span>`);
       const tagsTxt = tags.length ? `<br><span style="font-size:8pt">${tags.join(' · ')}</span>` : '';
       return `<td style="text-align:center">
         ${supTxt}<span style="font-size:8.5pt;color:#555">${repasTxt}</span>${tagsTxt}
@@ -3019,19 +3031,19 @@ async function computeWeeklyRecap(fromYmd, toYmd) {
   const isMornActive = ov => {
     if (!ov || !ov.start_time || !ov.end_time) return false;
     const s = ov.morn_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle' && s !== 'ecole';
   };
   const isEveActive = ov => {
     if (!ov || !ov.evening_start || !ov.evening_end) return false;
     const s = ov.eve_status || ((ov.status === 'absent' || ov.status === 'arret') ? ov.status : 'on');
-    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle';
+    return s !== 'absent' && s !== 'repos' && s !== 'accident' && s !== 'partielle' && s !== 'ecole';
   };
 
   const rows = [];
   for (const emp of recapEmployees) {
     const empOv = ovIdx[emp.id] || {};
     const weeks = mondays.map(monday => {
-      let totalH = 0, repas = 0, conges = 0, arret = 0, abs = 0, accident = 0, partielle = 0, hasAny = false;
+      let totalH = 0, repas = 0, conges = 0, arret = 0, abs = 0, accident = 0, partielle = 0, ecole = 0, hasAny = false;
       for (let i = 0; i < 7; i++) {
         const d = new Date(monday); d.setDate(d.getDate() + i);
         // Démission : ignore les jours apres le dernier jour travaille
@@ -3051,13 +3063,15 @@ async function computeWeeklyRecap(fromYmd, toYmd) {
           else if (ov.morn_status === 'accident') accident += 0.5;
           else if (ov.morn_status === 'absent')   abs      += 0.5;
           else if (ov.morn_status === 'partielle') partielle += 0.5;
+          else if (ov.morn_status === 'ecole')    ecole    += 0.5;
           if      (ov.eve_status  === 'arret')    arret    += 0.5;
           else if (ov.eve_status  === 'accident') accident += 0.5;
           else if (ov.eve_status  === 'absent')   abs      += 0.5;
           else if (ov.eve_status  === 'partielle') partielle += 0.5;
+          else if (ov.eve_status  === 'ecole')    ecole    += 0.5;
         }
       }
-      return {totalH, repas, conges, arret, abs, accident, partielle, hasAny};
+      return {totalH, repas, conges, arret, abs, accident, partielle, ecole, hasAny};
     });
     if (!weeks.some(w => w.hasAny)) continue;
     const totalH = weeks.reduce((s, w) => s + w.totalH, 0);
@@ -3105,6 +3119,7 @@ function renderWeeklyRecap() {
       if (w.accident > 0) tags.push(`<span style="color:#f48fb1">${fj(w.accident)}AT</span>`);
       if (w.abs      > 0) tags.push(`<span style="color:#ef9a9a">${fj(w.abs)}abs</span>`);
       if (w.partielle> 0) tags.push(`<span style="color:#4dd0e1">${fj(w.partielle)}AP</span>`);
+      if (w.ecole    > 0) tags.push(`<span style="color:#ce93d8">${fj(w.ecole)}éc</span>`);
       return `<td style="text-align:center;padding:6px 4px;border-left:1px solid var(--border);white-space:nowrap">
         <div style="font-weight:700">${fmtH1(w.totalH)}</div>
         ${w.repas > 0 ? `<div style="font-size:10px;color:var(--text-dim)">${w.repas} repas</div>` : ''}
@@ -3139,7 +3154,8 @@ function renderWeeklyRecap() {
       <span style="color:#ffb74d">arr</span>=arrêt,
       <span style="color:#f48fb1">AT</span>=accident,
       <span style="color:#ef9a9a">abs</span>=absence,
-      <span style="color:#4dd0e1">AP</span>=activité partielle.
+      <span style="color:#4dd0e1">AP</span>=activité partielle,
+      <span style="color:#ce93d8">éc</span>=école.
       Les fractions = demi-journées.
     </p>
     <button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(67,160,71,.18);border:1px solid rgba(67,160,71,.4);color:#a5d6a7" onclick="printWeeklyRecap()">📄 Générer le PDF du récap hebdomadaire</button>`;
@@ -3167,6 +3183,7 @@ function printWeeklyRecap() {
       if (w.accident > 0) tags.push(`${fj(w.accident)}AT`);
       if (w.abs      > 0) tags.push(`${fj(w.abs)}abs`);
       if (w.partielle> 0) tags.push(`${fj(w.partielle)}AP`);
+      if (w.ecole    > 0) tags.push(`${fj(w.ecole)}éc`);
       return `<td style="text-align:center">
         <strong>${fmtH2(w.totalH)}</strong>
         ${w.repas > 0 ? `<br><span style="font-size:8pt;color:#666">${w.repas} repas</span>` : ''}
@@ -3435,6 +3452,7 @@ async function printEmpReport() {
       const tdAccident= `<td style="color:#ad1457;text-align:center;font-weight:700;font-size:10px">AT</td>`;
       const tdVacance = `<td style="color:#1565c0;text-align:center;font-weight:700;font-size:10px">Congé</td>`;
       const tdPartielle = `<td style="color:#00838f;text-align:center;font-weight:700;font-size:10px">Act. part.</td>`;
+      const tdEcole = `<td style="color:#6a1b9a;text-align:center;font-weight:700;font-size:10px">École</td>`;
 
       // Helper: cellule pour un service selon son état
       const svcCell = (state, startT, endT, brkS, brkE, isEve) => {
@@ -3443,6 +3461,7 @@ async function printEmpReport() {
         if (effState === 'arret')  return tdArret;
         if (effState === 'accident') return tdAccident;
         if (effState === 'partielle') return tdPartielle;
+        if (effState === 'ecole') return tdEcole;
         if (effState === 'repos')  return tdRepos;
         if (!startT) return tdRepos;
         const mins = isEve
@@ -3469,6 +3488,7 @@ async function printEmpReport() {
       if (effMornState === 'arret')  { cellArr.push(tdArret);  return; }
       if (effMornState === 'accident') { cellArr.push(tdAccident); return; }
       if (effMornState === 'partielle') { cellArr.push(tdPartielle); return; }
+      if (effMornState === 'ecole') { cellArr.push(tdEcole); return; }
       const mins = calcSvc(ov.start_time, ov.break_start, ov.break_end, ov.end_time);
       weekTotal += mins;
       cellArr.push(`<td style="text-align:center;font-size:10px">${fmtT(ov.start_time)}-${fmtT(ov.end_time)}<br><span style="color:#e53935;font-weight:700">${(mins/60).toFixed(1).replace('.0','')}h</span></td>`);
@@ -3856,24 +3876,24 @@ function selectOv(status) {
 
 // Helper: applique un état (on/repos/absent/arret) à un toggle + son bloc de champs
 function setToggleState(togEl, fieldsEl, state) {
-  const labels = { on: 'TRAVAILLE', repos: 'REPOS', absent: 'ABSENT', arret: 'MALADE', accident: 'ACCID. TRAVAIL', partielle: 'ACT. PARTIELLE' };
+  const labels = { on: 'TRAVAILLE', repos: 'REPOS', absent: 'ABSENT', arret: 'MALADE', accident: 'ACCID. TRAVAIL', partielle: 'ACT. PARTIELLE', ecole: '🎓 ÉCOLE' };
   togEl.textContent = labels[state] || 'TRAVAILLE';
   togEl.dataset.state = state;
   togEl.className = 'day-toggle ' + state;
   if (fieldsEl) fieldsEl.style.display = (state === 'on') ? '' : 'none';
 }
 
-// Cycle: TRAVAILLE → REPOS → ABSENT → MALADE → ACCID. TRAVAIL → ACT. PARTIELLE → TRAVAILLE
+// Cycle: TRAVAILLE → REPOS → ABSENT → MALADE → ACCID. TRAVAIL → ACT. PARTIELLE → ÉCOLE → TRAVAILLE
 function cycleOvMorn() {
   const tog = document.getElementById('ovMornToggle');
-  const states = ['on','repos','absent','arret','accident','partielle'];
+  const states = ['on','repos','absent','arret','accident','partielle','ecole'];
   const cur = tog.dataset.state || 'on';
   const next = states[(states.indexOf(cur) + 1) % states.length];
   setToggleState(tog, document.getElementById('ovMornFields'), next);
 }
 function cycleOvEve() {
   const tog = document.getElementById('ovEveToggle');
-  const states = ['on','repos','absent','arret','accident','partielle'];
+  const states = ['on','repos','absent','arret','accident','partielle','ecole'];
   const cur = tog.dataset.state || 'on';
   const next = states[(states.indexOf(cur) + 1) % states.length];
   setToggleState(tog, document.getElementById('ovEveFields'), next);
