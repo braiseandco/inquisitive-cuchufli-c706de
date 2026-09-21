@@ -49,6 +49,8 @@ const cuiLineTotal = (l, o) => { const c = cuiConfLigne(o, l); if (c && c.montan
 const cuiOrderTotal = o => o.confirmation_json && o.confirmation_json.ht != null ? o.confirmation_json.ht : (o.lignes || []).reduce((a, l) => a + (cuiLineTotal(l, o) || 0), 0);
 const CUI_UNITES_FOURN = { KG: 'kg', L: 'L', PI: 'pièce(s)', SO: 'seau(x)', SA: 'sac(s)', BT: 'boîte(s)', LO: 'lot(s)', CT: 'carton(s)', CO: 'carton(s)', BD: 'bidon(s)', PO: 'pot(s)' };
 const cuiConfQte = (o, l) => { const c = cuiConfLigne(o, l); if (!c || c.qte == null) return ''; if (!c.qte) return ' · <span style="color:var(--danger)">rupture</span>'; const un = u => CUI_UNITES_FOURN[u] || (u || '').toLowerCase(); const u = (c.unite_prix && c.unite_prix !== c.unite && c.montant && c.pu) ? ` = ${cuiQty(Math.round(c.montant / c.pu * 100) / 100)} ${un(c.unite_prix)}` : ''; return ` · confirmé ${cuiQty(c.qte)} ${un(c.unite)}${u}`; };
+// Recherche sans accents : « creme brulee » ou « oeufs » doivent trouver « crème brûlée » et « œufs »
+const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée' }[s] || s);
 
 /* ─── Chargement ─── */
@@ -156,10 +158,10 @@ function cuiPrefillMini() {
 }
 function cuiSetCat(k) { CUI.cat = k; cuiRenderChips(); cuiRenderProducts(); }
 function cuiRenderProducts() {
-  const q = cui$('cui-search').value.trim().toLowerCase();
+  const q = cuiNorm(cui$('cui-search').value);
   const d = cuiDraftFor(CUI.supId); const inCart = {}; (d ? d.lignes : []).forEach(l => inCart[l.produit_id] = l);
   let prods = CUI.prods.filter(p => p.fournisseur_id === CUI.supId);
-  if (q) prods = prods.filter(p => (p.nom + ' ' + (p.reference || '') + ' ' + (p.marque || '')).toLowerCase().includes(q));
+  if (q) prods = prods.filter(p => cuiNorm(p.nom + ' ' + (p.reference || '') + ' ' + (p.marque || '')).includes(q));
   else if (CUI.cat === 'fav') prods = prods.filter(p => p.favori);
   else if (CUI.cat !== 'all') prods = prods.filter(p => p.categorie_id === CUI.cat);
   if (!prods.length) { cui$('cui-list').innerHTML = `<div class="empty-state">${q ? 'Aucun produit ne correspond.' : 'Aucun produit.<br>Ajoutez-en avec le bouton ＋.'}</div>`; return; }
