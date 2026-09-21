@@ -288,9 +288,22 @@ function cuiOrderSmsText(o) {
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lines}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
-function cuiSendSms(id, tel) { ouvrirSms(tel.replace(/\s/g, ''), cuiOrderSmsText(cuiOrderById(id))); }
-function cuiSendMail(id) {
-  const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
+// Le mail ou le SMS s'ouvre dans une autre appli : on enregistre la commande avant de quitter la page,
+// sinon elle reste en brouillon sans numéro quand personne ne revient taper « terminer »
+async function cuiEnregistrerAvantEnvoi(id) {
+  const o = cuiOrderById(id);
+  if (!CUI._pending || o !== CUI._pending) return o;
+  await cuiValidate();
+  if (CUI._pending) return o;
+  const saved = cuiOrderById(o.id); const s = cuiSup(saved.fournisseur_id) || {};
+  cuiModal(`${cuiEsc(s.nom)} · ${cuiEsc(saved.numero)}`, `
+    <div class="prod-meta" style="margin-bottom:10px">Commande enregistrée. Si l'envoi n'a pas abouti, renvoyez-la :</div>
+    <div class="modal-actions">${cuiSendButtons(saved)}<button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
+  return saved;
+}
+async function cuiSendSms(id, tel) { const o = await cuiEnregistrerAvantEnvoi(id); ouvrirSms(tel.replace(/\s/g, ''), cuiOrderSmsText(o)); }
+async function cuiSendMail(id) {
+  const o = await cuiEnregistrerAvantEnvoi(id); const s = cuiSup(o.fournisseur_id) || {};
   window.location.href = buildMailtoUrl(s.email, `Commande Braise & Co ${o.numero} — livraison ${cuiD(o.date_livraison)}`, cuiOrderText(o)) + cuiCc(s);
 }
 function cuiSendButtons(o) {
