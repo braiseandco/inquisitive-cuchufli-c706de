@@ -6,9 +6,9 @@ enregistrées dans l'appli Cuisine, sans jamais inventer un chiffre.
 
 ## Où sont les photos
 
-`%USERPROFILE%\Mon Drive\BL\AAAA-MM-JJ\` — un sous-dossier par jour de livraison,
+`G:\Mon Drive\Bl\AAAA-MM-JJ\` — un sous-dossier par jour de livraison,
 alimenté depuis Gmail par `gmail-vers-drive.gs` et synchronisé par Google Drive
-pour ordinateur. Les fichiers déjà traités sont dans `BL\traités\`.
+pour ordinateur. Les fichiers déjà traités sont dans `G:\Mon Drive\Bl\traités\`.
 
 Traiter uniquement les photos qui ne sont pas encore dans `traités`.
 
@@ -97,7 +97,7 @@ values ('<produit>', <prix>, 'BL <numéro> du <date>', '<date>');
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `BL\traités\`, puis **envoyer le récap par mail** à
+Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par mail** à
 braiseandcobiganos@gmail.com, via le connecteur Gmail de la session. Un récap
 qui reste affiché dans une fenêtre du PC n'est pas un récap : personne ne le lit,
 et surtout pas depuis le téléphone, d'où se pilotent les commandes.
