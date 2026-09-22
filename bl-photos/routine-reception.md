@@ -7,6 +7,24 @@ pour démarrer.
 Objectif : transformer les photos de bons de livraison en réceptions enregistrées
 dans l'appli Cuisine, **sans jamais inventer un chiffre**.
 
+## Mode de fonctionnement
+
+    MODE = À BLANC
+
+C'est la seule ligne à changer pour basculer. Les deux valeurs possibles :
+
+- **À BLANC** — faire la lecture et tous les contrôles, puis écrire dans le récap
+  *ce qui serait enregistré*, ligne par ligne, avec les écarts et les prix qui
+  bougeraient. **N'écrire absolument rien en base** : ni `qte_recue`, ni statut,
+  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus — elles doivent
+  rester à traiter pour que la réception manuelle serve de comparaison.
+- **ÉCRITURE** — appliquer la procédure complète, points 5 et 6 compris.
+
+Pendant la période à blanc, le récap sert de preuve : on le compare à la
+réception faite à la main. La bascule en écriture est décidée sur un critère
+chiffré — dix bons de livraison d'affilée sans une seule correction à apporter —
+et pas sur une impression.
+
 ## Contexte
 
 Braise & Co, restaurant à Biganos (174 avenue de la Côte d'Argent, 33380). Les

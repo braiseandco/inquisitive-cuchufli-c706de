@@ -55,14 +55,42 @@ voit qu'un raccourci et Claude Code n'ouvrira rien.
 
 ### 3. La routine au démarrage
 
-Planificateur de tâches Windows → nouvelle tâche, déclencheur « à l'ouverture de
-session », action : lancer Claude Code dans ce dépôt en lui donnant
-`bl-photos/routine-reception.md` comme consigne.
-
 Le PC a besoin de deux connecteurs : **Supabase** pour écrire les réceptions, et
 **Gmail** pour envoyer le récap. Aucun des deux n'est facturé à l'usage — c'est
-la session Claude qui travaille, il n'y a pas d'appel d'API payant dans la
-chaîne.
+la session Claude qui travaille, il n'y a pas d'appel d'API payant dans la chaîne.
+
+**a) Vérifier que la commande existe.** Dans un terminal : `claude --version`.
+Si la commande est inconnue, installer Claude Code en ligne de commande avant
+d'aller plus loin.
+
+**b) Essayer le lanceur à la main.** Copier `reception-bl.bat` sur le PC (par
+exemple dans `%USERPROFILE%\bl\`) et le double-cliquer. Le compte rendu s'écrit
+dans `%USERPROFILE%\bl-reception.log`. Si la session s'arrête en demandant une
+autorisation d'outil, c'est normal au premier passage : il faudra la lui accorder
+une fois, ou préciser les outils autorisés dans la commande.
+
+**c) Planifier.** Planificateur de tâches Windows → *Créer une tâche* :
+
+| Onglet | Réglage |
+|---|---|
+| Général | nom « Réception BL », *Exécuter même si l'utilisateur n'est pas connecté* décoché |
+| Déclencheurs | *À l'ouverture de session*, différer de 2 minutes (le temps que Drive et le réseau soient là) |
+| Actions | *Démarrer un programme* → le chemin complet de `reception-bl.bat` |
+| Conditions | décocher *Ne démarrer que si l'ordinateur est sur secteur* |
+
+## Du mode à blanc à l'écriture
+
+La première consigne de `routine-reception.md` est son mode. Il démarre à
+**À BLANC** : la routine lit, contrôle, et envoie un récap disant ce qu'elle
+écrirait — sans rien écrire. La réception continue de se faire à la main, et les
+deux se comparent.
+
+La bascule en **ÉCRITURE** se décide sur un critère chiffré : **dix bons de
+livraison d'affilée sans une seule correction à apporter**. Une ligne à changer
+dans la consigne, rien d'autre.
+
+Calendrier visé : à blanc d'octobre à novembre 2026, bascule en décembre,
+routine établie en janvier 2027.
 
 ## Ce que la routine ne fera jamais
 
