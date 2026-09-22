@@ -59,7 +59,10 @@ Planificateur de tâches Windows → nouvelle tâche, déclencheur « à l'ouver
 session », action : lancer Claude Code dans ce dépôt en lui donnant
 `bl-photos/routine-reception.md` comme consigne.
 
-Le PC a besoin du connecteur Supabase pour écrire les réceptions.
+Le PC a besoin de deux connecteurs : **Supabase** pour écrire les réceptions, et
+**Gmail** pour envoyer le récap. Aucun des deux n'est facturé à l'usage — c'est
+la session Claude qui travaille, il n'y a pas d'appel d'API payant dans la
+chaîne.
 
 ## Ce que la routine ne fera jamais
 
@@ -77,10 +80,10 @@ vouloir dire « la chaîne est cassée », jamais « rien à signaler ».
   seront traitées à la prochaine ouverture de session, mais les écarts sont
   signalés d'autant plus tard.
 - Quatre maillons peuvent casser en silence, d'où le récap quotidien.
-- Si le PC finit par être trop souvent éteint, la solution qui ne dépend de rien
-  est un bouton « photo du BL » dans l'écran Réception, la photo partant dans le
-  bucket `factures` et lue côté serveur par une edge function. Environ 1 à
-  2 centimes la photo, et plus besoin ni du mail, ni de Drive, ni du PC.
+- Si le PC finit par être trop souvent éteint, il existe une version qui ne
+  dépend de rien : le script Google envoie lui-même la photo à l'API Claude et
+  écrit la réception. Plus besoin ni de Drive, ni du PC — mais c'est payant,
+  environ 1 à 2 centimes la photo. Écartée tant que le PC suffit.
 
 ## Cadrage des photos
 

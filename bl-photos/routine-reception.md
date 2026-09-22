@@ -97,9 +97,14 @@ values ('<produit>', <prix>, 'BL <numéro> du <date>', '<date>');
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `BL\traités\`, puis écrire un récap, **même les jours sans
-livraison** — le silence doit vouloir dire « la routine est cassée », jamais
-« rien à signaler » :
+Déplacer la photo dans `BL\traités\`, puis **envoyer le récap par mail** à
+braiseandcobiganos@gmail.com, via le connecteur Gmail de la session. Un récap
+qui reste affiché dans une fenêtre du PC n'est pas un récap : personne ne le lit,
+et surtout pas depuis le téléphone, d'où se pilotent les commandes.
+
+Objet : `Réception du <date> — <n> livraison(s), <n> écart(s)`. L'envoyer **même
+les jours sans livraison** — le silence doit vouloir dire « la routine est
+cassée », jamais « rien à signaler ». Contenu :
 
 - commandes réceptionnées, avec leur numéro et le total du BL ;
 - écarts entre commandé et livré, ligne par ligne ;
