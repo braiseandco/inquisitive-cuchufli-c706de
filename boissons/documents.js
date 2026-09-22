@@ -109,6 +109,9 @@ function docPrixUnite(p, l) {
   const ua = facUniteApp(p.unite);
   if (up && ua === up && l.pu != null) return l.pu;
   if (uq && ua === uq && l.montant != null && l.qte) return Math.round(l.montant / l.qte * 1000) / 1000;
+  // Commandé au colis, facturé au poids (DS : poche de 2,5 kg) : prix du kilo ramené à la poche
+  const poids = facConvPoids(p, l.unite_prix || l.unite);
+  if (poids && l.pu != null) return Math.round(l.pu * poids * 1000) / 1000;
   return null;
 }
 function docProduitPour(f, l) { return facTrouverProduit({ fournisseur_id: f.fournisseur_id }, l); }
@@ -138,7 +141,9 @@ async function docCreerCommande(f, res) {
       const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: docNomPropre(l.nom), unite: FAC_UNITES[(l.unite || '').toUpperCase()] === 'kilo' ? 'Kilo(s)' : 'Pièce(s)', prix: (l.montant != null && l.qte) ? Math.round(l.montant / l.qte * 1000) / 1000 : l.pu ?? null, reference: l.ref || null, ordre: 900 + prods.length + lignes.length });
       CUI.prods.push(row); p = row;
     }
-    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: docPrixUnite(p, l) ?? p.prix ?? null, quantite: l.qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? l.qte : null });
+    const poids = facConvPoids(p, l.unite);
+    const qte = poids ? Math.round(l.qte / poids * 1000) / 1000 : l.qte;
+    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: docPrixUnite(p, l) ?? p.prix ?? null, quantite: qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? qte : null });
   }
   const estBl = f.type === 'bl';
   const [cmd] = await cuiPOST('cmd_commandes', {

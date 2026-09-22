@@ -4,7 +4,7 @@
    partagé en base : ce qu'on coche sur la tablette apparaît sur le téléphone. */
 
 const CUI = { sups: [], cats: [], prods: [], drafts: [], orders: [], supId: null, cat: 'all', loaded: false };
-const CUI_UNITES = ['Kilo(s)', 'Pièce(s)', 'Carton(s)', 'Boîte(s)', 'Bouteille(s)', 'Sac(s)', 'Colis', 'Seau', 'Bidon', 'Litre(s)', 'Lot(s)', 'Sachet', 'Filet', 'Barquette(s)', 'Plateau(x)'];
+const CUI_UNITES = ['Kilo(s)', 'Pièce(s)', 'Poche(s)', 'Bac(s)', 'Carton(s)', 'Boîte(s)', 'Bouteille(s)', 'Sac(s)', 'Colis', 'Seau', 'Bidon', 'Litre(s)', 'Lot(s)', 'Sachet', 'Filet', 'Barquette(s)', 'Plateau(x)'];
 
 async function cuiSb(path, opts = {}) {
   const ctrl = new AbortController();
@@ -48,7 +48,18 @@ const cuiConfLigne = (o, l) => o && o.confirmation_json && l.reference ? (o.conf
 const cuiLineTotal = (l, o) => { const c = cuiConfLigne(o, l); if (c && c.montant != null) return c.montant; return (l.prix != null && l.quantite) ? l.prix * l.quantite : null; };
 const cuiOrderTotal = o => o.confirmation_json && o.confirmation_json.ht != null ? o.confirmation_json.ht : (o.lignes || []).reduce((a, l) => a + (cuiLineTotal(l, o) || 0), 0);
 const CUI_UNITES_FOURN = { KG: 'kg', L: 'L', PI: 'pièce(s)', SO: 'seau(x)', SA: 'sac(s)', BT: 'boîte(s)', LO: 'lot(s)', CT: 'carton(s)', CO: 'carton(s)', BD: 'bidon(s)', PO: 'pot(s)' };
-const cuiConfQte = (o, l) => { const c = cuiConfLigne(o, l); if (!c || c.qte == null) return ''; if (!c.qte) return ' · <span style="color:var(--danger)">rupture</span>'; const un = u => CUI_UNITES_FOURN[u] || (u || '').toLowerCase(); const u = (c.unite_prix && c.unite_prix !== c.unite && c.montant && c.pu) ? ` = ${cuiQty(Math.round(c.montant / c.pu * 100) / 100)} ${un(c.unite_prix)}` : ''; return ` · confirmé ${cuiQty(c.qte)} ${un(c.unite)}${u}`; };
+const cuiConfQte = (o, l) => {
+  const c = cuiConfLigne(o, l); if (!c || c.qte == null) return '';
+  if (!c.qte) return ' · <span style="color:var(--danger)">rupture</span>';
+  const un = u => CUI_UNITES_FOURN[u] || (u || '').toLowerCase();
+  // Produit commandé au colis, confirmé au kilo : on affiche d'abord le nombre de poches
+  const poids = typeof facConvPoids === 'function' ? facConvPoids({ unite: l.unite, poids_kg: cuiPoids(l) }, c.unite) : null;
+  if (poids) return ` · confirmé ${cuiQty(Math.round(c.qte / poids * 100) / 100)} ${(l.unite || '').toLowerCase()} (${cuiQty(c.qte)} ${un(c.unite)})`;
+  const u = (c.unite_prix && c.unite_prix !== c.unite && c.montant && c.pu) ? ` = ${cuiQty(Math.round(c.montant / c.pu * 100) / 100)} ${un(c.unite_prix)}` : '';
+  return ` · confirmé ${cuiQty(c.qte)} ${un(c.unite)}${u}`;
+};
+// Poids d'une unité de commande, porté par la fiche produit (2,5 kg pour une poche)
+const cuiPoids = l => { const p = CUI.prods.find(x => x.id === l.produit_id); return p ? p.poids_kg : null; };
 // Recherche sans accents : « creme brulee » ou « oeufs » doivent trouver « crème brûlée » et « œufs »
 const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée' }[s] || s);
@@ -459,8 +470,10 @@ function cuiOpenReception(id) {
     const bls = bl.lignes.filter(x => (x.produit_id && x.produit_id === l.produit_id) || (x.ref && l.reference && x.ref.replace(/^0+/, '') === String(l.reference).replace(/^0+/, '')));
     if (!bls.length) return null;
     const u = typeof FAC_UNITES !== 'undefined' ? FAC_UNITES[(bls[0].unite || '').toUpperCase()] : null;
-    if (u && typeof facUniteApp === 'function' && facUniteApp(l.unite) !== u) return null;
-    return bls.reduce((a, x) => a + Number(x.qte || 0), 0);
+    const poids = typeof facConvPoids === 'function' ? facConvPoids({ unite: l.unite, poids_kg: cuiPoids(l) }, bls[0].unite) : null;
+    if (!poids && u && typeof facUniteApp === 'function' && facUniteApp(l.unite) !== u) return null;
+    const q = bls.reduce((a, x) => a + Number(x.qte || 0), 0);
+    return poids ? Math.round(q / poids * 100) / 100 : q;
   };
   CUI._rec = { id, lines: o.lignes.map(l => { const q = qteBl(l); return { id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : q != null ? q : Number(l.quantite), ecart: l.ecart || '', bl: q != null }; }) };
   cuiModal(`📦 Réception · ${cuiEsc(s.nom)}`, `
@@ -679,10 +692,12 @@ function cuiOpenProdEdit(id) {
       <div class="form-row"><label>Catégorie</label><select id="cui-pCat"><option value="">Sans catégorie</option>${cats.map(c => `<option value="${c.id}" ${c.id === p.categorie_id ? 'selected' : ''}>${cuiEsc(c.nom)}</option>`).join('')}</select></div>
       <div class="form-row"><label>Référence fournisseur</label><input id="cui-pRef" value="${cuiEsc(p.reference || '')}"></div>
     </div>
+    <div class="form-row"><label>Conditionnement</label><input id="cui-pCond" value="${cuiEsc(p.conditionnement || '')}" placeholder="ex : carton de 6"></div>
     <div class="form-2col">
-      <div class="form-row"><label>Conditionnement</label><input id="cui-pCond" value="${cuiEsc(p.conditionnement || '')}" placeholder="ex : carton de 6"></div>
       <div class="form-row"><label>Stock mini</label><input id="cui-pMin" type="number" step="0.5" inputmode="decimal" value="${p.stock_mini ?? ''}"></div>
+      <div class="form-row"><label>Poids d'une unité (kg)</label><input id="cui-pPoids" type="number" step="0.1" inputmode="decimal" value="${p.poids_kg ?? ''}" placeholder="ex : 2,5 (poche)"></div>
     </div>
+    <div class="prod-meta" style="margin:-4px 0 10px">Le poids sert quand le fournisseur facture au kilo ce qu'on commande au colis : ses quantités et ses prix sont alors ramenés à l'unité ci-dessus.</div>
     <div class="modal-actions">
       <button class="btn-primary" onclick="cuiSaveProd('${id || ''}')">Enregistrer</button>
       ${id ? `<button class="btn-close" style="color:var(--danger)" onclick="cuiArchiveProd('${id}')">Retirer de la liste</button>` : ''}
@@ -693,7 +708,7 @@ function cuiOpenProdEdit(id) {
 async function cuiSaveProd(id) {
   const nom = cui$('cui-pNom').value.trim(); if (!nom) { cuiToast('Nom obligatoire'); return; }
   const prixV = cui$('cui-pPrix').value; const prix = prixV === '' ? null : parseFloat(prixV.replace(',', '.'));
-  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), updated_at: new Date().toISOString() };
+  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), poids_kg: cui$('cui-pPoids').value === '' ? null : parseFloat(cui$('cui-pPoids').value.replace(',', '.')), updated_at: new Date().toISOString() };
   try {
     if (id) {
       const old = CUI.prods.find(x => x.id === id);
