@@ -199,6 +199,51 @@ update cmd_commandes c set total_estime = (
 lignes doit retomber sur le total HT du BL. Sinon, quelque chose a été mal lu ou
 mal reporté — le dire dans le récap.
 
+## 5 bis. Compléter le catalogue
+
+Un BL porte régulièrement un produit qui n'est pas encore dans la liste du
+fournisseur : dépannage, nouveauté, article commandé par téléphone. Tant qu'il
+n'y est pas, il n'est pas commandable depuis l'appli, et surtout **aucune facture
+future ne saura le rapprocher**.
+
+Pour chaque ligne du BL sans produit correspondant :
+
+```sql
+-- d'abord chercher par référence, puis par nom, avant de conclure qu'il manque
+select id, nom, unite, prix, reference from cmd_produits
+where fournisseur_id = '<fournisseur>'
+  and (regexp_replace(coalesce(reference,''), '\D', '', 'g') = regexp_replace('<ref du BL>', '\D', '', 'g')
+       or lower(nom) like '%<mot clé>%');
+```
+
+S'il manque vraiment :
+
+```sql
+insert into cmd_produits (fournisseur_id, nom, unite, prix, reference, conditionnement, ordre, actif)
+values ('<fournisseur>', '<nom lisible>', '<unité du BL ramenée à celles de l''appli>',
+        <prix unitaire>, '<référence>', '<ce que dit la désignation>', 900, true);
+
+insert into cmd_prix_historique (produit_id, prix, source, date)
+values ('<nouveau produit>', <prix>, 'BL <numéro> du <date>', '<date>');
+```
+
+Règles :
+
+- **Le nom doit être lisible par un cuisinier**, pas la désignation brute du
+  fournisseur : « Haricots verts (poche 2,5 kg) », pas « HARICOT VERT T/F CE2
+  2.5K FR Q ». Garder la désignation d'origine dans `conditionnement`.
+- **Toujours renseigner la référence** quand le BL en porte une : c'est par elle
+  que se feront tous les rapprochements suivants.
+- Si le fournisseur facture au poids un article vendu au colis, renseigner
+  `poids_kg` (voir point 4).
+- Laisser `categorie_id` vide et `stock_mini` vide : c'est au restaurant de les
+  décider.
+- **Ne jamais créer un produit sur un doute de lecture.** Un doublon dans le
+  catalogue se paie ensuite à chaque commande.
+
+Tout produit créé est **listé dans le récap**, pour qu'il puisse être renommé,
+rangé dans une catégorie ou corrigé.
+
 ## 6. Classer et rendre compte
 
 Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par
@@ -245,6 +290,10 @@ PRIX
 
 QUANTITÉS
   + Citron jaune : 3,44 kg reçus pour 3 kg commandés  (+0,44 kg, +1,31 €)
+
+CATALOGUE
+  Nouveau produit ajouté : Persil plat (botte) — réf. 04412 — 1,20 €/botte
+  → à ranger dans une catégorie et à doter d'un stock mini si besoin
 
 Photo : bl/2026-09-22/O260921ZNIFUL_1758547200.jpg
 ```
