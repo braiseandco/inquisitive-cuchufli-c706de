@@ -10,13 +10,22 @@ enregistrées dans l'appli Cuisine, sans jamais inventer un chiffre.
 alimenté depuis Gmail par `gmail-vers-drive.gs` et synchronisé par Google Drive
 pour ordinateur. Les fichiers déjà traités sont dans `G:\Mon Drive\Bl\traités\`.
 
-Traiter uniquement les photos qui ne sont pas encore dans `traités`.
+Traiter uniquement les photos qui ne sont pas encore dans `traités`. Regarder
+aussi **à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
+sous-dossier de date. Créer `traités` s'il n'existe pas encore.
 
 ## 1. Ouvrir la photo
 
-**Appliquer la rotation EXIF avant toute chose.** Les photos de téléphone sont
-stockées couchées : à l'écran elles paraissent droites, sur disque elles ne le
-sont pas. Sans cette rotation, le BL est illisible.
+**Remettre la photo d'aplomb avant toute chose**, et ne pas se fier aux seules
+métadonnées. Deux cas se sont présentés :
+
+- l'EXIF porte une orientation à appliquer (photo de téléphone stockée couchée :
+  droite à l'écran, couchée sur disque) ;
+- l'EXIF est propre — orientation 1 — mais le papier lui-même était posé de
+  travers sur la table.
+
+Donc : appliquer l'EXIF s'il y a lieu, puis regarder le résultat et pivoter selon
+le contenu si le texte n'est pas horizontal.
 
 Si le premier caractère des codes produits est coupé sur le bord gauche, le
 déduire du contexte (les codes DS font 5 chiffres) et le signaler dans le récap —
@@ -94,6 +103,22 @@ que les trois contrôles du point 2 sont passés. Tracer alors le changement :
 insert into cmd_prix_historique (produit_id, prix, source, date)
 values ('<produit>', <prix>, 'BL <numéro> du <date>', '<date>');
 ```
+
+**Et reporter le nouveau prix sur la ligne de commande**, comme le fait l'appli
+quand un accusé fournisseur arrive. Sans ça la fiche produit est juste mais la
+commande reste valorisée à l'ancien prix, et son total ne correspond plus au BL :
+
+```sql
+update cmd_commande_lignes set prix = <prix> where id = '<ligne>';
+
+update cmd_commandes c set total_estime = (
+  select round(sum(l.prix * l.quantite), 2) from cmd_commande_lignes l where l.commande_id = c.id
+) where c.id = '<commande>';
+```
+
+**Contrôle final, à faire systématiquement :** la somme `prix × quantité reçue`
+sur toutes les lignes doit retomber sur le total HT du BL. Si elle n'y retombe
+pas, quelque chose a été mal lu ou mal reporté — le dire dans le récap.
 
 ## 6. Classer et rendre compte
 
