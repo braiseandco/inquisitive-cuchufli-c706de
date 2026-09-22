@@ -1,35 +1,63 @@
 # Routine — réception des BL photographiés
 
-Procédure à suivre par Claude Code, sur le PC du restaurant, au démarrage de la
-session. Objectif : transformer les photos de bons de livraison en réceptions
-enregistrées dans l'appli Cuisine, sans jamais inventer un chiffre.
+Procédure autoportante pour une session Claude Code tournant sur le PC du
+restaurant. Tout ce qu'il faut savoir est ici : ne rien demander à l'utilisateur
+pour démarrer.
+
+Objectif : transformer les photos de bons de livraison en réceptions enregistrées
+dans l'appli Cuisine, **sans jamais inventer un chiffre**.
+
+## Contexte
+
+Braise & Co, restaurant à Biganos (174 avenue de la Côte d'Argent, 33380). Les
+commandes fournisseurs passent par l'onglet **Cuisine** de l'appli « Commande
+Suivi Boisson » (app.braiseandco.fr/boissons), adossée au projet Supabase
+`ugyrrnqpapeagpuocwob`, tables `cmd_*` :
+
+| Table | Contenu |
+|---|---|
+| `cmd_fournisseurs` | fournisseurs, mode de commande, délais |
+| `cmd_produits` | fiches produits : unité, prix, référence, `poids_kg`, stock mini |
+| `cmd_commandes` | commandes : statut brouillon → envoyee → confirmee → livree |
+| `cmd_commande_lignes` | lignes : `quantite` commandée, `qte_recue`, `prix`, `ecart` |
+| `cmd_prix_historique` | traçabilité des changements de prix |
+| `cmd_factures` | factures et documents fournisseurs reçus par mail |
+
+Fournisseurs actifs : **DS Restauration** (mail, livraison mardi et vendredi,
+facture au kilo, n° client 382952), **Lodifrais** (mail, livraison le mercredi,
+envoie des accusés de réception lus automatiquement par l'appli), **Mericq**
+(SMS), **Blason d'Or**, **Aux Jardins de l'Atlantique**, **Maison Lartigue**.
+
+Certains fournisseurs n'envoient aucun BL par mail — DS notamment. Leur bon de
+livraison n'existe que sur papier, photographié à la réception : c'est la raison
+d'être de cette routine.
 
 ## Où sont les photos
 
-`G:\Mon Drive\Bl\AAAA-MM-JJ\` — un sous-dossier par jour de livraison,
-alimenté depuis Gmail par `gmail-vers-drive.gs` et synchronisé par Google Drive
-pour ordinateur. Les fichiers déjà traités sont dans `G:\Mon Drive\Bl\traités\`.
+`G:\Mon Drive\Bl\` — un sous-dossier par jour de livraison (`2026-09-22`),
+alimenté depuis Gmail par le script `gmail-vers-drive.gs` et synchronisé par
+Google Drive pour ordinateur.
 
-Traiter uniquement les photos qui ne sont pas encore dans `traités`. Regarder
-aussi **à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
-sous-dossier de date. Créer `traités` s'il n'existe pas encore.
+Traiter toute photo qui n'est pas déjà dans `G:\Mon Drive\Bl\traités\`, **y
+compris à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
+sous-dossier de date. Créer `traités` s'il n'existe pas.
 
 ## 1. Ouvrir la photo
 
-**Remettre la photo d'aplomb avant toute chose**, et ne pas se fier aux seules
+**Remettre la photo d'aplomb avant toute chose**, sans se fier aux seules
 métadonnées. Deux cas se sont présentés :
 
 - l'EXIF porte une orientation à appliquer (photo de téléphone stockée couchée :
   droite à l'écran, couchée sur disque) ;
-- l'EXIF est propre — orientation 1 — mais le papier lui-même était posé de
-  travers sur la table.
+- l'EXIF est propre — orientation 1 — mais le papier était posé de travers sur
+  la table.
 
-Donc : appliquer l'EXIF s'il y a lieu, puis regarder le résultat et pivoter selon
-le contenu si le texte n'est pas horizontal.
+Donc : appliquer l'EXIF s'il y a lieu, regarder le résultat, et pivoter selon le
+contenu si le texte n'est pas horizontal.
 
 Si le premier caractère des codes produits est coupé sur le bord gauche, le
 déduire du contexte (les codes DS font 5 chiffres) et le signaler dans le récap —
-c'est un défaut de cadrage à corriger côté serveur, pas une fatalité.
+c'est un défaut de cadrage, à corriger côté serveur.
 
 ## 2. Lire, puis vérifier la lecture
 
@@ -37,40 +65,38 @@ Relever pour chaque ligne : code produit, désignation, unité, quantité livré
 prix unitaire, montant.
 
 **Les colonnes chiffrées peuvent être décalées d'une ligne par rapport aux
-désignations.** C'est arrivé sur le BL du 22/09/2026 et un OCR naïf y attribuerait
-chaque prix au mauvais produit. La parade est arithmétique, et elle est
-obligatoire :
+désignations.** C'est arrivé sur un BL DS du 22/09/2026, et un OCR naïf y
+attribuerait chaque prix au mauvais produit. La parade est arithmétique, et elle
+est obligatoire :
 
 1. `prix unitaire × quantité = montant` sur chaque ligne ;
 2. la somme des montants = le sous-total imprimé ;
 3. recouper au moins deux prix avec ceux des fiches produits.
 
-Si les trois contrôles ne passent pas, la lecture est fausse : ne rien écrire,
+Si les trois contrôles ne passent pas, la lecture est fausse : **ne rien écrire**,
 le signaler dans le récap.
 
 ## 3. Retrouver la commande
 
-Base Supabase `ugyrrnqpapeagpuocwob`, tables `cmd_*`.
-
 ```sql
 select c.id, c.numero, c.statut, c.date_livraison, l.id, l.nom, l.unite, l.quantite, l.reference
 from cmd_commandes c join cmd_commande_lignes l on l.commande_id = c.id
-where c.fournisseur_id = (select id from cmd_fournisseurs where nom = 'DS Restauration')
-  and c.statut in ('envoyee','confirmee')
+join cmd_fournisseurs f on f.id = c.fournisseur_id
+where f.nom = '<fournisseur du BL>' and c.statut in ('envoyee','confirmee')
 order by c.date_livraison desc;
 ```
 
 Rattacher par les références produits communes et la proximité de date. Plusieurs
-BL peuvent couvrir une même commande (DS sépare par zone de température : le
-22/09, 1192895 pour le surgelé et le sec, 1192885 pour l'huile).
+BL peuvent couvrir une même commande : DS sépare par zone de température (le
+22/09, BL 1192895 pour le surgelé et le sec, BL 1192885 pour l'huile).
 
 **En cas de doute sur la commande, ne rien écrire.** Une réception posée sur la
-mauvaise commande est plus coûteuse à rattraper qu'une réception oubliée.
+mauvaise commande coûte plus cher à rattraper qu'une réception oubliée.
 
 ## 4. Convertir dans l'unité de la ligne de commande
 
 DS facture au kilo des produits commandés au colis. La fiche produit porte
-`poids_kg`, le poids d'une unité de commande :
+`poids_kg`, poids d'une unité de commande :
 
 | Produit | Unité appli | `poids_kg` | Exemple |
 |---|---|---|---|
@@ -83,32 +109,34 @@ Convertir selon l'unité de **la ligne de commande**, pas celle de la fiche
 produit : une commande partie en kilos avant la bascule en poches se compare
 toujours en kilos.
 
+Sur les produits pesés (unité en kilos), l'appli tolère 10 % d'écart sans le
+considérer comme un litige.
+
 ## 5. Écrire la réception
 
 ```sql
-update cmd_commande_lignes set qte_recue = <quantité convertie> where id = '<ligne>';
+update cmd_commande_lignes set qte_recue = <quantité convertie>,
+       ecart = '<description>' -- uniquement si écart, sinon laisser null
+where id = '<ligne>';
 
 update cmd_commandes set
   statut = 'livree', date_reception = now(),
   numero_bl = '<n° du ou des BL>', recu_par = 'BL papier (photo)',
-  reception_note = '<écarts constatés, n° de commande fournisseur>',
+  reception_note = '<total du BL, écarts, n° de commande fournisseur>',
   updated_at = now()
 where id = '<commande>';
 ```
 
-Mettre à jour un prix de fiche produit **uniquement** si le BL le contredit et
-que les trois contrôles du point 2 sont passés. Tracer alors le changement :
+Mettre à jour un prix de fiche produit **uniquement** si le BL le contredit et que
+les trois contrôles du point 2 sont passés. Tracer le changement, **et reporter le
+prix sur la ligne de commande** — comme le fait l'appli quand un accusé
+fournisseur arrive. Sans ce report, la fiche est juste mais la commande reste
+valorisée à l'ancien prix et son total ne correspond plus au BL :
 
 ```sql
 insert into cmd_prix_historique (produit_id, prix, source, date)
 values ('<produit>', <prix>, 'BL <numéro> du <date>', '<date>');
-```
 
-**Et reporter le nouveau prix sur la ligne de commande**, comme le fait l'appli
-quand un accusé fournisseur arrive. Sans ça la fiche produit est juste mais la
-commande reste valorisée à l'ancien prix, et son total ne correspond plus au BL :
-
-```sql
 update cmd_commande_lignes set prix = <prix> where id = '<ligne>';
 
 update cmd_commandes c set total_estime = (
@@ -116,31 +144,58 @@ update cmd_commandes c set total_estime = (
 ) where c.id = '<commande>';
 ```
 
-**Contrôle final, à faire systématiquement :** la somme `prix × quantité reçue`
-sur toutes les lignes doit retomber sur le total HT du BL. Si elle n'y retombe
-pas, quelque chose a été mal lu ou mal reporté — le dire dans le récap.
+**Contrôle final, systématique :** la somme `prix × qte_recue` sur toutes les
+lignes doit retomber sur le total HT du BL. Sinon, quelque chose a été mal lu ou
+mal reporté — le dire dans le récap.
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par mail** à
-braiseandcobiganos@gmail.com, via le connecteur Gmail de la session. Un récap
-qui reste affiché dans une fenêtre du PC n'est pas un récap : personne ne le lit,
-et surtout pas depuis le téléphone, d'où se pilotent les commandes.
+Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par
+mail** à braiseandcobiganos@gmail.com via le connecteur Gmail. Un récap affiché
+dans une fenêtre du PC n'est lu par personne, et surtout pas depuis le téléphone,
+d'où se pilotent les commandes.
 
 Objet : `Réception du <date> — <n> livraison(s), <n> écart(s)`. L'envoyer **même
-les jours sans livraison** — le silence doit vouloir dire « la routine est
+les jours sans livraison** : le silence doit vouloir dire « la routine est
 cassée », jamais « rien à signaler ». Contenu :
 
-- commandes réceptionnées, avec leur numéro et le total du BL ;
+- commandes réceptionnées, leur numéro, le total du BL ;
 - écarts entre commandé et livré, ligne par ligne ;
 - prix qui ont bougé ;
 - ce qui n'a pas pu être traité, et pourquoi.
 
-## Exemple traité le 22/09/2026
+## 7. Signaler les réceptions en retard
 
-BL 1192895 + 1192885, commande BC260920-02, 12 lignes. Colonnes décalées d'une
-ligne, recalées par l'arithmétique : 383,21 € + 18,90 € = 402,11 € HT, exactement
-la valorisation des quantités reçues. Un seul écart : haricots verts commandés
-3 kg, livrés 5 kg — DS arrondit à la poche de 2,5 kg. Trois prix de fiches
-corrigés au passage, dont la framboise brisée qui sous-estimait la commande de
-52 €.
+Avant d'envoyer le récap, lister les commandes dont la livraison est passée et
+qui n'ont toujours pas été réceptionnées, et les ajouter au mail :
+
+```sql
+select f.nom, c.numero, c.date_livraison
+from cmd_commandes c join cmd_fournisseurs f on f.id = c.fournisseur_id
+where c.statut in ('envoyee','confirmee') and c.date_livraison < current_date
+order by c.date_livraison;
+```
+
+Tant qu'une commande n'est pas réceptionnée, la facture qui arrivera n'aura rien
+à quoi se comparer. C'est le vrai trou de la chaîne. Au 22/09/2026, quatre
+commandes DS et quatre Lodifrais de septembre étaient dans ce cas.
+
+## Limites à respecter
+
+- **Ne jamais écrire dans le doute.** Abstention + récap valent mieux qu'une
+  écriture fausse.
+- **Ne pas modifier le code de l'appli**, ni committer quoi que ce soit dans le
+  dépôt. Cette routine ne touche qu'aux données de réception.
+- **Ne pas supprimer de photo** : la déplacer dans `traités`, jamais l'effacer.
+
+## Exemples déjà traités le 22/09/2026
+
+**DS Restauration**, BL 1192895 + 1192885, commande BC260920-02, 12 lignes.
+Colonnes décalées d'une ligne, recalées par l'arithmétique : 383,21 € + 18,90 €
+= 402,11 € HT, exactement la valorisation des quantités reçues. Un seul écart :
+haricots verts commandés 3 kg, livrés 5 kg — DS arrondit à la poche de 2,5 kg.
+
+**Aux Jardins de l'Atlantique**, BL163993, commande O260921ZNIFUL, 14 lignes,
+259,85 € HT. Écart : citron jaune 3,44 kg pesés pour 3 kg commandés. Quatre prix
+recalés (chou blanc, courgette, poivron rouge, tomate grappe) — et c'est sur ce
+BL qu'a été repéré l'oubli du report des prix sur les lignes de commande.
