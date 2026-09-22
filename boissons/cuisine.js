@@ -400,7 +400,7 @@ function cuiOpenOrder(id) {
     </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
-    ${cuiPhotosDe(o.id).length ? `<div class="prod-meta" style="margin-top:4px">📷 ${cuiPhotosDe(o.id).length} photo${cuiPhotosDe(o.id).length > 1 ? 's' : ''} du BL papier</div>` : ''}</div>
+    <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div></div>
     <div class="modal-section"><div class="ms-label">Produits</div>
       ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiConfQte(o, l)}${cuiLineTotal(l, o) != null ? ' · ' + cuiEur(cuiLineTotal(l, o)) : ''}</span></div>`).join('')}
     </div>
@@ -411,7 +411,10 @@ function cuiOpenOrder(id) {
       <div class="cui-row-btns">
         ${o.statut === 'envoyee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','confirmee')">✓ Confirmée</button>` : ''}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="${o.date_reception ? '' : 'background:var(--orange);color:#fff'}" onclick="cuiOpenReception('${o.id}')">📦 ${o.date_reception ? 'Modifier la réception' : 'Réceptionner'}</button>` : ''}
-        <button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>
+        ${o.date_reception
+          ? `<button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>`
+          : `<button class="btn-secondary" onclick="document.getElementById('cui-o-photo-input').click()">📷 Prendre photo</button>
+             <input type="file" accept="image/*" capture="environment" id="cui-o-photo-input" style="display:none" onchange="cuiPhotoBL('${o.id}', this)">`}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="cuiSetStatus('${o.id}','annulee')">Annuler</button>` : ''}
       </div>
       <details style="margin-top:6px"><summary style="color:var(--muted);font-size:13px;cursor:pointer;padding:6px 0">Renvoyer la commande…</summary><div style="padding-top:8px">${cuiSendButtons(o)}</div></details>
@@ -507,6 +510,10 @@ const CUI_PHOTO_MAX = 2400;   // côté le plus long, suffisant pour lire un BL
 const CUI_PHOTO_Q   = 0.85;
 
 function cuiPhotosDe(commandeId) { return CUI.photos.filter(p => p.commande_id === commandeId); }
+function cuiPhotoLigne(commandeId) {
+  const n = cuiPhotosDe(commandeId).length;
+  return n ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📷 ${n} photo${n > 1 ? 's' : ''} du BL papier</div>` : '';
+}
 function cuiPhotosHtml(commandeId) {
   const ph = cuiPhotosDe(commandeId);
   if (!ph.length) return '<div class="prod-meta">Aucune photo pour l\'instant.</div>';
@@ -548,7 +555,8 @@ async function cuiPhotoBL(commandeId, input) {
     if (!r.ok) throw new Error(await r.text());
     const [row] = await cuiPOST('cmd_bl_photos', { commande_id: commandeId, path, prise_par: cuiWho() || null });
     CUI.photos.unshift(row);
-    const el = cui$('cui-r-photos'); if (el) el.innerHTML = cuiPhotosHtml(commandeId);
+    const rec = cui$('cui-r-photos'); if (rec) rec.innerHTML = cuiPhotosHtml(commandeId);
+    const det = cui$('cui-o-photos'); if (det) det.innerHTML = cuiPhotoLigne(commandeId);
     cuiToast('✓ Photo enregistrée');
   } catch (e) { console.error(e); cuiToast("La photo n'est pas partie — réessayez"); }
 }
