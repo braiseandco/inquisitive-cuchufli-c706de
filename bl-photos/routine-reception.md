@@ -208,12 +208,49 @@ d'où se pilotent les commandes.
 
 Objet : `Réception du <date> — <n> livraison(s), <n> écart(s)`. L'envoyer **même
 les jours sans livraison** : le silence doit vouloir dire « la routine est
-cassée », jamais « rien à signaler ». Contenu :
+cassée », jamais « rien à signaler ».
 
-- commandes réceptionnées, leur numéro, le total du BL ;
-- écarts entre commandé et livré, ligne par ligne ;
-- prix qui ont bougé ;
-- ce qui n'a pas pu être traité, et pourquoi.
+### Règle d'écriture des écarts
+
+Tout chiffre qui traduit une différence porte **un signe et un sens**, jamais une
+valeur nue. Le lecteur doit savoir en un coup d'œil si ça lui coûte ou si ça lui
+rapporte, sans refaire le calcul.
+
+- **+** = en sa défaveur : payé plus cher, ou reçu en plus que commandé.
+- **−** = en sa faveur : payé moins cher, ou reçu en moins.
+- Chaque prix qui bouge est annoncé **hausse** ou **baisse**, avec l'ancien prix,
+  le nouveau, l'écart unitaire, le pourcentage, et surtout **l'effet en euros sur
+  cette livraison** — c'est le seul chiffre qui parle vraiment.
+
+**Séparer l'effet prix de l'effet quantité.** Les mélanger donne un total juste
+mais illisible : on ne sait plus si la facture grimpe parce que le fournisseur a
+augmenté ses tarifs ou parce qu'il a livré davantage.
+
+### Modèle
+
+```
+Aux Jardins de l'Atlantique — BL163993 — commande O260921ZNIFUL
+Total BL : 259,85 € HT
+
+Effet prix     : −7,96 €   (les tarifs ont baissé)
+Effet quantité : +1,31 €   (un peu plus livré que commandé)
+────────────────────────────────
+Écart / commande : −6,65 €
+
+PRIX
+  ▼ baisse   Tomate grappe    19,90 → 14,90 €/colis   −5,00   −25,1 %   → −5,00 € (1 colis)
+  ▼ baisse   Poivron rouge    17,40 → 14,90 €/colis   −2,50   −14,4 %   → −5,00 € (2 colis)
+  ▲ hausse   Courgette verte  11,40 → 13,40 €/colis   +2,00   +17,5 %   → +2,00 € (1 colis)
+  ▲ hausse   Chou blanc        2,94 →  2,98 €/pièce   +0,04    +1,4 %   → +0,04 € (1 pièce)
+
+QUANTITÉS
+  + Citron jaune : 3,44 kg reçus pour 3 kg commandés  (+0,44 kg, +1,31 €)
+
+Photo : bl/2026-09-22/O260921ZNIFUL_1758547200.jpg
+```
+
+Ajouter ensuite, s'il y a lieu : ce qui n'a pas pu être traité et pourquoi, et
+les réceptions en retard (point 7).
 
 ## 7. Signaler les réceptions en retard
 
