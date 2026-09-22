@@ -2574,7 +2574,7 @@ async function checkServeurLogin(force = false) {
   const btnsEl = document.getElementById('serveur-login-btns');
   const current = settings.serveur || '';
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&order=display_order.asc,name.asc`, {
+    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&acces_boissons=eq.true&order=display_order.asc,name.asc`, {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const emps = await r.json();
@@ -2640,7 +2640,7 @@ async function openSettings() {
   const btnsEl = document.getElementById('serveur-btns');
   btnsEl.innerHTML = '<span style="font-size:12px;color:var(--muted)">Chargement…</span>';
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&order=display_order.asc,name.asc`, {
+    const r = await fetch(`${SB_URL}/rest/v1/employees?select=name&acces_boissons=eq.true&order=display_order.asc,name.asc`, {
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
     });
     const emps = await r.json();
