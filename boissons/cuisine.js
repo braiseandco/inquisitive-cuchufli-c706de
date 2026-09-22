@@ -3,7 +3,7 @@
    entrer en collision avec celles du bar (setQty, save, fmt…). Le panier est un brouillon
    partagé en base : ce qu'on coche sur la tablette apparaît sur le téléphone. */
 
-const CUI = { sups: [], cats: [], prods: [], drafts: [], orders: [], supId: null, cat: 'all', loaded: false };
+const CUI = { sups: [], cats: [], prods: [], drafts: [], orders: [], photos: [], supId: null, cat: 'all', loaded: false };
 const CUI_UNITES = ['Kilo(s)', 'Pièce(s)', 'Poche(s)', 'Bac(s)', 'Carton(s)', 'Boîte(s)', 'Bouteille(s)', 'Sac(s)', 'Colis', 'Seau', 'Bidon', 'Litre(s)', 'Lot(s)', 'Sachet', 'Filet', 'Barquette(s)', 'Plateau(x)'];
 
 async function cuiSb(path, opts = {}) {
@@ -67,14 +67,15 @@ const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee
 /* ─── Chargement ─── */
 async function cuiLoad(silent) {
   try {
-    const [sups, cats, prods, drafts, orders] = await Promise.all([
+    const [sups, cats, prods, drafts, orders, photos] = await Promise.all([
       cuiGET('cmd_fournisseurs?order=ordre,nom'),
       cuiGET('cmd_categories?order=ordre,nom'),
       cuiGET('cmd_produits?actif=eq.true&order=ordre,nom'),
       cuiGET('cmd_commandes?statut=eq.brouillon&select=*,lignes:cmd_commande_lignes(*)'),
       cuiGET('cmd_commandes?statut=neq.brouillon&select=*,lignes:cmd_commande_lignes(*)&order=date_commande.desc&limit=200'),
+      cuiGET('cmd_bl_photos?order=created_at.desc&limit=300').catch(() => []),
     ]);
-    Object.assign(CUI, { sups, cats, prods, drafts, orders, loaded: true });
+    Object.assign(CUI, { sups, cats, prods, drafts, orders, photos, loaded: true });
     cuiRender();
     if (typeof facAutoLire === 'function') setTimeout(facAutoLire, 1500);
   } catch (e) { console.error(e); if (!silent) cuiToast('Cuisine : erreur de connexion'); }
@@ -398,7 +399,8 @@ function cuiOpenOrder(id) {
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
     </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
-    ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}</div>
+    ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
+    ${cuiPhotosDe(o.id).length ? `<div class="prod-meta" style="margin-top:4px">📷 ${cuiPhotosDe(o.id).length} photo${cuiPhotosDe(o.id).length > 1 ? 's' : ''} du BL papier</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Produits</div>
       ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiConfQte(o, l)}${cuiLineTotal(l, o) != null ? ' · ' + cuiEur(cuiLineTotal(l, o)) : ''}</span></div>`).join('')}
     </div>
@@ -482,6 +484,13 @@ function cuiOpenReception(id) {
       <div class="form-row"><label>N° du BL (facultatif)</label><input id="cui-r-bl" value="${cuiEsc(o.numero_bl || (bl && bl.numero) || '')}"></div>
       <div class="form-row"><label>Réceptionné par</label><input id="cui-r-who" value="${cuiEsc(o.recu_par || cuiWho())}"></div>
     </div>
+    <div class="modal-section">
+      <div class="ms-label">Photo du bon de livraison</div>
+      <div id="cui-r-photos">${cuiPhotosHtml(id)}</div>
+      <input type="file" accept="image/*" capture="environment" id="cui-r-photo-input" style="display:none" onchange="cuiPhotoBL('${id}', this)">
+      <button class="btn-secondary" style="margin-top:8px" onclick="document.getElementById('cui-r-photo-input').click()">📷 Photographier le BL</button>
+      <div class="prod-meta" style="margin-top:6px">La photo est rattachée à cette commande : le contrôle du BL n'aura pas à deviner de quelle livraison il s'agit.</div>
+    </div>
     <div class="modal-section" id="cui-r-lines">${CUI._rec.lines.map(cuiRecLine).join('')}</div>
     <div class="form-row"><label>Remarque</label><input id="cui-r-note" value="${cuiEsc(o.reception_note || '')}" placeholder="ex : colis ouvert, chauffeur prévenu"></div>
     <div class="modal-actions">
@@ -490,6 +499,69 @@ function cuiOpenReception(id) {
       <button class="btn-close" onclick="cuiOpenOrder('${id}')">Annuler</button>
     </div>`);
 }
+/* ─── Photo du BL papier ───
+   DS et quelques autres ne livrent qu'un bon papier. La photo est prise depuis
+   l'écran Réception, donc la commande est connue : le rattachement n'a pas à être
+   deviné plus tard, c'est ce qui rendait la lecture automatique risquée. */
+const CUI_PHOTO_MAX = 2400;   // côté le plus long, suffisant pour lire un BL
+const CUI_PHOTO_Q   = 0.85;
+
+function cuiPhotosDe(commandeId) { return CUI.photos.filter(p => p.commande_id === commandeId); }
+function cuiPhotosHtml(commandeId) {
+  const ph = cuiPhotosDe(commandeId);
+  if (!ph.length) return '<div class="prod-meta">Aucune photo pour l\'instant.</div>';
+  return ph.map(p => `<div class="order-line"><span>📷 ${cuiDT(p.created_at)}<div class="prod-meta">${p.prise_par ? cuiEsc(p.prise_par) + ' · ' : ''}${p.traite_at ? '<span style="color:var(--ok)">lue</span>' : 'à lire'}</div></span>
+    <span><button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="cuiVoirPhoto('${cuiEsc(p.path)}')">Voir</button></span></div>`).join('');
+}
+
+// Une photo de téléphone pèse 4 Mo : on la réduit avant l'envoi, sans descendre
+// sous ce qu'il faut pour relire les colonnes chiffrées d'un bon de livraison.
+function cuiReduireImage(file) {
+  return new Promise((ok, ko) => {
+    const img = new Image();
+    img.onload = () => {
+      const f = Math.min(1, CUI_PHOTO_MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      c.toBlob(b => b ? ok(b) : ko(new Error('conversion impossible')), 'image/jpeg', CUI_PHOTO_Q);
+    };
+    img.onerror = () => ko(new Error('image illisible'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function cuiPhotoBL(commandeId, input) {
+  const file = input.files && input.files[0]; input.value = '';
+  if (!file) return;
+  const o = CUI.orders.find(x => x.id === commandeId);
+  cuiToast('Envoi de la photo…');
+  try {
+    const blob = await cuiReduireImage(file).catch(() => file);
+    const path = `bl/${cuiIso(Date.now())}/${(o && o.numero ? o.numero : commandeId).replace(/[^\w-]/g, '')}_${Date.now()}.jpg`;
+    const r = await fetch(`${SB_URL}/storage/v1/object/factures/${path}`, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'image/jpeg' },
+      body: blob
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const [row] = await cuiPOST('cmd_bl_photos', { commande_id: commandeId, path, prise_par: cuiWho() || null });
+    CUI.photos.unshift(row);
+    const el = cui$('cui-r-photos'); if (el) el.innerHTML = cuiPhotosHtml(commandeId);
+    cuiToast('✓ Photo enregistrée');
+  } catch (e) { console.error(e); cuiToast("La photo n'est pas partie — réessayez"); }
+}
+
+async function cuiVoirPhoto(path) {
+  try {
+    const r = await fetch(`${SB_URL}/storage/v1/object/authenticated/factures/${path}`, { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    if (!r.ok) throw new Error(r.status);
+    const url = URL.createObjectURL(await r.blob());
+    if (!window.open(url, '_blank')) { const a = document.createElement('a'); a.href = url; a.download = path.split('/').pop(); a.click(); }
+  } catch (e) { cuiToast('Photo indisponible'); }
+}
+
 function cuiRecLine(l, i) {
   const bad = !cuiQteOk(l, l.qte_recue) || l.ecart;
   return `<div class="order-line" style="flex-direction:column;align-items:stretch;gap:6px;padding:9px 0" id="cui-rl-${i}">
