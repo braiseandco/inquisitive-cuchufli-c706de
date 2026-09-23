@@ -10,20 +10,34 @@ la lire.
 ## La chaîne
 
 ```
-Le serveur photographie le BL à la réception
-        │  mail à braiseandcobiganos@gmail.com, « BL » dans l'objet
-        ▼
-Gmail
-        │  gmail-vers-drive.gs, toutes les 15 min
-        ▼
-Drive  /BL/2026-09-22/2026-09-22_1136_<id-du-mail>.jpg
-        │  Google Drive pour ordinateur
-        ▼
-PC du restaurant
-        │  Claude Code au démarrage, suit routine-reception.md
-        ▼
-Réception enregistrée dans l'appli Cuisine
+Le serveur ouvre la commande et appuie sur « 📷 Prendre photo »
+        │  la photo part dans le stockage de l'appli, rattachée à la commande
+        ▼                                    ┌─ ou, en secours : mail à la boîte
+Supabase (bucket factures)                   │   du restaurant, « BL » dans l'objet
+        │                                    ▼
+        └──────────► gmail-vers-drive.gs ◄── Gmail
+                     toutes les 15 min
+                             │
+                             ▼
+              Drive  /BL/2026-09-23/BC260920-02_1790152339379.jpg
+                             │  Google Drive pour ordinateur
+                             ▼
+                     PC du restaurant
+                             │  Claude Code au démarrage, suit routine-reception.md
+                             ▼
+              Réception enregistrée dans l'appli Cuisine
 ```
+
+Le script va chercher les photos dans le stockage de l'appli **et** dans Gmail,
+et dépose tout au même endroit. C'est lui, et lui seul, qui manipule la clé de
+l'appli — il tourne chez Google, sous le compte du restaurant.
+
+La session du PC, elle, ne voit que des fichiers sur un disque : rien à
+télécharger, aucune clé, aucune API à appeler. Ce n'est pas un détail de
+confort. Une session qui tourne sans personne devant elle n'a pas à aller
+chercher des identifiants où que ce soit, et une consigne qui le lui demande est
+une mauvaise consigne — celle d'origine l'était, et le garde-fou de la session
+locale a eu raison de la refuser.
 
 Le détour par le PC n'est pas un caprice : le connecteur Gmail ne rend que la
 fiche d'une pièce jointe, jamais l'image, et le connecteur Drive ne voit que les

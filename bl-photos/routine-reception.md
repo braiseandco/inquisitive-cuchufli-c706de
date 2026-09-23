@@ -52,53 +52,46 @@ d'être de cette routine.
 
 ## Où sont les photos
 
-Deux sources, à traiter toutes les deux.
+**Un seul endroit : `G:\Mon Drive\Bl\AAAA-MM-JJ\`.**
 
-### 1. Le bouton « Photographier le BL » de l'appli — source principale
+Un script Google y dépose tout, toutes les 15 minutes, quelle que soit la
+provenance : les photos prises depuis le bouton « Photographier le BL » de
+l'appli comme celles envoyées par mail à la boîte du restaurant. Google Drive
+pour ordinateur les synchronise ensuite sur le PC.
 
-Le serveur ouvre la commande dans l'écran Réception et photographie le bon.
-**La commande est donc déjà connue** : aucun rattachement à deviner, ce qui
-supprime le risque le plus sérieux de toute la chaîne.
-
-```sql
-select b.id, b.path, b.created_at, b.prise_par,
-       c.id as commande_id, c.numero, c.date_livraison, f.nom as fournisseur
-from cmd_bl_photos b
-join cmd_commandes c on c.id = b.commande_id
-join cmd_fournisseurs f on f.id = c.fournisseur_id
-where b.traite_at is null
-order by b.created_at;
-```
-
-Télécharger chaque photo depuis le bucket `factures`. La clé ci-dessous est la
-**clé publique de l'appli** : elle est servie en clair dans `boissons/index.html`
-sur app.braiseandco.fr et figure dans le dépôt public. Il n'y a rien à extraire
-d'une page, et rien de confidentiel à manipuler.
-
-```bash
-KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go'
-curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-  "https://ugyrrnqpapeagpuocwob.supabase.co/storage/v1/object/authenticated/factures/<path>" -o bl.jpg
-```
-
-Si le téléchargement échoue, ne pas chercher d'autre chemin : le dire dans le
-récap et s'arrêter là. Il existe un contournement manuel — ouvrir la commande
-dans l'appli, appuyer sur **Voir** sur chaque photo, déposer les fichiers dans
-`G:\Mon Drive\Bl\` — mais c'est au restaurant de le faire, pas à la routine.
-
-Une fois la réception écrite : `update cmd_bl_photos set traite_at = now() where id = '<id>';`
-La photo reste dans le bucket, attachée à la commande — c'est la preuve pour une
-contestation et la pièce du comptable.
-
-### 2. Le dossier Drive — filet de sécurité
-
-`G:\Mon Drive\Bl\` — un sous-dossier par jour de livraison, alimenté depuis
-Gmail par le script `gmail-vers-drive.gs`. Sert aux photos envoyées par mail sans
-passer par l'appli. Là, **la commande est à retrouver** (point 3).
+**Ne rien télécharger, ne manipuler aucune clé, n'appeler aucune API de
+stockage.** Ce sont des fichiers ordinaires sur un disque : ouvre-les comme tels.
+Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
+chercher — le dire dans le récap et passer à la suite.
 
 Traiter toute photo qui n'est pas déjà dans `G:\Mon Drive\Bl\traités\`, **y
 compris à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
 sous-dossier de date. Créer `traités` s'il n'existe pas.
+
+### Retrouver la commande d'une photo
+
+Le nom du fichier porte le numéro de la commande — `BC260920-02_1790152339379.jpg`
+— parce que la photo a été prise depuis l'écran Réception de cette commande-là.
+**Aucun rattachement à deviner**, ce qui supprime le risque le plus sérieux de
+la chaîne.
+
+Pour retrouver sa fiche en base, et la marquer traitée le moment venu :
+
+```sql
+select b.id, b.path, b.prise_par, b.traite_at, c.numero, f.nom as fournisseur
+from cmd_bl_photos b
+join cmd_commandes c on c.id = b.commande_id
+join cmd_fournisseurs f on f.id = c.fournisseur_id
+where b.path like '%' || '<nom du fichier>';
+```
+
+Une photo venue du mail n'a pas de fiche : là, **la commande est à retrouver**
+(point 3).
+
+Une fois la réception écrite : `update cmd_bl_photos set traite_at = now() where id = '<id>';`
+puis déplacer le fichier dans `traités`. La photo reste dans le stockage de
+l'appli, attachée à la commande — c'est la preuve en cas de contestation et la
+pièce du comptable.
 
 ## 1. Ouvrir la photo
 
