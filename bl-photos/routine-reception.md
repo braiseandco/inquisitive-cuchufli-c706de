@@ -70,14 +70,21 @@ where b.traite_at is null
 order by b.created_at;
 ```
 
-Télécharger chaque photo depuis le bucket `factures` (la clé publique de l'appli
-est dans la page, il n'y a pas de secret à manipuler) :
+Télécharger chaque photo depuis le bucket `factures`. La clé ci-dessous est la
+**clé publique de l'appli** : elle est servie en clair dans `boissons/index.html`
+sur app.braiseandco.fr et figure dans le dépôt public. Il n'y a rien à extraire
+d'une page, et rien de confidentiel à manipuler.
 
 ```bash
-KEY=$(curl -s https://app.braiseandco.fr/boissons/index.html | grep -oP "const SB_KEY = '\K[^']+")
+KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go'
 curl -s -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
   "https://ugyrrnqpapeagpuocwob.supabase.co/storage/v1/object/authenticated/factures/<path>" -o bl.jpg
 ```
+
+Si le téléchargement échoue, ne pas chercher d'autre chemin : le dire dans le
+récap et s'arrêter là. Il existe un contournement manuel — ouvrir la commande
+dans l'appli, appuyer sur **Voir** sur chaque photo, déposer les fichiers dans
+`G:\Mon Drive\Bl\` — mais c'est au restaurant de le faire, pas à la routine.
 
 Une fois la réception écrite : `update cmd_bl_photos set traite_at = now() where id = '<id>';`
 La photo reste dans le bucket, attachée à la commande — c'est la preuve pour une
