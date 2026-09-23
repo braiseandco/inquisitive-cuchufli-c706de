@@ -16,8 +16,10 @@ C'est la seule ligne à changer pour basculer. Les deux valeurs possibles :
 - **À BLANC** — faire la lecture et tous les contrôles, puis écrire dans le récap
   *ce qui serait enregistré*, ligne par ligne, avec les écarts et les prix qui
   bougeraient. **N'écrire absolument rien en base** : ni `qte_recue`, ni statut,
-  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus — elles doivent
-  rester à traiter pour que la réception manuelle serve de comparaison.
+  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus. Seule écriture
+  permise : une fois le récap envoyé, ajouter chaque photo lue au registre
+  `BL\lus-a-blanc.txt` (voir « Où sont les photos »), pour ne pas la relire au
+  passage suivant.
 - **ÉCRITURE** — appliquer la procédure complète, points 5 et 6 compris.
 
 Pendant la période à blanc, le récap sert de preuve : on le compare à la
@@ -71,7 +73,13 @@ stockage.** Ce sont des fichiers ordinaires sur un disque : ouvre-les comme tels
 Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
 chercher — le dire dans le récap et passer à la suite.
 
-Traiter toute photo qui n'est pas déjà dans `BL\traités\`, **y
+**Sauter toute photo déjà listée dans `BL\lus-a-blanc.txt`** (une ligne par photo :
+chemin sous `BL` ; date ; ce qui en a été fait). Sans ce registre, chaque passage
+relisait toutes les photos du mode à blanc et renvoyait les mêmes récaps. Après
+l'envoi du récap, y ajouter une ligne par photo lue — y compris celles qui n'ont
+pas pu l'être, avec la raison. Créer le fichier s'il n'existe pas.
+
+Traiter toute photo qui n'est ni dans le registre ni dans `BL\traités\`, **y
 compris à la racine de `BL`** : une photo déposée à la main n'est pas dans un
 sous-dossier de date. Créer `traités` s'il n'existe pas.
 

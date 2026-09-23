@@ -65,11 +65,33 @@ function blNomFichier(msg, pj, i) {
 
 const BL_SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
 // Clé publique de l'appli : déjà servie en clair dans boissons/index.html sur
-// app.braiseandco.fr. Rien de confidentiel, et elle reste côté Google.
-const BL_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+// app.braiseandco.fr. Elle cesse d'ouvrir le bucket `factures` à la bascule sécurité
+// (plan du 27/09/2026). D'ici là, poser la clé service_role dans les propriétés du
+// script (⚙ Paramètres du projet → Propriétés du script → SB_SERVICE_ROLE) : elle est
+// prise en priorité, et la bascule passe sans que le script s'arrête. Jamais dans ce
+// fichier : le dépôt est public.
+const BL_SB_KEY_PUBLIQUE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
+
+function blCle() {
+  return PropertiesService.getScriptProperties().getProperty('SB_SERVICE_ROLE') || BL_SB_KEY_PUBLIQUE;
+}
+
+// À lancer une fois après avoir posé la propriété : dit quelle clé sert, et si elle ouvre le bucket.
+function verifierAcces() {
+  const service = !!PropertiesService.getScriptProperties().getProperty('SB_SERVICE_ROLE');
+  const r = UrlFetchApp.fetch(BL_SB_URL + '/storage/v1/object/list/factures', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { apikey: blCle(), Authorization: 'Bearer ' + blCle() },
+    payload: JSON.stringify({ prefix: 'bl/', limit: 1 }) });
+  console.log('Clé utilisée : ' + (service ? 'service_role (propriété du script)' : 'publique — à remplacer avant la bascule')
+    + ' · accès au stockage : ' + (r.getResponseCode() === 200 ? 'OK' : 'REFUSÉ (' + r.getResponseCode() + ')'));
+}
 
 function recupererPhotosAppli() {
-  const entetes = { apikey: BL_SB_KEY, Authorization: 'Bearer ' + BL_SB_KEY };
+  // Après la bascule, la clé publique ne renverra pas d'erreur sur la liste : les règles
+  // d'accès la vident, et le script copierait « 0 photo » sans rien dire.
+  if (blCle() === BL_SB_KEY_PUBLIQUE) console.warn('Clé publique utilisée : poser SB_SERVICE_ROLE avant la bascule sécurité.');
+  const entetes = { apikey: blCle(), Authorization: 'Bearer ' + blCle() };
   const liste = UrlFetchApp.fetch(
     BL_SB_URL + '/rest/v1/cmd_bl_photos?select=path,created_at&order=created_at.desc&limit=100',
     { headers: entetes, muteHttpExceptions: true });
