@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.6';
+const APP_VERSION = '2026-09-23.7';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1073,7 +1073,7 @@ function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
   const empreinte = JSON.stringify(ids.sort().map(id => [id, panier[id]]));
   if (barEnvoye[fournisseur] === empreinte) return Promise.resolve();
   barEnvoye[fournisseur] = empreinte;
-  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, qte: panier[id] }; });
+  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, parCaisse: p && p.parCaisse, qte: panier[id] }; });
   const note = (localStorage.getItem(noteKey) || '').trim();
   if (typeof cuiSyncBarOrder !== 'function') return Promise.resolve();
   return avantEnvoi(cuiSyncBarOrder(fournisseur, items, note));
@@ -1112,15 +1112,19 @@ const COCKTAIL_EXTRAS = [
 const VIN_TEL_MAIN    = '0684803816';
 const VIN_TEL_MOSCATO = '0614274109';
 const VIN_PRODUITS = [
-  { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main' },
-  { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main' },
-  { id:'v003', nom:'La Rose Trémière',            cat:'Rouge',   min:15, fourn:'main' },
-  { id:'v004', nom:'Château d\'Alix',             cat:'Rouge',   min:10, fourn:'main' },
-  { id:'v005', nom:'Château Haut d\'As Rosé',    cat:'Rosé',    min:10, fourn:'main' },
-  { id:'v006', nom:'Château Berné Provence',      cat:'Rosé',    min:10, fourn:'main' },
-  { id:'v007', nom:'Château d\'As Carré d\'As',  cat:'Blanc',   min:5,  fourn:'main' },
+  { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main', parCaisse:6 },
+  { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main', parCaisse:6 },
+  { id:'v003', nom:'La Rose Trémière',            cat:'Rouge',   min:15, fourn:'main', parCaisse:6 },
+  { id:'v004', nom:'Château d\'Alix',             cat:'Rouge',   min:10, fourn:'main', parCaisse:6 },
+  { id:'v005', nom:'Château Haut d\'As Rosé',    cat:'Rosé',    min:10, fourn:'main', parCaisse:6 },
+  { id:'v006', nom:'Château Berné Provence',      cat:'Rosé',    min:10, fourn:'main', parCaisse:6 },
+  { id:'v007', nom:'Château d\'As Carré d\'As',  cat:'Blanc',   min:5,  fourn:'main', parCaisse:6 },
   { id:'v008', nom:'Vin Moscato',                 cat:'Moscato', min:10, fourn:'moscato' },
 ];
+
+// « 10x Château d'As Rouge » a été livré en 120 bouteilles le 23/09/2026 : le fournisseur
+// a compté des cartons de 12. L'unité et le nombre de bouteilles sont donc écrits en toutes lettres.
+function vinQuantite(p, q) { return p.parCaisse ? `${q} carton${q > 1 ? 's' : ''} de ${p.parCaisse} (${q * p.parCaisse} btl)` : `${q}x`; }
 
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
@@ -1909,7 +1913,7 @@ function openConfirmVin() {
     if (!p) return;
     linesHtml += `<div class="order-line">
       <span>${p.nom}</span>
-      <span class="order-line-qty">${commandeVin[id]} carton${commandeVin[id]>1?'s':''}</span>
+      <span class="order-line-qty">${vinQuantite(p, commandeVin[id])}</span>
     </div>`;
   });
 
@@ -1918,7 +1922,7 @@ function openConfirmVin() {
 
   const mainSection = document.getElementById('vin-fourn-main');
   if (mainIds.length) {
-    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
     const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMain = document.getElementById('conf-vin-sms-main');
@@ -1931,7 +1935,7 @@ function openConfirmVin() {
 
   const moscatoSection = document.getElementById('vin-fourn-moscato');
   if (moscatoIds.length) {
-    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
     const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
