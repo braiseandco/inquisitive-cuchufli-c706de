@@ -75,20 +75,17 @@ async function docTraiter(f) {
   const patch = { lignes_json: { parseur, ...res, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() }, numero: res.numero || f.numero || null, date_facture: res.date || f.date_facture || null, montant_ht: res.ht ?? null, updated_at: new Date().toISOString() };
   Object.assign(f, patch);
   let action = 'sans_lignes';
-  if (res.lignes.length) {
-    const o = docTrouverCommande(f, res);
-    if (o) action = await (f.type === 'bl' ? docAppliquerBl(f, res, o) : docAppliquerConfirmation(f, res, o));
-    else action = await docCreerCommande(f, res);
-  }
+  if (res.lignes.length && f.type !== 'bl') action = await docRepartirAccuse(f, res);
+  else if (res.lignes.length) { const o = docTrouverCommande(f, res); action = await (o ? docAppliquerBl(f, res, o) : docCreerCommande(f, res)); }
   f.ecarts_json = patch.ecarts_json = { action, commande: f._commande_id || null };
   await cuiPATCH('cmd_factures?id=eq.' + f.id, patch);
   return action;
 }
 // Commande visée : n° de confirmation fournisseur, sinon la commande la plus proche en date (non annulée)
-function docTrouverCommande(f, res) {
-  const orders = CUI.orders.filter(o => o.fournisseur_id === f.fournisseur_id && o.statut !== 'annulee' && o.statut !== 'brouillon');
+function docTrouverCommande(f, res, exclues = []) {
+  const orders = CUI.orders.filter(o => o.fournisseur_id === f.fournisseur_id && o.statut !== 'annulee' && o.statut !== 'brouillon' && !exclues.includes(o));
   const nums = [res.ref_commande, res.numero].filter(Boolean);
-  let o = orders.find(o => nums.includes(o.numero) || (o.confirmation_json && nums.includes(o.confirmation_json.numero)) || (o.bl_json && nums.includes(o.bl_json.numero)));
+  let o = orders.find(o => nums.includes(o.numero) || docAccuses(o).some(a => nums.includes(a.numero)) || (o.bl_json && nums.includes(o.bl_json.numero)));
   if (o) return o;
   const ref = new Date(f.type === 'bl' ? (res.date_livraison || res.date) : (res.date || res.date_livraison)).getTime();
   if (isNaN(ref)) return null;
@@ -96,12 +93,35 @@ function docTrouverCommande(f, res) {
   // sont dans le document, une commande sans aucune référence commune n'est jamais rattachée
   const refs = res.lignes.map(l => docRef(l.ref)).filter(Boolean);
   const hits = o => (o.lignes || []).filter(l => refs.includes(docRef(l.reference))).length;
-  const cands = orders.filter(o => f.type === 'bl' ? !o.bl_json && !o.numero_bl : !o.confirmation_json)
+  // Une commande déjà confirmée reste candidate si l'accusé recoupe ses références : Lodifrais
+  // envoie un accusé par date de livraison (IV308260 puis IV308244 pour BC260920-02, 22/09/2026)
+  const cands = orders.filter(o => f.type !== 'bl' || (!o.bl_json && !o.numero_bl))
     .map(o => ({ o, hits: hits(o), dt: Math.abs(new Date(f.type === 'bl' ? (o.date_livraison || o.date_commande) : o.date_commande).getTime() - ref) }))
-    .filter(x => x.dt <= 2.5 * 864e5 && (x.hits > 0 || !refs.length)).sort((a, b) => b.hits - a.hits || a.dt - b.dt);
+    .filter(x => x.dt <= 2.5 * 864e5 && (x.hits > 0 || (!refs.length && (f.type === 'bl' || !x.o.confirmation_json)))).sort((a, b) => b.hits - a.hits || a.dt - b.dt);
   return cands.length ? cands[0].o : null;
 }
 const docRef = r => r ? String(r).replace(/\D/g, '').replace(/^0+/, '') : '';
+const docAccuses = o => !o.confirmation_json ? [] : o.confirmation_json.accuses || [o.confirmation_json];
+const docSomme = ls => ls.some(l => l.montant == null) ? null : Math.round(ls.reduce((a, l) => a + l.montant, 0) * 100) / 100;
+// Ligne x de la commande o couverte par la ligne l du document : même référence, sinon même produit
+const docCouvre = (f, l, x, o) => (!!docRef(l.ref) && docRef(l.ref) === docRef(x.reference)) || (!!x.produit_id && x.produit_id === (docProduitPour(f, l, o) || {}).id);
+// Un accusé peut mêler une commande appli et un complément téléphoné (IV308244 : 27 lignes de
+// BC260920-02 + 8 commandées au commercial) : chaque commande ouverte prend ses lignes, seul le
+// reste devient une commande « hors appli », sans doublonner ce qui est déjà commandé.
+async function docRepartirAccuse(f, res) {
+  let reste = res.lignes, o; const vues = [], confirmees = [];
+  while (reste.length && (o = docTrouverCommande(f, { ...res, lignes: reste }, vues))) {
+    vues.push(o);
+    const siennes = reste.filter(l => (o.lignes || []).some(x => docCouvre(f, l, x, o)));
+    const prises = siennes.length ? siennes : reste;
+    await docAppliquerConfirmation(f, { ...res, lignes: prises, ht: prises.length === res.lignes.length ? res.ht : docSomme(prises) }, o);
+    confirmees.push(o.id); reste = reste.filter(l => !prises.includes(l));
+  }
+  const action = reste.length ? await docCreerCommande(f, { ...res, lignes: reste, ht: confirmees.length ? docSomme(reste) : res.ht }) : 'confirmee';
+  if (!confirmees.length) return action;
+  f._commande_id = confirmees[0];
+  return 'confirmee';
+}
 // Prix dans l'unité de l'appli : le fournisseur peut facturer au kilo une quantité en pièces
 // (Lodifrais : "2.000 PI KG 1.900 19.00" = 2 seaux à 9,50 €) → on repart du montant de la ligne
 function docPrixUnite(p, l) {
@@ -132,17 +152,38 @@ function docQteUnite(p, l, prix) {
   }
   return l.qte;
 }
-function docProduitPour(f, l) { return facTrouverProduit({ fournisseur_id: f.fournisseur_id }, l); }
+// Sur une commande, la référence de sa ligne désigne le produit, même retiré du catalogue depuis :
+// sinon le nom rabat la ligne sur un voisin (boudin 117848 pris pour le 65921, 23/09/2026)
+function docProduitPour(f, l, o) {
+  const x = o && docRef(l.ref) && (o.lignes || []).find(x => docRef(x.reference) === docRef(l.ref));
+  if (x) return CUI.prods.find(p => p.id === x.produit_id) || null;
+  return facTrouverProduit({ fournisseur_id: f.fournisseur_id }, l);
+}
 async function docAppliquerBl(f, res, o) {
-  const patch = { numero_bl: o.numero_bl || res.numero || null, bl_json: { numero: res.numero, date: res.date_livraison || res.date, doc_id: f.id, lignes: res.lignes.map(l => ({ ...l, produit_id: (docProduitPour(f, l) || {}).id || null })) }, updated_at: new Date().toISOString() };
+  const patch = { numero_bl: o.numero_bl || res.numero || null, bl_json: { numero: res.numero, date: res.date_livraison || res.date, doc_id: f.id, lignes: res.lignes.map(l => ({ ...l, produit_id: (docProduitPour(f, l, o) || {}).id || null })) }, updated_at: new Date().toISOString() };
   await cuiPATCH('cmd_commandes?id=eq.' + o.id, patch); Object.assign(o, patch);
   f._commande_id = o.id;
   return 'bl_rattache';
 }
+// confirmation_json cumule tous les accusés de la commande (numero / ht / lignes lus par cuisine.js)
+// et garde chacun dans accuses. Le HT n'est « confirmé » que si toutes les lignes le sont.
 async function docAppliquerConfirmation(f, res, o) {
-  const patch = { confirmation_json: { numero: res.numero, date: res.date, ht: res.ht ?? null, doc_id: f.id, lignes: res.lignes }, updated_at: new Date().toISOString() };
+  const acc = { numero: res.numero, date: res.date, date_livraison: res.date_livraison || null, ht: res.ht ?? null, doc_id: f.id, lignes: res.lignes };
+  const accuses = [...docAccuses(o).filter(a => a.numero !== acc.numero), acc];
+  // Un produit livré en deux fois (saucisse : 23/09 puis reliquat du 25/09) ne fait qu'une ligne
+  const lignes = [];
+  accuses.flatMap(a => a.lignes || []).forEach(l => {
+    const d = docRef(l.ref) && lignes.find(x => docRef(x.ref) === docRef(l.ref) && x.unite === l.unite);
+    if (!d) return lignes.push({ ...l });
+    d.qte = Math.round(((d.qte || 0) + (l.qte || 0)) * 1000) / 1000;
+    d.montant = d.montant != null && l.montant != null ? Math.round((d.montant + l.montant) * 100) / 100 : null;
+  });
+  const couvre = ls => (o.lignes || []).every(x => ls.some(l => docCouvre(f, l, x, o)));
+  const ht = couvre(lignes) && accuses.every(a => a.ht != null) ? Math.round(accuses.reduce((s, a) => s + a.ht, 0) * 100) / 100 : null;
+  const patch = { confirmation_json: { numero: accuses.map(a => a.numero).join(' + '), date: res.date, ht, doc_id: f.id, lignes, accuses }, updated_at: new Date().toISOString() };
   if (o.statut === 'envoyee') patch.statut = 'confirmee';
-  if (res.date_livraison) patch.date_livraison = res.date_livraison;
+  // Un accusé partiel (reliquat livré plus tard) ne déplace pas la livraison de toute la commande
+  if (res.date_livraison && couvre(res.lignes)) patch.date_livraison = res.date_livraison;
   await cuiPATCH('cmd_commandes?id=eq.' + o.id, patch); Object.assign(o, patch);
   await docMajPrix(f, res, o);
   f._commande_id = o.id;
@@ -182,7 +223,7 @@ const docNomPropre = s => s.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCas
 // Prix du jour repris de l'accusé / confirmation (même unité de prix), historique tracé
 async function docMajPrix(f, res, o) {
   for (const l of res.lignes) {
-    const p = docProduitPour(f, l); if (!p) continue;
+    const p = docProduitPour(f, l, o); if (!p) continue;
     const prix = docPrixUnite(p, l);
     if (prix == null || (p.prix != null && Math.abs(p.prix - prix) < 0.005)) continue;
     try {
