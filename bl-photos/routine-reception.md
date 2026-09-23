@@ -178,6 +178,16 @@ toujours en kilos.
 Sur les produits pesés (unité en kilos), l'appli tolère 10 % d'écart sans le
 considérer comme un litige.
 
+**Pièce commandée, kilos facturés** (fromages Lodifrais, pièces de viande) : on
+commande *une pièce*, le fournisseur facture son poids réel. La quantité reçue
+est le **nombre de pièces**, jamais le poids. Le poids sert seulement au montant :
+une pièce plus légère ou plus lourde que `poids_kg` fait varier le prix de la
+pièce sans que ce soit une hausse ou une baisse de tarif — ne comparer que le
+prix au kilo. Si une ancienne ligne de commande est restée en kilos pour un tel
+produit (le bleu d'Auvergne de O26091454M6AA : « 1 kg » voulait dire un fromage),
+ce n'est pas une erreur de saisie : le signaler comme ligne à passer en pièces,
+avec l'écart de valorisation qu'elle entraîne.
+
 ## 5. Écrire la réception
 
 ```sql
