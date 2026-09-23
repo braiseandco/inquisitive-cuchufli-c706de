@@ -52,7 +52,14 @@ d'être de cette routine.
 
 ## Où sont les photos
 
-**Un seul endroit : `G:\Mon Drive\Bl\AAAA-MM-JJ\`.**
+**Un seul endroit : `G:\.shortcut-targets-by-id\1FOsC4oL_N13Yjdpzr41SlKRJT82yKDL9\BL\AAAA-MM-JJ\`.**
+
+Ce dossier appartient au compte braiseandcobiganos, où tourne le script, et il
+est partagé avec alex.farge, le compte synchronisé sur le PC. Dans `G:\Mon Drive`,
+il n'apparaît que sous la forme d'un raccourci Windows `BL.lnk`, qu'on ne peut
+pas parcourir comme un dossier : passer par le chemin ci-dessus. Si le dossier
+est introuvable, relancer Google Drive pour ordinateur avant de conclure qu'il
+n'y a rien.
 
 Un script Google y dépose tout, toutes les 15 minutes, quelle que soit la
 provenance : les photos prises depuis le bouton « Photographier le BL » de
@@ -64,8 +71,8 @@ stockage.** Ce sont des fichiers ordinaires sur un disque : ouvre-les comme tels
 Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
 chercher — le dire dans le récap et passer à la suite.
 
-Traiter toute photo qui n'est pas déjà dans `G:\Mon Drive\Bl\traités\`, **y
-compris à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
+Traiter toute photo qui n'est pas déjà dans `BL\traités\`, **y
+compris à la racine de `BL`** : une photo déposée à la main n'est pas dans un
 sous-dossier de date. Créer `traités` s'il n'existe pas.
 
 ### Retrouver la commande d'une photo
@@ -246,7 +253,7 @@ rangé dans une catégorie ou corrigé.
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par
+Déplacer la photo dans `BL\traités\` (même chemin qu'au début), puis **envoyer le récap par
 mail** à braiseandcobiganos@gmail.com via le connecteur Gmail. Un récap affiché
 dans une fenêtre du PC n'est lu par personne, et surtout pas depuis le téléphone,
 d'où se pilotent les commandes.
