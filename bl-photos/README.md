@@ -73,24 +73,27 @@ Le PC a besoin de deux connecteurs : **Supabase** pour écrire les réceptions, 
 **Gmail** pour envoyer le récap. Aucun des deux n'est facturé à l'usage — c'est
 la session Claude qui travaille, il n'y a pas d'appel d'API payant dans la chaîne.
 
-**a) Vérifier que la commande existe.** Dans un terminal : `claude --version`.
-Si la commande est inconnue, installer Claude Code en ligne de commande avant
-d'aller plus loin.
+**a) Installer et connecter la commande.** `npm install -g @anthropic-ai/claude-code`,
+puis `claude auth login` avec le compte Claude (abonnement). `claude mcp list`
+doit montrer *claude.ai Supabase* et *claude.ai Gmail* connectés : ce sont les
+connecteurs du compte, rien à brancher à part.
 
-**b) Essayer le lanceur à la main.** Copier `reception-bl.bat` sur le PC (par
-exemple dans `%USERPROFILE%\bl\`) et le double-cliquer. Le compte rendu s'écrit
-dans `%USERPROFILE%\bl-reception.log`. Si la session s'arrête en demandant une
-autorisation d'outil, c'est normal au premier passage : il faudra la lui accorder
-une fois, ou préciser les outils autorisés dans la commande.
+**b) Le lanceur.** Copier `reception-bl.bat` dans `%USERPROFILE%\bl\`. Il
+relance Google Drive si le dossier BL manque, télécharge la consigne à côté de
+lui, puis lance la session avec une liste fermée d'autorisations : lire la
+consigne et le dossier BL, écrire le registre `lus-a-blanc.txt`, `execute_sql`
+Supabase, `send_message` Gmail. Tout le reste est refusé sans question
+(`--permission-mode dontAsk`). Le compte rendu s'écrit dans
+`%USERPROFILE%\bl-reception.log`.
 
-**c) Planifier.** Planificateur de tâches Windows → *Créer une tâche* :
+**c) Planifier.** Tâche Windows « Réception BL » :
 
-| Onglet | Réglage |
+| Réglage | Valeur |
 |---|---|
-| Général | nom « Réception BL », *Exécuter même si l'utilisateur n'est pas connecté* décoché |
-| Déclencheurs | *À l'ouverture de session*, différer de 2 minutes (le temps que Drive et le réseau soient là) |
-| Actions | *Démarrer un programme* → le chemin complet de `reception-bl.bat` |
-| Conditions | décocher *Ne démarrer que si l'ordinateur est sur secteur* |
+| Déclencheurs | à l'ouverture de session + 2 min, et tous les jours à 15h |
+| Action | `cmd /c start "Reception BL" /min /wait cmd /c "%USERPROFILE%\bl\reception-bl.bat"` |
+| Conditions | tourne sur batterie, réveille le PC, rattrape un passage manqué |
+| Instances | une seule à la fois, arrêt au bout d'1 h |
 
 ## Du mode à blanc à l'écriture
 

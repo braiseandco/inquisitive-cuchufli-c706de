@@ -20,7 +20,8 @@ set "BL_REGLE=//g/.shortcut-targets-by-id/1FOsC4oL_N13Yjdpzr41SlKRJT82yKDL9/BL"
 set "CONSIGNE_URL=https://raw.githubusercontent.com/braiseandco/inquisitive-cuchufli-c706de/main/bl-photos/routine-reception.md"
 set "CONSIGNE=%~dp0routine-reception.md"
 set "JOURNAL=%USERPROFILE%\bl-reception.log"
-set "CLAUDE=%APPDATA%\npm\claude.cmd"
+rem Installation native : celle de npm, faite depuis l'appli Claude, reste invisible hors de l'appli.
+set "CLAUDE=%USERPROFILE%\.local\bin\claude.exe"
 set "SUPABASE_SQL=mcp__claude_ai_Supabase__execute_sql"
 set "GMAIL_ENVOI=mcp__claude_ai_Gmail__send_message"
 
@@ -54,7 +55,7 @@ if not exist "%CONSIGNE%" (
   exit /b 1
 )
 
-call "%CLAUDE%" -p "Tu geres la reception des bons de livraison du restaurant Braise and Co a Biganos. Lis d'abord la consigne %CONSIGNE% : elle contient tout le contexte et le mode de fonctionnement, respecte-la a la lettre. Les photos sont dans %BL%. Puis execute-la sur les photos en attente, et envoie le recap par mail a braiseandcobiganos@gmail.com meme s'il n'y a eu aucune livraison. Tu n'as que les outils strictement necessaires : si une action t'est refusee, ne cherche pas de contournement, dis-le dans le recap.%ALERTE%" --permission-mode dontAsk --add-dir "%BL%" --allowedTools "Read(./routine-reception.md)" "Read(%BL_REGLE%/**)" "Edit(%BL_REGLE%/lus-a-blanc.txt)" "%SUPABASE_SQL%" "%GMAIL_ENVOI%" >> "%JOURNAL%" 2>&1
+"%CLAUDE%" -p "Tu geres la reception des bons de livraison du restaurant Braise and Co a Biganos. Lis d'abord la consigne %CONSIGNE% : elle contient tout le contexte et le mode de fonctionnement, respecte-la a la lettre. Les photos sont dans %BL%. Puis execute-la sur les photos en attente, et envoie le recap par mail a braiseandcobiganos@gmail.com meme s'il n'y a eu aucune livraison. Tu n'as que les outils strictement necessaires : si une action t'est refusee, ne cherche pas de contournement, dis-le dans le recap.%ALERTE%" --permission-mode dontAsk --add-dir "%BL%" --allowedTools "Read(./routine-reception.md)" "Read(%BL_REGLE%/**)" "Edit(%BL_REGLE%/lus-a-blanc.txt)" "%SUPABASE_SQL%" "%GMAIL_ENVOI%" >> "%JOURNAL%" 2>&1
 
 if errorlevel 1 (
   echo [ECHEC] la session s'est terminee en erreur >> "%JOURNAL%"
