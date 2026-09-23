@@ -661,7 +661,8 @@ function cuiSyncBarOrder(nomFournisseur, items, note) {
 async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
   if (!CUI.loaded) await cuiLoad(true);
   const sup = CUI.sups.find(s => facNormNom(s.nom) === facNormNom(nomFournisseur));
-  if (!sup) { console.warn('Fournisseur bar inconnu :', nomFournisseur); return; }
+  // Le 20/09/2026, « Les Plantins » au lieu de « Les Platins » : la commande de vin s'est perdue sans un mot
+  if (!sup) { cuiToast(`⚠️ Commande NON enregistrée dans l'appli : fournisseur « ${nomFournisseur} » introuvable`); throw new Error('Fournisseur bar inconnu : ' + nomFournisseur); }
   const prods = CUI.prods.filter(p => p.fournisseur_id === sup.id);
   const lignes = [];
   for (const it of items) {
@@ -679,6 +680,7 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
   CUI.orders.unshift({ ...cmd, lignes: rows });
   cuiRender();
+  cuiToast(`✓ Commande ${sup.nom} enregistrée (${cmd.numero})`);
 }
 const facNormNom = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 

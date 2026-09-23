@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.5';
+const APP_VERSION = '2026-09-23.6';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1069,13 +1069,19 @@ const COCKTAIL_TEL = '0673544939';
 const barEnvoye = {};
 function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
   const ids = Object.keys(panier).filter(id => panier[id] > 0);
-  if (!ids.length) return;
+  if (!ids.length) return Promise.resolve();
   const empreinte = JSON.stringify(ids.sort().map(id => [id, panier[id]]));
-  if (barEnvoye[fournisseur] === empreinte) return;
+  if (barEnvoye[fournisseur] === empreinte) return Promise.resolve();
   barEnvoye[fournisseur] = empreinte;
   const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, qte: panier[id] }; });
   const note = (localStorage.getItem(noteKey) || '').trim();
-  if (typeof cuiSyncBarOrder === 'function') cuiSyncBarOrder(fournisseur, items, note).catch(e => console.error(e));
+  if (typeof cuiSyncBarOrder !== 'function') return Promise.resolve();
+  return avantEnvoi(cuiSyncBarOrder(fournisseur, items, note));
+}
+// Le SMS ou le mail ouvre une autre appli qui peut suspendre la page : on attend que la commande
+// soit enregistrée avant de partir, 4 s au plus pour ne jamais bloquer l'envoi.
+function avantEnvoi(p) {
+  return Promise.race([p.catch(e => console.error(e)), new Promise(r => setTimeout(r, 4000))]);
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1476,7 +1482,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-tel1-num').textContent = tel1;
     const btn1 = document.getElementById('conf-lebihan-sms1');
     btn1.href = '#';
-    btn1.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(tel1, smsMsg); };
+    btn1.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => ouvrirSms(tel1, smsMsg)); };
     tel1Section.classList.remove('hidden');
     tel1Missing.classList.add('hidden');
   } else {
@@ -1487,7 +1493,7 @@ function openConfirmLebihan() {
   // SMS 2 (numéro fixe 0766860735)
   const btn2 = document.getElementById('conf-lebihan-sms2');
   btn2.href = '#';
-  btn2.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(LEBIHAN_TEL_BIS, smsMsg); };
+  btn2.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => ouvrirSms(LEBIHAN_TEL_BIS, smsMsg)); };
 
   // Email
   const dest = (settings.emailFourn || settings.email || '').trim();
@@ -1497,7 +1503,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-mail-dest').textContent = dest;
     const btnMail = document.getElementById('conf-lebihan-mail');
     btnMail.href = '#';
-    btnMail.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); window.location.href = buildMailtoUrl(dest, subject, mailMsg); };
+    btnMail.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => { window.location.href = buildMailtoUrl(dest, subject, mailMsg); }); };
     mailSection.classList.remove('hidden');
     mailMissing.classList.add('hidden');
   } else {
@@ -1518,7 +1524,7 @@ let lebihanEnvoye = '';
 const lebihanEmpreinte = () => JSON.stringify(Object.keys(commande).filter(id => commande[id] > 0).sort().map(id => [id, commande[id]]));
 function enregistrerEnvoiLebihan() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
-  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return;
+  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return Promise.resolve();
   lebihanEnvoye = lebihanEmpreinte();
 
   const now = new Date();
@@ -1555,9 +1561,12 @@ function enregistrerEnvoiLebihan() {
   // Copie dans l'historique commun (réception du BL + contrôle de la facture Le Bihan)
   if (typeof cuiSyncBarOrder === 'function') {
     const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
-    cuiSyncBarOrder('Le Bihan', items, note).catch(e => console.error(e));
+    const p = avantEnvoi(cuiSyncBarOrder('Le Bihan', items, note));
+    saveToSupabase();
+    return p;
   }
   saveToSupabase();
+  return Promise.resolve();
 }
 
 function confirmSent() {
@@ -1771,8 +1780,7 @@ function envoyerSMSCocktail() {
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception par SMS.`;
 
-  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note');
-  ouvrirSms(COCKTAIL_TEL, msg);
+  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note').then(() => ouvrirSms(COCKTAIL_TEL, msg));
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1874,16 +1882,14 @@ function _buildCafeMsg(now) {
 
 function envoyerCafeSMS() {
   if (!settings.cafeTel) return;
-  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
-  ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date()));
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note').then(() => ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date())));
 }
 
 function envoyerCafeEmail() {
   if (!settings.cafeEmail) return;
   const now = new Date();
   const subject = `Commande Café Richard — ${now.toLocaleDateString('fr-FR')}`;
-  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
-  window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now));
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note').then(() => { window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now)); });
 }
 
 function openConfirmVin() {
@@ -1917,7 +1923,7 @@ function openConfirmVin() {
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMain = document.getElementById('conf-vin-sms-main');
     btnVinMain.href = '#';
-    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Platins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MAIN, msg); };
+    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Platins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note').then(() => ouvrirSms(VIN_TEL_MAIN, msg)); };
     mainSection.classList.remove('hidden');
   } else {
     mainSection.classList.add('hidden');
@@ -1930,7 +1936,7 @@ function openConfirmVin() {
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
     btnVinMoscato.href = '#';
-    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MOSCATO, msg); };
+    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note').then(() => ouvrirSms(VIN_TEL_MOSCATO, msg)); };
     moscatoSection.classList.remove('hidden');
   } else {
     moscatoSection.classList.add('hidden');
