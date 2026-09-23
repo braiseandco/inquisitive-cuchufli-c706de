@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.3';
+const APP_VERSION = '2026-09-23.4';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1280,7 +1280,7 @@ function renderCommande(filter) {
         <div class="prod-row ${qty > 0 || isGratuit ? 'has-qty' : ''}" id="row-${p.id}">
           <div class="prod-info">
             <div class="prod-name">${p.nom}</div>
-            <div class="prod-meta">${p.unite}${p.parCaisse ? ' de ' + p.parCaisse : ''}${p.litres ? ' ' + p.litres + ' L' : ''} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
+            <div class="prod-meta">${lbUnite(p)}${p.parCaisse > 1 ? ' (1 = ' + p.parCaisse + ' btl)' : ''}${p.litres ? ' ' + p.litres + ' L' : ''} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
           </div>
           <div class="stepper">
             ${isGratuitEl ? `<button class="btn-gratuit ${isGratuit ? 'on' : gratuit && !isGratuit ? 'off' : ''}" onclick="toggleGratuit('${p.id}')">GRATUIT</button>` : ''}
@@ -1399,17 +1399,22 @@ function updateSundayInfo() {
 /* ═══════════════ CONFIRMATION / SMS ═══════════════ */
 const LEBIHAN_TEL_BIS = '0766860735';
 
+// Le SMS disait « 6x Norbert Ananas » : Le Bihan a livré 6 bouteilles au lieu de 6 packs de 6
+// (23/09/2026). L'unité et le nombre de bouteilles sont donc toujours écrits en toutes lettres.
+function lbUnite(p) { return p.parCaisse && !/\d/.test(p.unite) ? `${p.unite} de ${p.parCaisse}` : p.unite; }
+function lbQuantite(p, q) { return `${q} ${lbUnite(p)}${p.parCaisse > 1 ? ` (${q * p.parCaisse} btl)` : ''}`; }
+
 function _buildLebihanLines() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
   const lines = [];
   ids.forEach(id => {
     const p = produits.find(x => x.id === id);
     if (!p) return;
-    lines.push(`${commande[id]}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
+    lines.push(`${lbQuantite(p, commande[id])} — ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
   });
   if (gratuit) {
     const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) lines.push(`1x ${pg.nom} (GRATUIT)`);
+    if (pg && !commande[gratuit]) lines.push(`${lbQuantite(pg, 1)} — ${pg.nom} (GRATUIT)`);
   }
   return lines;
 }
@@ -1441,12 +1446,12 @@ function openConfirmLebihan() {
     const p = produits.find(x => x.id === id);
     if (!p) return;
     const tag = gratuit === id ? ' <span style="color:var(--accent);font-weight:700">GRATUIT</span>' : '';
-    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${commande[id]}</span></div>`;
+    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${lbQuantite(p, commande[id])}</span></div>`;
   });
   if (gratuit) {
     const pg = produits.find(x => x.id === gratuit);
     if (pg && !commande[gratuit]) {
-      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">1</span></div>`;
+      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">${lbQuantite(pg, 1)}</span></div>`;
     }
   }
 

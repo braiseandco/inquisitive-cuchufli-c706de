@@ -339,7 +339,27 @@ Exemple du 23/09/2026 : la saucisse manquait de 13,8 kg mais Lodifrais avait
 téléphoné ; le spéculoos manquait sans un mot. Le second est le vrai sujet, même
 à 6,33 €, parce que personne ne l'a su avant de le chercher en cuisine.
 
+**Livré moins, facturé moins : ce n'est pas un litige.** Le fournisseur envoie ce
+qu'il a — rupture, produit pesé — et le BL facture la quantité réellement livrée.
+Le 23/09/2026, Lodifrais a livré 8,3 kg d'échine pour 10 kg commandés et facturé
+8,3 kg : le restaurant ne paie que ce qu'il reçoit. Le lister parmi les manquants
+(il faut peut-être recommander ou adapter la carte), mais sans le présenter comme
+une erreur ni comme quelque chose à réclamer. Ne parler de réclamation que si le
+BL facture plus que ce qui est arrivé, ou si le prix a bougé.
+
 S'il n'y a aucun manquant, l'écrire : « Aucun manquant aujourd'hui. »
+
+## 6 ter. Les offerts, toujours signalés
+
+Toute ligne gratuite du BL — « GRATUIT », « offert », prix ou montant à 0,00 €,
+unité gratuite d'une promotion — est **signalée dans le mail**, sous le titre
+**OFFERTS**, juste après les manquants : produit, fournisseur, quantité, et ce
+qu'elle vaudrait au prix de la ligne payante du même produit. Le 23/09/2026, Le
+Bihan a ajouté 2 cartons d'Abatilles pétillante 1 L gratuits aux 10 commandés
+(≈ 22 €) : la réception à la main ne l'avait pas vu.
+
+En mode ÉCRITURE, un offert s'ajoute à `qte_recue` avec l'écart « dont N
+offert(s) », sans toucher au prix de la ligne.
 
 ## 7. Signaler les réceptions en retard
 
