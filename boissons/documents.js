@@ -114,6 +114,24 @@ function docPrixUnite(p, l) {
   if (poids && l.pu != null) return Math.round(l.pu * poids * 1000) / 1000;
   return null;
 }
+// Quantité dans l'unité de l'appli. Le fournisseur compte dans la sienne — 90 pièces, 4 sachets,
+// 6 colis — alors que le prix, lui, a été ramené à l'unité de l'appli : le carton, le kilo. Les
+// multiplier l'un par l'autre donne n'importe quoi. Un accusé Lodifrais du 23/09/2026 annonçait
+// un carton de 90 œufs à 19,80 € ; la commande créée portait 90 cartons, soit 1 782 €.
+// Le montant de la ligne est le seul point fixe : il fait foi.
+function docQteUnite(p, l, prix) {
+  const poids = facConvPoids(p, l.unite);
+  if (poids) return Math.round(l.qte / poids * 1000) / 1000;
+  const uq = FAC_UNITES[(l.unite || '').toUpperCase()];
+  if (uq && facUniteApp(p.unite) === uq) return l.qte;   // mêmes unités, rien à convertir
+  if (prix > 0 && l.montant != null) {
+    const q = Math.round(l.montant / prix * 1000) / 1000;
+    // Un écart infime vient de l'arrondi du prix de la fiche, pas d'un changement d'unité :
+    // on garde alors le compte rond du fournisseur plutôt qu'un 11,988.
+    return (l.qte && Math.abs(q - l.qte) / l.qte < 0.02) ? l.qte : q;
+  }
+  return l.qte;
+}
 function docProduitPour(f, l) { return facTrouverProduit({ fournisseur_id: f.fournisseur_id }, l); }
 async function docAppliquerBl(f, res, o) {
   const patch = { numero_bl: o.numero_bl || res.numero || null, bl_json: { numero: res.numero, date: res.date_livraison || res.date, doc_id: f.id, lignes: res.lignes.map(l => ({ ...l, produit_id: (docProduitPour(f, l) || {}).id || null })) }, updated_at: new Date().toISOString() };
@@ -141,9 +159,9 @@ async function docCreerCommande(f, res) {
       const [row] = await cuiPOST('cmd_produits', { fournisseur_id: sup.id, nom: docNomPropre(l.nom), unite: FAC_UNITES[(l.unite || '').toUpperCase()] === 'kilo' ? 'Kilo(s)' : 'Pièce(s)', prix: (l.montant != null && l.qte) ? Math.round(l.montant / l.qte * 1000) / 1000 : l.pu ?? null, reference: l.ref || null, ordre: 900 + prods.length + lignes.length });
       CUI.prods.push(row); p = row;
     }
-    const poids = facConvPoids(p, l.unite);
-    const qte = poids ? Math.round(l.qte / poids * 1000) / 1000 : l.qte;
-    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: docPrixUnite(p, l) ?? p.prix ?? null, quantite: qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? qte : null });
+    const prix = docPrixUnite(p, l) ?? p.prix ?? null;
+    const qte = docQteUnite(p, l, prix);
+    lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix, quantite: qte, ordre: lignes.length, qte_recue: f.type === 'bl' ? qte : null });
   }
   const estBl = f.type === 'bl';
   const [cmd] = await cuiPOST('cmd_commandes', {
