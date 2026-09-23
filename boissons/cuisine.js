@@ -128,7 +128,12 @@ function cuiRenderHome() {
       <div class="cui-card-meta">${np} produit${np > 1 ? 's' : ''}${last ? ' · ' + cuiD(last.date_commande) : ''}${(s.rappel_jours || []).length ? '<br>⏰ ' + s.rappel_jours.slice().sort().map(j => CUI_JOURS_COURT[j]).join(' ') : s.jours_commande ? '<br>⏰ ' + cuiEsc(s.jours_commande) : ''}</div>
     </button>`;
   }).join('') + `<button class="cui-card cui-card-add" onclick="cuiOpenSupEdit(true)">＋ Fournisseur</button>`;
-  cui$('cui-orders').innerHTML = CUI.orders.slice(0, 6).map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande pour l\'instant.</div>';
+  // Une livraison du jour ne doit jamais sortir de l'écran d'accueil : le 23/09, la commande
+  // Le Bihan attendue le matin était passée 7e derrière des commandes créées depuis des accusés.
+  const auj = cuiIso(Date.now());
+  const aRecevoir = CUI.orders.filter(o => (o.statut === 'envoyee' || o.statut === 'confirmee') && o.date_livraison && o.date_livraison <= auj && o.date_livraison >= cuiIso(Date.now() - 864e5));
+  const liste = aRecevoir.concat(CUI.orders.filter(o => !aRecevoir.includes(o)).slice(0, Math.max(0, 6 - aRecevoir.length)));
+  cui$('cui-orders').innerHTML = liste.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande pour l\'instant.</div>';
 }
 function cuiOrderRow(o) {
   const s = cuiSup(o.fournisseur_id) || {};
