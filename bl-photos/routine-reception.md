@@ -301,6 +301,39 @@ Photo : bl/2026-09-22/O260921ZNIFUL_1758547200.jpg
 Ajouter ensuite, s'il y a lieu : ce qui n'a pas pu être traité et pourquoi, et
 les réceptions en retard (point 7).
 
+## 6 bis. Les manquants, en tête du mail
+
+**La question à laquelle le récap doit répondre en premier : qu'est-ce qui n'est
+pas arrivé ?** C'est la seule information qui demande une action le jour même —
+relancer le fournisseur, retirer un plat de la carte, dépanner ailleurs.
+
+Balayer **toutes les réceptions du jour**, pas seulement celles que la routine a
+traitées : une réception saisie à la main dans l'appli compte autant.
+
+```sql
+select f.nom as fournisseur, c.numero, c.date_reception,
+       l.nom as produit, l.unite, l.quantite as commande, l.qte_recue as recu, l.ecart
+from cmd_commande_lignes l
+join cmd_commandes c on c.id = l.commande_id
+join cmd_fournisseurs f on f.id = c.fournisseur_id
+where c.date_reception::date = current_date
+  and l.qte_recue is not null and l.qte_recue < l.quantite
+order by (l.quantite - l.qte_recue) * coalesce(l.prix,0) desc;
+```
+
+Présenter en tête du mail, sous le titre **MANQUANTS**, avec pour chaque ligne :
+le produit, le fournisseur, ce qui manque, et la valeur — c'est elle qui dit s'il
+faut décrocher le téléphone ou laisser courir. Distinguer deux cas :
+
+- **manque annoncé** — le fournisseur a prévenu, le reste suit. Pour mémoire.
+- **manque non annoncé** — rien n'a été dit. C'est celui-là qui doit ressortir.
+
+Exemple du 23/09/2026 : la saucisse manquait de 13,8 kg mais Lodifrais avait
+téléphoné ; le spéculoos manquait sans un mot. Le second est le vrai sujet, même
+à 6,33 €, parce que personne ne l'a su avant de le chercher en cuisine.
+
+S'il n'y a aucun manquant, l'écrire : « Aucun manquant aujourd'hui. »
+
 ## 7. Signaler les réceptions en retard
 
 Avant d'envoyer le récap, lister les commandes dont la livraison est passée et
