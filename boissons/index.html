@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.4';
+const APP_VERSION = '2026-09-23.5';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1917,7 +1917,7 @@ function openConfirmVin() {
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMain = document.getElementById('conf-vin-sms-main');
     btnVinMain.href = '#';
-    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Plantins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MAIN, msg); };
+    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Platins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MAIN, msg); };
     mainSection.classList.remove('hidden');
   } else {
     mainSection.classList.add('hidden');
