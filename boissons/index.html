@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.8';
+const APP_VERSION = '2026-09-24.1';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -931,7 +931,7 @@ async function sbSet(key, value) {
 
 async function sbInsertHistorique(row) {
   try {
-    await fetch(`${SB_URL}/rest/v1/boissons_historique`, {
+    const r = await fetch(`${SB_URL}/rest/v1/boissons_historique`, {
       method: 'POST',
       headers: {
         'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
@@ -939,7 +939,8 @@ async function sbInsertHistorique(row) {
       },
       body: JSON.stringify(row)
     });
-  } catch(e) {}
+    if (!r.ok) console.error('boissons_historique', r.status, await r.text());
+  } catch(e) { console.error('boissons_historique', e); }
 }
 
 async function sbInsertCaveHistorique(row) {
@@ -1073,11 +1074,13 @@ function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
   const empreinte = JSON.stringify(ids.sort().map(id => [id, panier[id]]));
   if (barEnvoye[fournisseur] === empreinte) return Promise.resolve();
   barEnvoye[fournisseur] = empreinte;
-  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, parCaisse: p && p.parCaisse, qte: panier[id] }; });
+  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { id, code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, litres: (p && p.litres) ?? null, parCaisse: (p && p.parCaisse) ?? null, qte: panier[id] }; });
   const note = (localStorage.getItem(noteKey) || '').trim();
-  if (typeof cuiSyncBarOrder !== 'function') return Promise.resolve();
-  return avantEnvoi(cuiSyncBarOrder(fournisseur, items, note));
+  const trace = sbInsertHistorique({ type: TYPE_HISTO_BAR[fournisseur] || fournisseur, date: new Date().toISOString(), lines: items.map(it => `${it.qte}x ${it.nom}`), items, nb_ref: items.length, note, serveur: settings.serveur || '' });
+  if (typeof cuiSyncBarOrder !== 'function') return avantEnvoi(trace);
+  return avantEnvoi(Promise.all([trace, cuiSyncBarOrder(fournisseur, items, note)]));
 }
+const TYPE_HISTO_BAR = { 'Les Platins': 'vin', 'Carniato': 'moscato', 'Cocktails Express': 'cocktails', 'Café Richard': 'cafe' };
 // Le SMS ou le mail ouvre une autre appli qui peut suspendre la page : on attend que la commande
 // soit enregistrée avant de partir, 4 s au plus pour ne jamais bloquer l'envoi.
 function avantEnvoi(p) {
@@ -1551,26 +1554,23 @@ function enregistrerEnvoiLebihan() {
   });
   if (historique.length > 50) historique.length = 50;
 
-  // Tracer dans Supabase
+  // Tracer dans Supabase, avec le prix du jour de chaque ligne (le tarif en dur est écrasé à chaque mise à jour)
   const note = (localStorage.getItem('bc_note') || '').trim();
-  sbInsertHistorique({
+  const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { id: p.id, code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres ?? null, parCaisse: p.parCaisse ?? null, qte: commande[id] } : null; }).filter(Boolean);
+  const trace = sbInsertHistorique({
     type: 'lebihan',
     date: now.toISOString(),
     lines,
+    items,
     nb_ref: ids.length,
     note,
     serveur: settings.serveur || ''
   });
 
   // Copie dans l'historique commun (réception du BL + contrôle de la facture Le Bihan)
-  if (typeof cuiSyncBarOrder === 'function') {
-    const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
-    const p = avantEnvoi(cuiSyncBarOrder('Le Bihan', items, note));
-    saveToSupabase();
-    return p;
-  }
+  const p = avantEnvoi(typeof cuiSyncBarOrder === 'function' ? Promise.all([trace, cuiSyncBarOrder('Le Bihan', items, note)]) : trace);
   saveToSupabase();
-  return Promise.resolve();
+  return p;
 }
 
 function confirmSent() {
