@@ -344,14 +344,6 @@
       border-radius: 10px; padding: 10px 14px; margin: 12px 16px;
       font-size: 13px; color: var(--danger);
     }
-    .btn-gratuit {
-      font-size: 11px; font-weight: 700; padding: 4px 8px;
-      border-radius: 6px; border: 1px solid var(--ok); color: var(--ok);
-      background: none; cursor: pointer; margin-left: 4px; flex-shrink: 0;
-      transition: all 0.15s;
-    }
-    .btn-gratuit.on { background: var(--ok); color: #000; }
-    .btn-gratuit.off { border-color: var(--dim); color: var(--dim); opacity: 0.4; cursor: not-allowed; }
     .sunday-badge {
       background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3);
       border-radius: 10px; padding: 8px 14px; margin: 10px 16px;
@@ -898,7 +890,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-24.1';
+const APP_VERSION = '2026-09-24.2';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1011,8 +1003,6 @@ const PRODUITS_DEFAUT = [
   { id:'p066', code:'',       nom:'7up 33cl VC',                       cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
   { id:'p067', code:'',       nom:'Orangina 25cl VC',                  cat:'Sodas',           unite:'caisse',    prix:0.889, parCaisse:24, min:1 },
   { id:'p068', code:'',       nom:'Lipton Ice Tea 25cl VC',            cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
-  { id:'p017', code:'002846', nom:'Fuzetea Pêche 25cl VC',             cat:'Sodas',           unite:'caisse',    prix:0.71, parCaisse:24, min:2 },
-  { id:'p018', code:'002888', nom:'Tropico Original 25cl VC',          cat:'Sodas',           unite:'caisse',    prix:0.83, parCaisse:24, min:1 },
   { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20, parCaisse:12, min:1 },
   // JUS DE FRUITS
   { id:'p020', code:'003813', nom:'Pago Ananas 20cl VC',               cat:'Jus de fruits',   unite:'caisse',    prix:0.82, parCaisse:24, min:1 },
@@ -1129,7 +1119,6 @@ function vinQuantite(p, q) { return p.parCaisse ? `${q} carton${q > 1 ? 's' : ''
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
 let commande  = {}; // { id: qty }
-let gratuit   = null; // id du produit marqué GRATUIT (7up ou Fuzetea)
 let stock     = {}; // { id: qty } — en caisses (ou pièces pour fûts/bouteilles)
 let stockBout = {}; // { id: qty } — bouteilles en vrac (pour produits en caisse/carton)
 let stockMin  = {}; // { id: minQty }
@@ -1139,13 +1128,11 @@ let commandeVin      = {}; // { id: qty }
 let commandeCocktail = {}; // { id: qty } — cartons
 let commandeCafe     = {}; // { id: qty }
 let cavePrep         = {}; // { id: qty } — quantités à sortir de la cave
-const GRATUIT_IDS = ['p066', 'p017']; // 7up (ex-Sprite), Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
 function save() {
   localStorage.setItem('bc_produits',  JSON.stringify(produits));
   localStorage.setItem('bc_commande',  JSON.stringify(commande));
-  localStorage.setItem('bc_gratuit',   gratuit || '');
   localStorage.setItem('bc_stock',     JSON.stringify(stock));
   localStorage.setItem('bc_stockBout', JSON.stringify(stockBout));
   localStorage.setItem('bc_stockMin',  JSON.stringify(stockMin));
@@ -1171,7 +1158,6 @@ function load() {
     }
     produits   = JSON.parse(localStorage.getItem('bc_produits'))   || null;
     commande   = JSON.parse(localStorage.getItem('bc_commande'))   || {};
-    gratuit    = localStorage.getItem('bc_gratuit') || null;
     stock      = JSON.parse(localStorage.getItem('bc_stock'))      || {};
     stockBout  = JSON.parse(localStorage.getItem('bc_stockBout'))  || {};
     stockMin   = JSON.parse(localStorage.getItem('bc_stockMin'))   || {};
@@ -1186,11 +1172,6 @@ function load() {
     produits = PRODUITS_DEFAUT.map(p => ({ ...p, actif: true, custom: false }));
     try { produits = produits.concat(JSON.parse(localStorage.getItem('bc_produits_perso') || '[]')); localStorage.removeItem('bc_produits_perso'); } catch(e) {}
   }
-
-  // Un produit retiré du tarif peut rester marqué GRATUIT sur un poste. Sans ce
-  // nettoyage, toggleGratuit refuserait tout autre choix — et comme le produit
-  // n'existe plus, on ne pourrait jamais le décocher non plus.
-  if (gratuit && !produits.some(p => p.id === gratuit)) { gratuit = null; save(); }
 }
 
 /* ═══════════════ UTILS ═══════════════ */
@@ -1289,16 +1270,13 @@ function renderCommande(filter) {
     html += `<div class="cat-label">${cat}</div>`;
     cats[cat].forEach(p => {
       const qty = commande[p.id] || 0;
-      const isGratuitEl = GRATUIT_IDS.includes(p.id);
-      const isGratuit   = gratuit === p.id;
       html += `
-        <div class="prod-row ${qty > 0 || isGratuit ? 'has-qty' : ''}" id="row-${p.id}">
+        <div class="prod-row ${qty > 0 ? 'has-qty' : ''}" id="row-${p.id}">
           <div class="prod-info">
             <div class="prod-name">${p.nom}</div>
             <div class="prod-meta">${lbUnite(p)}${p.parCaisse > 1 ? ' (1 = ' + p.parCaisse + ' btl)' : ''}${p.litres ? ' ' + p.litres + ' L' : ''} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
           </div>
           <div class="stepper">
-            ${isGratuitEl ? `<button class="btn-gratuit ${isGratuit ? 'on' : gratuit && !isGratuit ? 'off' : ''}" onclick="toggleGratuit('${p.id}')">GRATUIT</button>` : ''}
             <button class="s-btn minus" onclick="changeQty('${p.id}', -1)">−</button>
             <input type="number" class="s-qty ${qty > 0 ? 'active' : ''}"
                    id="qty-${p.id}" value="${qty || ''}" min="0"
@@ -1378,18 +1356,10 @@ function updatePanier() {
   }
 }
 
-function toggleGratuit(id) {
-  if (gratuit && gratuit !== id) return; // déjà un autre sélectionné
-  gratuit = (gratuit === id) ? null : id;
-  save();
-  filterCommande();
-}
-
 function resetCommande() {
   if (!Object.keys(commande).length) return;
   if (!confirm('Réinitialiser toute la commande ?')) return;
   commande = {};
-  gratuit = null;
   save();
   document.querySelectorAll('.s-qty').forEach(inp => { inp.value = ''; inp.classList.remove('active'); });
   document.querySelectorAll('.prod-row').forEach(row => row.classList.remove('has-qty'));
@@ -1425,12 +1395,8 @@ function _buildLebihanLines() {
   ids.forEach(id => {
     const p = produits.find(x => x.id === id);
     if (!p) return;
-    lines.push(`${lbQuantite(p, commande[id])} — ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
+    lines.push(`${lbQuantite(p, commande[id])} — ${p.nom}`);
   });
-  if (gratuit) {
-    const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) lines.push(`${lbQuantite(pg, 1)} — ${pg.nom} (GRATUIT)`);
-  }
   return lines;
 }
 
@@ -1460,15 +1426,8 @@ function openConfirmLebihan() {
   ids.forEach(id => {
     const p = produits.find(x => x.id === id);
     if (!p) return;
-    const tag = gratuit === id ? ' <span style="color:var(--accent);font-weight:700">GRATUIT</span>' : '';
-    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${lbQuantite(p, commande[id])}</span></div>`;
+    linesHtml += `<div class="order-line"><span>${p.nom}</span><span class="order-line-qty">${lbQuantite(p, commande[id])}</span></div>`;
   });
-  if (gratuit) {
-    const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) {
-      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">${lbQuantite(pg, 1)}</span></div>`;
-    }
-  }
 
   const totalHT = ids.reduce((s, id) => {
     const p = produits.find(x => x.id === id);
