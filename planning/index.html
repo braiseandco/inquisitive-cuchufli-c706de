@@ -4407,16 +4407,19 @@ async function updateApp() {
   }
 }
 
+// Le rapport part par le script Google (Gmail), comme le rapport du dimanche : la fonction Supabase
+// send-planning-report n'a jamais eu de clé d'envoi, le test échouait toujours
 async function sendTestEmail() {
   const status = document.getElementById('emailSendStatus');
   status.textContent = '⏳ Envoi en cours…';
   try {
-    const r = await fetch(`${SB_URL}/functions/v1/send-planning-report`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${SB_KEY}`},
-      body: JSON.stringify({})
-    });
-    const data = await r.json();
+    const rows = await GET('settings?select=*');
+    const gasUrl = (rows.find(r => r.key === 'gas_webhook_url') || {}).value || document.getElementById('gasWebhookUrl').value.trim();
+    if (!gasUrl) { status.textContent = '❌ Aucune URL Google Apps Script configurée'; return; }
+    const r = await fetch(`${gasUrl}?action=weekly`);
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { data = {ok: r.ok, raw: text}; }
     if (data.ok) {
       status.textContent = '✅ Rapport envoyé avec succès !';
       toast('Email envoyé !');
