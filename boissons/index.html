@@ -898,7 +898,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-23.1';
+const APP_VERSION = '2026-09-24.1';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -989,7 +989,7 @@ async function loadFromSupabase() {
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
    DATA_VERSION : incrémenter pour forcer reset localStorage
 ═══════════════════════════════════════════════════ */
-const DATA_VERSION = 5;
+const DATA_VERSION = 6;
 
 const PRODUITS_DEFAUT = [
   // PRESSIONS
@@ -1006,11 +1006,11 @@ const PRODUITS_DEFAUT = [
   { id:'p009', code:'011701', nom:'La Chouffe Blonde 33cl VC 8°',      cat:'Bières',          unite:'caisse',    prix:1.63, parCaisse:24, min:1 },
   { id:'p010', code:'001144', nom:'Bud 33cl VP',                       cat:'Bières',          unite:'bouteille', prix:1.29, parCaisse:12, min:1 },
   // SODAS
-  { id:'p011', code:'002321', nom:'Coca Cola 33cl VC',                 cat:'Sodas',           unite:'caisse',    prix:0.92, parCaisse:24, min:4 },
-  { id:'p012', code:'002357', nom:'Coca Cola Sans Sucre 33cl VC',      cat:'Sodas',           unite:'caisse',    prix:0.83, parCaisse:24, min:1 },
-  { id:'p013', code:'002459', nom:'Coca Cola Cherry 33cl VC',          cat:'Sodas',           unite:'caisse',    prix:1.03, parCaisse:24, min:1 },
-  { id:'p015', code:'002558', nom:'Sprite 25cl VC',                    cat:'Sodas',           unite:'caisse',    prix:0.78, parCaisse:24, min:2 },
-  { id:'p016', code:'002559', nom:'Fanta Orange 25cl VC',              cat:'Sodas',           unite:'caisse',    prix:0.82, parCaisse:24, min:1 },
+  { id:'p064', code:'',       nom:'Pepsi 33cl VC',                     cat:'Sodas',           unite:'caisse',    prix:0.65,  parCaisse:24, min:4 },
+  { id:'p065', code:'',       nom:'Pepsi Zero 33cl VC',                cat:'Sodas',           unite:'caisse',    prix:0.67,  parCaisse:24, min:1 },
+  { id:'p066', code:'',       nom:'7up 33cl VC',                       cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
+  { id:'p067', code:'',       nom:'Orangina 25cl VC',                  cat:'Sodas',           unite:'caisse',    prix:0.889, parCaisse:24, min:1 },
+  { id:'p068', code:'',       nom:'Lipton Ice Tea 25cl VC',            cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
   { id:'p017', code:'002846', nom:'Fuzetea Pêche 25cl VC',             cat:'Sodas',           unite:'caisse',    prix:0.71, parCaisse:24, min:2 },
   { id:'p018', code:'002888', nom:'Tropico Original 25cl VC',          cat:'Sodas',           unite:'caisse',    prix:0.83, parCaisse:24, min:1 },
   { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20, parCaisse:12, min:1 },
@@ -1028,7 +1028,7 @@ const PRODUITS_DEFAUT = [
   { id:'p029', code:'003614', nom:'Sirop Grenadine Fuego 1L',         cat:'Sirops & Purées', unite:'bouteille', prix:3.04,  min:1 },
   { id:'p030', code:'003618', nom:'Sirop Pêche Fuego 1L',             cat:'Sirops & Purées', unite:'bouteille', prix:3.99,  min:1 },
   { id:'p031', code:'003947', nom:'Purée Mangue Teisseire 1L',        cat:'Sirops & Purées', unite:'bouteille', prix:8.53,  min:1 },
-  { id:'p032', code:'003952', nom:'Purée Framboise Teisseire 1L',     cat:'Sirops & Purées', unite:'bouteille', prix:10.84, min:1 },
+  { id:'p069', code:'',       nom:'Purée Fraise Teisseire 1L',       cat:'Sirops & Purées', unite:'bouteille', prix:8.744, min:1 },
   // EAUX
   { id:'p035', code:'007044', nom:'Perrier 33cl VC',                   cat:'Eaux',            unite:'caisse',    prix:0.89, parCaisse:24, min:1 },
   { id:'p036', code:'007006', nom:'Perrier 1L PET',                    cat:'Eaux',            unite:'pack de 12',prix:0.88, parCaisse:12, min:1 },
@@ -1119,7 +1119,7 @@ const VIN_PRODUITS = [
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
 let commande  = {}; // { id: qty }
-let gratuit   = null; // id du produit marqué GRATUIT (Sprite ou Fuzetea)
+let gratuit   = null; // id du produit marqué GRATUIT (7up ou Fuzetea)
 let stock     = {}; // { id: qty } — en caisses (ou pièces pour fûts/bouteilles)
 let stockBout = {}; // { id: qty } — bouteilles en vrac (pour produits en caisse/carton)
 let stockMin  = {}; // { id: minQty }
@@ -1129,7 +1129,7 @@ let commandeVin      = {}; // { id: qty }
 let commandeCocktail = {}; // { id: qty } — cartons
 let commandeCafe     = {}; // { id: qty }
 let cavePrep         = {}; // { id: qty } — quantités à sortir de la cave
-const GRATUIT_IDS = ['p015', 'p017']; // Sprite, Fuzetea
+const GRATUIT_IDS = ['p066', 'p017']; // 7up (ex-Sprite), Fuzetea
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
 function save() {
@@ -1176,6 +1176,11 @@ function load() {
     produits = PRODUITS_DEFAUT.map(p => ({ ...p, actif: true, custom: false }));
     try { produits = produits.concat(JSON.parse(localStorage.getItem('bc_produits_perso') || '[]')); localStorage.removeItem('bc_produits_perso'); } catch(e) {}
   }
+
+  // Un produit retiré du tarif peut rester marqué GRATUIT sur un poste. Sans ce
+  // nettoyage, toggleGratuit refuserait tout autre choix — et comme le produit
+  // n'existe plus, on ne pourrait jamais le décocher non plus.
+  if (gratuit && !produits.some(p => p.id === gratuit)) { gratuit = null; save(); }
 }
 
 /* ═══════════════ UTILS ═══════════════ */
