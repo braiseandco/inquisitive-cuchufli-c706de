@@ -5,7 +5,8 @@
    commandes et réceptions saisies dans l'onglet Cuisine. S'appuie sur cuisine.js (CUI, cui*). */
 
 const FAC = { rows: [], filtre: 'a_controler', loaded: false };
-const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée', document: 'Document' };
+const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée', historique: 'Historique', document: 'Document' };
+// historique : factures antérieures au 25/09/2026, jamais contrôlées et laissées telles quelles (comptées dans le récap)
 const FAC_EST_FACTURE = f => !f.type || f.type === 'facture' || f.type === 'avoir';
 const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -104,7 +105,7 @@ function facHide() { cui$('cui-fact').classList.add('hidden'); cuiShowHome(); }
 function facSetFiltre(k) { FAC.filtre = k; facRender(); }
 function facRender() {
   const counts = {}; FAC.rows.forEach(f => { const k = FAC_EST_FACTURE(f) ? f.statut : 'documents'; counts[k] = (counts[k] || 0) + 1; });
-  const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['all', 'Toutes'], ['documents', 'BL & confirmations']];
+  const chips = [['a_controler', 'À contrôler'], ['contestee', 'Contestées'], ['validee', 'Validées'], ['payee', 'Payées'], ['historique', 'Historique'], ['all', 'Toutes'], ['documents', 'BL & confirmations']];
   cui$('cui-fact-chips').innerHTML = chips.map(([k, l]) => `<button class="cui-chip ${FAC.filtre === k ? 'on' : ''}" onclick="facSetFiltre('${k}')">${l}${k !== 'all' && counts[k] ? ' · ' + counts[k] : ''}</button>`).join('');
   const list = FAC.rows.filter(f => FAC.filtre === 'documents' ? !FAC_EST_FACTURE(f) : FAC_EST_FACTURE(f) && (FAC.filtre === 'all' || f.statut === FAC.filtre));
   const nonLues = FAC.rows.filter(f => f.pdf_path && !f.lignes_json).length;
@@ -592,7 +593,7 @@ async function facSave(id) {
 
 /* ─── Récap achats : montants réellement facturés par fournisseur ─── */
 async function facTotauxAnnee(year, month) {
-  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler)&type=in.(facture,avoir)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=id,fournisseur_id,numero,montant_ht,date_facture,statut,lignes_json&order=date_facture`);
+  const rows = await cuiGET(`cmd_factures?statut=in.(validee,payee,contestee,a_controler,historique)&type=in.(facture,avoir)&date_facture=gte.${year}-01-01&date_facture=lt.${year + 1}-01-01&select=id,fournisseur_id,numero,montant_ht,date_facture,statut,lignes_json&order=date_facture`);
   const bySup = {}, byMonth = {}, nSup = {}, factures = []; let total = 0, n = 0, nonLues = 0;
   rows.forEach(f => {
     const m = new Date(f.date_facture).getMonth();
