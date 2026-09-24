@@ -890,7 +890,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-24.2';
+const APP_VERSION = '2026-09-24.3';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -921,17 +921,41 @@ async function sbSet(key, value) {
   } catch(e) {}
 }
 
+// Ne lève jamais : une commande part même si la base refuse la trace.
+// Si la ligne complète est refusée (colonne items absente, contenu rejeté…), on réessaie sans items
+// pour ne pas perdre au moins les lignes texte.
 async function sbInsertHistorique(row) {
+  const post = body => fetch(`${SB_URL}/rest/v1/boissons_historique`, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
   try {
-    await fetch(`${SB_URL}/rest/v1/boissons_historique`, {
-      method: 'POST',
-      headers: {
-        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(row)
-    });
-  } catch(e) {}
+    const r = await post(row);
+    if (r.ok || !('items' in row)) return;
+    console.error('boissons_historique refusé', r.status, await r.text());
+    const { items, ...sansItems } = row;
+    await post(sansItems);
+  } catch(e) { console.error(e); }
+}
+
+// Détail des lignes tel qu'il était au moment de la commande : sert à reconstituer l'évolution des prix.
+// prix = prix unitaire du catalogue (au litre pour un fût, à la bouteille pour une caisse),
+// le prix de l'unité commandée vaut prix × (litres || parCaisse || 1).
+function itemsHistorique(ids, panier, catalogue, uniteDefaut) {
+  return ids.map(id => {
+    const p = catalogue.find(x => x.id === id);
+    return {
+      id, code: (p && p.code) || null, nom: p ? p.nom : id,
+      unite: (p && p.unite) || uniteDefaut || null,
+      prix: p && p.prix != null ? p.prix : null,
+      litres: (p && p.litres) || null, parCaisse: (p && p.parCaisse) || null,
+      qte: panier[id]
+    };
+  });
 }
 
 async function sbInsertCaveHistorique(row) {
@@ -1065,9 +1089,19 @@ function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
   barEnvoye[fournisseur] = empreinte;
   const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, parCaisse: p && p.parCaisse, qte: panier[id] }; });
   const note = (localStorage.getItem(noteKey) || '').trim();
-  if (typeof cuiSyncBarOrder !== 'function') return Promise.resolve();
-  return avantEnvoi(cuiSyncBarOrder(fournisseur, items, note));
+  const trace = sbInsertHistorique({
+    type: TYPE_HISTORIQUE_BAR[fournisseur] || fournisseur,
+    date: new Date().toISOString(),
+    lines: items.map(it => `${it.qte}x ${it.nom}`),
+    items: itemsHistorique(ids, panier, catalogue, unite),
+    nb_ref: ids.length,
+    note,
+    serveur: settings.serveur || ''
+  });
+  if (typeof cuiSyncBarOrder !== 'function') return avantEnvoi(trace);
+  return avantEnvoi(Promise.all([trace, cuiSyncBarOrder(fournisseur, items, note)]));
 }
+const TYPE_HISTORIQUE_BAR = { 'Les Platins': 'vin', 'Carniato': 'moscato', 'Cocktails Express': 'cocktail', 'Café Richard': 'cafe' };
 // Le SMS ou le mail ouvre une autre appli qui peut suspendre la page : on attend que la commande
 // soit enregistrée avant de partir, 4 s au plus pour ne jamais bloquer l'envoi.
 function avantEnvoi(p) {
@@ -1517,10 +1551,11 @@ function enregistrerEnvoiLebihan() {
 
   // Tracer dans Supabase
   const note = (localStorage.getItem('bc_note') || '').trim();
-  sbInsertHistorique({
+  const trace = sbInsertHistorique({
     type: 'lebihan',
     date: now.toISOString(),
     lines,
+    items: itemsHistorique(ids.filter(id => produits.some(x => x.id === id)), commande, produits),
     nb_ref: ids.length,
     note,
     serveur: settings.serveur || ''
@@ -1529,12 +1564,12 @@ function enregistrerEnvoiLebihan() {
   // Copie dans l'historique commun (réception du BL + contrôle de la facture Le Bihan)
   if (typeof cuiSyncBarOrder === 'function') {
     const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
-    const p = avantEnvoi(cuiSyncBarOrder('Le Bihan', items, note));
+    const p = avantEnvoi(Promise.all([trace, cuiSyncBarOrder('Le Bihan', items, note)]));
     saveToSupabase();
     return p;
   }
   saveToSupabase();
-  return Promise.resolve();
+  return avantEnvoi(trace);
 }
 
 function confirmSent() {
