@@ -62,6 +62,10 @@ const cuiConfQte = (o, l) => {
 const cuiPoids = l => { const p = CUI.prods.find(x => x.id === l.produit_id); return p ? p.poids_kg : null; };
 // Recherche sans accents : « creme brulee » ou « oeufs » doivent trouver « crème brûlée » et « œufs »
 const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+// Le numéro de commande est celui du fournisseur (accusé, Choco…) : BC… n'est qu'un identifiant
+// interne de l'appli, on ne le montre ni à l'équipe ni au fournisseur
+const cuiNumFourn = o => (o.confirmation_json && o.confirmation_json.numero) || (o.numero && !/^BC\d/.test(o.numero) ? o.numero : '');
+const cuiNumAff = o => cuiNumFourn(o) ? 'n° ' + cuiNumFourn(o) : 'n° fournisseur en attente';
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée' }[s] || s);
 
 /* ─── Chargement ─── */
@@ -141,7 +145,7 @@ function cuiOrderRow(o) {
   return `<div class="hist-item cui-order-row" onclick="cuiOpenOrder('${o.id}')">
     <div class="hist-date">${cuiDT(o.date_commande)} · livraison ${cuiD(o.date_livraison)}${o.commande_par ? ' · ' + cuiEsc(o.commande_par) : ''}</div>
     <div class="hist-summary">${s.emoji || '📦'} ${cuiEsc(s.nom || '?')} <span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span><span style="float:right;color:var(--orange)">${tot ? cuiEur(tot) : ''}</span></div>
-    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(o.numero || '')}${o.date_reception ? (cuiEcarts(o).length ? ` · <span style="color:var(--danger)">⚠️ ${cuiEcarts(o).length} écart${cuiEcarts(o).length > 1 ? 's' : ''}</span>` : ' · <span style="color:var(--ok)">✓ conforme</span>') : ''}</div>
+    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(cuiNumAff(o))}${o.date_reception ? (cuiEcarts(o).length ? ` · <span style="color:var(--danger)">⚠️ ${cuiEcarts(o).length} écart${cuiEcarts(o).length > 1 ? 's' : ''}</span>` : ' · <span style="color:var(--ok)">✓ conforme</span>') : ''}</div>
   </div>`;
 }
 
@@ -303,7 +307,7 @@ function cuiOrderText(o) {
   const s = cuiSup(o.fournisseur_id) || {};
   const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${l.unite || ''} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nN° ${o.numero} — livraison souhaitée le ${liv}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
+  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nLivraison souhaitée le ${liv}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
 }
 // Copie systématique au restaurant : trace de chaque commande dans la boîte mail
 const CUI_CC = 'braiseandcobiganos@gmail.com';
@@ -323,7 +327,7 @@ async function cuiEnregistrerAvantEnvoi(id) {
   await cuiValidate();
   if (CUI._pending) return o;
   const saved = cuiOrderById(o.id); const s = cuiSup(saved.fournisseur_id) || {};
-  cuiModal(`${cuiEsc(s.nom)} · ${cuiEsc(saved.numero)}`, `
+  cuiModal(`${cuiEsc(s.nom)} · ${cuiEsc(cuiNumAff(saved))}`, `
     <div class="prod-meta" style="margin-bottom:10px">Commande enregistrée. Si l'envoi n'a pas abouti, renvoyez-la :</div>
     <div class="modal-actions">${cuiSendButtons(saved)}<button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
   return saved;
@@ -342,7 +346,7 @@ async function cuiEnvoyerMail(id) {
 async function cuiSendMail(id, btn) {
   const pending = CUI._pending && cuiOrderById(id) === CUI._pending;
   const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
-  if (!pending && !confirm(`Renvoyer la commande ${o.numero} à ${s.nom} ?`)) return;
+  if (!pending && !confirm(`Renvoyer la commande du ${cuiD(o.date_commande)} à ${s.nom} ?`)) return;
   if (btn) { btn.style.pointerEvents = 'none'; btn.textContent = '⏳ Envoi en cours…'; }
   try {
     let cmdId = o.id;
@@ -356,7 +360,7 @@ async function cuiSendMail(id, btn) {
     const row = await cuiEnvoyerMail(cmdId);
     if (pending) await cuiValidate();
     else { Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null }); cuiCloseModal(); }
-    cuiToast(`✉️ Commande ${o.numero} envoyée à ${s.nom}`);
+    cuiToast(`✉️ Commande envoyée à ${s.nom}`);
   } catch (e) {
     console.error(e);
     alert(`❌ La commande n'est PAS partie chez ${s.nom}.\n\n${e.message}\n\nRéessayez, ou appelez le fournisseur.`);
@@ -423,7 +427,7 @@ async function cuiValidate() {
     const ids = d.lignes.map(l => l.produit_id).filter(Boolean);
     if (ids.length) { await cuiPATCH('cmd_produits?id=in.(' + ids.join(',') + ')', { derniere_commande: today }); CUI.prods.forEach(x => { if (ids.includes(x.id)) x.derniere_commande = today; }); }
     cuiCloseModal(); cui$('cui-note').value = ''; cuiRenderProducts(); cuiRenderBar();
-    cuiToast('Commande ' + o.numero + ' enregistrée');
+    cuiToast('Commande enregistrée');
   } catch (e) { console.error(e); cuiToast('Erreur, réessayez'); }
 }
 async function cuiCopy(id) {
@@ -437,7 +441,7 @@ async function cuiCopy(id) {
 function cuiOpenOrder(id) {
   const o = CUI.orders.find(x => x.id === id); if (!o) return;
   const s = cuiSup(o.fournisseur_id) || {};
-  cuiModal(`${s.emoji || ''} ${cuiEsc(s.nom)} · ${cuiEsc(o.numero || '')}`, `
+  cuiModal(`${s.emoji || ''} ${cuiEsc(s.nom)} · ${cuiEsc(cuiNumAff(o))}`, `
     <div class="modal-section"><div class="cui-kv">
       <div><span>Statut</span><span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span></div><div><span>Livraison</span>${cuiD(o.date_livraison)}</div>
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
@@ -527,7 +531,7 @@ function cuiOpenReception(id) {
   };
   CUI._rec = { id, lines: o.lignes.map(l => { const q = qteBl(l); return { id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : q != null ? q : Number(l.quantite), ecart: l.ecart || '', bl: q != null }; }) };
   cuiModal(`📦 Réception · ${cuiEsc(s.nom)}`, `
-    <div class="prod-meta" style="margin-bottom:10px">Commande ${cuiEsc(o.numero || '')} · livraison prévue ${cuiD(o.date_livraison)}. ${bl ? `<b>Bon de livraison ${cuiEsc(bl.numero || '')} reçu par mail</b> : les quantités livrées sont pré-remplies, vérifiez la marchandise et corrigez si besoin.` : 'Comparez avec le bon de livraison : corrigez les quantités reçues, signalez un problème.'}</div>
+    <div class="prod-meta" style="margin-bottom:10px">Commande ${cuiEsc(cuiNumAff(o))} · livraison prévue ${cuiD(o.date_livraison)}. ${bl ? `<b>Bon de livraison ${cuiEsc(bl.numero || '')} reçu par mail</b> : les quantités livrées sont pré-remplies, vérifiez la marchandise et corrigez si besoin.` : 'Comparez avec le bon de livraison : corrigez les quantités reçues, signalez un problème.'}</div>
     <div class="form-2col">
       <div class="form-row"><label>N° du BL (facultatif)</label><input id="cui-r-bl" value="${cuiEsc(o.numero_bl || (bl && bl.numero) || '')}"></div>
       <div class="form-row"><label>Réceptionné par</label><input id="cui-r-who" value="${cuiEsc(o.recu_par || cuiWho())}"></div>
@@ -657,7 +661,7 @@ function cuiReclamationText(o) {
     if (l.ecart) m += (diff ? ' — ' : '') + l.ecart.toLowerCase() + (diff ? '' : ` (${cuiQty(l.quantite)} ${l.unite || ''})`);
     return m;
   }).join('\n');
-  return `Bonjour,\n\nBraise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''} — livraison du ${cuiD(o.date_reception)}${o.numero_bl ? ', BL n° ' + o.numero_bl : ''} (notre commande ${o.numero}).\n\nÉcarts constatés à la réception :\n${lines}\n${o.reception_note ? '\n' + o.reception_note + '\n' : ''}\nMerci de nous faire un avoir ou de compléter à la prochaine livraison.\n\n${o.recu_par || ''} — Braise & Co`;
+  return `Bonjour,\n\nBraise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''} — livraison du ${cuiD(o.date_reception)}${o.numero_bl ? ', BL n° ' + o.numero_bl : ''}${cuiNumFourn(o) ? ' (commande n° ' + cuiNumFourn(o) + ')' : ''}.\n\nÉcarts constatés à la réception :\n${lines}\n${o.reception_note ? '\n' + o.reception_note + '\n' : ''}\nMerci de nous faire un avoir ou de compléter à la prochaine livraison.\n\n${o.recu_par || ''} — Braise & Co`;
 }
 // SMS au commercial : version courte de la réclamation, le mail reste la version complète
 function cuiReclamationSmsText(o) {
@@ -673,7 +677,7 @@ function cuiReclamationSms(id) {
 }
 function cuiReclamationMail(id) {
   const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
-  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : o.numero} — Braise & Co`, cuiReclamationText(o)) + cuiCc(s);
+  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : 'du ' + cuiD(o.date_reception)} — Braise & Co`, cuiReclamationText(o)) + cuiCc(s);
 }
 function cuiReclamationCopy(id) { navigator.clipboard.writeText(cuiReclamationText(CUI.orders.find(x => x.id === id))).then(() => cuiToast('📋 Copié')); }
 function cuiOpenReclamation(id) {

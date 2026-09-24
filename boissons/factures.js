@@ -114,7 +114,7 @@ function facRender() {
     const r = f.ecarts_json || {};
     if (!FAC_EST_FACTURE(f)) {
       const o = r.commande ? CUI.orders.find(x => x.id === r.commande) : null;
-      const lib = { bl_rattache: o ? `BL posé sur la commande ${cuiEsc(o.numero || '')}` : 'BL rattaché', confirmee: o ? `commande ${cuiEsc(o.numero || '')} confirmée` : 'commande confirmée', commande_creee: o ? `commande ${cuiEsc(o.numero || '')} créée (hors appli)` : 'commande créée', sans_lignes: '<span style="color:var(--warn)">lignes non lues</span>' }[r.action] || (f.lignes_json ? 'lu' : 'non lu');
+      const lib = { bl_rattache: o ? `BL posé sur la commande ${cuiEsc(cuiNumAff(o))}` : 'BL rattaché', confirmee: o ? `commande ${cuiEsc(cuiNumAff(o))} confirmée` : 'commande confirmée', commande_creee: o ? `commande ${cuiEsc(cuiNumAff(o))} créée (hors appli)` : 'commande créée', sans_lignes: '<span style="color:var(--warn)">lignes non lues</span>' }[r.action] || (f.lignes_json ? 'lu' : 'non lu');
       return `<div class="hist-item cui-order-row" onclick="${o ? `cuiOpenOrder('${o.id}')` : `facVoirPdf('${f.id}')`}">
         <div class="hist-date">${facD(f.date_facture)} · ${DOC_TYPES[f.type] || f.type}</div>
         <div class="hist-summary">${s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')} <span style="float:right;color:var(--muted);font-size:12px">n° ${cuiEsc(f.numero || '—')}</span></div>
@@ -494,7 +494,7 @@ async function facOpen(id, relire) {
       <span class="order-line-qty">${cuiEur(l.montant)}</span>
     </div>`).join('');
   const nonFact = rap.nonFactures.map(x => `<div class="order-line"><span style="color:var(--muted)">↩ ${cuiEsc(x.cmdLigne.nom)}<div class="prod-meta">reçu ${cuiQty(x.cmdLigne.qte_recue ?? x.cmdLigne.quantite)} ${cuiEsc(x.cmdLigne.unite || '')} (${cuiEsc(x.commande.numero)}) — non facturé</div></span></div>`).join('');
-  const cmdHtml = lj.bls && lj.bls.length ? lj.bls.map(b => { const o = rap.parBl[b.numero]; return `<div class="prod-meta">BL ${cuiEsc(b.numero)} du ${facD(b.date)} → ${o ? `<b style="color:var(--text)">${cuiEsc(o.numero)}</b> (${o.date_reception ? 'réceptionnée ' + facD(o.date_reception) + (o.numero_bl ? ', BL ' + cuiEsc(o.numero_bl) : '') : 'livraison prévue ' + facD(o.date_livraison) + ', non réceptionnée'})` : '<span style="color:var(--warn)">aucune commande trouvée</span>'}</div>`; }).join('') : '<div class="prod-meta">Aucun bon de livraison identifié.</div>';
+  const cmdHtml = lj.bls && lj.bls.length ? lj.bls.map(b => { const o = rap.parBl[b.numero]; return `<div class="prod-meta">BL ${cuiEsc(b.numero)} du ${facD(b.date)} → ${o ? `<b style="color:var(--text)">${cuiEsc(cuiNumAff(o))}</b> (${o.date_reception ? 'réceptionnée ' + facD(o.date_reception) + (o.numero_bl ? ', BL ' + cuiEsc(o.numero_bl) : '') : 'livraison prévue ' + facD(o.date_livraison) + ', non réceptionnée'})` : '<span style="color:var(--warn)">aucune commande trouvée</span>'}</div>`; }).join('') : '<div class="prod-meta">Aucun bon de livraison identifié.</div>';
   const nbE = rap.ecarts.length;
   cuiModal(titre, `
     <div class="modal-section"><div class="cui-kv">

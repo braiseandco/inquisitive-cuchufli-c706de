@@ -30,10 +30,10 @@ function doPost(e) {
     if (!o) return cmRep({ ok: false, error: 'Commande introuvable' });
     const s = o.f;
     if (!s.email) return cmRep({ ok: false, error: "Pas d'e-mail pour ce fournisseur" });
-    if (!o.lignes.length || !o.numero || !o.date_livraison) return cmRep({ ok: false, error: 'Commande incomplète (lignes, numéro ou date)' });
+    if (!o.lignes.length || !o.date_livraison) return cmRep({ ok: false, error: 'Commande incomplète (lignes ou date de livraison)' });
 
     const cc = essai ? '' : [CM_RESTO, s.email_cc].filter(Boolean).join(',');
-    GmailApp.sendEmail(essai ? CM_RESTO : s.email, (essai ? '[ESSAI] ' : '') + 'Commande Braise & Co ' + o.numero + ' — livraison ' + cmJour(o.date_livraison), cmTexte(o, s), { cc: cc, name: 'Braise & Co Biganos' });
+    GmailApp.sendEmail(essai ? CM_RESTO : s.email, (essai ? '[ESSAI] ' : '') + 'Commande Braise & Co — livraison ' + cmJour(o.date_livraison), cmTexte(o, s), { cc: cc, name: 'Braise & Co Biganos' });
     if (essai) return cmRep({ ok: true, essai: true });
 
     const now = new Date().toISOString();
@@ -53,7 +53,7 @@ function cmTexte(o, s) {
     return '• ' + String(Math.round(l.quantite * 100) / 100).replace('.', ',') + ' ' + (l.unite || '') + ' — ' + l.nom + (l.reference ? ' (réf. ' + l.reference + ')' : '');
   }).join('\n');
   return 'Bonjour,\n\nCommande Braise & Co Biganos' + (s.numero_client ? ' (client ' + s.numero_client + ')' : '') +
-    '\nN° ' + o.numero + ' — livraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + lignes + '\n' +
+    '\nLivraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + lignes + '\n' +
     (o.note ? '\nNote : ' + o.note + '\n' : '') + '\nMerci,\n' + (o.commande_par || '') + ' — Braise & Co\n174 av. de la Côte d\'Argent, 33380 Biganos';
 }
 
@@ -78,6 +78,6 @@ function cmRep(obj) {
 
 // À lancer une fois depuis l'éditeur : autorise Gmail + UrlFetch et envoie un essai à la boîte du restaurant
 function essai() {
-  const o = cmSb('cmd_commandes?statut=neq.brouillon&numero=like.BC*&select=id&order=date_commande.desc&limit=1')[0];
+  const o = cmSb('cmd_commandes?statut=neq.brouillon&select=id&order=date_commande.desc&limit=1')[0];
   Logger.log(doPost({ postData: { contents: JSON.stringify({ id: o.id, essai: true }) } }).getContent());
 }
