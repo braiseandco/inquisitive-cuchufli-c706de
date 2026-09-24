@@ -1069,13 +1069,19 @@ const COCKTAIL_TEL = '0673544939';
 const barEnvoye = {};
 function enregistrerEnvoiBar(fournisseur, panier, catalogue, unite, noteKey) {
   const ids = Object.keys(panier).filter(id => panier[id] > 0);
-  if (!ids.length) return;
+  if (!ids.length) return Promise.resolve();
   const empreinte = JSON.stringify(ids.sort().map(id => [id, panier[id]]));
-  if (barEnvoye[fournisseur] === empreinte) return;
+  if (barEnvoye[fournisseur] === empreinte) return Promise.resolve();
   barEnvoye[fournisseur] = empreinte;
-  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, qte: panier[id] }; });
+  const items = ids.map(id => { const p = catalogue.find(x => x.id === id); return { code: id, nom: p ? p.nom : id, unite: (p && p.unite) || unite, prix: p && p.prix != null ? p.prix : null, parCaisse: p && p.parCaisse, qte: panier[id] }; });
   const note = (localStorage.getItem(noteKey) || '').trim();
-  if (typeof cuiSyncBarOrder === 'function') cuiSyncBarOrder(fournisseur, items, note).catch(e => console.error(e));
+  if (typeof cuiSyncBarOrder !== 'function') return Promise.resolve();
+  return avantEnvoi(cuiSyncBarOrder(fournisseur, items, note));
+}
+// Le SMS ou le mail ouvre une autre appli qui peut suspendre la page : on attend que la commande
+// soit enregistrée avant de partir, 4 s au plus pour ne jamais bloquer l'envoi.
+function avantEnvoi(p) {
+  return Promise.race([p.catch(e => console.error(e)), new Promise(r => setTimeout(r, 4000))]);
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1106,15 +1112,19 @@ const COCKTAIL_EXTRAS = [
 const VIN_TEL_MAIN    = '0684803816';
 const VIN_TEL_MOSCATO = '0614274109';
 const VIN_PRODUITS = [
-  { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main' },
-  { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main' },
-  { id:'v003', nom:'La Rose Trémière',            cat:'Rouge',   min:15, fourn:'main' },
-  { id:'v004', nom:'Château d\'Alix',             cat:'Rouge',   min:10, fourn:'main' },
-  { id:'v005', nom:'Château Haut d\'As Rosé',    cat:'Rosé',    min:10, fourn:'main' },
-  { id:'v006', nom:'Château Berné Provence',      cat:'Rosé',    min:10, fourn:'main' },
-  { id:'v007', nom:'Château d\'As Carré d\'As',  cat:'Blanc',   min:5,  fourn:'main' },
-  { id:'v008', nom:'Vin Moscato',                 cat:'Moscato', min:10, fourn:'moscato' },
+  { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main', parCaisse:6 },
+  { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main', parCaisse:6 },
+  { id:'v003', nom:'La Rose Trémière',            cat:'Rouge',   min:15, fourn:'main', parCaisse:6 },
+  { id:'v004', nom:'Château d\'Alix',             cat:'Rouge',   min:10, fourn:'main', parCaisse:6 },
+  { id:'v005', nom:'Château Haut d\'As Rosé',    cat:'Rosé',    min:10, fourn:'main', parCaisse:6 },
+  { id:'v006', nom:'Château Berné Provence',      cat:'Rosé',    min:10, fourn:'main', parCaisse:6 },
+  { id:'v007', nom:'Château d\'As Carré d\'As',  cat:'Blanc',   min:5,  fourn:'main', parCaisse:6 },
+  { id:'v008', nom:'Vin Moscato',                 cat:'Moscato', min:10, fourn:'moscato', parCaisse:6 },
 ];
+
+// « 10x Château d'As Rouge » a été livré en 120 bouteilles le 23/09/2026 : le fournisseur
+// a compté des cartons de 12. L'unité et le nombre de bouteilles sont donc écrits en toutes lettres.
+function vinQuantite(p, q) { return p.parCaisse ? `${q} carton${q > 1 ? 's' : ''} de ${p.parCaisse} (${q * p.parCaisse} btl)` : `${q}x`; }
 
 /* ═══════════════ STATE ═══════════════ */
 let produits = [];
@@ -1285,7 +1295,7 @@ function renderCommande(filter) {
         <div class="prod-row ${qty > 0 || isGratuit ? 'has-qty' : ''}" id="row-${p.id}">
           <div class="prod-info">
             <div class="prod-name">${p.nom}</div>
-            <div class="prod-meta">${p.unite}${p.parCaisse ? ' de ' + p.parCaisse : ''}${p.litres ? ' ' + p.litres + ' L' : ''} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
+            <div class="prod-meta">${lbUnite(p)}${p.parCaisse > 1 ? ' (1 = ' + p.parCaisse + ' btl)' : ''}${p.litres ? ' ' + p.litres + ' L' : ''} · min ${p.min || 1}${p.code ? ` · <span class="prod-code">${p.code}</span>` : ''}</div>
           </div>
           <div class="stepper">
             ${isGratuitEl ? `<button class="btn-gratuit ${isGratuit ? 'on' : gratuit && !isGratuit ? 'off' : ''}" onclick="toggleGratuit('${p.id}')">GRATUIT</button>` : ''}
@@ -1404,17 +1414,22 @@ function updateSundayInfo() {
 /* ═══════════════ CONFIRMATION / SMS ═══════════════ */
 const LEBIHAN_TEL_BIS = '0766860735';
 
+// Le SMS disait « 6x Norbert Ananas » : Le Bihan a livré 6 bouteilles au lieu de 6 packs de 6
+// (23/09/2026). L'unité et le nombre de bouteilles sont donc toujours écrits en toutes lettres.
+function lbUnite(p) { return p.parCaisse && !/\d/.test(p.unite) ? `${p.unite} de ${p.parCaisse}` : p.unite; }
+function lbQuantite(p, q) { return `${q} ${lbUnite(p)}${p.parCaisse > 1 ? ` (${q * p.parCaisse} btl)` : ''}`; }
+
 function _buildLebihanLines() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
   const lines = [];
   ids.forEach(id => {
     const p = produits.find(x => x.id === id);
     if (!p) return;
-    lines.push(`${commande[id]}x ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
+    lines.push(`${lbQuantite(p, commande[id])} — ${p.nom}${gratuit === id ? ' (GRATUIT)' : ''}`);
   });
   if (gratuit) {
     const pg = produits.find(x => x.id === gratuit);
-    if (pg && !commande[gratuit]) lines.push(`1x ${pg.nom} (GRATUIT)`);
+    if (pg && !commande[gratuit]) lines.push(`${lbQuantite(pg, 1)} — ${pg.nom} (GRATUIT)`);
   }
   return lines;
 }
@@ -1446,12 +1461,12 @@ function openConfirmLebihan() {
     const p = produits.find(x => x.id === id);
     if (!p) return;
     const tag = gratuit === id ? ' <span style="color:var(--accent);font-weight:700">GRATUIT</span>' : '';
-    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${commande[id]}</span></div>`;
+    linesHtml += `<div class="order-line"><span>${p.nom}${tag}</span><span class="order-line-qty">${lbQuantite(p, commande[id])}</span></div>`;
   });
   if (gratuit) {
     const pg = produits.find(x => x.id === gratuit);
     if (pg && !commande[gratuit]) {
-      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">1</span></div>`;
+      linesHtml += `<div class="order-line"><span>${pg.nom} <span style="color:var(--accent);font-weight:700">GRATUIT</span></span><span class="order-line-qty">${lbQuantite(pg, 1)}</span></div>`;
     }
   }
 
@@ -1476,7 +1491,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-tel1-num').textContent = tel1;
     const btn1 = document.getElementById('conf-lebihan-sms1');
     btn1.href = '#';
-    btn1.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(tel1, smsMsg); };
+    btn1.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => ouvrirSms(tel1, smsMsg)); };
     tel1Section.classList.remove('hidden');
     tel1Missing.classList.add('hidden');
   } else {
@@ -1487,7 +1502,7 @@ function openConfirmLebihan() {
   // SMS 2 (numéro fixe 0766860735)
   const btn2 = document.getElementById('conf-lebihan-sms2');
   btn2.href = '#';
-  btn2.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); ouvrirSms(LEBIHAN_TEL_BIS, smsMsg); };
+  btn2.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => ouvrirSms(LEBIHAN_TEL_BIS, smsMsg)); };
 
   // Email
   const dest = (settings.emailFourn || settings.email || '').trim();
@@ -1497,7 +1512,7 @@ function openConfirmLebihan() {
     document.getElementById('conf-lebihan-mail-dest').textContent = dest;
     const btnMail = document.getElementById('conf-lebihan-mail');
     btnMail.href = '#';
-    btnMail.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan(); window.location.href = buildMailtoUrl(dest, subject, mailMsg); };
+    btnMail.onclick = (e) => { e.preventDefault(); enregistrerEnvoiLebihan().then(() => { window.location.href = buildMailtoUrl(dest, subject, mailMsg); }); };
     mailSection.classList.remove('hidden');
     mailMissing.classList.add('hidden');
   } else {
@@ -1518,7 +1533,7 @@ let lebihanEnvoye = '';
 const lebihanEmpreinte = () => JSON.stringify(Object.keys(commande).filter(id => commande[id] > 0).sort().map(id => [id, commande[id]]));
 function enregistrerEnvoiLebihan() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
-  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return;
+  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return Promise.resolve();
   lebihanEnvoye = lebihanEmpreinte();
 
   const now = new Date();
@@ -1555,9 +1570,12 @@ function enregistrerEnvoiLebihan() {
   // Copie dans l'historique commun (réception du BL + contrôle de la facture Le Bihan)
   if (typeof cuiSyncBarOrder === 'function') {
     const items = ids.map(id => { const p = produits.find(x => x.id === id); return p ? { code: p.code, nom: p.nom, unite: p.unite, prix: p.prix, litres: p.litres, parCaisse: p.parCaisse, qte: commande[id] } : null; }).filter(Boolean);
-    cuiSyncBarOrder('Le Bihan', items, note).catch(e => console.error(e));
+    const p = avantEnvoi(cuiSyncBarOrder('Le Bihan', items, note));
+    saveToSupabase();
+    return p;
   }
   saveToSupabase();
+  return Promise.resolve();
 }
 
 function confirmSent() {
@@ -1771,8 +1789,7 @@ function envoyerSMSCocktail() {
     + (note ? `\n\nNote : ${note}` : '')
     + `\n\nMerci de confirmer la réception par SMS.`;
 
-  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note');
-  ouvrirSms(COCKTAIL_TEL, msg);
+  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note').then(() => ouvrirSms(COCKTAIL_TEL, msg));
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1874,16 +1891,14 @@ function _buildCafeMsg(now) {
 
 function envoyerCafeSMS() {
   if (!settings.cafeTel) return;
-  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
-  ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date()));
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note').then(() => ouvrirSms(settings.cafeTel, _buildCafeMsg(new Date())));
 }
 
 function envoyerCafeEmail() {
   if (!settings.cafeEmail) return;
   const now = new Date();
   const subject = `Commande Café Richard — ${now.toLocaleDateString('fr-FR')}`;
-  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note');
-  window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now));
+  enregistrerEnvoiBar('Café Richard', commandeCafe, CAFE_PRODUITS, 'pièce', 'bc_cafe_note').then(() => { window.location.href = buildMailtoUrl(settings.cafeEmail, subject, _buildCafeMsg(now)); });
 }
 
 function openConfirmVin() {
@@ -1903,7 +1918,7 @@ function openConfirmVin() {
     if (!p) return;
     linesHtml += `<div class="order-line">
       <span>${p.nom}</span>
-      <span class="order-line-qty">${commandeVin[id]} carton${commandeVin[id]>1?'s':''}</span>
+      <span class="order-line-qty">${vinQuantite(p, commandeVin[id])}</span>
     </div>`;
   });
 
@@ -1912,12 +1927,12 @@ function openConfirmVin() {
 
   const mainSection = document.getElementById('vin-fourn-main');
   if (mainIds.length) {
-    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
     const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMain = document.getElementById('conf-vin-sms-main');
     btnVinMain.href = '#';
-    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Plantins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MAIN, msg); };
+    btnVinMain.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Les Platins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note').then(() => ouvrirSms(VIN_TEL_MAIN, msg)); };
     mainSection.classList.remove('hidden');
   } else {
     mainSection.classList.add('hidden');
@@ -1925,12 +1940,12 @@ function openConfirmVin() {
 
   const moscatoSection = document.getElementById('vin-fourn-moscato');
   if (moscatoIds.length) {
-    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${commandeVin[id]}x ${p.nom}`; });
+    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
     const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
       + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
     btnVinMoscato.href = '#';
-    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'); ouvrirSms(VIN_TEL_MOSCATO, msg); };
+    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note').then(() => ouvrirSms(VIN_TEL_MOSCATO, msg)); };
     moscatoSection.classList.remove('hidden');
   } else {
     moscatoSection.classList.add('hidden');

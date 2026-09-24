@@ -16,8 +16,10 @@ C'est la seule ligne à changer pour basculer. Les deux valeurs possibles :
 - **À BLANC** — faire la lecture et tous les contrôles, puis écrire dans le récap
   *ce qui serait enregistré*, ligne par ligne, avec les écarts et les prix qui
   bougeraient. **N'écrire absolument rien en base** : ni `qte_recue`, ni statut,
-  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus — elles doivent
-  rester à traiter pour que la réception manuelle serve de comparaison.
+  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus. Seule écriture
+  permise : une fois le récap envoyé, ajouter chaque photo lue au registre
+  `BL\lus-a-blanc.txt` (voir « Où sont les photos »), pour ne pas la relire au
+  passage suivant.
 - **ÉCRITURE** — appliquer la procédure complète, points 5 et 6 compris.
 
 Pendant la période à blanc, le récap sert de preuve : on le compare à la
@@ -52,7 +54,14 @@ d'être de cette routine.
 
 ## Où sont les photos
 
-**Un seul endroit : `G:\Mon Drive\Bl\AAAA-MM-JJ\`.**
+**Un seul endroit : `G:\.shortcut-targets-by-id\1FOsC4oL_N13Yjdpzr41SlKRJT82yKDL9\BL\AAAA-MM-JJ\`.**
+
+Ce dossier appartient au compte braiseandcobiganos, où tourne le script, et il
+est partagé avec alex.farge, le compte synchronisé sur le PC. Dans `G:\Mon Drive`,
+il n'apparaît que sous la forme d'un raccourci Windows `BL.lnk`, qu'on ne peut
+pas parcourir comme un dossier : passer par le chemin ci-dessus. Si le dossier
+est introuvable, relancer Google Drive pour ordinateur avant de conclure qu'il
+n'y a rien.
 
 Un script Google y dépose tout, toutes les 15 minutes, quelle que soit la
 provenance : les photos prises depuis le bouton « Photographier le BL » de
@@ -64,8 +73,14 @@ stockage.** Ce sont des fichiers ordinaires sur un disque : ouvre-les comme tels
 Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
 chercher — le dire dans le récap et passer à la suite.
 
-Traiter toute photo qui n'est pas déjà dans `G:\Mon Drive\Bl\traités\`, **y
-compris à la racine de `Bl`** : une photo déposée à la main n'est pas dans un
+**Sauter toute photo déjà listée dans `BL\lus-a-blanc.txt`** (une ligne par photo :
+chemin sous `BL` ; date ; ce qui en a été fait). Sans ce registre, chaque passage
+relisait toutes les photos du mode à blanc et renvoyait les mêmes récaps. Après
+l'envoi du récap, y ajouter une ligne par photo lue — y compris celles qui n'ont
+pas pu l'être, avec la raison. Créer le fichier s'il n'existe pas.
+
+Traiter toute photo qui n'est ni dans le registre ni dans `BL\traités\`, **y
+compris à la racine de `BL`** : une photo déposée à la main n'est pas dans un
 sous-dossier de date. Créer `traités` s'il n'existe pas.
 
 ### Retrouver la commande d'une photo
@@ -163,6 +178,16 @@ toujours en kilos.
 Sur les produits pesés (unité en kilos), l'appli tolère 10 % d'écart sans le
 considérer comme un litige.
 
+**Pièce commandée, kilos facturés** (fromages Lodifrais, pièces de viande) : on
+commande *une pièce*, le fournisseur facture son poids réel. La quantité reçue
+est le **nombre de pièces**, jamais le poids. Le poids sert seulement au montant :
+une pièce plus légère ou plus lourde que `poids_kg` fait varier le prix de la
+pièce sans que ce soit une hausse ou une baisse de tarif — ne comparer que le
+prix au kilo. Si une ancienne ligne de commande est restée en kilos pour un tel
+produit (le bleu d'Auvergne de O26091454M6AA : « 1 kg » voulait dire un fromage),
+ce n'est pas une erreur de saisie : le signaler comme ligne à passer en pièces,
+avec l'écart de valorisation qu'elle entraîne.
+
 ## 5. Écrire la réception
 
 ```sql
@@ -246,7 +271,7 @@ rangé dans une catégorie ou corrigé.
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `G:\Mon Drive\Bl\traités\`, puis **envoyer le récap par
+Déplacer la photo dans `BL\traités\` (même chemin qu'au début), puis **envoyer le récap par
 mail** à braiseandcobiganos@gmail.com via le connecteur Gmail. Un récap affiché
 dans une fenêtre du PC n'est lu par personne, et surtout pas depuis le téléphone,
 d'où se pilotent les commandes.
@@ -332,7 +357,27 @@ Exemple du 23/09/2026 : la saucisse manquait de 13,8 kg mais Lodifrais avait
 téléphoné ; le spéculoos manquait sans un mot. Le second est le vrai sujet, même
 à 6,33 €, parce que personne ne l'a su avant de le chercher en cuisine.
 
+**Livré moins, facturé moins : ce n'est pas un litige.** Le fournisseur envoie ce
+qu'il a — rupture, produit pesé — et le BL facture la quantité réellement livrée.
+Le 23/09/2026, Lodifrais a livré 8,3 kg d'échine pour 10 kg commandés et facturé
+8,3 kg : le restaurant ne paie que ce qu'il reçoit. Le lister parmi les manquants
+(il faut peut-être recommander ou adapter la carte), mais sans le présenter comme
+une erreur ni comme quelque chose à réclamer. Ne parler de réclamation que si le
+BL facture plus que ce qui est arrivé, ou si le prix a bougé.
+
 S'il n'y a aucun manquant, l'écrire : « Aucun manquant aujourd'hui. »
+
+## 6 ter. Les offerts, toujours signalés
+
+Toute ligne gratuite du BL — « GRATUIT », « offert », prix ou montant à 0,00 €,
+unité gratuite d'une promotion — est **signalée dans le mail**, sous le titre
+**OFFERTS**, juste après les manquants : produit, fournisseur, quantité, et ce
+qu'elle vaudrait au prix de la ligne payante du même produit. Le 23/09/2026, Le
+Bihan a ajouté 2 cartons d'Abatilles pétillante 1 L gratuits aux 10 commandés
+(≈ 22 €) : la réception à la main ne l'avait pas vu.
+
+En mode ÉCRITURE, un offert s'ajoute à `qte_recue` avec l'écart « dont N
+offert(s) », sans toucher au prix de la ligne.
 
 ## 7. Signaler les réceptions en retard
 
