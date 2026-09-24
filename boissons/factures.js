@@ -145,6 +145,13 @@ async function facFetchPdf(path) {
   if (!r.ok) throw new Error('PDF introuvable (' + r.status + ')');
   return r.arrayBuffer();
 }
+// Une facture peut arriver en plusieurs PDF, une page par fichier (pdf_suite, posé par le script d'import) : on lit tout à la suite
+const facFichiers = f => [f.pdf_path, ...(f.pdf_suite || [])];
+async function facLignesDoc(f) {
+  let L = [];
+  for (const p of facFichiers(f)) L = L.concat(await facPdfLines(await facFetchPdf(p)));
+  return L;
+}
 // Reconstitue les lignes de texte du PDF (pdf.js rend des fragments positionnés)
 async function facPdfLines(buf) {
   await facLoadPdfjs();
@@ -365,7 +372,7 @@ function facParseurPour(f) {
 async function facAnalyser(f, force) {
   if (!f.pdf_path) return;
   const parseur = facParseurPour(f);
-  const L = await facPdfLines(await facFetchPdf(f.pdf_path));
+  const L = await facLignesDoc(f);
   const res = parseur ? FAC_PARSEURS[parseur](L) : { bls: [], lignes: [] };
   if (!res.ht && res.lignes.length) res.ht = Math.round(res.lignes.reduce((a, l) => a + (l.montant || 0), 0) * 100) / 100;
   // Avoir : détecté par le lecteur, par le script d'import ou par l'en-tête du PDF ; montants toujours en négatif
@@ -504,7 +511,7 @@ async function facOpen(id, relire) {
     <div class="modal-section"><div class="ms-label">Livraisons</div>${cmdHtml}</div>
     ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
     <div class="modal-actions">
-      ${f.pdf_path ? `<button class="btn-secondary" onclick="facVoirPdf('${f.id}')">📄 Voir le PDF</button>` : ''}
+      ${f.pdf_path ? facFichiers(f).map((p, k, a) => `<button class="btn-secondary" onclick="facVoirPdf('${f.id}',${k})">📄 ${a.length > 1 ? `PDF ${k + 1}/${a.length}` : 'Voir le PDF'}</button>`).join('') : ''}
       <div class="cui-row-btns">
         ${f.statut === 'a_controler' || f.statut === 'contestee' ? `<button class="btn-primary" onclick="facValider('${f.id}')">✓ Valider</button>` : ''}
         ${f.statut === 'a_controler' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="facContester('${f.id}')">📣 Contester</button>` : ''}
@@ -517,10 +524,10 @@ async function facOpen(id, relire) {
       <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
     </div>`);
 }
-async function facVoirPdf(id) {
+async function facVoirPdf(id, k = 0) {
   const f = FAC.rows.find(x => x.id === id);
   try {
-    const buf = await facFetchPdf(f.pdf_path);
+    const buf = await facFetchPdf(facFichiers(f)[k]);
     const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
     const w = window.open(url, '_blank');
     if (!w) { const a = document.createElement('a'); a.href = url; a.download = (f.numero || 'facture') + '.pdf'; a.click(); }

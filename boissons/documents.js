@@ -70,7 +70,7 @@ function docParseurPour(f) {
 /* ─── Traitement d'un document ─── */
 async function docTraiter(f) {
   const parseur = docParseurPour(f);
-  const L = await facPdfLines(await facFetchPdf(f.pdf_path));
+  const L = await facLignesDoc(f);
   const res = parseur ? DOC_PARSEURS[parseur](L) : { lignes: [] };
   const patch = { lignes_json: { parseur, ...res, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() }, numero: res.numero || f.numero || null, date_facture: res.date || f.date_facture || null, montant_ht: res.ht ?? null, updated_at: new Date().toISOString() };
   Object.assign(f, patch);
