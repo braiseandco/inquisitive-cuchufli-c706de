@@ -92,7 +92,9 @@ function docTrouverCommande(f, res, exclues = []) {
   // Plusieurs commandes proches (Choco + téléphone le même jour) : on prend celle dont les références
   // sont dans le document, une commande sans aucune référence commune n'est jamais rattachée
   const refs = res.lignes.map(l => docRef(l.ref)).filter(Boolean);
-  const hits = o => (o.lignes || []).filter(l => refs.includes(docRef(l.reference))).length;
+  // Même produit à défaut de même référence : la fiche « médiane de poulet » n'avait pas la réf.
+  // 820100 de l'accusé Blason, qui a recréé en double la commande BC260923-05 (23/09/2026)
+  const hits = o => (o.lignes || []).filter(x => res.lignes.some(l => docCouvre(f, l, x, o))).length;
   // Une commande déjà confirmée reste candidate si l'accusé recoupe ses références : Lodifrais
   // envoie un accusé par date de livraison (IV308260 puis IV308244 pour BC260920-02, 22/09/2026)
   const cands = orders.filter(o => f.type !== 'bl' || (!o.bl_json && !o.numero_bl))
