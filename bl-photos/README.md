@@ -7,6 +7,12 @@ arrivent trois semaines plus tard — c'est le vrai trou de la chaîne.
 La photo bouche ce trou, à condition qu'elle atterrisse quelque part où on peut
 la lire.
 
+La même routine confronte ensuite chaque facture et chaque avoir à ces
+livraisons : facturé mais pas livré, livré mais pas facturé, quantités, prix,
+avoirs attendus. Les factures arrivent dans l'appli chaque soir par le script
+d'import, et leur PDF sur le PC vers 18 h 50 (`Bureau\Factures fournisseurs`) :
+elles sont contrôlées au passage suivant, dans le même mail.
+
 ## La chaîne
 
 ```
@@ -22,10 +28,11 @@ Supabase (bucket factures)                   │   du restaurant, « BL » dans 
               Drive  /BL/2026-09-23/BC260920-02_1790152339379.jpg
                              │  Google Drive pour ordinateur
                              ▼
-                     PC du restaurant
+                     PC du restaurant ◄──── Factures fournisseurs (PDF, 18 h 50)
                              │  Claude Code au démarrage, suit routine-reception.md
                              ▼
               Réception enregistrée dans l'appli Cuisine
+              Factures confrontées aux livraisons, écarts dans le mail
 ```
 
 Le script va chercher les photos dans le stockage de l'appli **et** dans Gmail,
@@ -81,10 +88,11 @@ connecteurs du compte, rien à brancher à part.
 **b) Le lanceur.** Copier `reception-bl.bat` dans `%USERPROFILE%\bl\`. Il
 relance Google Drive si le dossier BL manque, télécharge la consigne à côté de
 lui, puis lance la session avec une liste fermée d'autorisations : lire la
-consigne et le dossier BL, écrire le registre `lus-a-blanc.txt`, `execute_sql`
+consigne, le dossier BL et le dossier `Factures fournisseurs`, écrire les
+registres `lus-a-blanc.txt` et `factures-rapprochees.txt`, `execute_sql`
 Supabase, `send_message` Gmail. Tout le reste est refusé sans question
-(`--permission-mode dontAsk`). Le compte rendu s'écrit dans
-`%USERPROFILE%\bl-reception.log`.
+(`--permission-mode dontAsk`) : les factures, pièces du comptable, ne sont que
+lues. Le compte rendu s'écrit dans `%USERPROFILE%\bl-reception.log`.
 
 **c) Planifier.** Tâche Windows « Réception BL » :
 
@@ -97,14 +105,21 @@ Supabase, `send_message` Gmail. Tout le reste est refusé sans question
 
 ## Du mode à blanc à l'écriture
 
-La première consigne de `routine-reception.md` est son mode. Il démarre à
-**À BLANC** : la routine lit, contrôle, et envoie un récap disant ce qu'elle
-écrirait — sans rien écrire. La réception continue de se faire à la main, et les
-deux se comparent.
+Les premières consignes de `routine-reception.md` sont ses deux modes, `MODE`
+pour les BL et `MODE FACTURES` pour les factures. Ils démarrent à **À BLANC** :
+la routine lit, contrôle, et envoie un récap disant ce qu'elle écrirait — sans
+rien écrire. La réception et le contrôle des factures continuent de se faire à
+la main dans l'appli, et les deux se comparent.
 
 La bascule en **ÉCRITURE** se décide sur un critère chiffré : **dix bons de
-livraison d'affilée sans une seule correction à apporter**. Une ligne à changer
-dans la consigne, rien d'autre.
+livraison d'affilée sans une seule correction à apporter** pour les BL, **dix
+factures d'affilée** pour les factures. Une ligne à changer dans la consigne,
+rien d'autre.
+
+Le compteur des factures est tenu dans `BL\factures-rapprochees.txt` et affiché
+chaque jour dans le mail. Quand la routine s'est trompée sur une facture, écrire
+au bout de sa ligne « CORRIGÉ le <date> : <ce qui était faux> » — ou le demander
+à Claude : le compteur repart de zéro.
 
 Calendrier visé : à blanc d'octobre à novembre 2026, bascule en décembre,
 routine établie en janvier 2027.
