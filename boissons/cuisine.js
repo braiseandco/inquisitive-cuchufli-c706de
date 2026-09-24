@@ -291,6 +291,14 @@ function cuiNextNumero() {
   const n = CUI.orders.filter(o => (o.numero || '').startsWith('BC' + ymd)).length + 1;
   return 'BC' + ymd + '-' + String(n).padStart(2, '0');
 }
+// Numéro définitif, lu en base au moment d'enregistrer : la liste locale ne voit pas les
+// commandes passées depuis l'autre appareil, d'où deux BC260920-02 le 20/09
+async function cuiNumeroLibre() {
+  const ymd = cuiIso(Date.now()).slice(2).replace(/-/g, '');
+  const rows = await cuiGET(`cmd_commandes?numero=like.BC${ymd}-*&select=numero`);
+  const n = rows.reduce((m, r) => Math.max(m, parseInt(r.numero.split('-')[1], 10) || 0), 0) + 1;
+  return 'BC' + ymd + '-' + String(n).padStart(2, '0');
+}
 function cuiOrderText(o) {
   const s = cuiSup(o.fournisseur_id) || {};
   const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${l.unite || ''} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
@@ -321,9 +329,39 @@ async function cuiEnregistrerAvantEnvoi(id) {
   return saved;
 }
 async function cuiSendSms(id, tel) { const o = await cuiEnregistrerAvantEnvoi(id); ouvrirSms(tel.replace(/\s/g, ''), cuiOrderSmsText(o)); }
-async function cuiSendMail(id) {
-  const o = await cuiEnregistrerAvantEnvoi(id); const s = cuiSup(o.fournisseur_id) || {};
-  window.location.href = buildMailtoUrl(s.email, `Commande Braise & Co ${o.numero} — livraison ${cuiD(o.date_livraison)}`, cuiOrderText(o)) + cuiCc(s);
+// Le mail part de la boîte du restaurant (script Google, commandes-mail/envoyer-commande.gs) :
+// la commande ne passe en « envoyée » que si Gmail a accepté le mail. Avec l'appli mail du
+// téléphone, la commande DS du 23/09 est restée coincée 25 h alors qu'elle était « envoyée ».
+const CUI_MAIL_URL = 'https://script.google.com/macros/s/AKfycby33o4eLrk5ACzJwkLJ91Zr9iWeZmDWAzUx3fIrcJs9mORUNZAPceugRA51SoIJ030M/exec';
+async function cuiEnvoyerMail(id) {
+  const r = await fetch(CUI_MAIL_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ id }) });
+  const res = await r.json();
+  if (!res.ok) throw new Error(res.error || 'réponse inattendue');
+  return res.commande;
+}
+async function cuiSendMail(id, btn) {
+  const pending = CUI._pending && cuiOrderById(id) === CUI._pending;
+  const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
+  if (!pending && !confirm(`Renvoyer la commande ${o.numero} à ${s.nom} ?`)) return;
+  if (btn) { btn.style.pointerEvents = 'none'; btn.textContent = '⏳ Envoi en cours…'; }
+  try {
+    let cmdId = o.id;
+    if (pending) {
+      const d = cuiDraftFor(CUI.supId);
+      await cuiQueue; await cuiPersistDraft(d);
+      o.numero = await cuiNumeroLibre(); o.numero_fixe = true;
+      await cuiPATCH('cmd_commandes?id=eq.' + d.id, { numero: o.numero, date_livraison: o.date_livraison, note: o.note || null, commande_par: o.commande_par || null });
+      cmdId = d.id;
+    }
+    const row = await cuiEnvoyerMail(cmdId);
+    if (pending) await cuiValidate();
+    else { Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null }); cuiCloseModal(); }
+    cuiToast(`✉️ Commande ${o.numero} envoyée à ${s.nom}`);
+  } catch (e) {
+    console.error(e);
+    alert(`❌ La commande n'est PAS partie chez ${s.nom}.\n\n${e.message}\n\nRéessayez, ou appelez le fournisseur.`);
+    if (btn) { btn.style.pointerEvents = ''; btn.textContent = `✉️ Envoyer à ${s.nom}`; }
+  }
 }
 function cuiSendButtons(o) {
   const s = cuiSup(o.fournisseur_id) || {};
@@ -336,7 +374,7 @@ function cuiSendButtons(o) {
     ${s.sms_copie_tel ? `<div style="font-size:12px;color:var(--muted);margin:8px 0 6px;font-weight:600">SMS copie · ${cuiEsc(s.sms_copie_tel)}</div><a class="btn-primary" href="#" style="background:var(--surf3);color:var(--text)" onclick="event.preventDefault();cuiSendSms('${o.id}','${cuiEsc(s.sms_copie_tel)}')">📨 SMS — copie restaurant</a>` : ''}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte</button>`;
   return `
-    ${s.email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · ${cuiEsc(s.email)} · copie ${CUI_CC}${s.email_cc ? ', ' + cuiEsc(s.email_cc) : ''}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendMail('${o.id}')">✉️ Email — ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas d\'e-mail pour ce fournisseur — renseignez-le via ⚙️.</div>'}
+    ${s.email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · ${cuiEsc(s.email)} · copie ${CUI_CC}${s.email_cc ? ', ' + cuiEsc(s.email_cc) : ''}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendMail('${o.id}', this)">✉️ Envoyer à ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas d\'e-mail pour ce fournisseur — renseignez-le via ⚙️.</div>'}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte (WhatsApp…)</button>`;
 }
 function cuiOpenConfirm() {
@@ -350,7 +388,7 @@ function cuiOpenConfirm() {
     <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val" id="cui-c-total">${cuiEur(cuiOrderTotal(d)) || '—'}</div></div>
     ${CUI._pending.note ? `<div class="modal-section"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(CUI._pending.note)}</div></div>` : ''}
     <div class="modal-actions">${cuiSendButtons(CUI._pending)}
-      <button class="btn-close" onclick="cuiValidate()">✓ Commande ${s.mode_commande === 'appel' ? 'passée' : 'envoyée'} — terminer</button>
+      <button class="btn-close" onclick="cuiValidate()">${s.mode_commande === 'appel' ? '✓ Commande passée — terminer' : s.mode_commande === 'sms' ? '✓ Commande envoyée — terminer' : 'Déjà transmise autrement — terminer'}</button>
       <button class="btn-close" style="color:var(--danger)" onclick="cuiClearDraft()">Vider le panier</button>
     </div>`);
 }
@@ -376,6 +414,7 @@ async function cuiValidate() {
   if (!p.date_livraison) { cuiToast('Date de livraison obligatoire'); return; }
   try {
     await cuiQueue; await cuiPersistDraft(d);
+    if (!p.numero_fixe) p.numero = await cuiNumeroLibre();
     const patch = { statut: 'envoyee', numero: p.numero, date_commande: new Date().toISOString(), date_livraison: p.date_livraison, note: p.note || null, commande_par: p.commande_par || null, total_estime: cuiOrderTotal(d) || null, updated_at: new Date().toISOString() };
     const [row] = await cuiPATCH('cmd_commandes?id=eq.' + d.id, patch);
     const o = { ...row, lignes: d.lignes };
@@ -404,6 +443,7 @@ function cuiOpenOrder(id) {
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
     </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
+    ${o.mail_envoye_le ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">✉️ Mail parti le ${cuiDT(o.mail_envoye_le)}</div>` : o.mail_erreur ? `<div class="prod-meta" style="margin-top:4px;color:var(--danger)">⚠️ Dernier envoi du mail en échec : ${cuiEsc(o.mail_erreur)}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
     <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div></div>
     <div class="modal-section"><div class="ms-label">Produits</div>
@@ -676,7 +716,7 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
     lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
   }
   const d = new Date(); const liv = new Date(d.getTime() + (sup.delai_livraison_jours ?? 2) * 864e5);
-  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: cuiNextNumero(), date_commande: d.toISOString(), date_livraison: cuiIso(liv), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
+  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiIso(liv), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
   CUI.orders.unshift({ ...cmd, lignes: rows });
   cuiRender();

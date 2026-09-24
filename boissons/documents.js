@@ -206,7 +206,7 @@ async function docCreerCommande(f, res) {
   }
   const estBl = f.type === 'bl';
   const [cmd] = await cuiPOST('cmd_commandes', {
-    fournisseur_id: sup.id, statut: estBl ? 'livree' : 'confirmee', numero: res.ref_commande || res.numero || cuiNextNumero(),
+    fournisseur_id: sup.id, statut: estBl ? 'livree' : 'confirmee', numero: res.ref_commande || res.numero || await cuiNumeroLibre(),
     date_commande: (res.date ? new Date(res.date + 'T10:00:00') : new Date()).toISOString(), date_livraison: res.date_livraison || res.date || null,
     note: `Commande hors appli — créée depuis ${DOC_TYPES[f.type].toLowerCase()} ${res.numero || ''} du fournisseur`, commande_par: null,
     total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null,
