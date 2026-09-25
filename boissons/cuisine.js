@@ -831,23 +831,27 @@ async function cuiOpenStatsSup(id) {
   const s = cuiSup(id) || { nom: '?' };
   const titre = `📈 ${cuiEsc(s.nom)} · prix et volumes`;
   cuiModal(titre, '<div class="empty-state">Chargement…</div>');
-  const now = new Date();
-  const mois = [3, 2, 1, 0].map(k => cuiIso(new Date(now.getFullYear(), now.getMonth() - k, 1)).slice(0, 7));
+  const now = new Date(), annee = now.getFullYear(), debutAnnee = `${annee}-01`;
+  const mois = [3, 2, 1, 0].map(k => cuiIso(new Date(annee, now.getMonth() - k, 1)).slice(0, 7));
+  const debut = (mois[0] < debutAnnee ? mois[0] : debutAnnee) + '-01';
   let lignes, factures;
   try {
     [lignes, factures] = await Promise.all([
-      cuiGET(`cmd_achats?fournisseur_id=eq.${id}&type=eq.produit&date_livraison=gte.${mois[0]}-01&select=produit_id,designation,quantite_base,unite_base,montant_ht,date_livraison`),
-      cuiGET(`cmd_factures?fournisseur_id=eq.${id}&type=in.(facture,avoir)&date_facture=gte.${mois[0]}-01&select=date_facture,montant_ht`),
+      cuiGET(`cmd_achats?fournisseur_id=eq.${id}&type=eq.produit&date_livraison=gte.${debut}&select=produit_id,designation,quantite_base,unite_base,montant_ht,date_livraison`),
+      cuiGET(`cmd_factures?fournisseur_id=eq.${id}&type=in.(facture,avoir)&date_facture=gte.${debut}&select=date_facture,montant_ht`),
     ]);
   } catch (e) { cuiModal(titre, '<div class="empty-state">Erreur de connexion</div>'); return; }
-  const tot = {};
-  factures.forEach(f => { const m = (f.date_facture || '').slice(0, 7); tot[m] = (tot[m] || 0) + Number(f.montant_ht || 0); });
+  const tot = {}; let totAnnee = 0;
+  factures.forEach(f => { const m = (f.date_facture || '').slice(0, 7); tot[m] = (tot[m] || 0) + Number(f.montant_ht || 0); if (m >= debutAnnee) totAnnee += Number(f.montant_ht || 0); });
   const prods = {};
   lignes.forEach(l => {
     const k = (l.produit_id || cuiNorm(l.designation)) + '|' + l.unite_base, m = l.date_livraison.slice(0, 7);
-    const p = prods[k] = prods[k] || { nom: (l.produit_id && (CUI.prods.find(x => x.id === l.produit_id) || {}).nom) || l.designation, u: l.unite_base, m: {}, t: 0 };
+    const p = prods[k] = prods[k] || { nom: (l.produit_id && (CUI.prods.find(x => x.id === l.produit_id) || {}).nom) || l.designation, u: l.unite_base, m: {}, t: 0, an: { q: 0, t: 0, min: null, max: null } };
+    const q = Number(l.quantite_base || 0), t = Number(l.montant_ht || 0);
     const c = p.m[m] = p.m[m] || { q: 0, t: 0 };
-    c.q += Number(l.quantite_base || 0); c.t += Number(l.montant_ht || 0); p.t += Number(l.montant_ht || 0);
+    c.q += q; c.t += t; p.t += t;
+    // Prix moyen de l'année pondéré par les volumes : chaque prix pèse ce qu'on en a acheté
+    if (m >= debutAnnee) { p.an.q += q; p.an.t += t; if (q > 0) { const px = t / q; p.an.min = p.an.min == null ? px : Math.min(p.an.min, px); p.an.max = p.an.max == null ? px : Math.max(p.an.max, px); } }
   });
   const U = { kg: 'kg', L: 'L', 'pièce': 'pc' };
   const ecart = (a, b, dec) => b ? Math.round((a - b) / Math.abs(b) * (dec ? 1000 : 100)) / (dec ? 10 : 1) : null;
@@ -859,17 +863,21 @@ async function cuiOpenStatsSup(id) {
   const totaux = grille(mois.map((m, i) => `<div><b>${tot[m] != null ? cuiEur(tot[m]) : '—'}</b>${i && tot[m] != null && tot[mois[i - 1]] ? `<span class="prod-meta"> (${signe(ecart(tot[m], tot[mois[i - 1]]))} %)</span>` : ''}</div>`));
   const liste = Object.values(prods).filter(p => mois.some(m => p.m[m])).sort((a, b) => b.t - a.t).map(p => {
     const u = U[p.u] || p.u;
+    const moy = p.an.q > 0 ? p.an.t / p.an.q : null;
+    const der = mois.slice().reverse().map(m => p.m[m]).find(c => c && c.q > 0);
+    const vsMoy = der && moy ? fleche(ecart(der.t / der.q, moy, true)) : '';
+    const ligneAn = moy == null ? '' : `<div class="prod-meta" style="margin-top:4px">Moyenne ${annee} : <b style="color:var(--text)">${cuiEur(moy)}/${u}</b>${(p.an.max - p.an.min) / moy >= 0.01 ? `, de ${cuiEur(p.an.min)} à ${cuiEur(p.an.max)}` : ''} · ${cuiQty(Math.round(p.an.q * 10) / 10)} ${u} achetés${der ? ` · dernier prix${vsMoy ? vsMoy + ' par rapport à la moyenne' : ' dans la moyenne'}` : ''}</div>`;
     return `<div class="order-line" style="flex-direction:column;align-items:stretch;padding:8px 0"><div>${cuiEsc(p.nom)}</div>${grille(mois.map((m, i) => {
       const c = p.m[m], prev = p.m[mois[i - 1]];
       if (!c || !c.q) return '<div class="prod-meta">—</div>';
       const vq = prev && prev.q ? ecart(c.q, prev.q) : null;
       return `<div>${cuiQty(Math.round(c.q * 10) / 10)} ${u}${vq != null ? `<span class="prod-meta"> (${signe(vq)} %)</span>` : ''}<br>${cuiEur(c.t / c.q)}/${u}${prev && prev.q ? fleche(ecart(c.t / c.q, prev.t / prev.q, true)) : ''}</div>`;
-    }))}</div>`;
+    }))}${ligneAn}</div>`;
   }).join('') || '<div class="prod-meta">Aucune ligne de facture sur ces quatre mois.</div>';
   cuiModal(titre, `
-    <div class="modal-section"><div class="ms-label">Facturé HT par mois</div>${entete}${totaux}</div>
+    <div class="modal-section"><div class="ms-label">Facturé HT par mois</div>${entete}${totaux}<div class="prod-meta" style="margin-top:6px">Depuis janvier ${annee} : <b style="color:var(--text)">${cuiEur(totAnnee)}</b> HT</div></div>
     <div class="modal-section"><div class="ms-label">Par produit : volume, puis prix moyen</div>${entete}${liste}
-      <div class="prod-meta" style="margin-top:8px">* Avant le 25/09/2026, une partie des factures manque : volumes de ces mois-là incomplets. Les prix, eux, sont exacts.</div></div>
+      <div class="prod-meta" style="margin-top:8px">Moyenne de l'année : prix moyen pondéré par les volumes achetés — total payé ÷ quantité. * Avant le 25/09/2026, une partie des factures manque : volumes de ces mois-là incomplets. Les prix, eux, sont exacts.</div></div>
     <div class="modal-actions"><button class="btn-secondary" onclick="cuiOpenRecap()">‹ Récap des achats</button><button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
 }
 
