@@ -186,8 +186,8 @@ toujours en kilos.
 Sur les produits pesés (unité en kilos), l'appli tolère 10 % d'écart sans le
 considérer comme un litige.
 
-**Pièce commandée, kilos facturés** (fromages Lodifrais, boudin noir Lodifrais
-« 1K7 », pièces de viande, caisse de lieu noir et coffre de saumon Mericq) : on
+**Pièce commandée, kilos facturés** (fromages Lodifrais, boudin noir Lodifrais,
+pièces de viande, caisse de lieu noir et coffre de saumon Mericq) : on
 commande *une pièce* ou *un colis* dont le poids varie, le fournisseur le pèse et
 facture son poids réel. La quantité reçue est le **nombre de pièces**, jamais le
 poids. Le poids sert seulement au montant : une pièce plus légère ou plus lourde
@@ -195,8 +195,10 @@ fait varier le prix de la pièce sans que ce soit une hausse ou une baisse de
 tarif — **ne comparer que le prix au kilo**, et ne rien signaler sur le poids.
 Une ligne de commande restée en kilos pour un tel produit (le bleu d'Auvergne de
 O26091454M6AA : « 1 kg » voulait dire un fromage) n'est pas une erreur de saisie.
-La fiche du boudin est encore en kilos alors qu'il se commande à la pièce : même
-règle, seul son prix au kilo compte.
+Les fiches du bleu d'Auvergne et du boudin sont à la pièce, poids nominal dans
+`poids_kg`. Depuis le 25/09/2026, le boudin commandé est le sans-nitrite
+(réf. 65921, ≈ 1,3 kg, 4,92 €/kg) ; le Brient « 1K7 » (réf. 117848, 6,26 €/kg),
+désactivé, ne sert plus qu'aux factures d'avant.
 
 ## 5. Écrire la réception
 
@@ -568,7 +570,7 @@ restaurant, rien à signaler.
   citent la facture d'origine (« S/FRE ») et la commande sans son O initial
   (« 0260903YDLOCK » = O260903YDLOCK).
 - **Pièce ou colis commandé, kilos facturés** (point 4) : fromages Lodifrais,
-  boudin noir Lodifrais « 1K7 », lieu noir et saumon Mericq — commandés à la
+  boudin noir Lodifrais, lieu noir et saumon Mericq — commandés à la
   pièce ou au colis, pesés et facturés au poids. Seul le prix au kilo compte ; le
   poids ne se compare pas.
 - **YesFood** : une centaine de kilos de cœur de rumsteak commandés, entre 80
