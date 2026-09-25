@@ -511,7 +511,8 @@ Quatre cas à connaître :
   donc candidate ; si un BL facturé y mène, c'est une **livraison jamais
   réceptionnée**.
 - **Commande déclarée non reçue** — statut `non_recue`, posé par la touche
-  « Non reçue » de l'appli : rien n'est arrivé. Tout ce qu'une facture en porte
+  « Non reçue » de l'appli, qui l'efface des écrans : rien n'est arrivé. Elle
+  reste en base pour ce contrôle-ci. Tout ce qu'une facture en porte
   va dans FACTURÉ, PAS REÇU et devient un avoir attendu. C'est la différence avec
   une commande annulée, qui peut avoir été livrée.
 - **Réception « de principe ».** Quand toutes les quantités reçues d'une commande

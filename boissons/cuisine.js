@@ -67,6 +67,8 @@ const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g,
 const cuiNumFourn = o => (o.confirmation_json && o.confirmation_json.numero) || (o.numero && !/^BC\d/.test(o.numero) ? o.numero : '');
 const cuiNumAff = o => cuiNumFourn(o) ? 'n° ' + cuiNumFourn(o) : 'n° fournisseur en attente';
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée', non_recue: 'Non reçue' }[s] || s);
+// Une commande non reçue est effacée de l'appli : aucune liste ne la montre
+const cuiVisible = o => o.statut !== 'non_recue';
 
 /* ─── Chargement ─── */
 async function cuiLoad(silent) {
@@ -110,7 +112,7 @@ const CUI_JOURS_COURT = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.']
 function cuiRappels() {
   const now = new Date(); const jour = now.getDay(); const debut = new Date(now); debut.setHours(4, 0, 0, 0);
   return CUI.sups.filter(s => (s.rappel_jours || []).includes(jour)
-    && !CUI.orders.some(o => o.fournisseur_id === s.id && o.statut !== 'brouillon' && o.statut !== 'annulee' && new Date(o.date_commande) >= debut));
+    && !CUI.orders.some(o => o.fournisseur_id === s.id && o.statut !== 'brouillon' && o.statut !== 'annulee' && cuiVisible(o) && new Date(o.date_commande) >= debut));
 }
 function cuiOuvrirRappel(id) {
   const s = cuiSup(id);
@@ -123,7 +125,7 @@ function cuiRenderHome() {
   cui$('cui-grid').innerHTML = CUI.sups.filter(s => s.actif !== false).map(s => {
     const rappel = rap.includes(s);
     const d = cuiDraftFor(s.id); const n = d ? d.lignes.length : 0;
-    const last = CUI.orders.find(o => o.fournisseur_id === s.id);
+    const last = CUI.orders.find(o => o.fournisseur_id === s.id && cuiVisible(o));
     const np = CUI.prods.filter(p => p.fournisseur_id === s.id).length;
     return `<button class="cui-card" onclick="cuiShowSup('${s.id}')" style="${rappel ? 'border-color:var(--orange)' : ''}">
       ${n ? `<span class="cui-badge">${n}</span>` : rappel ? '<span class="cui-badge" style="background:var(--orange)">⏰</span>' : ''}
@@ -136,7 +138,7 @@ function cuiRenderHome() {
   // Le Bihan attendue le matin était passée 7e derrière des commandes créées depuis des accusés.
   const auj = cuiIso(Date.now());
   const aRecevoir = CUI.orders.filter(o => (o.statut === 'envoyee' || o.statut === 'confirmee') && o.date_livraison && o.date_livraison <= auj && o.date_livraison >= cuiIso(Date.now() - 864e5));
-  const liste = aRecevoir.concat(CUI.orders.filter(o => !aRecevoir.includes(o)).slice(0, Math.max(0, 6 - aRecevoir.length)));
+  const liste = aRecevoir.concat(CUI.orders.filter(o => !aRecevoir.includes(o) && cuiVisible(o)).slice(0, Math.max(0, 6 - aRecevoir.length)));
   cui$('cui-orders').innerHTML = liste.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande pour l\'instant.</div>';
 }
 function cuiOrderRow(o) {
@@ -478,15 +480,15 @@ async function cuiSetStatus(id, statut) {
   o.statut = statut; cuiOpenOrder(id); cuiRender();
   await cuiPATCH('cmd_commandes?id=eq.' + id, { statut, updated_at: new Date().toISOString() }).catch(() => cuiToast('Erreur'));
 }
-// Rien n'est arrivé : à la différence d'une commande annulée, le fournisseur l'a peut-être
-// expédiée et la facturera — le contrôle des factures signale alors tout ce qu'il en facture.
+// Rien n'est arrivé : la commande est effacée de l'appli. Elle reste en base, invisible, parce
+// que le fournisseur peut la facturer quand même — le contrôle des factures la signale alors.
 async function cuiNonRecue(id) {
   const o = CUI.orders.find(x => x.id === id);
-  if (!confirm('Rien n\'est arrivé pour cette commande ?\nElle ne devra pas être facturée : si une facture la porte, elle sera signalée.')) return;
+  if (!confirm('Rien n\'est arrivé pour cette commande ?\nElle sera effacée de l\'appli. Si le fournisseur la facture quand même, la facture sera signalée.')) return;
   const patch = { statut: 'non_recue', reception_note: `Non reçue — signalé le ${new Date().toLocaleDateString('fr-FR')}${cuiWho() ? ' par ' + cuiWho() : ''}`, updated_at: new Date().toISOString() };
   try {
     await cuiPATCH('cmd_commandes?id=eq.' + id, patch);
-    Object.assign(o, patch); cuiOpenOrder(id); cuiRender(); cuiToast('Commande marquée non reçue');
+    Object.assign(o, patch); cuiCloseModal(); cuiRender(); cuiToast('Commande effacée : non reçue');
   } catch (e) { cuiToast('Erreur, réessayez'); }
 }
 function cuiReorder(id) {
@@ -749,7 +751,7 @@ function cuiOpenHistory() {
 }
 function cuiRenderHistory() {
   const f = cui$('cui-hist-sup').value;
-  const list = CUI.orders.filter(o => !f || o.fournisseur_id === f);
+  const list = CUI.orders.filter(o => cuiVisible(o) && (!f || o.fournisseur_id === f));
   cui$('cui-hist-list').innerHTML = list.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande.</div>';
 }
 
