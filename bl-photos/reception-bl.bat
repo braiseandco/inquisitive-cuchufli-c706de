@@ -54,7 +54,7 @@ set "ALERTE= ALERTE : le dossier BL est introuvable sur le PC, Google Drive pour
 :drive_ok
 if not exist "%FACTURES%\" (
   echo [Factures] dossier introuvable : %FACTURES% >> "%JOURNAL%"
-  set "ALERTE=%ALERTE% ALERTE : le dossier des factures est introuvable sur le PC, aucune facture ne peut etre lue. Dis-le en tete de la rubrique FACTURES."
+  set "ALERTE=%ALERTE% ALERTE : le dossier des factures est introuvable sur le PC, aucune facture ne peut etre lue. Dis-le en tete du recap."
 )
 rem Copie locale de la consigne : lue telle quelle, sans resume. En cas d'echec, la precedente sert.
 curl.exe -fsSL "%CONSIGNE_URL%" -o "%CONSIGNE%.tmp" && move /y "%CONSIGNE%.tmp" "%CONSIGNE%" >nul || echo [consigne] telechargement impossible, copie precedente utilisee >> "%JOURNAL%"

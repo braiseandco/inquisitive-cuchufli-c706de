@@ -17,10 +17,10 @@ Deux étapes, deux lignes : `MODE` pour les BL (points 1 à 7), `MODE FACTURES`
 pour les factures (point 8). Chacune bascule seule, et c'est la seule ligne à
 changer pour la faire basculer. Les deux valeurs possibles :
 
-- **À BLANC** — faire la lecture et tous les contrôles, puis écrire dans le récap
-  *ce qui serait enregistré*, ligne par ligne, avec les écarts et les prix qui
-  bougeraient. **N'écrire absolument rien en base** : ni `qte_recue`, ni statut,
-  ni prix, ni `traite_at`. Ne pas déplacer les photos non plus. Seules écritures
+- **À BLANC** — faire la lecture et tous les contrôles comme en écriture, et en
+  rendre compte au point 6. **N'écrire absolument rien en base** : ni
+  `qte_recue`, ni statut, ni prix, ni `traite_at`. Ne pas déplacer les photos non
+  plus. Seules écritures
   permises, une fois le récap envoyé : ajouter chaque photo lue au registre
   `BL\lus-a-blanc.txt` (voir « Où sont les photos ») et chaque facture contrôlée
   au registre `BL\factures-rapprochees.txt` (point 8 f), pour ne pas les
@@ -28,9 +28,9 @@ changer pour la faire basculer. Les deux valeurs possibles :
 - **ÉCRITURE** — appliquer la procédure complète : points 5 et 6 pour les BL,
   8 g pour les factures.
 
-Pendant la période à blanc, le récap sert de preuve : on le compare à la
-réception faite à la main, et au contrôle des factures fait dans l'appli. La
-bascule est décidée sur un critère chiffré — dix bons de livraison d'affilée
+Pendant la période à blanc, le récap sert de preuve : ce qu'il signale doit
+être vrai, et rien de ce qu'il fallait signaler ne doit manquer. La bascule est
+décidée sur un critère chiffré — dix bons de livraison d'affilée
 sans une seule correction à apporter pour `MODE`, dix factures d'affilée pour
 `MODE FACTURES`, compteur tenu par la routine (8 f) — et pas sur une impression.
 
@@ -77,7 +77,8 @@ pour ordinateur les synchronise ensuite sur le PC.
 
 **Ne rien télécharger, ne manipuler aucune clé, n'appeler aucune API de
 stockage.** Ce sont des fichiers ordinaires sur un disque : ouvre-les comme tels.
-Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
+Pour lister un dossier, l'outil de recherche de fichiers (Glob) suffit :
+PowerShell et Bash ne sont pas autorisés, inutile de les essayer. Si une photo manque, c'est au script de la ramener, pas à toi d'aller la
 chercher — le dire dans le récap et passer à la suite.
 
 **Sauter toute photo déjà listée dans `BL\lus-a-blanc.txt`** (une ligne par photo :
@@ -185,15 +186,17 @@ toujours en kilos.
 Sur les produits pesés (unité en kilos), l'appli tolère 10 % d'écart sans le
 considérer comme un litige.
 
-**Pièce commandée, kilos facturés** (fromages Lodifrais, pièces de viande) : on
-commande *une pièce*, le fournisseur facture son poids réel. La quantité reçue
-est le **nombre de pièces**, jamais le poids. Le poids sert seulement au montant :
-une pièce plus légère ou plus lourde que `poids_kg` fait varier le prix de la
-pièce sans que ce soit une hausse ou une baisse de tarif — ne comparer que le
-prix au kilo. Si une ancienne ligne de commande est restée en kilos pour un tel
-produit (le bleu d'Auvergne de O26091454M6AA : « 1 kg » voulait dire un fromage),
-ce n'est pas une erreur de saisie : le signaler comme ligne à passer en pièces,
-avec l'écart de valorisation qu'elle entraîne.
+**Pièce commandée, kilos facturés** (fromages Lodifrais, boudin noir Lodifrais
+« 1K7 », pièces de viande, caisse de lieu noir et coffre de saumon Mericq) : on
+commande *une pièce* ou *un colis* dont le poids varie, le fournisseur le pèse et
+facture son poids réel. La quantité reçue est le **nombre de pièces**, jamais le
+poids. Le poids sert seulement au montant : une pièce plus légère ou plus lourde
+fait varier le prix de la pièce sans que ce soit une hausse ou une baisse de
+tarif — **ne comparer que le prix au kilo**, et ne rien signaler sur le poids.
+Une ligne de commande restée en kilos pour un tel produit (le bleu d'Auvergne de
+O26091454M6AA : « 1 kg » voulait dire un fromage) n'est pas une erreur de saisie.
+La fiche du boudin est encore en kilos alors qu'il se commande à la pièce : même
+règle, seul son prix au kilo compte.
 
 ## 5. Écrire la réception
 
@@ -230,6 +233,9 @@ update cmd_commandes c set total_estime = (
 **Contrôle final, systématique :** la somme `prix × qte_recue` sur toutes les
 lignes doit retomber sur le total HT du BL. Sinon, quelque chose a été mal lu ou
 mal reporté — le dire dans le récap.
+
+Un article offert (« GRATUIT », prix ou montant à 0,00 €) s'ajoute à
+`qte_recue` avec l'écart « dont N offert(s) », sans toucher au prix de la ligne.
 
 ## 5 bis. Compléter le catalogue
 
@@ -284,113 +290,103 @@ passage — à braiseandcobiganos@gmail.com via le connecteur Gmail. Un récap a
 dans une fenêtre du PC n'est lu par personne, et surtout pas depuis le téléphone,
 d'où se pilotent les commandes.
 
-Objet : `Réception du <date> — <n> livraison(s), <n> écart(s) — <n> facture(s), <n> écart(s)`.
-L'envoyer **même les jours sans livraison ni facture** : le silence doit vouloir
-dire « la routine est cassée », jamais « rien à signaler ».
+### Ce que le patron veut lire
 
-### Règle d'écriture des écarts
+Deux choses, et rien d'autre (sa demande du 25/09/2026) :
 
-Tout chiffre qui traduit une différence porte **un signe et un sens**, jamais une
-valeur nue. Le lecteur doit savoir en un coup d'œil si ça lui coûte ou si ça lui
-rapporte, sans refaire le calcul.
+1. **les prix qui bougent** — c'est ainsi qu'on a vu le jus d'ananas Norbert
+   facturé 2,93 € la bouteille pour 1,55 € sur la fiche ;
+2. **ce qui est facturé sans avoir été reçu** — le fournisseur doit facturer ce
+   qui a été réceptionné, pas davantage.
 
-- **+** = en sa défaveur : payé plus cher, ou reçu en plus que commandé.
-- **−** = en sa faveur : payé moins cher, ou reçu en moins.
-- Chaque prix qui bouge est annoncé **hausse** ou **baisse**, avec l'ancien prix,
-  le nouveau, l'écart unitaire, le pourcentage, et surtout **l'effet en euros sur
-  cette livraison** — c'est le seul chiffre qui parle vraiment.
+Les écarts entre commandé et reçu ne l'intéressent pas : ruptures de stock,
+produits pesés au kilo, arrondis au colis ou à la pièce, ils s'expliquent
+presque toujours, et le restaurant ne paie que ce qu'il reçoit. **Ne pas les
+mettre dans le mail**, pas plus que les manquants, les offerts, les calculs
+justes, les conversions d'unités ou ce qui serait écrit en base : ce travail
+reste dans la session. Le mail se lit sur un écran de téléphone.
 
-**Séparer l'effet prix de l'effet quantité.** Les mélanger donne un total juste
-mais illisible : on ne sait plus si la facture grimpe parce que le fournisseur a
-augmenté ses tarifs ou parce qu'il a livré davantage.
+Objet : `Réception du <date> — ` suivi de l'essentiel : le nombre de hausses de
+prix et leur effet total, le montant facturé sans avoir été reçu — ou « rien à
+signaler » et ce qui a été contrôlé. L'envoyer **même les jours sans livraison
+ni facture** : le silence doit vouloir dire « la routine est cassée », jamais
+« rien à signaler ».
+
+Le corps, dans cet ordre, chaque rubrique seulement si elle a quelque chose à
+dire :
+
+1. **PRIX** — chaque prix qui bouge sur un BL lu ou une facture contrôlée, une
+   ligne par produit : ▲ ou ▼ et le pourcentage, le produit, le fournisseur,
+   l'ancien et le nouveau prix — au kilo pour tout ce qui se facture au poids,
+   quel que soit le poids du colis —, **l'effet en euros** sur cette livraison ou
+   cette facture — le seul chiffre qui parle vraiment —, le document, et « fiche
+   à mettre à jour » si la fiche produit n'a pas encore le nouveau prix. L'ancien
+   prix est celui de la ligne de commande ; sans commande, celui de la fiche
+   avant ce document — si `cmd_prix_historique` montre qu'elle a déjà été mise à
+   jour depuis lui (bouton « Valider » de l'appli, source « facture <n°> »),
+   prendre le prix d'avant ; sans prix sur la fiche, le dernier prix payé, sur la
+   facture précédente du fournisseur. Les hausses d'abord, de la plus coûteuse à
+   la moins coûteuse, puis les baisses.
+   Sous 1 % et sous 1 € sur la ligne, c'est de l'arrondi : rien à écrire. Un
+   frais nouveau ou en hausse (8 e) est une hausse.
+2. **FACTURÉ, PAS REÇU** — ce que le fournisseur fait payer, sur sa facture ou
+   déjà sur son BL, sans que la réception l'ait enregistré : un BL facturé sans
+   aucune réception, une ligne facturée mais notée non livrée ou refusée, une
+   quantité facturée supérieure à la quantité reçue (8 d), un avoir attendu
+   depuis plus de 15 jours. Pour chacun : le montant, et ce qu'il faut faire.
+3. **CONTRÔLÉS** — une ligne par document : fournisseur, numéro, montant HT, et
+   « conforme », ou le renvoi aux rubriques ci-dessus, ou ce qui a empêché le
+   contrôle. Pour un produit acheté au poids en gros volume (le cœur de rumsteak
+   YesFood, une centaine de kilos par semaine), le poids facturé et le prix au
+   kilo sur la ligne du document : c'est le suivi des volumes, sans alerte. Pour
+   un BL lu, s'il diffère de la réception déjà saisie dans l'appli, sur quelles
+   lignes : pendant la période à blanc, c'est la preuve que la lecture est juste.
+   Pour un avoir, ce qu'il solde.
+4. **En pied**, une ligne chacun et seulement s'il y a lieu : les réceptions à
+   saisir (point 7), les documents non lus et pourquoi, une action refusée qui a
+   empêché quelque chose, les produits ajoutés au catalogue (5 bis), et toujours
+   le compteur de fiabilité des factures (8 f).
+
+Tout montant qui traduit une différence porte **un signe** : + ce qui coûte au
+restaurant (payé plus cher, facturé sans avoir été reçu), − ce qui lui profite.
 
 ### Modèle
 
 ```
-Aux Jardins de l'Atlantique — BL163993 — commande O260921ZNIFUL
-Total BL : 259,85 € HT
-
-Effet prix     : −7,96 €   (les tarifs ont baissé)
-Effet quantité : +1,31 €   (un peu plus livré que commandé)
-────────────────────────────────
-Écart / commande : −6,65 €
+Objet : Réception du 25/09/2026 — 6 hausses de prix (+57,09 €) · facturé sans réception : 427,88 €
 
 PRIX
-  ▼ baisse   Tomate grappe    19,90 → 14,90 €/colis   −5,00   −25,1 %   → −5,00 € (1 colis)
-  ▼ baisse   Poivron rouge    17,40 → 14,90 €/colis   −2,50   −14,4 %   → −5,00 € (2 colis)
-  ▲ hausse   Courgette verte  11,40 → 13,40 €/colis   +2,00   +17,5 %   → +2,00 € (1 colis)
-  ▲ hausse   Chou blanc        2,94 →  2,98 €/pièce   +0,04    +1,4 %   → +0,04 € (1 pièce)
+  ▲ +89 %   Norbert jus d'ananas 1 L · Le Bihan    1,55 → 2,93 €/bouteille       +24,88 €   facture 20260950774 · fiche à mettre à jour
+  ▲ +22 %   Filet de lieu noir · Mericq            8,99 → 9,99 puis 10,99 €/kg   +15,00 €   facture 47271835 · fiche à mettre à jour
+  ▲ +99 %   Frais Mericq (éco-énergie + logistique, 4 livraisons)  10,50 → 20,90 €   +10,40 €   facture 47271835
+  ▲ +8 %    Saucisse de Toulouse · Lodifrais       6,95 → 7,53 €/kg               +5,27 €   facture 73172530
+  ▲ +13 %   Sauce salade 5 L · Lodifrais           7,50 → 8,50 €                  +1,00 €   facture 73172530
+  ▲ +1,5 %  Préparation tiramisu · Lodifrais       6,20 → 6,29 €/L                +0,54 €   facture 73172530
+  ▼ −19 %   Œufs, carton de 90 · Lodifrais        24,57 → 19,80 €                 −4,77 €   facture 73172530
 
-QUANTITÉS
-  + Citron jaune : 3,44 kg reçus pour 3 kg commandés  (+0,44 kg, +1,31 €)
+FACTURÉ, PAS REÇU
+  +427,88 €  Lodifrais, facture 73172530 : le BL IV296405 du 18/09 est facturé, mais sa commande
+             O260917QM6IFB a été clôturée le 24/09 sans réception. Marchandise arrivée : rien à
+             faire. Sinon : avoir à demander.
 
-CATALOGUE
-  Nouveau produit ajouté : Persil plat (botte) — réf. 04412 — 1,20 €/botte
-  → à ranger dans une catégorie et à doter d'un stock mini si besoin
+CONTRÔLÉS
+  Lodifrais 73172530 — 1 654,80 € HT — conforme, hors ci-dessus
+  Le Bihan 20260950774 — 596,80 € HT — conforme, hors prix
+  Mericq 47271835 — 1 138,29 € HT — commandes passées hors appli : prix seuls contrôlés
+  Les Platins 2026-09-0410 — 1 141,80 € HT — conforme
+  DS, avoirs 6088625 (−44,51 €, retour de thon du 29/08) et 6088626 (−14,75 €, persil manquant le 05/09) — conformes
+  Blason d'Or, BL 02297048 — 115,77 € HT — lu, réception pas encore saisie
 
-Photo : bl/2026-09-22/O260921ZNIFUL_1758547200.jpg
+Réceptions à saisir : Mericq BC260923-06, livraison prévue le 24/09
+Factures : 3 d'affilée sans correction (bascule à 10)
 ```
 
-Ajouter ensuite la rubrique FACTURES (point 8 f), puis, s'il y a lieu : ce qui
-n'a pas pu être traité et pourquoi, et les réceptions en retard (point 7).
+## 7. Les réceptions à saisir
 
-## 6 bis. Les manquants, en tête du mail
-
-**La question à laquelle le récap doit répondre en premier : qu'est-ce qui n'est
-pas arrivé ?** C'est la seule information qui demande une action le jour même —
-relancer le fournisseur, retirer un plat de la carte, dépanner ailleurs.
-
-Balayer **toutes les réceptions du jour**, pas seulement celles que la routine a
-traitées : une réception saisie à la main dans l'appli compte autant.
-
-```sql
-select f.nom as fournisseur, c.numero, c.date_reception,
-       l.nom as produit, l.unite, l.quantite as commande, l.qte_recue as recu, l.ecart
-from cmd_commande_lignes l
-join cmd_commandes c on c.id = l.commande_id
-join cmd_fournisseurs f on f.id = c.fournisseur_id
-where c.date_reception::date = current_date
-  and l.qte_recue is not null and l.qte_recue < l.quantite
-order by (l.quantite - l.qte_recue) * coalesce(l.prix,0) desc;
-```
-
-Présenter en tête du mail, sous le titre **MANQUANTS**, avec pour chaque ligne :
-le produit, le fournisseur, ce qui manque, et la valeur — c'est elle qui dit s'il
-faut décrocher le téléphone ou laisser courir. Distinguer deux cas :
-
-- **manque annoncé** — le fournisseur a prévenu, le reste suit. Pour mémoire.
-- **manque non annoncé** — rien n'a été dit. C'est celui-là qui doit ressortir.
-
-Exemple du 23/09/2026 : la saucisse manquait de 13,8 kg mais Lodifrais avait
-téléphoné ; le spéculoos manquait sans un mot. Le second est le vrai sujet, même
-à 6,33 €, parce que personne ne l'a su avant de le chercher en cuisine.
-
-**Livré moins, facturé moins : ce n'est pas un litige.** Le fournisseur envoie ce
-qu'il a — rupture, produit pesé — et le BL facture la quantité réellement livrée.
-Le 23/09/2026, Lodifrais a livré 8,3 kg d'échine pour 10 kg commandés et facturé
-8,3 kg : le restaurant ne paie que ce qu'il reçoit. Le lister parmi les manquants
-(il faut peut-être recommander ou adapter la carte), mais sans le présenter comme
-une erreur ni comme quelque chose à réclamer. Ne parler de réclamation que si le
-BL facture plus que ce qui est arrivé, ou si le prix a bougé.
-
-S'il n'y a aucun manquant, l'écrire : « Aucun manquant aujourd'hui. »
-
-## 6 ter. Les offerts, toujours signalés
-
-Toute ligne gratuite du BL — « GRATUIT », « offert », prix ou montant à 0,00 €,
-unité gratuite d'une promotion — est **signalée dans le mail**, sous le titre
-**OFFERTS**, juste après les manquants : produit, fournisseur, quantité, et ce
-qu'elle vaudrait au prix de la ligne payante du même produit. Le 23/09/2026, Le
-Bihan a ajouté 2 cartons d'Abatilles pétillante 1 L gratuits aux 10 commandés
-(≈ 22 €) : la réception à la main ne l'avait pas vu.
-
-En mode ÉCRITURE, un offert s'ajoute à `qte_recue` avec l'écart « dont N
-offert(s) », sans toucher au prix de la ligne.
-
-## 7. Signaler les réceptions en retard
-
-Avant d'envoyer le récap, lister les commandes dont la livraison est passée et
-qui n'ont toujours pas été réceptionnées, et les ajouter au mail :
+Tant qu'une commande livrée n'est pas réceptionnée, la facture qui arrivera
+n'aura rien à quoi se comparer : c'est le vrai trou de la chaîne. Lister en pied
+du mail, sur une ligne, les commandes dont la livraison est passée et qui ne
+sont toujours pas réceptionnées :
 
 ```sql
 select f.nom, c.numero, c.date_livraison
@@ -399,17 +395,16 @@ where c.statut in ('envoyee','confirmee') and c.date_livraison < current_date
 order by c.date_livraison;
 ```
 
-Tant qu'une commande n'est pas réceptionnée, la facture qui arrivera n'aura rien
-à quoi se comparer. C'est le vrai trou de la chaîne. Au 22/09/2026, quatre
-commandes DS et quatre Lodifrais de septembre étaient dans ce cas.
+Une commande clôturée sans réception peut avoir été livrée quand même : c'est
+la facture qui le dira (8 c).
 
 ## 8. Factures : les confronter aux livraisons
 
 Une facture fournisseur est prélevée à l'échéance sans que personne la relise
 ligne à ligne. C'est là que partent les euros d'un produit facturé mais jamais
-arrivé, d'un poids arrondi, d'un tarif qui a glissé. Chaque passage contrôle
-toutes les factures et tous les avoirs arrivés depuis le passage précédent, et
-en rend compte dans le même mail, rubrique **FACTURES**.
+reçu, ou d'un tarif qui a glissé. Chaque passage contrôle toutes les factures et
+tous les avoirs arrivés depuis le passage précédent, et en rend compte dans le
+même mail (point 6).
 
 ### 8 a. Les factures à contrôler
 
@@ -438,7 +433,7 @@ Sauter toute facture dont l'`id` figure déjà au registre
 `BL\factures-rapprochees.txt` (8 f). Si son PDF n'est pas encore sur le PC, la
 dire « reportée » dans le récap sans l'inscrire au registre : elle sera reprise
 au passage suivant. Plus de deux jours sans copie, c'est la copie du soir qui
-est cassée : l'écrire en tête de la rubrique. Une facture sans PDF (saisie à la
+est cassée : l'écrire en pied du mail. Une facture sans PDF (saisie à la
 main dans l'appli) ne se contrôle que sur ses totaux.
 
 ### 8 b. Lire la facture
@@ -515,37 +510,35 @@ Trois cas à connaître :
 - **Réception « de principe ».** Quand toutes les quantités reçues d'une commande
   sont exactement les quantités commandées, produits pesés compris, la réception
   a presque toujours été validée sans relire le BL. Si la facture s'en écarte sur
-  un produit pesé, c'est qu'elle reprend le poids du BL : demander de vérifier le
-  BL papier, ne pas réclamer d'avoir.
+  un produit pesé, c'est qu'elle reprend le poids du BL : le poids facturé fait
+  foi, rien à signaler.
 - **Aucune commande dans l'appli** — Mericq avant le 23/09/2026, commande
   téléphonée : contrôler les calculs et les prix des fiches, et dire que les
   quantités n'ont rien à quoi se comparer. Verdict « partielle ».
 
 ### 8 d. Comparer, ligne par ligne
 
-- **Quantité** — ramener la quantité facturée à l'unité de la ligne de commande
-  (point 4), en lisant le conditionnement dans la désignation : « 1L X6 » est un
-  carton de 6 L, « 4K65 » un seau de 4,65 kg, « X90 » un carton de 90 œufs,
-  « 25G X40 » un carton de 40 choux, « 5K » un sac de 5 kg ; un fût Le Bihan se
-  facture au litre, une caisse en « 24 COL ». Écrire la conversion dans le mail
-  quand elle ne saute pas aux yeux ; ambiguë, « unité non comparable » et aucun
-  écart affirmé. Comparer ensuite à ce qui a été livré (8 c). Produit pesé :
-  10 % de tolérance, le poids facturé est le poids réel.
+- **Quantité** — une seule question : le fournisseur facture-t-il plus que ce
+  qui a été **reçu** ? Jamais comparer à la quantité commandée. Ramener la
+  quantité facturée à l'unité de la réception (point 4), en lisant le
+  conditionnement dans la désignation : « 1L X6 » est un carton de 6 L, « 4K65 »
+  un seau de 4,65 kg, « X90 » un carton de 90 œufs, « 25G X40 » un carton de 40
+  choux, « 5K » un sac de 5 kg ; un fût Le Bihan se facture au litre, une caisse
+  en « 24 COL ». Conversion ambiguë : ne rien affirmer. Produit pesé : le poids
+  facturé fait foi, sauf si la réception porte un poids réellement relevé qui
+  s'en écarte de plus de 10 %.
 - **Prix** — prix facturé ramené à l'unité de l'appli en partant du montant de
   la ligne, le seul point fixe, puis comparé au prix de la ligne de commande et à
   celui de la fiche. Un écart compte s'il dépasse 1 % ou 1 € sur la ligne ; en
   dessous, c'est de l'arrondi.
 - **Remplacement** — une autre référence livrée à la place de celle commandée :
-  « remplacé par », comparer les prix, pas d'écart de quantité.
-- **Livré, pas facturé** — toute ligne reçue (`qte_recue` > 0) d'une commande
-  couverte par la facture et absente de celle-ci. Vérifier d'abord qu'elle
-  n'est pas sur une autre facture du fournisseur.
+  ne compte que si son prix diffère, comme une hausse ou une baisse.
 - **Avoir** — retrouver la facture d'origine et la ligne créditée (dans
   `cmd_factures`, même `historique`) : même produit, même prix, quantité
   plausible ; puis l'avoir attendu qu'il solde au registre (8 f), s'il y en a un.
 
-**Livré moins, facturé moins, n'est pas un écart** (point 6 bis) ; un offert non
-facturé non plus (point 6 ter).
+Facturé moins que reçu, livré mais pas facturé, offert : en faveur du
+restaurant, rien à signaler.
 
 ### 8 e. Pièges déjà rencontrés
 
@@ -560,100 +553,60 @@ facturé non plus (point 6 ter).
   administratifs, dans le cadre TVA, à 20 %), « F.G. » en pied de facture Le
   Bihan en plus de la ligne « surcoût temporaire frais gestion », « Contrib. Eco
   Energie » et « Forfait Logistique » Mericq, participation au transport
-  Carniato.
+  Carniato. Ils entrent dans le calcul du total ; ne les signaler que s'ils sont
+  nouveaux ou en hausse par rapport à la facture précédente du fournisseur.
 - **Le Bihan** : `montant = quantité × prix + droits` (colonne « Dt Droits ») ;
   les prix de l'appli sont droits compris, à la bouteille ou au litre ; les
   consignes et déconsignes sont hors HT (net facture = TTC + consignes −
   déconsignes).
 - **Mericq** : sur une ligne en « U » (glace), le montant est `pièces × prix`, la
   colonne poids n'est pas une quantité ; « NetNet » = prix net. Les fiches sont à
-  la caisse ou à la boîte et `poids_kg` est vide : prendre le poids dans le
-  conditionnement (« caisse 5 kg ») et signaler que `poids_kg` est à remplir.
+  la caisse, à la boîte ou au coffre, avec leur poids nominal dans `poids_kg`
+  (mises à jour le 25/09/2026 depuis la facture 47271835). Ce poids varie d'une
+  livraison à l'autre : ne contrôler que le prix au kilo.
 - **DS** : facture au kilo ce qui se commande au colis (point 4) ; ses avoirs
   citent la facture d'origine (« S/FRE ») et la commande sans son O initial
   (« 0260903YDLOCK » = O260903YDLOCK).
-- **Pièce commandée, kilos facturés** (fromages Lodifrais, point 4) : la facture
-  est juste, c'est la ligne de commande restée en kilos qui est à passer en
-  pièces — pour mémoire, pas un écart de facture. Et l'inverse, **pièce entière
-  livrée pour des kilos commandés** : le boudin Lodifrais « 1K7 » se livre au
-  boudin entier, 4 kg commandés donnent 3 boudins, 5,1 kg. L'écart est réel
-  mais attendu : le dire comme tel, pas comme une erreur de facturation.
+- **Pièce ou colis commandé, kilos facturés** (point 4) : fromages Lodifrais,
+  boudin noir Lodifrais « 1K7 », lieu noir et saumon Mericq — commandés à la
+  pièce ou au colis, pesés et facturés au poids. Seul le prix au kilo compte ; le
+  poids ne se compare pas.
+- **YesFood** : une centaine de kilos de cœur de rumsteak commandés, entre 80
+  et 110 livrés, c'est normal — jamais d'alerte sur le poids. Suivre le prix au
+  kilo (10,90 € en juillet 2026, 9,90 € depuis le 17/08) et le volume. La fiche
+  n'a pas de prix : comparer à la facture YesFood précédente.
 
 ### 8 f. Rendre compte
 
-Dans le mail, rubrique **FACTURES**, après les livraisons. Pour chaque facture,
-dans cet ordre, et seulement ce qui a quelque chose à dire :
-
-1. **FACTURÉ, PAS LIVRÉ** — ou facturé plus que livré au-delà de la tolérance :
-   l'avoir à obtenir, en euros. Il devient un avoir attendu (registre, plus bas).
-2. **LIVRAISON JAMAIS RÉCEPTIONNÉE** — BL facturé sans réception dans l'appli :
-   la marchandise est-elle arrivée ? Avec le montant du BL.
-3. **QUANTITÉS** — les autres écarts de quantité, et ce qu'il faut vérifier.
-4. **PRIX** — hausses et baisses par rapport à la commande, avec la règle
-   d'écriture du point 6 (ancien → nouveau, écart, %, effet en euros sur la
-   facture), et si la fiche est déjà à jour ou le serait.
-5. **POUR MÉMOIRE** — livré pas facturé, remplacements, frais, avoirs reçus et
-   ce qu'ils soldent.
-
-Chaque ligne des rubriques 1 à 4 compte pour un écart, dans l'objet du mail
-comme dans le registre ; « pour mémoire » ne compte pas. Terminer la rubrique
-par les **avoirs attendus** du registre toujours pas arrivés, avec leur
-ancienneté : au-delà de 15 jours, « à relancer ». Un jour sans facture nouvelle,
-l'écrire — « Aucune facture nouvelle. » — et donner quand même le compteur et
-les avoirs attendus.
-
-```
-FACTURES — 2 contrôlées, 7 écarts
-Fiabilité : 4 factures d'affilée sans correction (bascule à 10)
-
-Lodifrais — facture 73172530 du 20/09/2026 — 1 654,80 € HT, 1 756,29 € TTC, prélevée le 10/10
-4 BL : IV293958 (11/09) · IV295169 (16/09) · IV295361 (16/09) · IV296405 (18/09)
-Calculs justes : 60 lignes, 4 totaux BL, + 1,50 € de frais administratifs = 1 654,80 € HT
-
-LIVRAISON JAMAIS RÉCEPTIONNÉE
-  BL IV296405 du 18/09 — 427,88 € HT, 15 lignes — commande O260917QM6IFB,
-  clôturée le 24/09 « jamais réceptionnée » : la marchandise est-elle arrivée ?
-  Les 15 lignes suivent la commande, boudin mis à part (5,108 kg pour 4 kg : 3 boudins entiers).
-
-QUANTITÉS
-  + Boudin noir (BL IV293958) : 7,06 kg facturés, 6 kg à une réception de
-    principe → +1,06 kg, +6,64 € — à vérifier sur le BL papier
-
-PRIX — effet total sur la facture : +2,04 €
-  ▲ hausse   Saucisse de Toulouse    6,95 → 7,531 €/kg   +0,581   +8,4 %   → +5,27 € (9,074 kg)
-  ▲ hausse   Sauce salade 5 L        7,50 → 8,50 €       +1,00   +13,3 %   → +1,00 €
-  ▲ hausse   Préparation tiramisu    6,20 → 6,29 €/L     +0,09    +1,5 %   → +0,54 € (6 L)
-  ▼ baisse   Œufs (carton de 90)    24,57 → 19,80 €      −4,77   −19,4 %   → −4,77 €
-  Fiches déjà à ces prix : rien à mettre à jour.
-
-POUR MÉMOIRE
-  Crème sous pression 56253 livrée à la place de la bombe chantilly 249507 : 7,42 € au lieu de 7,62 €
-  Bleu d'Auvergne : 1 fromage de 2,308 kg à 10,53 €/kg, conforme ; sa ligne de commande est en kilos, à passer en pièces
-  Frais administratifs : 1,50 € HT (20 %)
-
-Verdict : rapprochée, 6 écarts
-```
+Chaque facture nourrit le mail du point 6 : ses prix qui bougent dans **PRIX**,
+ce qu'elle fait payer sans réception dans **FACTURÉ, PAS REÇU**, et une ligne
+dans **CONTRÔLÉS** — « conforme », ou ce qui a empêché le contrôle : reportée,
+illisible, commandes passées hors appli. Chaque ligne de PRIX ou de FACTURÉ,
+PAS REÇU compte pour un écart de la facture.
 
 **Registre `BL\factures-rapprochees.txt`.** Une fois le mail parti, y ajouter une
 ligne par facture ou avoir contrôlé — pas pour une facture reportée. Le créer
 avec son en-tête s'il n'existe pas ; ne jamais effacer une ligne.
 
     # id ; fournisseur ; document ; date ; HT ; BL couverts ; contrôlé le ; verdict ; écarts ; correction
-    f1fd5aaa-2029-4d22-9e01-cf1ecad74075 ; Lodifrais ; facture 73172530 ; 20/09/2026 ; 1654,80 ; IV293958 IV295169 IV295361 IV296405 ; 25/09/2026 ; rapprochée ; 6 écarts ;
+    f1fd5aaa-2029-4d22-9e01-cf1ecad74075 ; Lodifrais ; facture 73172530 ; 20/09/2026 ; 1654,80 ; IV293958 IV295169 IV295361 IV296405 ; 25/09/2026 ; rapprochée ; 4 prix, 1 facturé pas reçu ;
     AVOIR ATTENDU ; Lodifrais ; facture <n°> ; spéculoos, 1 pièce, BL IV297811 ; 6,33 € ; noté le <date> ; en attente
 
-Verdict **rapprochée** : toutes les lignes comparées à une livraison ;
+Verdict **rapprochée** : toutes les lignes comparées à une réception ;
 **partielle** : une partie n'avait rien à quoi se comparer ; **illisible** :
-lecture ou calculs en échec, rien conclu. Chaque montant à obtenir (1 ci-dessus)
-ajoute une ligne AVOIR ATTENDU ; quand l'avoir arrive, remplacer « en attente »
-par « reçu : avoir <n°> du <date> ».
+lecture ou calculs en échec, rien conclu. Une ligne facturée alors que la
+réception dit qu'elle n'est pas arrivée, a été refusée ou reçue en moindre
+quantité ajoute une ligne AVOIR ATTENDU ; un BL facturé sans aucune réception
+attend d'abord la réponse du patron. Quand l'avoir arrive, remplacer « en
+attente » par « reçu : avoir <n°> du <date> ». Un avoir attendu ne revient dans
+le mail qu'après 15 jours sans nouvelles.
 
 **Compteur de fiabilité.** Une erreur de la routine sur une facture — écart
 inventé, écart manqué, mauvaise lecture — se note au bout de sa ligne :
 « CORRIGÉ le <date> : <ce qui était faux> », à la main ou en le demandant à
 Claude. Compter, en remontant le registre depuis la fin, les factures
 « rapprochée » jusqu'à la première ligne CORRIGÉ : c'est le nombre de factures
-d'affilée sans correction, affiché en tête de la rubrique. « partielle »,
+d'affilée sans correction, affiché en pied du mail. « partielle »,
 « illisible » et les avoirs ne comptent pas et ne remettent pas à zéro. À dix,
 proposer la bascule de `MODE FACTURES` dans le mail ; c'est au patron de la
 faire.

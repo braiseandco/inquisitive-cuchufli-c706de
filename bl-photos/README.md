@@ -8,10 +8,13 @@ La photo bouche ce trou, à condition qu'elle atterrisse quelque part où on peu
 la lire.
 
 La même routine confronte ensuite chaque facture et chaque avoir à ces
-livraisons : facturé mais pas livré, livré mais pas facturé, quantités, prix,
-avoirs attendus. Les factures arrivent dans l'appli chaque soir par le script
+livraisons. Les factures arrivent dans l'appli chaque soir par le script
 d'import, et leur PDF sur le PC vers 18 h 50 (`Bureau\Factures fournisseurs`) :
 elles sont contrôlées au passage suivant, dans le même mail.
+
+Le mail ne dit que ce que le patron veut savoir : **les prix qui bougent**, et
+**ce qui est facturé sans avoir été reçu**. Les écarts entre commandé et reçu —
+ruptures, produits pesés — n'y figurent pas.
 
 ## La chaîne
 
@@ -107,9 +110,9 @@ lues. Le compte rendu s'écrit dans `%USERPROFILE%\bl-reception.log`.
 
 Les premières consignes de `routine-reception.md` sont ses deux modes, `MODE`
 pour les BL et `MODE FACTURES` pour les factures. Ils démarrent à **À BLANC** :
-la routine lit, contrôle, et envoie un récap disant ce qu'elle écrirait — sans
-rien écrire. La réception et le contrôle des factures continuent de se faire à
-la main dans l'appli, et les deux se comparent.
+la routine lit, contrôle et envoie son récap, sans rien écrire en base. La
+réception et le contrôle des factures continuent de se faire à la main dans
+l'appli, et les deux se comparent.
 
 La bascule en **ÉCRITURE** se décide sur un critère chiffré : **dix bons de
 livraison d'affilée sans une seule correction à apporter** pour les BL, **dix
