@@ -20,11 +20,12 @@ changer pour la faire basculer. Les deux valeurs possibles :
 - **À BLANC** — faire la lecture et tous les contrôles comme en écriture, et en
   rendre compte au point 6. **N'écrire absolument rien en base** : ni
   `qte_recue`, ni statut, ni prix, ni `traite_at`. Ne pas déplacer les photos non
-  plus. Seules écritures
-  permises, une fois le récap envoyé : ajouter chaque photo lue au registre
-  `BL\lus-a-blanc.txt` (voir « Où sont les photos ») et chaque facture contrôlée
-  au registre `BL\factures-rapprochees.txt` (point 8 f), pour ne pas les
-  reprendre au passage suivant.
+  plus. Seules écritures permises, une fois le récap envoyé : ajouter chaque
+  photo lue au registre `BL\lus-a-blanc.txt` (voir « Où sont les photos »),
+  écrire les lignes de chaque facture contrôlée au registre des achats
+  `cmd_achats` (point 8 f bis), puis l'inscrire au registre
+  `BL\factures-rapprochees.txt` (point 8 f), pour ne pas les reprendre au
+  passage suivant.
 - **ÉCRITURE** — appliquer la procédure complète : points 5 et 6 pour les BL,
   8 g pour les factures.
 
@@ -618,6 +619,43 @@ d'affilée sans correction, affiché en pied du mail. « partielle »,
 « illisible » et les avoirs ne comptent pas et ne remettent pas à zéro. À dix,
 proposer la bascule de `MODE FACTURES` dans le mail ; c'est au patron de la
 faire.
+
+### 8 f bis. Le registre des achats
+
+Seule écriture en base permise dès le mode À BLANC : le registre des achats
+`cmd_achats`, une table d'analyse que ni l'appli ni les commandes ne lisent. Il
+nourrira les statistiques de prix et de volumes (décision du patron du
+25/09/2026). Pour chaque facture ou avoir contrôlé — pas pour une facture
+reportée ou illisible —, une fois le mail parti et avant l'inscription au
+registre `factures-rapprochees.txt`, y écrire **toutes ses lignes** : les
+produits et les frais, pas les consignes.
+
+```sql
+insert into cmd_achats (facture_id, ligne, fournisseur_id, produit_id, date_livraison, numero_bl,
+  type, reference, designation, quantite, unite, quantite_base, unite_base, prix_base, montant_ht)
+values
+  ('<facture>', 1, '<fournisseur>', '<produit ou null>', '<date du BL>', '<n° du BL>',
+   'produit', '<réf.>', '<désignation de la facture>', <quantité>, '<unité facturée>',
+   <quantité de base>, '<kg | L | pièce>', <montant ÷ quantité de base>, <montant HT>)
+on conflict (facture_id, ligne) do nothing;
+```
+
+- `ligne` : le rang de la ligne sur la facture, 1, 2, 3… C'est ce qui empêche
+  un doublon si la facture repasse.
+- `date_livraison` : la date du BL de la ligne ; à défaut, celle de la facture.
+- `produit_id` : la fiche retrouvée au point 8 c ; au moindre doute, `null`.
+- Unité de base : **kg** pour une ligne facturée au poids, **L** au volume,
+  sinon **pièce** — bouteille, boîte, colis, tel que facturé. Le prix de base
+  est le montant divisé par cette quantité, droits compris chez Le Bihan.
+- Avoir : quantités et montants négatifs.
+- Frais (FA, F.G., logistique, transport…) : `type = 'frais'`, le montant seul.
+
+Contrôle : la somme des montants insérés pour une facture retombe sur son total
+HT, à quelques centimes d'arrondi près.
+
+Rattrapage : une facture inscrite au registre `factures-rapprochees.txt` mais
+absente de `cmd_achats` — les six contrôlées le 25/09/2026 au matin — se relit
+et s'écrit au registre des achats, sans revenir dans le mail.
 
 ### 8 g. En mode ÉCRITURE
 
