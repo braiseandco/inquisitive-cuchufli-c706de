@@ -410,18 +410,64 @@ async function facAnalyserTout() {
 }
 
 /* ─── Rapprochement facture ↔ commandes ↔ réception ─── */
+// Deux mots se valent s'ils partagent leurs 5 premières lettres ou à une lettre près (Landreau / Landereau)
+function facMemeMot(a, b) {
+  if (a.startsWith(b.slice(0, 5)) || b.startsWith(a.slice(0, 5))) return true;
+  if (Math.min(a.length, b.length) < 5 || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0; while (i < a.length && a[i] === b[i]) i++;
+  const ra = a.slice(i), rb = b.slice(i);
+  return ra.slice(1) === rb.slice(1) || ra.slice(1) === rb || ra === rb.slice(1);
+}
+function facScoreNom(a, b) {
+  const mots = facNorm(a).split(' ').filter(w => w.length > 2), pm = facNorm(b).split(' ').filter(w => w.length > 2);
+  return mots.filter(w => pm.some(x => facMemeMot(w, x))).length / Math.max(1, Math.min(mots.length, pm.length));
+}
+const facRefNorm = r => String(r || '').replace(/\D/g, '').replace(/^0+/, '');
+// Bouteilles par carton, caisse ou pack (« carton de 6 »), prix de l'appli à la bouteille
+function facParCarton(p) {
+  const m = p && /caisse|carton|pack/i.test(p.unite || '') && /de (\d+)/.exec(p.conditionnement || '');
+  return m ? +m[1] : 0;
+}
+const facProche = (x, y) => x > 0 && y > 0 && Math.abs(x - y) <= Math.max(0.011, y * 0.01);
+// Le prix facturé est-il ce prix de l'appli, tel quel, ramené à la bouteille du carton ou au kilo ?
+function facPrixProche(l, prix, p) {
+  const n = facParCarton(p), kg = p && p.poids_kg ? Number(p.poids_kg) : 0;
+  return [prix, prix / n, prix / kg].some(x => facProche(Number(x), l.pu));
+}
 function facTrouverProduit(f, l) {
   const prods = CUI.prods.filter(p => p.fournisseur_id === f.fournisseur_id);
-  if (l.ref) { const p = prods.find(p => p.reference && p.reference.replace(/\D/g, '').replace(/^0+/, '') === String(l.ref).replace(/\D/g, '').replace(/^0+/, '')); if (p) return p; }
-  const mots = facNorm(l.nom).split(' ').filter(w => w.length > 2);
-  let best = null, score = 0;
+  if (l.ref) { const p = prods.find(p => p.reference && facRefNorm(p.reference) === facRefNorm(l.ref)); if (p) return p; }
+  // À nom aussi proche (« Château d'Alix rouge » : Château d'Alix ou Château d'As Rouge ?), le prix départage
+  let best = null, score = 0, prixOk = false;
   prods.forEach(p => {
-    const pm = facNorm(p.nom).split(' ').filter(w => w.length > 2);
-    const hit = mots.filter(w => pm.some(x => x.startsWith(w.slice(0, 5)) || w.startsWith(x.slice(0, 5)))).length;
-    const sc = hit / Math.max(1, Math.min(mots.length, pm.length));
-    if (sc > score && hit >= 1) { score = sc; best = p; }
+    const nom = facScoreNom(l.nom, p.nom); if (nom < 0.5) return;
+    const px = facPrixProche(l, p.prix, p);
+    if (nom > score + 0.001 || (Math.abs(nom - score) <= 0.001 && px && !prixOk)) { best = p; score = nom; prixOk = px; }
   });
-  return score >= 0.5 ? best : null;
+  return best;
+}
+// Lignes facturées ↔ lignes de leur commande, toutes à la fois. Le nom seul départage mal deux
+// « Château … rouge » (Platins, 24/09/2026) : le prix et la quantité reçue, convertis au carton
+// ou au kilo, départagent. Une référence différente exclut la paire.
+function facAssocier(lignes, commandeDe) {
+  const paires = [];
+  lignes.forEach((l, i) => {
+    const o = commandeDe(l); if (!o) return;
+    o.lignes.forEach(cl => {
+      const p = CUI.prods.find(x => x.id === cl.produit_id);
+      const ref = facRefNorm(cl.reference || (p && p.reference)), memeRef = !!(l.ref && ref && ref === facRefNorm(l.ref));
+      if (l.ref && ref && !memeRef) return;
+      const n = facParCarton(p), kg = p && p.poids_kg ? Number(p.poids_kg) : 0;
+      const px = facPrixProche(l, cl.prix, p) || facPrixProche(l, p && p.prix, p);
+      const recu = Number(cl.qte_recue != null ? cl.qte_recue : cl.quantite);
+      const qt = [recu, recu * n, recu * kg].some(x => facProche(x, Math.abs(l.qte)));
+      const nom = memeRef ? 1 : facScoreNom(l.nom, cl.nom);
+      if (nom >= 0.5 || (nom > 0 && (px || qt))) paires.push({ i, cl, s: nom + (px ? 0.25 : 0) + (qt ? 0.25 : 0) });
+    });
+  });
+  const res = new Map(), pris = new Set();
+  paires.sort((a, b) => b.s - a.s).forEach(x => { if (!res.has(x.i) && !pris.has(x.cl.id)) { res.set(x.i, x.cl); pris.add(x.cl.id); } });
+  return res;
 }
 function facRapprocher(f) {
   const lj = f.lignes_json || { bls: [], lignes: [] };
@@ -440,19 +486,23 @@ function facRapprocher(f) {
   });
   const commandes = [...new Set(Object.values(parBl))];
   // 2) lignes
-  const usedL = new Set();
-  const lignes = lj.lignes.map(l => {
-    const p = facTrouverProduit(f, l);
-    const o = l.bl ? parBl[l.bl] : commandes[0];
-    const cl = p && o ? o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) : null;
-    if (cl) usedL.add(cl.id);
+  const commandeDe = l => l.bl ? parBl[l.bl] : commandes[0];
+  const assoc = facAssocier(lj.lignes, commandeDe);
+  const usedL = new Set([...assoc.values()].map(cl => cl.id));
+  const lignes = lj.lignes.map((l, i) => {
+    let cl = assoc.get(i) || null;
+    const p = cl ? CUI.prods.find(x => x.id === cl.produit_id) || null : facTrouverProduit(f, l);
+    const o = commandeDe(l);
+    if (!cl && p && o) { cl = o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) || null; if (cl) usedL.add(cl.id); }
     const uf = FAC_UNITES[(l.unite || '').toUpperCase()] || null;
     // Produit commandé au colis et facturé au poids : la quantité se compare dans l'unité de la ligne
     // de commande (celle du jour où elle est partie), le prix dans celle du produit, où il est stocké.
     const poidsQte = p ? facConvPoids({ unite: cl ? cl.unite : p.unite, poids_kg: p.poids_kg }, l.unite) : null;
     const poidsPrix = facConvPoids(p, l.unite_prix || l.unite);
-    const qteApp = poidsQte ? Math.round(l.qte / poidsQte * 1000) / 1000 : l.qte;
-    const compat = !!p && (!!poidsQte || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
+    // Vin commandé au carton, facturé à la bouteille : quantité ramenée au carton, prix déjà à la bouteille comme dans l'appli
+    const btl = uf === 'bouteille' && (!cl || /caisse|carton|pack/i.test(cl.unite || '')) ? facParCarton(p) : 0;
+    const qteApp = poidsQte ? Math.round(l.qte / poidsQte * 1000) / 1000 : btl ? Math.round(l.qte / btl * 1000) / 1000 : l.qte;
+    const compat = !!p && (!!poidsQte || !!btl || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
     let statut, detail = '';
     if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
     else if (!o) { statut = 'sans_commande'; }
@@ -466,7 +516,7 @@ function facRapprocher(f) {
       else statut = compat ? 'ok' : 'ok_unite';
     }
     // Prix facturé ramené à l'unité de prix de l'appli (bar : à la bouteille pour les caisses)
-    const par = /de (\d+)/.exec(p ? p.conditionnement || '' : ''); const parCaisse = par && !l.litres && p && /caisse|carton|pack/i.test(p.unite) ? +par[1] : 1;
+    const par = /de (\d+)/.exec(p ? p.conditionnement || '' : ''); const parCaisse = !btl && par && !l.litres && p && /caisse|carton|pack/i.test(p.unite) ? +par[1] : 1;
     const puApp = l.pu ? Math.round((poidsPrix ? l.pu * poidsPrix : l.pu / parCaisse) * 1000) / 1000 : null;
     let prix = null;
     if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
@@ -490,6 +540,12 @@ async function facOpen(id, relire) {
     catch (e) { console.error(e); cuiToast('Lecture du PDF impossible : ' + e.message); }
   }
   const rap = facRapprocher(f);
+  // Le nombre d'écarts de la liste date de la lecture du PDF : on le recale si le rapprochement a changé depuis
+  const r = f.ecarts_json;
+  if (r && r.nb_ecarts != null && r.nb_ecarts !== rap.ecarts.length && rap.commandes.length) {
+    f.ecarts_json = { ...r, nb_ecarts: rap.ecarts.length };
+    cuiPATCH('cmd_factures?id=eq.' + f.id, { ecarts_json: f.ecarts_json }).then(facRender).catch(() => {});
+  }
   const lj = f.lignes_json || {};
   const stIcon = { ok: '✓', ok_unite: '✓', quantite: '⚠️', non_commande: '❓', sans_commande: '·', avoir: '↩' };
   const stColor = { ok: 'var(--ok)', ok_unite: 'var(--ok)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)', avoir: 'var(--ok)' };
