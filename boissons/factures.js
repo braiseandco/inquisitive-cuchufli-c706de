@@ -460,7 +460,8 @@ function facRapprocher(f) {
     else {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
       const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
-      if (compat && Math.abs(recu - qteApp) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
+      if (o.statut === 'non_recue') { statut = 'quantite'; detail = 'facturé, commande déclarée non reçue'; }
+      else if (compat && Math.abs(recu - qteApp) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
       else if (cl.ecart) { statut = 'quantite'; detail = cl.ecart; }
       else statut = compat ? 'ok' : 'ok_unite';
     }
@@ -473,7 +474,7 @@ function facRapprocher(f) {
   });
   // 3) reçu mais pas facturé
   const nonFactures = [];
-  if (!lj.avoir) commandes.forEach(o => o.lignes.forEach(cl => { if (!usedL.has(cl.id) && (cl.qte_recue == null || Number(cl.qte_recue) > 0)) nonFactures.push({ commande: o, cmdLigne: cl }); }));
+  if (!lj.avoir) commandes.filter(o => o.statut !== 'non_recue').forEach(o => o.lignes.forEach(cl => { if (!usedL.has(cl.id) && (cl.qte_recue == null || Number(cl.qte_recue) > 0)) nonFactures.push({ commande: o, cmdLigne: cl }); }));
   const ecarts = lignes.filter(l => l.statut === 'quantite' || l.statut === 'non_commande');
   return { commandes, lignes, nonFactures, ecarts, parBl };
 }

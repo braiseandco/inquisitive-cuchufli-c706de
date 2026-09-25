@@ -333,7 +333,8 @@ dire :
    frais nouveau ou en hausse (8 e) est une hausse.
 2. **FACTURÉ, PAS REÇU** — ce que le fournisseur fait payer, sur sa facture ou
    déjà sur son BL, sans que la réception l'ait enregistré : un BL facturé sans
-   aucune réception, une ligne facturée mais notée non livrée ou refusée, une
+   aucune réception, une commande déclarée non reçue dans l'appli (8 c), une
+   ligne facturée mais notée non livrée ou refusée, une
    quantité facturée supérieure à la quantité reçue (8 d), un avoir attendu
    depuis plus de 15 jours. Pour chacun : le montant, et ce qu'il faut faire.
 3. **CONTRÔLÉS** — une ligne par document : fournisseur, numéro, montant HT, et
@@ -500,7 +501,7 @@ order by l.commande_id, l.ordre;
 
 Même règle qu'au point 3 : **en cas de doute sur la commande, ne rien affirmer.**
 
-Trois cas à connaître :
+Quatre cas à connaître :
 
 - **Commande annulée, pourtant livrée.** Le 24/09/2026, quatorze commandes
   anciennes sont passées en `annulee`, note « Clôturée le 24/09/2026 : jamais
@@ -509,6 +510,10 @@ Trois cas à connaître :
   73172530, est celui de la commande O260917QM6IFB. Une commande annulée reste
   donc candidate ; si un BL facturé y mène, c'est une **livraison jamais
   réceptionnée**.
+- **Commande déclarée non reçue** — statut `non_recue`, posé par la touche
+  « Non reçue » de l'appli : rien n'est arrivé. Tout ce qu'une facture en porte
+  va dans FACTURÉ, PAS REÇU et devient un avoir attendu. C'est la différence avec
+  une commande annulée, qui peut avoir été livrée.
 - **Réception « de principe ».** Quand toutes les quantités reçues d'une commande
   sont exactement les quantités commandées, produits pesés compris, la réception
   a presque toujours été validée sans relire le BL. Si la facture s'en écarte sur

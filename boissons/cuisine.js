@@ -66,7 +66,7 @@ const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g,
 // interne de l'appli, on ne le montre ni à l'équipe ni au fournisseur
 const cuiNumFourn = o => (o.confirmation_json && o.confirmation_json.numero) || (o.numero && !/^BC\d/.test(o.numero) ? o.numero : '');
 const cuiNumAff = o => cuiNumFourn(o) ? 'n° ' + cuiNumFourn(o) : 'n° fournisseur en attente';
-const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée' }[s] || s);
+const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée', non_recue: 'Non reçue' }[s] || s);
 
 /* ─── Chargement ─── */
 async function cuiLoad(silent) {
@@ -449,6 +449,7 @@ function cuiOpenOrder(id) {
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
     ${o.mail_envoye_le ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">✉️ Mail parti le ${cuiDT(o.mail_envoye_le)}</div>` : o.mail_erreur ? `<div class="prod-meta" style="margin-top:4px;color:var(--danger)">⚠️ Dernier envoi du mail en échec : ${cuiEsc(o.mail_erreur)}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
+    ${o.statut === 'non_recue' ? `<div class="prod-meta" style="margin-top:4px;color:var(--orange)">🚫 ${cuiEsc(o.reception_note || 'Rien n\'est arrivé')} — ne doit pas être facturée</div>` : ''}
     <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div></div>
     <div class="modal-section"><div class="ms-label">Produits</div>
       ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiConfQte(o, l)}${cuiLineTotal(l, o) != null ? ' · ' + cuiEur(cuiLineTotal(l, o)) : ''}</span></div>`).join('')}
@@ -464,6 +465,7 @@ function cuiOpenOrder(id) {
           ? `<button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>`
           : `<button class="btn-secondary" onclick="document.getElementById('cui-o-photo-input').click()">📷 Prendre photo</button>
              <input type="file" accept="image/*" capture="environment" id="cui-o-photo-input" style="display:none" onchange="cuiPhotoBL('${o.id}', this)">`}
+        ${(o.statut === 'envoyee' || o.statut === 'confirmee') && !o.date_reception ? `<button class="btn-secondary" style="color:var(--orange)" onclick="cuiNonRecue('${o.id}')">🚫 Non reçue</button>` : ''}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="cuiSetStatus('${o.id}','annulee')">Annuler</button>` : ''}
       </div>
       <details style="margin-top:6px"><summary style="color:var(--muted);font-size:13px;cursor:pointer;padding:6px 0">Renvoyer la commande…</summary><div style="padding-top:8px">${cuiSendButtons(o)}</div></details>
@@ -475,6 +477,17 @@ async function cuiSetStatus(id, statut) {
   if (statut === 'annulee' && !confirm('Annuler cette commande ?')) return;
   o.statut = statut; cuiOpenOrder(id); cuiRender();
   await cuiPATCH('cmd_commandes?id=eq.' + id, { statut, updated_at: new Date().toISOString() }).catch(() => cuiToast('Erreur'));
+}
+// Rien n'est arrivé : à la différence d'une commande annulée, le fournisseur l'a peut-être
+// expédiée et la facturera — le contrôle des factures signale alors tout ce qu'il en facture.
+async function cuiNonRecue(id) {
+  const o = CUI.orders.find(x => x.id === id);
+  if (!confirm('Rien n\'est arrivé pour cette commande ?\nElle ne devra pas être facturée : si une facture la porte, elle sera signalée.')) return;
+  const patch = { statut: 'non_recue', reception_note: `Non reçue — signalé le ${new Date().toLocaleDateString('fr-FR')}${cuiWho() ? ' par ' + cuiWho() : ''}`, updated_at: new Date().toISOString() };
+  try {
+    await cuiPATCH('cmd_commandes?id=eq.' + id, patch);
+    Object.assign(o, patch); cuiOpenOrder(id); cuiRender(); cuiToast('Commande marquée non reçue');
+  } catch (e) { cuiToast('Erreur, réessayez'); }
 }
 function cuiReorder(id) {
   const o = CUI.orders.find(x => x.id === id);
@@ -544,7 +557,7 @@ function cuiOpenReception(id) {
       <div class="prod-meta" style="margin-top:6px">La photo est rattachée à cette commande : le contrôle du BL n'aura pas à deviner de quelle livraison il s'agit.</div>
     </div>
     <div class="modal-section" id="cui-r-lines">${CUI._rec.lines.map(cuiRecLine).join('')}</div>
-    <div class="form-row"><label>Remarque</label><input id="cui-r-note" value="${cuiEsc(o.reception_note || '')}" placeholder="ex : colis ouvert, chauffeur prévenu"></div>
+    <div class="form-row"><label>Remarque</label><input id="cui-r-note" value="${cuiEsc(o.statut === 'non_recue' ? '' : o.reception_note || '')}" placeholder="ex : colis ouvert, chauffeur prévenu"></div>
     <div class="modal-actions">
       <button class="btn-primary" onclick="cuiSaveReception()">✓ Valider la réception</button>
       <button class="btn-secondary" onclick="cuiRecAllOk()">Tout est conforme</button>
