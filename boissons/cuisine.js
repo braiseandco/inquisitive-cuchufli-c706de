@@ -788,7 +788,7 @@ async function cuiOpenRecap(year, month) {
     const ft = fac.bySup[id], nf = fac.nSup[id] || 0;
     const meta = [nf ? `${nf} facture${nf > 1 ? 's' : ''}` : '', a.n ? `${a.n} commande${a.n > 1 ? 's' : ''} · estimé ${cuiEur(a.t) || '—'}` : ''].filter(Boolean).join(' · ');
     const det = month != null && nf ? `<div id="cui-recap-det-${id}" class="hidden" style="padding:4px 0 6px 12px;font-size:12px;color:var(--muted)">${fac.factures.filter(f => f.fournisseur_id === id).map(f => `<div style="display:flex;justify-content:space-between"><span>${cuiD(f.date)} · ${f.avoir ? 'avoir ' : 'n° '}${cuiEsc(f.numero || '—')}</span><span>${cuiEur(f.ht)}</span></div>`).join('')}</div>` : '';
-    return `<div class="order-line" ${det ? `onclick="cui$('cui-recap-det-${id}').classList.toggle('hidden')" style="cursor:pointer"` : ''}><span>${s.emoji || ''} ${cuiEsc(s.nom)}<div class="prod-meta">${meta}</div></span><span class="order-line-qty">${ft != null ? cuiEur(ft) : '<span style="color:var(--muted)">' + (cuiEur(a.t) || '—') + '</span>'}</span></div>${det}`;
+    return `<div class="order-line" ${det ? `onclick="cui$('cui-recap-det-${id}').classList.toggle('hidden')" style="cursor:pointer"` : ''}><span>${s.emoji || ''} ${cuiEsc(s.nom)}<div class="prod-meta">${meta}${meta ? ' · ' : ''}<a href="#" style="color:var(--orange)" onclick="event.preventDefault();event.stopPropagation();cuiOpenStatsSup('${id}')">📈 prix et volumes</a></div></span><span class="order-line-qty">${ft != null ? cuiEur(ft) : '<span style="color:var(--muted)">' + (cuiEur(a.t) || '—') + '</span>'}</span></div>${det}`;
   }).join('') || `<div class="prod-meta">Aucun achat ${month == null ? 'cette année' : 'ce mois-ci'}.</div>`;
   if (fac.n) { Object.assign(byMonth, fac.byMonth); total = fac.total; }
   const maxM = Math.max(1, ...Object.values(byMonth));
@@ -822,6 +822,55 @@ function cuiRecapCopy() {
   if (r.hausses && r.hausses.length) { lines.push('', 'Prix en hausse :'); r.hausses.slice(0, 25).forEach(h => lines.push(`   ${h.produit.nom} : ${cuiEur(h.avant)} → ${cuiEur(h.apres)} (${h.pct > 0 ? '+' : ''}${h.pct} %)`)); }
   if (r.fac.nonLues) lines.push(`(${r.fac.nonLues} facture(s) sans montant, non comptée(s))`);
   navigator.clipboard.writeText(lines.join('\n')).then(() => cuiToast('Rapport copié'));
+}
+
+/* ─── Achats d'un fournisseur : volumes et prix de chaque produit, mois par mois ───
+   Source : le registre des achats (cmd_achats), une ligne par ligne de facture, datée par son BL.
+   Avant le 25/09/2026, toutes les factures ne sont pas en base : volumes partiels (*). */
+async function cuiOpenStatsSup(id) {
+  const s = cuiSup(id) || { nom: '?' };
+  const titre = `📈 ${cuiEsc(s.nom)} · prix et volumes`;
+  cuiModal(titre, '<div class="empty-state">Chargement…</div>');
+  const now = new Date();
+  const mois = [3, 2, 1, 0].map(k => cuiIso(new Date(now.getFullYear(), now.getMonth() - k, 1)).slice(0, 7));
+  let lignes, factures;
+  try {
+    [lignes, factures] = await Promise.all([
+      cuiGET(`cmd_achats?fournisseur_id=eq.${id}&type=eq.produit&date_livraison=gte.${mois[0]}-01&select=produit_id,designation,quantite_base,unite_base,montant_ht,date_livraison`),
+      cuiGET(`cmd_factures?fournisseur_id=eq.${id}&type=in.(facture,avoir)&date_facture=gte.${mois[0]}-01&select=date_facture,montant_ht`),
+    ]);
+  } catch (e) { cuiModal(titre, '<div class="empty-state">Erreur de connexion</div>'); return; }
+  const tot = {};
+  factures.forEach(f => { const m = (f.date_facture || '').slice(0, 7); tot[m] = (tot[m] || 0) + Number(f.montant_ht || 0); });
+  const prods = {};
+  lignes.forEach(l => {
+    const k = (l.produit_id || cuiNorm(l.designation)) + '|' + l.unite_base, m = l.date_livraison.slice(0, 7);
+    const p = prods[k] = prods[k] || { nom: (l.produit_id && (CUI.prods.find(x => x.id === l.produit_id) || {}).nom) || l.designation, u: l.unite_base, m: {}, t: 0 };
+    const c = p.m[m] = p.m[m] || { q: 0, t: 0 };
+    c.q += Number(l.quantite_base || 0); c.t += Number(l.montant_ht || 0); p.t += Number(l.montant_ht || 0);
+  });
+  const U = { kg: 'kg', L: 'L', 'pièce': 'pc' };
+  const ecart = (a, b, dec) => b ? Math.round((a - b) / Math.abs(b) * (dec ? 1000 : 100)) / (dec ? 10 : 1) : null;
+  const signe = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toLocaleString('fr-FR');
+  // Prix : hausse en rouge, baisse en vert ; sous 1 %, c'est de l'arrondi
+  const fleche = v => v == null || Math.abs(v) < 1 ? '' : ` <span style="color:${v > 0 ? 'var(--danger)' : 'var(--ok)'}">${v > 0 ? '▲' : '▼'} ${signe(v)} %</span>`;
+  const grille = cells => `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;margin-top:4px">${cells.join('')}</div>`;
+  const entete = grille(mois.map(m => `<div class="prod-meta">${CUI_MOIS[+m.slice(5) - 1]} ${m.slice(2, 4)}${m < '2026-10' ? '*' : ''}</div>`));
+  const totaux = grille(mois.map((m, i) => `<div><b>${tot[m] != null ? cuiEur(tot[m]) : '—'}</b>${i && tot[m] != null && tot[mois[i - 1]] ? `<span class="prod-meta"> (${signe(ecart(tot[m], tot[mois[i - 1]]))} %)</span>` : ''}</div>`));
+  const liste = Object.values(prods).filter(p => mois.some(m => p.m[m])).sort((a, b) => b.t - a.t).map(p => {
+    const u = U[p.u] || p.u;
+    return `<div class="order-line" style="flex-direction:column;align-items:stretch;padding:8px 0"><div>${cuiEsc(p.nom)}</div>${grille(mois.map((m, i) => {
+      const c = p.m[m], prev = p.m[mois[i - 1]];
+      if (!c || !c.q) return '<div class="prod-meta">—</div>';
+      const vq = prev && prev.q ? ecart(c.q, prev.q) : null;
+      return `<div>${cuiQty(Math.round(c.q * 10) / 10)} ${u}${vq != null ? `<span class="prod-meta"> (${signe(vq)} %)</span>` : ''}<br>${cuiEur(c.t / c.q)}/${u}${prev && prev.q ? fleche(ecart(c.t / c.q, prev.t / prev.q, true)) : ''}</div>`;
+    }))}</div>`;
+  }).join('') || '<div class="prod-meta">Aucune ligne de facture sur ces quatre mois.</div>';
+  cuiModal(titre, `
+    <div class="modal-section"><div class="ms-label">Facturé HT par mois</div>${entete}${totaux}</div>
+    <div class="modal-section"><div class="ms-label">Par produit : volume, puis prix moyen</div>${entete}${liste}
+      <div class="prod-meta" style="margin-top:8px">* Avant le 25/09/2026, une partie des factures manque : volumes de ces mois-là incomplets. Les prix, eux, sont exacts.</div></div>
+    <div class="modal-actions"><button class="btn-secondary" onclick="cuiOpenRecap()">‹ Récap des achats</button><button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
 }
 
 /* ─── Produit : ajout / édition ─── */

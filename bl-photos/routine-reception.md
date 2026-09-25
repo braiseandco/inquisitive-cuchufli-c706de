@@ -583,7 +583,11 @@ restaurant, rien à signaler.
 - **YesFood** : une centaine de kilos de cœur de rumsteak commandés, entre 80
   et 110 livrés, c'est normal — jamais d'alerte sur le poids. Suivre le prix au
   kilo (10,90 € en juillet 2026, 9,90 € depuis le 17/08) et le volume. La fiche
-  n'a pas de prix : comparer à la facture YesFood précédente.
+  n'a pas de prix : comparer à la facture YesFood précédente. Toutes les
+  désignations de cœur de rumsteak (« PAD 2.0+ », « 2.5+ », « 3.5+ »,
+  « Simmental », « cœur de rumsteck »…) se rattachent à la fiche « Coeur
+  Rumsteak Pad 2.0+ » (réf. BCR2) : le patron suit le rumsteak dans son
+  ensemble. L'entrecôte est un autre produit.
 
 ### 8 f. Rendre compte
 
