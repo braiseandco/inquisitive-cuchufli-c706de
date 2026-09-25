@@ -130,9 +130,12 @@ métadonnées. Deux cas se sont présentés :
 Donc : appliquer l'EXIF s'il y a lieu, regarder le résultat, et pivoter selon le
 contenu si le texte n'est pas horizontal.
 
-Si le premier caractère des codes produits est coupé sur le bord gauche, le
-déduire du contexte (les codes DS font 5 chiffres) et le signaler dans le récap —
-c'est un défaut de cadrage, à corriger côté serveur.
+Si le premier caractère des codes produits est coupé sur le bord gauche,
+retrouver le produit par sa désignation et les fiches produits (les codes DS
+font 5 chiffres). Chez DS, c'est l'impression qui déborde du papier, pas la
+photo : sur les BL 1202838 et 1202839 du 25/09/2026, la feuille entière est dans
+le cadre. N'en parler dans le récap que si la désignation ne suffit pas à
+retrouver la fiche.
 
 ## 2. Lire, puis vérifier la lecture
 
