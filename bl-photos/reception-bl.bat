@@ -34,13 +34,14 @@ echo. >> "%JOURNAL%"
 echo ======== %DATE% %TIME% ======== >> "%JOURNAL%"
 
 rem Sans Drive, la routine ne voit aucune photo : on le relance et on l'attend 3 minutes.
+rem Via cmd /c : lance seul, launch.bat laissait une fenetre System32 ouverte.
 set "ALERTE="
 set /a ESSAIS=0
 :attente_drive
 if exist "%BL%\" goto drive_ok
 if %ESSAIS%==0 (
   echo [Drive] dossier BL absent, lancement de Google Drive >> "%JOURNAL%"
-  tasklist /fi "imagename eq GoogleDriveFS.exe" | find /i "GoogleDriveFS" >nul || start "" "C:\Program Files\Google\Drive File Stream\launch.bat"
+  tasklist /fi "imagename eq GoogleDriveFS.exe" | find /i "GoogleDriveFS" >nul || start "" /min cmd /c "C:\Program Files\Google\Drive File Stream\launch.bat"
 )
 set /a ESSAIS+=1
 if %ESSAIS% gtr 18 goto drive_absent
