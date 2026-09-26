@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal
 rem -------------------------------------------------------------------------
 rem  Reception des bons de livraison et controle des factures - lance par la
-rem  tache Windows " Reception BL " (ouverture de session + 15h). Voir README.md.
+rem  tache Windows " Reception BL " (mercredi et samedi a 15h). Voir README.md.
 rem
 rem  Tout ce que fait la session est decrit dans routine-reception.md, dont les
 rem  modes (A BLANC ou ECRITURE) sont la premiere consigne. Ce fichier ne decide

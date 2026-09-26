@@ -101,10 +101,17 @@ lues. Le compte rendu s'écrit dans `%USERPROFILE%\bl-reception.log`.
 
 | Réglage | Valeur |
 |---|---|
-| Déclencheurs | à l'ouverture de session + 2 min, et tous les jours à 15h |
+| Déclencheurs | le mercredi et le samedi à 15h |
 | Action | `cmd /c start "Reception BL" /min /wait cmd /c "%USERPROFILE%\bl\reception-bl.bat"` |
 | Conditions | tourne sur batterie, réveille le PC, rattrape un passage manqué |
 | Instances | une seule à la fois, arrêt au bout d'1 h |
+
+Deux passages par semaine depuis le 26/09/2026, au lieu de deux par jour :
+chaque passage coûte environ 0,40 $ rien que pour démarrer, alors qu'une photo
+ou une facture n'est lue qu'une fois, quel que soit le rythme. Les livraisons
+tombent du lundi au mercredi (YesFood le lundi), puis le jeudi et le vendredi :
+le mercredi lit les premières, le samedi les suivantes, et son récap arrive la
+veille des commandes du dimanche, avec les prix à valider sur les fiches.
 
 ## Du mode à blanc à l'écriture
 
@@ -121,12 +128,13 @@ factures d'affilée** pour les factures. Une ligne à changer dans la consigne,
 rien d'autre.
 
 Le compteur des factures est tenu dans `BL\factures-rapprochees.txt` et affiché
-chaque jour dans le mail. Quand la routine s'est trompée sur une facture, écrire
+dans chaque mail. Quand la routine s'est trompée sur une facture, écrire
 au bout de sa ligne « CORRIGÉ le <date> : <ce qui était faux> » — ou le demander
 à Claude : le compteur repart de zéro.
 
 Calendrier visé : à blanc d'octobre à novembre 2026, bascule en décembre,
-routine établie en janvier 2027.
+routine établie en janvier 2027. À la bascule, revoir le rythme : les réceptions
+ne s'écriront qu'au passage du mercredi ou du samedi.
 
 ## Ce que la routine ne fera jamais
 
@@ -135,15 +143,16 @@ doivent passer — prix × quantité, somme contre sous-total, recoupement d'au 
 deux prix de fiches — et la commande doit être identifiée sans ambiguïté. Sinon
 elle s'abstient et le signale dans son récap.
 
-Elle rend compte tous les jours, **même quand il n'y a rien**. Le silence doit
+Elle rend compte à chaque passage, **même quand il n'y a rien**. Le silence doit
 vouloir dire « la chaîne est cassée », jamais « rien à signaler ».
 
 ## Limites connues
 
 - Rien ne se passe si le PC reste éteint. Les photos s'empilent dans Drive et
-  seront traitées à la prochaine ouverture de session, mais les écarts sont
-  signalés d'autant plus tard.
-- Quatre maillons peuvent casser en silence, d'où le récap quotidien.
+  seront traitées dès qu'il sera rallumé (passage rattrapé), mais les écarts
+  sont signalés d'autant plus tard.
+- Quatre maillons peuvent casser en silence, d'où un récap à chaque passage :
+  pas de mail un mercredi ou un samedi, c'est que la chaîne est cassée.
 - Si le PC finit par être trop souvent éteint, il existe une version qui ne
   dépend de rien : le script Google envoie lui-même la photo à l'API Claude et
   écrit la réception. Plus besoin ni de Drive, ni du PC — mais c'est payant,
