@@ -480,6 +480,7 @@
   </div>
   <div id="sunday-info" class="sunday-badge hidden">
     📅 <span id="sunday-text"></span>
+    <button id="sunday-skip" class="btn-secondary hidden" style="margin-left:auto;padding:6px 10px;font-size:12px" onclick="pasDeCommandeLebihan()">Pas de commande cette fois</button>
   </div>
   <div id="commande-list"></div>
   <div style="padding:12px 16px 4px">
@@ -522,6 +523,7 @@
       <button class="btn-icon" onclick="cuiOpenSupEdit()" title="Fournisseur">⚙️</button>
       <button class="btn-icon" onclick="cuiOpenProdEdit()" title="Ajouter un produit" style="color:var(--orange);font-size:22px">＋</button>
     </div>
+    <div id="cui-sup-rappel"></div>
     <div class="search-bar"><input type="search" class="search-input" id="cui-search" placeholder="Rechercher un produit…" autocomplete="off" oninput="cuiRenderProducts()"></div>
     <div class="cui-chips" id="cui-chips"></div>
     <div id="cui-list"></div>
@@ -891,7 +893,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-09-26.5';
+const APP_VERSION = '2026-09-26.6';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1414,6 +1416,12 @@ function updateSundayInfo() {
     txt.textContent = `Prochaine commande : dimanche ${ns.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`;
     el.classList.remove('hidden');
   }
+  // Rappel Le Bihan du dimanche : caché dès qu'une commande est partie ou a été écartée
+  const actif = typeof cuiRappelActif === 'function' ? cuiRappelActif(/bihan/i) : null;
+  document.getElementById('sunday-skip').classList.toggle('hidden', !isSunday || actif === false);
+}
+async function pasDeCommandeLebihan() {
+  if (typeof cuiPasCetteFoisBar === 'function' && await cuiPasCetteFoisBar(/bihan/i)) updateSundayInfo();
 }
 
 /* ═══════════════ CONFIRMATION / SMS ═══════════════ */

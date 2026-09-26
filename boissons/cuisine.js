@@ -33,6 +33,13 @@ const cuiDT = d => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', mon
 const cuiIso = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
 // Restaurant fermé le lundi : une livraison qui y tomberait passe au mardi
 const cuiSansLundi = iso => { const x = new Date(iso + 'T12:00:00'); if (x.getDay() === 1) x.setDate(x.getDate() + 1); return cuiIso(x); };
+// Aujourd'hui + délai, avancé au premier jour où le fournisseur livre (jours_livraison : Le Bihan le mercredi)
+function cuiDateLivraison(s, delai) {
+  const x = new Date(); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() + delai);
+  const jours = s.jours_livraison || [];
+  for (let i = 0; i < 7 && (x.getDay() === 1 || (jours.length && !jours.includes(x.getDay()))); i++) x.setDate(x.getDate() + 1);
+  return cuiIso(x);
+}
 function cuiWho() { return (typeof settings !== 'undefined' && settings.serveur) || ''; }
 function cuiToast(m) {
   const d = document.createElement('div');
@@ -90,7 +97,7 @@ async function cuiLoad(silent) {
 }
 function cuiRender() {
   if (!CUI.loaded) return;
-  if (CUI.supId && !cui$('cui-sup').classList.contains('hidden')) { cuiRenderChips(); cuiRenderProducts(); cuiRenderBar(); }
+  if (CUI.supId && !cui$('cui-sup').classList.contains('hidden')) { cuiRenderSupRappel(); cuiRenderChips(); cuiRenderProducts(); cuiRenderBar(); }
   else if (!cui$('cui-hist').classList.contains('hidden')) cuiRenderHistory();
   else if (!cui$('cui-fact').classList.contains('hidden')) { if (typeof facRender === 'function') facRender(); }
   else cuiRenderHome();
@@ -110,16 +117,37 @@ function cuiShowHome() {
 }
 const CUI_JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const CUI_JOURS_COURT = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
-// Fournisseurs à commander aujourd'hui (rappel_jours) sans commande envoyée depuis ce matin
+// Fournisseurs à commander aujourd'hui (rappel_jours) sans commande envoyée depuis ce matin, ni « pas de commande cette fois »
 function cuiRappels() {
   const now = new Date(); const jour = now.getDay(); const debut = new Date(now); debut.setHours(4, 0, 0, 0);
-  return CUI.sups.filter(s => (s.rappel_jours || []).includes(jour)
+  return CUI.sups.filter(s => (s.rappel_jours || []).includes(jour) && s.rappel_ignore_le !== cuiIso(now)
     && !CUI.orders.some(o => o.fournisseur_id === s.id && o.statut !== 'brouillon' && o.statut !== 'annulee' && cuiVisible(o) && new Date(o.date_commande) >= debut));
 }
 function cuiOuvrirRappel(id) {
   const s = cuiSup(id);
   if (s && s.actif === false && /bihan/i.test(s.nom) && typeof switchTab === 'function') switchTab('commande');
   else cuiShowSup(id);
+}
+// « Pas de commande cette fois » : écarté en base, le rappel du jour disparaît sur tous les appareils
+async function cuiEcarterRappel(s) {
+  if (!confirm(`Pas de commande ${s.nom} aujourd'hui ?\nLe rappel disparaîtra sur tous les appareils.`)) return false;
+  const auj = cuiIso(Date.now());
+  try { await cuiPATCH('cmd_fournisseurs?id=eq.' + s.id, { rappel_ignore_le: auj }); }
+  catch (e) { console.error(e); cuiToast('Erreur, réessayez'); return false; }
+  s.rappel_ignore_le = auj; cuiToast(`Pas de commande ${s.nom} aujourd'hui`);
+  return true;
+}
+async function cuiPasCetteFois(id) { if (await cuiEcarterRappel(cuiSup(id))) cuiShowHome(); }
+// Le Bihan se commande depuis l'onglet du bar, qui n'a pas de fiche Cuisine
+async function cuiPasCetteFoisBar(motif) {
+  if (!CUI.loaded) await cuiLoad(true);
+  const s = CUI.sups.find(x => motif.test(x.nom));
+  return !!s && cuiEcarterRappel(s);
+}
+const cuiRappelActif = motif => CUI.loaded ? cuiRappels().some(x => motif.test(x.nom)) : null;
+function cuiRenderSupRappel() {
+  const s = cuiSup(CUI.supId);
+  cui$('cui-sup-rappel').innerHTML = s && cuiRappels().includes(s) ? `<div class="alert-banner" style="margin:4px 16px 8px;display:flex;align-items:center;gap:10px"><span style="font-size:20px">⏰</span><span style="flex:1"><b>À commander aujourd'hui</b></span><button class="btn-secondary" style="padding:6px 10px;font-size:12px" onclick="cuiPasCetteFois('${s.id}')">Pas de commande cette fois</button></div>` : '';
 }
 function cuiRenderHome() {
   const rap = cuiRappels();
@@ -162,7 +190,7 @@ function cuiShowSup(id) {
   cui$('cui-sup-sub').textContent = [s.jours_commande, contact, s.commercial_nom ? s.commercial_nom + ' ' + (s.commercial_tel || '') : null].filter(Boolean).join(' · ');
   const d = cuiDraftFor(id); cui$('cui-note').value = d && d.note ? d.note : '';
   cui$('cui-home').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden'); cui$('cui-sup').classList.remove('hidden');
-  cuiRenderChips(); cuiRenderProducts(); cuiRenderBar();
+  cuiRenderSupRappel(); cuiRenderChips(); cuiRenderProducts(); cuiRenderBar();
   cui$('panel-cuisine').scrollTop = 0;
 }
 const cuiSupCats = () => CUI.cats.filter(c => c.fournisseur_id === CUI.supId);
@@ -388,7 +416,7 @@ function cuiSendButtons(o) {
 function cuiOpenConfirm() {
   const d = cuiDraftFor(CUI.supId); if (!d || !d.lignes.length) return;
   const s = cuiSup(CUI.supId);
-  const defDate = cuiSansLundi(d.date_livraison || cuiIso(Date.now() + (s.delai_livraison_jours || 1) * 864e5));
+  const defDate = cuiSansLundi(d.date_livraison || cuiDateLivraison(s, s.delai_livraison_jours || 1));
   CUI._pending = { ...d, numero: cuiNextNumero(), date_livraison: defDate, commande_par: cuiWho(), note: cui$('cui-note').value.trim() };
   cuiModal(`Commander ${cuiEsc(s.nom)}`, `
     <div class="modal-section"><div class="ms-label">Livraison souhaitée</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="cuiChoisirLivraison(this)"></div>
@@ -434,7 +462,7 @@ async function cuiValidate() {
     const today = cuiIso(Date.now());
     const ids = d.lignes.map(l => l.produit_id).filter(Boolean);
     if (ids.length) { await cuiPATCH('cmd_produits?id=in.(' + ids.join(',') + ')', { derniere_commande: today }); CUI.prods.forEach(x => { if (ids.includes(x.id)) x.derniere_commande = today; }); }
-    cuiCloseModal(); cui$('cui-note').value = ''; cuiRenderProducts(); cuiRenderBar();
+    cuiCloseModal(); cui$('cui-note').value = ''; cuiRenderSupRappel(); cuiRenderProducts(); cuiRenderBar();
     cuiToast('Commande enregistrée');
   } catch (e) { console.error(e); cuiToast('Erreur, réessayez'); }
 }
@@ -740,8 +768,8 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
     // Prix de ligne = prix de l'unité commandée (le bar stocke le litre pour les fûts, la bouteille pour les caisses)
     lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
   }
-  const d = new Date(); const liv = new Date(d.getTime() + (sup.delai_livraison_jours ?? 2) * 864e5);
-  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiSansLundi(cuiIso(liv)), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
+  const d = new Date();
+  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiDateLivraison(sup, sup.delai_livraison_jours ?? 2), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
   CUI.orders.unshift({ ...cmd, lignes: rows });
   cuiRender();
