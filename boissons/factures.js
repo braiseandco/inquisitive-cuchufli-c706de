@@ -129,13 +129,13 @@ function facRender() {
     </div>`;
   }).join('') || '<div class="empty-state">Aucune facture.</div>';
 }
-// Les lignes lues doivent retomber sur le total HT, aux frais près (gestion, transport, accises) : au-delà de
-// 25 € et de 3 % d'écart, le lecteur a manqué des lignes. Renvoie alors le montant des lignes lues.
+// Les lignes et les frais lus doivent retomber sur le total HT : au-delà de 5 centimes d'arrondi, le lecteur a
+// manqué quelque chose. Renvoie alors le montant lu.
 function facLectureIncomplete(f) {
-  const lg = f.lignes_json && f.lignes_json.lignes;
+  const lj = f.lignes_json, lg = lj && lj.lignes;
   if (!lg || !lg.length || f.montant_ht == null) return null;
-  const lu = Math.round(lg.reduce((a, l) => a + (Number(l.montant) || 0), 0) * 100) / 100, ht = Number(f.montant_ht);
-  return Math.abs(ht - lu) > Math.max(25, Math.abs(ht) * 0.03) ? lu : null;
+  const lu = Math.round((lg.reduce((a, l) => a + (Number(l.montant) || 0), 0) + (Number(lj.frais) || 0)) * 100) / 100;
+  return Math.abs(Number(f.montant_ht) - lu) > 0.05 ? lu : null;
 }
 
 /* ─── Lecture du PDF (pdf.js) ─── */
@@ -181,11 +181,12 @@ async function facPdfLines(buf) {
 }
 
 /* ─── Parseurs : un par format de facture ───
-   Résultat : { bls:[{numero,date}], lignes:[{bl,ref,nom,qte,unite,pu,montant}], numero, date, echeance, ht, tva, ttc } */
+   Résultat : { bls:[{numero,date}], lignes:[{bl,ref,nom,qte,unite,pu,montant}], numero, date, echeance, ht, tva, ttc, frais }
+   frais : ce que le HT compte en plus des lignes (frais administratifs, transport, logistique, taxes interprofessionnelles) */
 const FAC_PARSEURS = {
   lodifrais(L) {
     const r = { bls: [], lignes: [] }; let bl = null;
-    L.forEach(t => {
+    L.forEach((t, i) => {
       let m;
       if ((m = /Num.{1,2}ro\s*:\s*F?(\d+)|Facture n.{1,2}:\s*F?(\d+)/.exec(t))) r.numero = r.numero || m[1] || m[2];
       if ((m = /Date\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t)) && !r.date) r.date = facDate(m[1]);
@@ -193,8 +194,10 @@ const FAC_PARSEURS = {
       if ((m = /PRELEVEMENTS\s+(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
       if ((m = /Net .{1,2} payer\s*:\s*(\d{1,3}(?:\s?\d{3})*[.,]\d{2})/.exec(t))) r.ttc = facNum(m[1]);
       if ((m = /^([\d\s]+\.\d{2}) ([\d\s]+\.\d{2}) ([\d\s]+\.\d{2})$/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
-      if ((m = /^(?:[A-Z]\s+)?(\d{5,6})\s*(.+?)\s+(\d+(?:\.\d+)?)\s*([A-Z]{1,3})\s+(\d+\.\d{3})\s+(\d+\.\d{2})\s+\d{2}$/.exec(t)))
-        r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: m[4], pu: facNum(m[5]), montant: facNum(m[6]) });
+      if ((m = /FA:(\d+\.\d{2})/.exec(t))) r.frais = facNum(m[1]);
+      // La désignation passe parfois sous les chiffres, sur la ligne suivante (mayonnaise, facture 73166690)
+      if ((m = /^(?:[A-Z]\s+)?(\d{5,6})\s*(.*?)\s+(\d+(?:\.\d+)?)\s*([A-Z]{1,3})\s+(\d+\.\d{3})\s+(\d+\.\d{2})\s+\d{2}$/.exec(t)))
+        r.lignes.push({ bl, ref: m[1], nom: m[2].trim() || L[i + 1] || '', qte: facNum(m[3]), unite: m[4], pu: facNum(m[5]), montant: facNum(m[6]) });
     });
     return r;
   },
@@ -231,19 +234,25 @@ const FAC_PARSEURS = {
     return r;
   },
   mericq(L) {
-    const r = { bls: [], lignes: [] }; let bl = null, prev = '';
+    const r = { bls: [], lignes: [] }; let bl = null, prev = '', code20 = null, base20 = 0; const parCode = {};
     L.forEach(t => {
       let m;
       if ((m = /^(\d{8}) (\d\d\/\d\d\/\d{4}) \d+$/.exec(t))) { r.numero = m[1]; r.date = facDate(m[2]); }
       if ((m = /Liv No (\d+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
       if ((m = /Ech[ée]ance au (\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
       if ((m = /Totaux ([\d\s]+,\d{2}) ?€ ([\d\s]+,\d{2}) ?€ ([\d\s]+,\d{2}) ?€/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); r.ttc = facNum(m[3]); }
-      if ((m = /^(.*?)\s*(\d+,\d{2})\s+K\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+\d$/.exec(t))) {
+      if ((m = /(?:^|\s)(\d) 20,00 ([\d\s]+,\d{2}) €/.exec(t))) { code20 = m[1]; base20 = facNum(m[2]); }
+      if ((m = /^(.*?)\s*(\d+,\d{2})\s+K\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+(\d)$/.exec(t))) {
         r.lignes.push({ bl, ref: null, nom: m[1].trim() || prev, qte: facNum(m[2]), unite: 'KG', pu: facNum(m[3]), montant: facNum(m[4]) });
-      } else if ((m = /^(.*?)\s*(\d+)\s+(\d+,\d{2})\s+U\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+\d$/.exec(t))) {
+        parCode[m[5]] = (parCode[m[5]] || 0) + facNum(m[4]);
+      } else if ((m = /^(.*?)\s*(\d+)\s+(\d+,\d{2})\s+U\s+(\d+,\d{2})\s+(?:NetNet\s+)?(\d+,\d{2})\s+(\d)$/.exec(t))) {
         r.lignes.push({ bl, ref: null, nom: m[1].trim() || prev, qte: facNum(m[2]), unite: 'PI', poids: facNum(m[3]), pu: facNum(m[4]), montant: facNum(m[5]) });
+        parCode[m[6]] = (parCode[m[6]] || 0) + facNum(m[5]);
       } else if (!/^\*+|^Total|^Pour tout|^veuillez|^Nombre/.test(t)) prev = t;
     });
+    // Frais (éco-énergie, forfait logistique) : base à 20 % du tableau TVA, hors lignes à 20 %. Le montant du
+    // forfait manque parfois dans le texte du PDF (facture 47236610), la base TVA jamais.
+    if (base20) r.frais = Math.round((base20 - (parCode[code20] || 0)) * 100) / 100;
     return r;
   },
   blason(L) {
@@ -254,6 +263,8 @@ const FAC_PARSEURS = {
       if ((m = /B\.L\. (\d+) .*Livr[ée] le (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; if (!r.bls.some(b => b.numero === bl)) r.bls.push({ numero: bl, date: facDate(m[2]) }); }
       if ((m = /^(\d\d\/\d\d\/\d{4}) \d\d\/\d\d\/\d{4}$/.exec(t))) r.echeance = facDate(m[1]);
       if ((m = /^([\d\s]+,\d{2}) ([\d\s]+,\d{2}) ([\d\s]+,\d{2}) EUR$/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); r.ttc = facNum(m[3]); }
+      // « SURCOUT TRANSPORT ET ENERGIE » : « 2,0000 Base : 227,63 4,55 »
+      if ((m = /Base : [\d\s]+,\d{2} (\d+,\d{2})$/.exec(t))) r.frais = (r.frais || 0) + facNum(m[1]);
       if ((m = /^(\d{6})\s+(.+?)\s+\d+\s+[A-Z]\s+(\d+,\d{3})\s+Kg\s+(\d+,\d{4})\s*\/Kg\s+(\d+,\d{4})\s*\/Kg\s+[A-Z]\s+(\d+,\d{2})$/.exec(t)))
         r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[3]), unite: 'KG', pu: facNum(m[5]), montant: facNum(m[6]) });
     });
@@ -262,7 +273,7 @@ const FAC_PARSEURS = {
   lebihan(L) {
     // Facture ou AVOIR ; consignes à part. Une ligne donne la quantité commandée puis la quantité facturée :
     // « 2 FUT 60 L » (deux fûts, 60 litres, prix au litre), « 4 CAI 96 COL » (quatre caisses, 96 bouteilles).
-    const r = { bls: [], lignes: [] }; let avoir = false, bl = null, livre = null; const taux = {};
+    const r = { bls: [], lignes: [] }; let avoir = false, bl = null, livre = null, frais = 0; const taux = {};
     L.forEach(t => {
       let m;
       if ((m = /(AVOIR|FACTURE)\s+VTE-(\d+) du (\d\d\/\d\d\/\d{4})/i.exec(t))) { avoir = /avoir/i.test(m[1]); r.numero = m[2]; r.date = facDate(m[3]); r.avoir = avoir; }
@@ -275,13 +286,17 @@ const FAC_PARSEURS = {
       if ((m = /^\d\s+([\d.]+) %\s+(\d{1,3}(?: \d{3})*\.\d{2})\s+(\d{1,3}(?: \d{3})*\.\d{2})/.exec(t))) taux[m[1]] = [facNum(m[2]), facNum(m[3])];
       // « Total Facturé » ajoute les consignes au TTC
       if ((m = /Total TTC (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
-      if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+(?:\.\d+)?) ?([A-Z]+)\s+(\d+\.\d{4}|GRATUIT)\s+(\d+\.\d{2})(?:\s|$)/.exec(t)) && !/\bFRAIS\b/.test(m[2])) {
+      // Frais de gestion : « F.G: 4.50 » en pied, et la ligne « SURCOUT TEMPORAIRE FRAIS GESTION »
+      if ((m = /F\.G: (\d+\.\d{2})/.exec(t))) frais += facNum(m[1]);
+      if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+(?:\.\d+)?) ?([A-Z]+)\s+(\d+\.\d{4}|GRATUIT)\s+(\d+\.\d{2})(?:\s|$)/.exec(t))) {
         const qte = facNum(m[3]), montant = facNum(m[8]), lt = m[6] === 'L' ? facNum(m[5]) : null;
         // Le tarif Le Bihan (et l'appli) sont droits + éco-taxe compris : prix recalculé à partir du montant, au litre
         // pour un fût, sinon par caisse ou carton commandé, que le rapprochement ramène à la bouteille
-        r.lignes.push({ ref: m[1], nom: m[2].trim(), qte, unite: { CAI: 'CAISSE', CAR: 'CARTON', COL: 'BTL' }[m[4]] || m[4], cont: m[5] + ' ' + m[6], pu_hd: facNum(m[7]), pu: lt || qte ? Math.round(montant / (lt || qte) * 1000) / 1000 : null, montant, litres: lt });
+        if (/\bFRAIS\b/.test(m[2])) frais += montant;
+        else r.lignes.push({ ref: m[1], nom: m[2].trim(), qte, unite: { CAI: 'CAISSE', CAR: 'CARTON', COL: 'BTL' }[m[4]] || m[4], cont: m[5] + ' ' + m[6], pu_hd: facNum(m[7]), pu: lt || qte ? Math.round(montant / (lt || qte) * 1000) / 1000 : null, montant, litres: lt });
       }
     });
+    r.frais = Math.round(frais * 100) / 100;
     if (bl) r.bls.push({ numero: bl, date: livre || r.date });
     r.lignes.forEach(l => { l.bl = r.bls.length ? r.bls[0].numero : null; });
     // Cartons offerts (« GRATUIT ») : ajoutés à la ligne payante du même produit, puisque la réception compte le tout
@@ -292,7 +307,7 @@ const FAC_PARSEURS = {
     });
     const tx = Object.values(taux);
     if (tx.length) [r.ht, r.tva] = [0, 1].map(k => Math.round(tx.reduce((a, x) => a + x[k], 0) * 100) / 100);
-    if (avoir) { ['ht', 'tva', 'ttc'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
+    if (avoir) { ['ht', 'tva', 'ttc', 'frais'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
     return r;
   },
   cafe(L) {
@@ -353,7 +368,10 @@ const FAC_PARSEURS = {
       if ((m = /^BL N[°º](\d+) du (\d\d\.\d\d\.\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
       if ((m = /^(\d{5}) (?:\d{2})?(.+?) (\d,\d{2}) (\d+) (\d+) (\d+,\d{2}) .*? (\d+) (\d+,\d{2}) A\d ([\d\s]+,\d{2}) /.exec(t)))
         r.lignes.push({ bl, ref: m[1], nom: m[2].trim() + ' ' + m[3] + ' L', qte: facNum(m[7]), unite: 'BTL', cartons: facNum(m[4]), parCarton: facNum(m[5]), pu: facNum(m[8]), montant: facNum(m[9]) });
-      if ((m = /^PARTICIPATION AU TRANSPORT (\d+,\d{2})/.exec(t))) r.lignes.push({ bl, ref: null, nom: 'Participation au transport', qte: 1, unite: 'PC', pu: facNum(m[1]), montant: facNum(m[1]) });
+      // Frais : participation au transport, et les frais au poids et « frais fixes », qui n'apparaissent que dans
+      // la ligne « A3 » (services) de la ventilation des ventes
+      if ((m = /^PARTICIPATION AU TRANSPORT (\d+,\d{2})/.exec(t))) r.frais = r.frais || facNum(m[1]);
+      if ((m = /^A3 ([\d\s]+,\d{2}) /.exec(t))) r.frais = facNum(m[1]);
       if ((m = /CALCUL T\.V\.A\. TOTAL ([\d\s]+,\d{2})$/.exec(t))) r.ht = facNum(m[1]);
       if ((m = / TOTAL ([\d\s]+,\d{2})$/.exec(t)) && /^A\d /.test(t)) r.tva = facNum(m[1]);
       if ((m = /^TOTAL T\.T\.C\. ([\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
@@ -371,7 +389,9 @@ const FAC_PARSEURS = {
       if ((m = /TOTAL TTC \(EUR\) (-?[\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
       if ((m = /TOTAL TVA (-?[\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
       if ((m = /^(-?[\d\s]+,\d{2}) € \d+,\d{2}%/.exec(t))) r.ht = facNum(m[1]);
-      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(-?\d+)\s+(-?[\d\s]+,\d{3})\s+(KG|PC|U)\s+(\d+,\d{3})\s+(-?[\d\s]+,\d{2})$/.exec(t)))
+      // Droit de garde et cotisation Interbev, sous les lignes de chaque BL (« 1,8 » pour 1,80 €)
+      if ((m = /^(?:Drt Grd|Interbev\b[^\d-]*) (-?\d+,\d{1,2})$/.exec(t))) r.frais = Math.round(((r.frais || 0) + facNum(m[1])) * 100) / 100;
+      if ((m = /^([A-Z0-9][A-Z0-9/]+)\s+(.+?)\s+(-?\d+)\s+(-?[\d\s]+,\d{3})\s+(KG|PC|U)\s+(\d+,\d{3})\s+(-?[\d\s]+,\d{2})$/.exec(t)))
         r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[4]), unite: m[5], colis: facNum(m[3]), pu: facNum(m[6]), montant: facNum(m[7]) });
     });
     if (r.ttc != null && r.tva != null) r.ht = Math.round((r.ttc - r.tva) * 100) / 100;
@@ -402,11 +422,11 @@ async function facAnalyser(f, force) {
   // Avoir : détecté par le lecteur, par le script d'import ou par l'en-tête du PDF ; montants toujours en négatif
   if (f.type === 'avoir' || L.slice(0, 40).some(t => /\bAVOIRS?\b(?!\s+de prix)|\bA\s+V\s+O\s+I\s+R\b/.test(t) && !/facture ou avoir/i.test(t))) res.avoir = true;
   if (res.avoir) {
-    ['ht', 'tva', 'ttc'].forEach(k => { if (res[k] != null && res[k] > 0) res[k] = -res[k]; });
+    ['ht', 'tva', 'ttc', 'frais'].forEach(k => { if (res[k] != null && res[k] > 0) res[k] = -res[k]; });
     res.lignes.forEach(l => { if (l.montant > 0) l.montant = -l.montant; if (l.qte > 0) l.qte = -l.qte; });
   }
   const patch = {
-    lignes_json: { parseur, bls: res.bls, lignes: res.lignes, avoir: !!res.avoir, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
+    lignes_json: { parseur, bls: res.bls, lignes: res.lignes, frais: res.frais || 0, avoir: !!res.avoir, nb_lignes_texte: L.length, analyse_le: new Date().toISOString() },
     numero: res.numero || f.numero || null, type: res.avoir ? 'avoir' : (f.type || 'facture'),
     date_facture: res.date || f.date_facture || null,
     date_echeance: res.echeance || f.date_echeance || null,
@@ -590,7 +610,7 @@ async function facOpen(id, relire) {
       <div><span>Échéance</span>${facD(f.date_echeance)}</div><div><span>Montants</span>${f.montant_ht != null ? cuiEur(f.montant_ht) + ' HT' : '—'}${f.montant_ttc != null ? ' · ' + cuiEur(f.montant_ttc) + ' TTC' : ''}</div>
     </div>${f.note ? `<div style="margin-top:8px" class="ms-val">${cuiEsc(f.note)}</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Livraisons</div>${cmdHtml}</div>
-    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length && lu == null ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lu != null ? `<div class="alert-banner" style="margin:0 0 10px">Lecture incomplète : ${cuiEur(lu)} de lignes lues pour ${cuiEur(f.montant_ht)} HT — le reste est à contrôler sur le PDF.</div>` : ''}${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
+    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length && lu == null ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lu != null ? `<div class="alert-banner" style="margin:0 0 10px">Lecture incomplète : lignes et frais lus ${cuiEur(lu)} pour ${cuiEur(f.montant_ht)} HT, soit ${cuiEur(Math.abs(f.montant_ht - lu))} d'écart — à contrôler sur le PDF.</div>` : ''}${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
     <div class="modal-actions">
       ${f.pdf_path ? facFichiers(f).map((p, k, a) => `<button class="btn-secondary" onclick="facVoirPdf('${f.id}',${k})">📄 ${a.length > 1 ? `PDF ${k + 1}/${a.length}` : 'Voir le PDF'}</button>`).join('') : ''}
       <div class="cui-row-btns">
