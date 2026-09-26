@@ -152,7 +152,10 @@ vouloir dire « la chaîne est cassée », jamais « rien à signaler ».
   seront traitées dès qu'il sera rallumé (passage rattrapé), mais les écarts
   sont signalés d'autant plus tard.
 - Quatre maillons peuvent casser en silence, d'où un récap à chaque passage :
-  pas de mail un mercredi ou un samedi, c'est que la chaîne est cassée.
+  pas de mail un mercredi ou un samedi, c'est que la chaîne est cassée. Le
+  script Google `alerte-routine.gs` (projet « Alerte routine BL », compte
+  braiseandcobiganos) le vérifie le jeudi et le dimanche à 8h : sans récap
+  depuis 24 h, il envoie « ALERTE : la routine BL n'a pas envoyé son récap ».
 - Si le PC finit par être trop souvent éteint, il existe une version qui ne
   dépend de rien : le script Google envoie lui-même la photo à l'API Claude et
   écrit la réception. Plus besoin ni de Drive, ni du PC — mais c'est payant,
