@@ -205,13 +205,14 @@ const FAC_PARSEURS = {
     const r = { bls: [], lignes: [] }; let bl = null;
     L.forEach(t => {
       let m;
-      if ((m = /N[°º] Facture\s*:\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
+      // Un avoir DS porte « N° Avoir » et des quantités et montants négatifs
+      if ((m = /N[°º] (?:Facture|Avoir)\s*:\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
       if ((m = /Date\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t)) && !r.date) r.date = facDate(m[1]);
       if ((m = /BL\s*:\s*(\d+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); }
       if ((m = /plus tard le\s*:?\s*(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
-      if ((m = /^\d\s+[\d.,]+%\s+([\d\s.,]+?)\s+([\d\s.,]+)$/.exec(t)) && !r.ht) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
-      if ((m = /^(\d{1,3}(?:\s?\d{3})*[.,]\d{2})\s*€$/.exec(t)) && r.ttc == null) r.ttc = facNum(m[1]);
-      if ((m = /^[A-Z]\s+[A-Z]\s+(\d{5})\s+(.+?)\s+[A-Z]{2,3}\s+([A-Z]{2})\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})\s+(\d+[.,]\d{2})\s+\d$/.exec(t)))
+      if ((m = /^\d\s+[\d.,]+%\s+(-?[\d\s.,]+?)\s+(-?[\d\s.,]+)$/.exec(t)) && !r.ht) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
+      if ((m = /^(-?\d{1,3}(?:\s?\d{3})*[.,]\d{2})\s*€$/.exec(t)) && r.ttc == null) r.ttc = facNum(m[1]);
+      if ((m = /^[A-Z]\s+[A-Z]\s+(\d{5})\s+(.+?)\s+[A-Z]{2,3}\s+([A-Z]{2})\s+(-?\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})\s+(-?\d+[.,]\d{2})\s+\d$/.exec(t)))
         r.lignes.push({ bl, ref: m[1], nom: m[2].trim(), qte: facNum(m[4]), unite: m[3], pu: facNum(m[5]), montant: facNum(m[6]) });
     });
     return r;
