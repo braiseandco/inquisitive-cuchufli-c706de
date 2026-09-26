@@ -252,22 +252,26 @@ const FAC_PARSEURS = {
     return r;
   },
   lebihan(L) {
-    // Facture ou AVOIR ; les fûts sont facturés au litre (Cont. = 30L), consignes à part
-    const r = { bls: [], lignes: [] }; let avoir = false;
+    // Facture ou AVOIR ; les fûts sont facturés au litre (« 2 FUT 60 L » : 60 litres pour les deux fûts), consignes à part
+    const r = { bls: [], lignes: [] }; let avoir = false; const taux = {};
     L.forEach(t => {
       let m;
       if ((m = /(AVOIR|FACTURE)\s+VTE-(\d+) du (\d\d\/\d\d\/\d{4})/i.exec(t))) { avoir = /avoir/i.test(m[1]); r.numero = m[2]; r.date = facDate(m[3]); r.avoir = avoir; }
       if ((m = /Date d.echeance\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
       if ((m = /BL DU (\d\d\/\d\d)/.exec(t)) && r.date) r.bls.push({ numero: m[1], date: r.date.slice(0, 4) + '-' + m[1].split('/').reverse().join('-') });
-      if ((m = /^\d\s+[\d.]+ %\s+(\d+\.\d{2})\s+(\d+\.\d{2})/.exec(t))) { r.ht = facNum(m[1]); r.tva = facNum(m[2]); }
-      if ((m = /^Total(?: Factur[ée])? (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
+      // Une ligne par taux de TVA (5,5 % sodas, eaux et jus, 20 % alcools) : le HT et la TVA sont leur somme
+      if ((m = /^\d\s+([\d.]+) %\s+(\d{1,3}(?: \d{3})*\.\d{2})\s+(\d{1,3}(?: \d{3})*\.\d{2})/.exec(t))) taux[m[1]] = [facNum(m[2]), facNum(m[3])];
+      // « Total Facturé » ajoute les consignes au TTC
+      if ((m = /Total TTC (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
       if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+ ?L|\S+)\s+(\d+\.\d{4})\s+(\d+\.\d{2})\s/.exec(t))) {
         const litres = /^(\d+) ?L$/.exec(m[5]);
         const qte = facNum(m[3]), montant = facNum(m[7]), lt = litres ? +litres[1] : null;
         // Le tarif Le Bihan (et l'appli) sont droits + éco-taxe compris : on recalcule ce prix à partir du montant
-        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte, unite: m[4], cont: m[5], pu_hd: facNum(m[6]), pu: qte ? Math.round(montant / qte / (lt || 1) * 1000) / 1000 : null, montant, litres: lt });
+        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte, unite: m[4], cont: m[5], pu_hd: facNum(m[6]), pu: lt || qte ? Math.round(montant / (lt || qte) * 1000) / 1000 : null, montant, litres: lt });
       }
     });
+    const tx = Object.values(taux);
+    if (tx.length) [r.ht, r.tva] = [0, 1].map(k => Math.round(tx.reduce((a, x) => a + x[k], 0) * 100) / 100);
     if (avoir) { ['ht', 'tva', 'ttc'].forEach(k => { if (r[k] != null) r[k] = -r[k]; }); r.lignes.forEach(l => { l.montant = -l.montant; l.qte = -l.qte; }); }
     return r;
   },
