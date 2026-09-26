@@ -125,9 +125,17 @@ function facRender() {
     return `<div class="hist-item cui-order-row" onclick="facOpen('${f.id}')">
       <div class="hist-date">${facD(f.date_facture)}${f.date_echeance ? ' · échéance ' + facD(f.date_echeance) : ''}${f.envoye_comptable_at ? ' · comptable ✓' : ''}</div>
       <div class="hist-summary">${avoir ? '↩' : s.emoji || '📄'} ${cuiEsc(s.nom || 'Fournisseur ?')}${avoir ? ' <span class="cui-status livree">Avoir</span>' : ''} <span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut] || f.statut}</span><span style="float:right;color:var(--orange)">${f.montant_ttc != null ? cuiEur(f.montant_ttc) + ' TTC' : ''}</span></div>
-      <div class="hist-detail">n° ${cuiEsc(f.numero || '—')}${f.montant_ht != null ? ' · ' + cuiEur(f.montant_ht) + ' HT' : ''}${r.nb_ecarts ? ` · <span style="color:var(--danger)">⚠️ ${r.nb_ecarts} écart${r.nb_ecarts > 1 ? 's' : ''}</span>` : r.nb_lignes ? ' · <span style="color:var(--ok)">✓ ' + r.nb_lignes + ' lignes</span>' : f.pdf_path ? ' · PDF non lu' : ' · saisie manuelle'}</div>
+      <div class="hist-detail">n° ${cuiEsc(f.numero || '—')}${f.montant_ht != null ? ' · ' + cuiEur(f.montant_ht) + ' HT' : ''}${facLectureIncomplete(f) != null ? ' · <span style="color:var(--warn)">⚠️ lecture incomplète</span>' : r.nb_ecarts ? ` · <span style="color:var(--danger)">⚠️ ${r.nb_ecarts} écart${r.nb_ecarts > 1 ? 's' : ''}</span>` : r.nb_lignes ? ' · <span style="color:var(--ok)">✓ ' + r.nb_lignes + ' lignes</span>' : f.pdf_path ? ' · PDF non lu' : ' · saisie manuelle'}</div>
     </div>`;
   }).join('') || '<div class="empty-state">Aucune facture.</div>';
+}
+// Les lignes lues doivent retomber sur le total HT, aux frais près (gestion, transport, accises) : au-delà de
+// 25 € et de 3 % d'écart, le lecteur a manqué des lignes. Renvoie alors le montant des lignes lues.
+function facLectureIncomplete(f) {
+  const lg = f.lignes_json && f.lignes_json.lignes;
+  if (!lg || !lg.length || f.montant_ht == null) return null;
+  const lu = Math.round(lg.reduce((a, l) => a + (Number(l.montant) || 0), 0) * 100) / 100, ht = Number(f.montant_ht);
+  return Math.abs(ht - lu) > Math.max(25, Math.abs(ht) * 0.03) ? lu : null;
 }
 
 /* ─── Lecture du PDF (pdf.js) ─── */
@@ -252,23 +260,35 @@ const FAC_PARSEURS = {
     return r;
   },
   lebihan(L) {
-    // Facture ou AVOIR ; les fûts sont facturés au litre (« 2 FUT 60 L » : 60 litres pour les deux fûts), consignes à part
-    const r = { bls: [], lignes: [] }; let avoir = false; const taux = {};
+    // Facture ou AVOIR ; consignes à part. Une ligne donne la quantité commandée puis la quantité facturée :
+    // « 2 FUT 60 L » (deux fûts, 60 litres, prix au litre), « 4 CAI 96 COL » (quatre caisses, 96 bouteilles).
+    const r = { bls: [], lignes: [] }; let avoir = false, bl = null, livre = null; const taux = {};
     L.forEach(t => {
       let m;
       if ((m = /(AVOIR|FACTURE)\s+VTE-(\d+) du (\d\d\/\d\d\/\d{4})/i.exec(t))) { avoir = /avoir/i.test(m[1]); r.numero = m[2]; r.date = facDate(m[3]); r.avoir = avoir; }
       if ((m = /Date d.echeance\s*:\s*(\d\d\/\d\d\/\d{4})/.exec(t))) r.echeance = facDate(m[1]);
       if ((m = /BL DU (\d\d\/\d\d)/.exec(t)) && r.date) r.bls.push({ numero: m[1], date: r.date.slice(0, 4) + '-' + m[1].split('/').reverse().join('-') });
+      if ((m = /BL ORIGINE (\d+)/.exec(t))) bl = m[1];
+      // En-tête : réf. commande, téléphone, puis dates de commande, de livraison et de facture
+      if ((m = /^[A-Z]\d{8} .*?\d\d\/\d\d\/\d{4} (\d\d\/\d\d\/\d{4}) \d\d\/\d\d\/\d{4}/.exec(t))) livre = facDate(m[1]);
       // Une ligne par taux de TVA (5,5 % sodas, eaux et jus, 20 % alcools) : le HT et la TVA sont leur somme
       if ((m = /^\d\s+([\d.]+) %\s+(\d{1,3}(?: \d{3})*\.\d{2})\s+(\d{1,3}(?: \d{3})*\.\d{2})/.exec(t))) taux[m[1]] = [facNum(m[2]), facNum(m[3])];
       // « Total Facturé » ajoute les consignes au TTC
       if ((m = /Total TTC (\d[\d\s]*\.\d{2}) €/.exec(t))) r.ttc = facNum(m[1]);
-      if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+ ?L|\S+)\s+(\d+\.\d{4})\s+(\d+\.\d{2})\s/.exec(t))) {
-        const litres = /^(\d+) ?L$/.exec(m[5]);
-        const qte = facNum(m[3]), montant = facNum(m[7]), lt = litres ? +litres[1] : null;
-        // Le tarif Le Bihan (et l'appli) sont droits + éco-taxe compris : on recalcule ce prix à partir du montant
-        r.lignes.push({ bl: r.bls[0] ? r.bls[0].numero : null, ref: m[1], nom: m[2].trim(), qte, unite: m[4], cont: m[5], pu_hd: facNum(m[6]), pu: lt || qte ? Math.round(montant / (lt || qte) * 1000) / 1000 : null, montant, litres: lt });
+      if ((m = /^(\d{6})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([A-Z]{3,})\s+(\d+(?:\.\d+)?) ?([A-Z]+)\s+(\d+\.\d{4}|GRATUIT)\s+(\d+\.\d{2})(?:\s|$)/.exec(t)) && !/\bFRAIS\b/.test(m[2])) {
+        const qte = facNum(m[3]), montant = facNum(m[8]), lt = m[6] === 'L' ? facNum(m[5]) : null;
+        // Le tarif Le Bihan (et l'appli) sont droits + éco-taxe compris : prix recalculé à partir du montant, au litre
+        // pour un fût, sinon par caisse ou carton commandé, que le rapprochement ramène à la bouteille
+        r.lignes.push({ ref: m[1], nom: m[2].trim(), qte, unite: { CAI: 'CAISSE', CAR: 'CARTON', COL: 'BTL' }[m[4]] || m[4], cont: m[5] + ' ' + m[6], pu_hd: facNum(m[7]), pu: lt || qte ? Math.round(montant / (lt || qte) * 1000) / 1000 : null, montant, litres: lt });
       }
+    });
+    if (bl) r.bls.push({ numero: bl, date: livre || r.date });
+    r.lignes.forEach(l => { l.bl = r.bls.length ? r.bls[0].numero : null; });
+    // Cartons offerts (« GRATUIT ») : ajoutés à la ligne payante du même produit, puisque la réception compte le tout
+    r.lignes = r.lignes.filter(l => {
+      const payee = !l.montant && r.lignes.find(x => x.ref === l.ref && x.montant);
+      if (payee) { payee.qte += l.qte; payee.nom += ` (dont ${l.qte} offert${l.qte > 1 ? 's' : ''})`; }
+      return !payee;
     });
     const tx = Object.values(taux);
     if (tx.length) [r.ht, r.tva] = [0, 1].map(k => Math.round(tx.reduce((a, x) => a + x[k], 0) * 100) / 100);
@@ -563,14 +583,14 @@ async function facOpen(id, relire) {
     </div>`).join('');
   const nonFact = rap.nonFactures.map(x => `<div class="order-line"><span style="color:var(--muted)">↩ ${cuiEsc(x.cmdLigne.nom)}<div class="prod-meta">reçu ${cuiQty(x.cmdLigne.qte_recue ?? x.cmdLigne.quantite)} ${cuiEsc(x.cmdLigne.unite || '')} (${cuiEsc(cuiNumAff(x.commande))}) — non facturé</div></span></div>`).join('');
   const cmdHtml = lj.bls && lj.bls.length ? lj.bls.map(b => { const o = rap.parBl[b.numero]; return `<div class="prod-meta">BL ${cuiEsc(b.numero)} du ${facD(b.date)} → ${o ? `<b style="color:var(--text)">${cuiEsc(cuiNumAff(o))}</b> (${o.date_reception ? 'réceptionnée ' + facD(o.date_reception) + (o.numero_bl ? ', BL ' + cuiEsc(o.numero_bl) : '') : 'livraison prévue ' + facD(o.date_livraison) + ', non réceptionnée'})` : '<span style="color:var(--warn)">aucune commande trouvée</span>'}</div>`; }).join('') : '<div class="prod-meta">Aucun bon de livraison identifié.</div>';
-  const nbE = rap.ecarts.length;
+  const nbE = rap.ecarts.length, lu = facLectureIncomplete(f);
   cuiModal(titre, `
     <div class="modal-section"><div class="cui-kv">
       <div><span>Statut</span><span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut]}</span></div><div><span>Date</span>${facD(f.date_facture)}</div>
       <div><span>Échéance</span>${facD(f.date_echeance)}</div><div><span>Montants</span>${f.montant_ht != null ? cuiEur(f.montant_ht) + ' HT' : '—'}${f.montant_ttc != null ? ' · ' + cuiEur(f.montant_ttc) + ' TTC' : ''}</div>
     </div>${f.note ? `<div style="margin-top:8px" class="ms-val">${cuiEsc(f.note)}</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Livraisons</div>${cmdHtml}</div>
-    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
+    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length && lu == null ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lu != null ? `<div class="alert-banner" style="margin:0 0 10px">Lecture incomplète : ${cuiEur(lu)} de lignes lues pour ${cuiEur(f.montant_ht)} HT — le reste est à contrôler sur le PDF.</div>` : ''}${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
     <div class="modal-actions">
       ${f.pdf_path ? facFichiers(f).map((p, k, a) => `<button class="btn-secondary" onclick="facVoirPdf('${f.id}',${k})">📄 ${a.length > 1 ? `PDF ${k + 1}/${a.length}` : 'Voir le PDF'}</button>`).join('') : ''}
       <div class="cui-row-btns">
