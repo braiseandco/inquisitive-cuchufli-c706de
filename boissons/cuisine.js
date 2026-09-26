@@ -31,6 +31,8 @@ const cuiQty = n => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2
 const cuiD  = d => d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
 const cuiDT = d => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 const cuiIso = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+// Restaurant fermé le lundi : une livraison qui y tomberait passe au mardi
+const cuiSansLundi = iso => { const x = new Date(iso + 'T12:00:00'); if (x.getDay() === 1) x.setDate(x.getDate() + 1); return cuiIso(x); };
 function cuiWho() { return (typeof settings !== 'undefined' && settings.serveur) || ''; }
 function cuiToast(m) {
   const d = document.createElement('div');
@@ -386,10 +388,10 @@ function cuiSendButtons(o) {
 function cuiOpenConfirm() {
   const d = cuiDraftFor(CUI.supId); if (!d || !d.lignes.length) return;
   const s = cuiSup(CUI.supId);
-  const defDate = d.date_livraison || cuiIso(Date.now() + (s.delai_livraison_jours || 1) * 864e5);
+  const defDate = cuiSansLundi(d.date_livraison || cuiIso(Date.now() + (s.delai_livraison_jours || 1) * 864e5));
   CUI._pending = { ...d, numero: cuiNextNumero(), date_livraison: defDate, commande_par: cuiWho(), note: cui$('cui-note').value.trim() };
   cuiModal(`Commander ${cuiEsc(s.nom)}`, `
-    <div class="modal-section"><div class="ms-label">Livraison souhaitée</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="CUI._pending.date_livraison=this.value"></div>
+    <div class="modal-section"><div class="ms-label">Livraison souhaitée</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="cuiChoisirLivraison(this)"></div>
     <div class="modal-section"><div class="ms-label">Produits commandés</div><div id="cui-c-lines">${d.lignes.map(cuiRecapLine).join('')}</div></div>
     <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val" id="cui-c-total">${cuiEur(cuiOrderTotal(d)) || '—'}</div></div>
     ${CUI._pending.note ? `<div class="modal-section"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(CUI._pending.note)}</div></div>` : ''}
@@ -397,6 +399,10 @@ function cuiOpenConfirm() {
       <button class="btn-close" onclick="cuiValidate()">${s.mode_commande === 'appel' ? '✓ Commande passée — terminer' : s.mode_commande === 'sms' ? '✓ Commande envoyée — terminer' : 'Déjà transmise autrement — terminer'}</button>
       <button class="btn-close" style="color:var(--danger)" onclick="cuiClearDraft()">Vider le panier</button>
     </div>`);
+}
+function cuiChoisirLivraison(input) {
+  if (input.value && cuiSansLundi(input.value) !== input.value) { input.value = cuiSansLundi(input.value); cuiToast('Pas de livraison le lundi : passée au mardi'); }
+  CUI._pending.date_livraison = input.value;
 }
 function cuiRecapLine(l) {
   return `<div class="order-line" style="align-items:center;gap:8px">
@@ -735,7 +741,7 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
     lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
   }
   const d = new Date(); const liv = new Date(d.getTime() + (sup.delai_livraison_jours ?? 2) * 864e5);
-  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiIso(liv), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
+  const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiSansLundi(cuiIso(liv)), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
   CUI.orders.unshift({ ...cmd, lignes: rows });
   cuiRender();
