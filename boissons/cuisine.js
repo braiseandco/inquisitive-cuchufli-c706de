@@ -33,11 +33,17 @@ const cuiDT = d => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', mon
 const cuiIso = d => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
 // Restaurant fermé le lundi : une livraison qui y tomberait passe au mardi
 const cuiSansLundi = iso => { const x = new Date(iso + 'T12:00:00'); if (x.getDay() === 1) x.setDate(x.getDate() + 1); return cuiIso(x); };
-// Aujourd'hui + délai, avancé au premier jour où le fournisseur livre (jours_livraison : Le Bihan le mercredi)
+// Heure limite (Lodifrais : 12h) : la commande doit partir avant cette heure la veille de la livraison
+function cuiTropTard(s, iso) {
+  if (!s.heure_limite) return false;
+  const veille = cuiIso(new Date(iso + 'T12:00:00').getTime() - 864e5), auj = cuiIso(Date.now()), now = new Date();
+  return auj > veille || (auj === veille && String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') >= s.heure_limite.slice(0, 5));
+}
+// Aujourd'hui + délai, avancé au premier jour où le fournisseur livre (jours_livraison : Le Bihan le mercredi) et encore commandable
 function cuiDateLivraison(s, delai) {
   const x = new Date(); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() + delai);
   const jours = s.jours_livraison || [];
-  for (let i = 0; i < 7 && (x.getDay() === 1 || (jours.length && !jours.includes(x.getDay()))); i++) x.setDate(x.getDate() + 1);
+  for (let i = 0; i < 14 && (x.getDay() === 1 || (jours.length && !jours.includes(x.getDay())) || cuiTropTard(s, cuiIso(x))); i++) x.setDate(x.getDate() + 1);
   return cuiIso(x);
 }
 function cuiWho() { return (typeof settings !== 'undefined' && settings.serveur) || ''; }
@@ -416,7 +422,8 @@ function cuiSendButtons(o) {
 function cuiOpenConfirm() {
   const d = cuiDraftFor(CUI.supId); if (!d || !d.lignes.length) return;
   const s = cuiSup(CUI.supId);
-  const defDate = cuiSansLundi(d.date_livraison || cuiDateLivraison(s, s.delai_livraison_jours || 1));
+  const mini = cuiDateLivraison(s, s.delai_livraison_jours || 1);
+  const defDate = d.date_livraison && d.date_livraison >= mini ? cuiSansLundi(d.date_livraison) : mini;
   CUI._pending = { ...d, numero: cuiNextNumero(), date_livraison: defDate, commande_par: cuiWho(), note: cui$('cui-note').value.trim() };
   cuiModal(`Commander ${cuiEsc(s.nom)}`, `
     <div class="modal-section"><div class="ms-label">Livraison souhaitée</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="cuiChoisirLivraison(this)"></div>
@@ -430,6 +437,8 @@ function cuiOpenConfirm() {
 }
 function cuiChoisirLivraison(input) {
   if (input.value && cuiSansLundi(input.value) !== input.value) { input.value = cuiSansLundi(input.value); cuiToast('Pas de livraison le lundi : passée au mardi'); }
+  const s = cuiSup(CUI.supId);
+  if (input.value && s && cuiTropTard(s, input.value)) cuiToast(`Trop tard pour cette date : ${s.nom} prend les commandes jusqu'à ${s.heure_limite.slice(0, 5).replace(':', 'h')} la veille`);
   CUI._pending.date_livraison = input.value;
 }
 function cuiRecapLine(l) {
