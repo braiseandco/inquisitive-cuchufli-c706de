@@ -595,7 +595,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <input class="form-input" type="month" id="recapMois">
       </div>
       <button class="btn-primary" style="width:100%;margin-top:8px" onclick="loadRecapEditable()">📥 Charger le mois (ajustable)</button>
-      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(33,150,243,.16);border:1px solid rgba(33,150,243,.4);color:#90caf9" onclick="printAbsencesMois()">📄 PDF congés, arrêts, absences, école</button>
+      <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(33,150,243,.16);border:1px solid rgba(33,150,243,.4);color:#90caf9" onclick="loadPaieMois()">📋 Récap heures du mois (congés, absences, salaire à verser)</button>
+      <div id="paieEditable"></div>
       <div id="recapEditable"></div>
       <p style="font-size:11px;color:var(--text-faint);margin-top:8px;line-height:1.6">
         💡 Renseigne « H/semaine contrat » sur la fiche de chaque employé pour activer le calcul des heures sup. Tu peux ajuster les heures, repas et heures sup avant de générer le PDF.
@@ -2987,16 +2988,27 @@ function printRecapSalaires() {
   openPrintOverlay(html);
 }
 
-// ═══ CONGÉS / ARRÊTS / ABSENCES / ÉCOLE du mois civil (PDF pour le comptable) ═══
+// ═══ RÉCAP HEURES DU MOIS (PDF pour le comptable) ═══
+// Congés, arrêts, absences, école et début/fin de contrat relevés sur le planning du mois civil,
+// + salaire à verser et observation saisis à la main (gardés dans settings, clé recap_paie_AAAA-MM).
 // Un service manqué alors que l'autre service du jour est travaillé compte 0,5j.
-async function printAbsencesMois() {
+let paie = null;
+const PAIE_COLS = [
+  ['Congés payés', [['vacation', '']]],
+  ['Arrêts', [['arret', 'maladie'], ['accident', 'accident du travail']]],
+  ['Absences', [['absent', ''], ['partielle', 'activité partielle']]],
+  ['École (apprentis)', [['ecole', '']]],
+];
+
+async function loadPaieMois() {
   const mois = document.getElementById('recapMois').value;
   if (!mois) { toast('Choisis un mois'); return; }
   const [year, monthNum] = mois.split('-').map(Number);
   const last = new Date(year, monthNum, 0);
-  const [emps, allOv] = await Promise.all([
+  const [emps, allOv, saved] = await Promise.all([
     GET('employees?select=*'),
-    GET(`weekly_overrides?date=gte.${mois}-01&date=lte.${dateStr(last)}&select=*`)
+    GET(`weekly_overrides?date=gte.${mois}-01&date=lte.${dateStr(last)}&select=*`),
+    GET(`settings?key=eq.recap_paie_${mois}&select=value`)
   ]);
   const SVC = ['arret', 'accident', 'absent', 'partielle', 'ecole'];
   const worked = (o, eve) => eve
@@ -3021,59 +3033,102 @@ async function printAbsencesMois() {
   }
   if (!rows.length) { toast('Aucun planning pour ce mois'); return; }
   rows.sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'fr'));
+  paie = {mois, year, monthNum, last, rows, saisie: saved.length ? JSON.parse(saved[0].value) : {}};
+  renderPaieMois();
+}
 
+// Nombre de jours d'un type et plages de dates ; le lundi (fermé) ne coupe pas une plage
+function paieJours(days) {
   const jm = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
   const noon = d => new Date(d + 'T12:00');
-  // Plages de jours consécutifs ; le lundi (fermé) ne coupe pas une plage
-  const plages = entries => {
-    const out = [];
-    entries.forEach(([d, part]) => {
-      const p = out[out.length - 1];
-      const gap = p && Math.round((noon(d) - noon(p.end)) / 86400000);
-      if (p && part === 'jour' && p.part === 'jour' && (gap === 1 || (gap === 2 && noon(p.end).getDay() === 0))) p.end = d;
-      else out.push({start: d, end: d, part});
-    });
-    return out.map(p => p.part !== 'jour' ? `${jm(p.start)} (${p.part})`
-      : p.start === p.end ? `le ${jm(p.start)}` : `du ${jm(p.start)} au ${jm(p.end)}`).join(', ');
-  };
-  const cell = (r, types) => {
-    const parts = types.filter(([t]) => r.byType[t]).map(([t, lib]) => {
-      const e = Object.entries(r.byType[t]).sort();
-      const n = e.reduce((s, [, p]) => s + (p === 'jour' ? 1 : 0.5), 0);
-      return `<div><strong>${fmtJours(n)}</strong>${lib ? ' ' + lib : ''}</div><div class="d">${plages(e)}</div>`;
-    });
-    return parts.join('') || '<span class="vide">—</span>';
-  };
-  const body = rows.map(r => `<tr>
-    <td class="nom">${escapeHtml(r.emp.name)}</td>
-    <td>${cell(r, [['vacation', '']])}</td>
-    <td>${cell(r, [['arret', 'maladie'], ['accident', 'accident du travail']])}</td>
-    <td>${cell(r, [['absent', ''], ['partielle', 'activité partielle']])}</td>
-    <td>${cell(r, [['ecole', '']])}</td>
-  </tr>`).join('');
+  const out = [];
+  let n = 0;
+  Object.entries(days).sort().forEach(([d, part]) => {
+    n += part === 'jour' ? 1 : 0.5;
+    const p = out[out.length - 1];
+    const gap = p && Math.round((noon(d) - noon(p.end)) / 86400000);
+    if (p && part === 'jour' && p.part === 'jour' && (gap === 1 || (gap === 2 && noon(p.end).getDay() === 0))) p.end = d;
+    else out.push({start: d, end: d, part});
+  });
+  return {n, txt: out.map(p => p.part !== 'jour' ? `${jm(p.start)} (${p.part})`
+    : p.start === p.end ? `le ${jm(p.start)}` : `du ${jm(p.start)} au ${jm(p.end)}`).join(', ')};
+}
 
-  const moisNom = MOIS_FR[monthNum - 1];
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Congés et absences ${moisNom} ${year}</title>
+// Entrée ou sortie dans le mois ; une fin de contrat est donnée avec sa date de début
+function paieContrat(emp) {
+  const dansMois = d => d && d.slice(0, 7) === paie.mois;
+  const dmy = d => d.split('-').reverse().join('/');
+  const out = [];
+  if (emp.date_arrivee && (dansMois(emp.date_arrivee) || dansMois(emp.date_depart))) out.push('Début ' + dmy(emp.date_arrivee));
+  if (dansMois(emp.date_depart)) out.push('Fin ' + dmy(emp.date_depart));
+  return out;
+}
+
+function renderPaieMois() {
+  const inp = 'background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;width:100%';
+  const cap = s => s[0].toUpperCase() + s.slice(1);
+  const rows = paie.rows.map((r, i) => {
+    const s = paie.saisie[r.emp.id] || {};
+    const resume = paieContrat(r.emp).concat(PAIE_COLS.flatMap(([col, types]) => types.filter(([t]) => r.byType[t])
+      .map(([t, lib]) => `${lib ? cap(lib) : col.split(' ')[0]} ${fmtJours(paieJours(r.byType[t]).n)}`)));
+    return `<div style="padding:10px 0;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:700">${escapeHtml(r.emp.name)}</div>
+      <div style="font-size:10px;color:var(--text-faint);margin:2px 0 6px">${resume.join(' · ') || 'Rien à signaler'}</div>
+      <input type="number" step="0.01" min="0" placeholder="Salaire à verser (€)" value="${escapeHtml(s.salaire || '')}" onchange="savePaie(${i}, 'salaire', this.value)" style="${inp};margin-bottom:6px">
+      <textarea rows="2" placeholder="Observation pour le comptable" onchange="savePaie(${i}, 'obs', this.value)" style="${inp};resize:vertical">${escapeHtml(s.obs || '')}</textarea>
+    </div>`;
+  }).join('');
+  document.getElementById('paieEditable').innerHTML = rows +
+    `<button class="btn-primary" style="width:100%;margin-top:12px;background:rgba(33,150,243,.16);border:1px solid rgba(33,150,243,.4);color:#90caf9" onclick="printPaieMois()">📄 Générer le PDF « Récap heures ${MOIS_FR[paie.monthNum - 1]} »</button>`;
+}
+
+async function savePaie(i, field, value) {
+  const id = paie.rows[i].emp.id;
+  (paie.saisie[id] = paie.saisie[id] || {})[field] = value.trim();
+  try {
+    await sb('settings?on_conflict=key', {method: 'POST',
+      body: JSON.stringify({key: `recap_paie_${paie.mois}`, value: JSON.stringify(paie.saisie)}),
+      headers: {'Prefer': 'resolution=merge-duplicates,return=representation'}});
+    toast('Enregistré');
+  } catch (e) { toast('Erreur : ' + e.message); }
+}
+
+function printPaieMois() {
+  const moisNom = MOIS_FR[paie.monthNum - 1], vide = '<span class="vide">—</span>';
+  const body = paie.rows.map(r => {
+    const s = paie.saisie[r.emp.id] || {};
+    const cols = PAIE_COLS.map(([, types]) => types.filter(([t]) => r.byType[t]).map(([t, lib]) => {
+      const j = paieJours(r.byType[t]);
+      return `<div><strong>${fmtJours(j.n)}</strong>${lib ? ' ' + lib : ''}</div><div class="d">${j.txt}</div>`;
+    }).join('') || vide);
+    return `<tr><td class="nom">${escapeHtml(r.emp.name)}</td><td>${paieContrat(r.emp).join('<br>') || vide}</td>
+      ${cols.map(c => `<td>${c}</td>`).join('')}
+      <td class="num">${s.salaire ? fmtEuros(parseFloat(s.salaire)) : vide}</td>
+      <td>${s.obs ? escapeHtml(s.obs).replace(/\n/g, '<br>') : vide}</td></tr>`;
+  }).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap heures ${moisNom} ${paie.year}</title>
   <style>
-    @page { size:A4; margin:14mm; }
-    body { font-family:'Helvetica',Arial,sans-serif; font-size:11pt; color:#111; margin:0; padding:18px; background:#fff; }
+    @page { size:A4 landscape; margin:12mm; }
+    body { font-family:'Helvetica',Arial,sans-serif; font-size:10pt; color:#111; margin:0; padding:14px; background:#fff; }
     h1 { text-align:center; font-size:16pt; margin:0 0 4px; letter-spacing:.5px; }
-    .subtitle { text-align:center; font-size:11pt; color:#555; margin-bottom:18px; }
+    .subtitle { text-align:center; font-size:10.5pt; color:#555; margin-bottom:14px; }
     table { width:100%; border-collapse:collapse; }
-    th, td { border:1px solid #999; padding:7px 9px; text-align:left; font-size:10pt; vertical-align:top; }
+    th, td { border:1px solid #999; padding:6px 8px; text-align:left; font-size:9.5pt; vertical-align:top; }
     th { background:#eee; font-weight:700; }
-    .nom { font-weight:700; text-transform:uppercase; white-space:nowrap; }
-    .d { font-size:9pt; color:#555; margin-bottom:3px; }
-    .vide { color:#aaa; }
-    .note { margin-top:12px; font-size:9pt; color:#666; }
+    th:last-child { width:28%; }
+    .nom { font-weight:700; text-transform:uppercase; }
+    .num { text-align:right; white-space:nowrap; font-weight:700; }
+    .d { font-size:8.5pt; color:#555; margin-bottom:3px; }
+    .vide { color:#aaa; font-weight:400; }
+    .masse { margin-top:16px; font-size:11pt; font-weight:700; }
   </style></head><body>
-  <h1>Congés, arrêts et absences — ${moisNom} ${year}</h1>
-  <div class="subtitle">SAS ARP BIGANOS · Pour la paie de ${moisNom} · du 1er au ${last.getDate()} ${moisNom} ${year}</div>
+  <h1>Récap heures ${moisNom} ${paie.year}</h1>
+  <div class="subtitle">SAS ARP BIGANOS · du 1er au ${paie.last.getDate()} ${moisNom} ${paie.year}</div>
   <table>
-    <thead><tr><th>Salarié</th><th>Congés payés</th><th>Arrêts</th><th>Absences</th><th>École (apprentis)</th></tr></thead>
+    <thead><tr><th>Salarié</th><th>Début / fin de contrat</th>${PAIE_COLS.map(([c]) => `<th>${c}</th>`).join('')}<th>Salaire à verser</th><th>Observation</th></tr></thead>
     <tbody>${body}</tbody>
   </table>
-  <div class="note">D'après le planning au ${dateFr(dateStr(new Date()))}. 0,5j = un seul service manqué (midi ou soir), l'autre service du jour étant travaillé.</div>
+  <div class="masse">MERCI DE ME COMMUNIQUER LA MASSE SALARIALE DU MOIS.</div>
   </body></html>`;
   openPrintOverlay(html);
 }
