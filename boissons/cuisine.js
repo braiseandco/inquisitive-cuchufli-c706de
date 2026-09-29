@@ -783,6 +783,7 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
   CUI.orders.unshift({ ...cmd, lignes: rows });
   cuiRender();
   cuiToast(`✓ Commande ${sup.nom} enregistrée (${cmd.numero})`);
+  return cmd;
 }
 const facNormNom = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 
