@@ -512,8 +512,26 @@ function facAssocier(lignes, commandeDe) {
   });
   const res = new Map(), pris = new Set();
   paires.sort((a, b) => b.s - a.s).forEach(x => { if (!res.has(x.i) && !pris.has(x.cl.id)) { res.set(x.i, x.cl); pris.add(x.cl.id); } });
+  // Référence changée chez le fournisseur (bombe chantilly 249507 facturée 56253, Lodifrais 11/09/2026) :
+  // une référence inconnue de l'appli se rattache à la seule ligne libre de sa commande de même quantité et de prix à 5 % près
+  res.refChangee = new Set();
+  lignes.forEach((l, i) => {
+    const o = commandeDe(l);
+    if (res.has(i) || !o || !l.ref || CUI.prods.some(p => p.fournisseur_id === o.fournisseur_id && facRefNorm(p.reference) === facRefNorm(l.ref))) return;
+    const c = o.lignes.filter(cl => {
+      const px = Number(cl.prix || (CUI.prods.find(p => p.id === cl.produit_id) || {}).prix);
+      return !pris.has(cl.id) && px && Math.abs(px - l.pu) / px <= 0.05 && facProche(Number(cl.qte_recue ?? cl.quantite), Math.abs(l.qte));
+    });
+    if (c.length === 1) { res.set(i, c[0]); pris.add(c[0].id); res.refChangee.add(i); }
+  });
   return res;
 }
+// Produit vendu entier et facturé au poids (bleu d'Auvergne ≈ 2,5 kg, boudin ≈ 1,7 kg) : le poids réel
+// s'écarte du poids moyen de la fiche, la quantité en pièces n'est comparée qu'à 15 % près
+const FAC_TOLERANCE_PIECE = 0.15;
+// Seuls ces problèmes de réception rendent une ligne facturée contestable : « Non commandé » ou une note
+// sur la quantité livrée relèvent de la réception, la facture est juste si elle facture ce qui a été reçu
+const FAC_PB_FACTURE = ['Abîmé', 'Périmé / DLC courte', 'Mauvais produit'];
 function facRapprocher(f) {
   const lj = f.lignes_json || { bls: [], lignes: [] };
   const orders = CUI.orders.filter(o => o.fournisseur_id === f.fournisseur_id && o.statut !== 'annulee' && o.statut !== 'brouillon');
@@ -547,17 +565,18 @@ function facRapprocher(f) {
     // Vin commandé au carton, facturé à la bouteille : quantité ramenée au carton, prix déjà à la bouteille comme dans l'appli
     const btl = uf === 'bouteille' && (!cl || /caisse|carton|pack/i.test(cl.unite || '')) ? facParCarton(p) : 0;
     const qteApp = poidsQte ? Math.round(l.qte / poidsQte * 1000) / 1000 : btl ? Math.round(l.qte / btl * 1000) / 1000 : l.qte;
-    const compat = !!p && (!!poidsQte || !!btl || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
+    // Produit retiré du catalogue (boudin, 11/09/2026) : la ligne de commande suffit à comparer
+    const compat = !!(p || cl) && (!!poidsQte || !!btl || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
     let statut, detail = '';
     if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
     else if (!o) { statut = 'sans_commande'; }
     else if (!cl) { statut = 'non_commande'; }
     else {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
-      const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
+      const tol = poidsQte ? Math.abs(recu) * FAC_TOLERANCE_PIECE : typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
       if (o.statut === 'non_recue') { statut = 'quantite'; detail = 'facturé, commande déclarée non reçue'; }
       else if (compat && Math.abs(recu - qteApp) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
-      else if (cl.ecart) { statut = 'quantite'; detail = cl.ecart; }
+      else if (FAC_PB_FACTURE.includes(cl.ecart)) { statut = 'quantite'; detail = cl.ecart; }
       else statut = compat ? 'ok' : 'ok_unite';
     }
     // Prix facturé ramené à l'unité de prix de l'appli (bar : à la bouteille pour les caisses)
@@ -565,7 +584,8 @@ function facRapprocher(f) {
     const puApp = l.pu ? Math.round((poidsPrix ? l.pu * poidsPrix : l.pu / parCaisse) * 1000) / 1000 : null;
     let prix = null;
     if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
-    return { ...l, qteApp, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix, puApp };
+    const refAncienne = assoc.refChangee.has(i) ? cl.reference || (p && p.reference) || null : null;
+    return { ...l, qteApp, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix, puApp, refAncienne };
   });
   // 3) reçu mais pas facturé
   const nonFactures = [];
@@ -598,7 +618,7 @@ async function facOpen(id, relire) {
   const lignesHtml = rap.lignes.map(l => `<div class="order-line" style="align-items:flex-start;gap:8px">
       <span style="color:${stColor[l.statut]};width:18px;flex-shrink:0">${stIcon[l.statut]}</span>
       <span style="flex:1;min-width:0">${cuiEsc(l.nom)}${l.produit ? '' : ' <span class="prod-meta">(produit inconnu)</span>'}
-        <div class="prod-meta">${l.ref ? cuiEsc(l.ref) + ' · ' : ''}${cuiQty(l.qte)} ${cuiEsc(l.unite)}${l.qteApp !== l.qte ? ' = ' + cuiQty(l.qteApp) + ' ' + cuiEsc(((l.cmdLigne || l.produit || {}).unite || '').toLowerCase()) : ''} × ${cuiEur(l.pu)}${l.statut !== 'ok' ? ' · <span style="color:' + stColor[l.statut] + '">' + (l.detail || stLabel[l.statut]) + '</span>' : ''}${l.prix != null && Math.abs(l.prix) >= 0.5 ? ` · <span style="color:${Math.abs(l.prix) > 10 ? 'var(--warn)' : 'var(--muted)'}">prix ${l.prix > 0 ? '+' : ''}${l.prix} %</span>` : ''}</div>
+        <div class="prod-meta">${l.ref ? cuiEsc(l.ref) + ' · ' : ''}${l.refAncienne ? `<span style="color:var(--warn)">réf. changée (avant ${cuiEsc(l.refAncienne)})</span> · ` : ''}${cuiQty(l.qte)} ${cuiEsc(l.unite)}${l.qteApp !== l.qte ? ' = ' + cuiQty(l.qteApp) + ' ' + cuiEsc(((l.cmdLigne || l.produit || {}).unite || '').toLowerCase()) : ''} × ${cuiEur(l.pu)}${l.statut !== 'ok' ? ' · <span style="color:' + stColor[l.statut] + '">' + (l.detail || stLabel[l.statut]) + '</span>' : ''}${l.prix != null && Math.abs(l.prix) >= 0.5 ? ` · <span style="color:${Math.abs(l.prix) > 10 ? 'var(--warn)' : 'var(--muted)'}">prix ${l.prix > 0 ? '+' : ''}${l.prix} %</span>` : ''}</div>
       </span>
       <span class="order-line-qty">${cuiEur(l.montant)}</span>
     </div>`).join('');
@@ -647,6 +667,9 @@ async function facValider(id) {
   const rap = facRapprocher(f);
   let maj = 0;
   for (const l of rap.lignes) {
+    if (l.refAncienne && l.produit) {
+      try { await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { reference: l.ref }); l.produit.reference = l.ref; } catch (e) { console.error(e); }
+    }
     if (!l.produit || !l.compat || !l.puApp || l.qte < 0) continue;
     if (Math.abs(Number(l.produit.prix || 0) - l.puApp) < 0.005) continue;
     try {
