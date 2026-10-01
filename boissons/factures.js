@@ -406,6 +406,22 @@ const FAC_PARSEURS = {
     if (r.ttc != null && r.tva != null) r.ht = Math.round((r.ttc - r.tva) * 100) / 100;
     return r;
   },
+  // Aquitaine Bassin Hygiène : pas de BL à part, la facture cite les siens (« Transformé de : Bon de
+  // livraison N° BL29993 du 02/09/2026 ») ; colonne remise facultative entre P.U. et montant
+  abh(L) {
+    const r = { bls: [], lignes: [] }; let bl = null;
+    L.forEach(t => {
+      let m;
+      if ((m = /^((?:FC|AV)\d+) (\d\d\/\d\d\/\d{4}) \S+ (\d\d\/\d\d\/\d{4})/.exec(t))) { r.numero = m[1]; r.date = facDate(m[2]); r.echeance = facDate(m[3]); if (m[1].startsWith('AV')) r.avoir = true; }
+      if ((m = /Bon de livraison N[°º] (\S+) du (\d\d\/\d\d\/\d{4})/.exec(t))) { bl = m[1]; r.bls.push({ numero: bl, date: facDate(m[2]) }); return; }
+      if ((m = /^Total HT Net (-?[\d\s]+,\d{2})/.exec(t))) r.ht = facNum(m[1]);
+      if ((m = /^Total TVA (-?[\d\s]+,\d{2})/.exec(t))) r.tva = facNum(m[1]);
+      if ((m = /^Total TTC (-?[\d\s]+,\d{2})/.exec(t))) r.ttc = facNum(m[1]);
+      if ((m = /^(.+?) (-?\d+,\d{2}) (\d+,\d{3})(?: \d+,\d{2})? (-?[\d\s]+,\d{2}) \d+,\d{2}$/.exec(t)) && facNum(m[2]) && !/^(Sous-total|Transformé)/.test(m[1]))
+        r.lignes.push({ bl, nom: m[1].replace(/ \/ \d+$/, '').trim(), qte: facNum(m[2]), unite: 'U', pu: facNum(m[3]), montant: facNum(m[4]) });
+    });
+    return r;
+  },
 };
 function facParseurPour(f) {
   const s = facSup(f.fournisseur_id); const n = facNorm(s ? s.nom : '');
@@ -420,6 +436,7 @@ function facParseurPour(f) {
   if (n.includes('cocktail')) return 'cocktails';
   if (n.includes('platins') || n.includes('plantins')) return 'platins';
   if (n.includes('carniato')) return 'carniato';
+  if (n.includes('aquitaine bassin')) return 'abh';
   return null;
 }
 async function facAnalyser(f, force) {
@@ -595,7 +612,7 @@ function facRapprocher(f) {
     const par = /de (\d+)/.exec(p ? p.conditionnement || '' : ''); const parCaisse = !btl && par && !l.litres && p && /caisse|carton|pack/i.test(p.unite) ? +par[1] : 1;
     const puApp = l.pu ? Math.round((poidsPrix ? l.pu * poidsPrix : fp && !btl ? l.pu * fp : l.pu / parCaisse) * 1000) / 1000 : null;
     let prix = null;
-    if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
+    if (p && compat && p.prix != null && puApp && !p.prix_variable) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
     const refAncienne = assoc.refChangee.has(i) ? cl.reference || (p && p.reference) || null : null;
     return { ...l, qteApp, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix, puApp, refAncienne };
   });
@@ -608,6 +625,19 @@ function facRapprocher(f) {
     const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
     ls.forEach(l => { if (l.statut === 'quantite' && l.detail.startsWith('facturé')) { l.statut = 'ok'; l.detail = ''; } });
     if (tot - recu > tol) Object.assign(ls[ls.length - 1], { statut: 'quantite', detail: `facturé ${cuiQty(tot)} en ${ls.length} lignes, reçu ${cuiQty(recu)}` });
+  });
+  // Le BL fait foi de ce qui a été livré. Reçu par mail (YesFood, Blason d'Or), la facture se compare
+  // à lui, dans les unités du fournisseur, plutôt qu'à la réception saisie ou à la commande
+  const parBlRef = new Map();
+  lignes.forEach(l => {
+    const b = l.commande && l.commande.bl_json; if (!b || !(b.lignes || []).length || lj.avoir) return;
+    const k = l.commande.id + '|' + (facRefNorm(l.ref) || facNorm(l.nom)); parBlRef.set(k, [...(parBlRef.get(k) || []), l]);
+  });
+  parBlRef.forEach(ls => {
+    const l0 = ls[0], bl = l0.commande.bl_json.lignes.filter(x => l0.ref ? facRefNorm(x.ref) === facRefNorm(l0.ref) : facNorm(x.nom) === facNorm(l0.nom));
+    const fact = ls.reduce((a, l) => a + l.qte, 0), livre = bl.reduce((a, x) => a + Number(x.qte || 0), 0);
+    ls.forEach(l => { if (l.statut === 'non_commande' || (l.statut === 'quantite' && l.detail.startsWith('facturé'))) { l.statut = 'ok'; l.detail = ''; } });
+    if (fact - livre > Math.max(0.01, livre * 0.001)) Object.assign(ls[ls.length - 1], { statut: 'quantite', detail: bl.length ? `facturé ${cuiQty(fact)}, BL ${cuiQty(livre)}` : 'facturé, absent du BL' });
   });
   // 3) reçu mais pas facturé
   const nonFactures = [];

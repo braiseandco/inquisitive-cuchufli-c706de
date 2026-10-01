@@ -952,6 +952,7 @@ function cuiOpenProdEdit(id) {
       <div class="form-row"><label>Facturé pour 1 unité</label><input id="cui-pFq" type="number" step="0.01" inputmode="decimal" value="${p.facture_qte ?? ''}" placeholder="ex : 6"></div>
       <div class="form-row"><label>Unité de la facture</label><select id="cui-pFu"><option value="">—</option>${['litre', 'pièce', 'kilo', 'boîte', 'seau', 'sachet', 'bouteille'].map(u => `<option ${u === p.facture_unite ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
     </div>
+    <label class="prod-meta" style="display:flex;gap:8px;align-items:center;margin:0 0 8px"><input type="checkbox" id="cui-pVar" ${p.prix_variable ? 'checked' : ''}> Prix au cours du jour (poisson) : pas de hausse ni de baisse signalée, le BL fait foi</label>
     <div class="prod-meta" style="margin:-4px 0 10px">Ce que le fournisseur facture pour 1 unité ci-dessus (crème : 6 litre par carton). Sans ça, la quantité facturée n'est pas contrôlée.</div>
     <div class="modal-actions">
       <button class="btn-primary" onclick="cuiSaveProd('${id || ''}')">Enregistrer</button>
@@ -963,7 +964,7 @@ function cuiOpenProdEdit(id) {
 async function cuiSaveProd(id) {
   const nom = cui$('cui-pNom').value.trim(); if (!nom) { cuiToast('Nom obligatoire'); return; }
   const prixV = cui$('cui-pPrix').value; const prix = prixV === '' ? null : parseFloat(prixV.replace(',', '.'));
-  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), poids_kg: cui$('cui-pPoids').value === '' ? null : parseFloat(cui$('cui-pPoids').value.replace(',', '.')), facture_qte: cui$('cui-pFq').value === '' ? null : parseFloat(cui$('cui-pFq').value.replace(',', '.')), facture_unite: cui$('cui-pFu').value || null, updated_at: new Date().toISOString() };
+  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), poids_kg: cui$('cui-pPoids').value === '' ? null : parseFloat(cui$('cui-pPoids').value.replace(',', '.')), facture_qte: cui$('cui-pFq').value === '' ? null : parseFloat(cui$('cui-pFq').value.replace(',', '.')), facture_unite: cui$('cui-pFu').value || null, prix_variable: cui$('cui-pVar').checked, updated_at: new Date().toISOString() };
   try {
     if (id) {
       const old = CUI.prods.find(x => x.id === id);
