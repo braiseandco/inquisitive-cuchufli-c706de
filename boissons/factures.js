@@ -514,8 +514,10 @@ function facTrouverProduit(f, l) {
   if (l.ref) { const p = prods.find(p => p.reference && facRefNorm(p.reference) === facRefNorm(l.ref)); if (p) return p; }
   // À nom aussi proche (« Château d'Alix rouge » : Château d'Alix ou Château d'As Rouge ?), le prix départage
   let best = null, score = 0, prixOk = false;
+  const parDesig = prods.some(p => p.designation_facture);
   prods.forEach(p => {
-    const nom = facScoreFiche(l, p.nom, p); if (nom < 0.5) return;
+    // Fournisseur dont les fiches portent leur désignation : elle seule compte (« raclette jaune » n'est pas « lingettes jaunes »)
+    const nom = parDesig ? (p.designation_facture ? facScoreFiche(l, '', p) : 0) : facScoreFiche(l, p.nom, p); if (nom < 0.5) return;
     const px = facPrixProche(l, p.prix, p);
     if (nom > score + 0.001 || (Math.abs(nom - score) <= 0.001 && px && !prixOk)) { best = p; score = nom; prixOk = px; }
   });
