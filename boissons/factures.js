@@ -561,7 +561,7 @@ function facRapprocher(f) {
     let cl = assoc.get(i) || null;
     const p = cl ? CUI.prods.find(x => x.id === cl.produit_id) || FAC.retires.find(x => x.id === cl.produit_id) || null : facTrouverProduit(f, l);
     const o = commandeDe(l);
-    if (!cl && p && o) { cl = o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) || null; if (cl) usedL.add(cl.id); }
+    if (!cl && p && o) { cl = o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) || o.lignes.find(x => x.produit_id === p.id) || null; if (cl) usedL.add(cl.id); }
     const uf = FAC_UNITES[(l.unite || '').toUpperCase()] || null;
     // Produit commandé au colis et facturé au poids : la quantité se compare dans l'unité de la ligne
     // de commande (celle du jour où elle est partie), le prix dans celle du produit, où il est stocké.
@@ -592,6 +592,16 @@ function facRapprocher(f) {
     if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
     const refAncienne = assoc.refChangee.has(i) ? cl.reference || (p && p.reference) || null : null;
     return { ...l, qteApp, produit: p, commande: o, cmdLigne: cl, compat, statut, detail, prix, puApp, refAncienne };
+  });
+  // Un produit facturé sur plusieurs lignes du même BL (menthe : 2 × 1 sachet, 22/09/2026) se compare en total
+  const parCl = new Map();
+  lignes.forEach(l => { if (l.cmdLigne && l.compat && !lj.avoir) parCl.set(l.cmdLigne, [...(parCl.get(l.cmdLigne) || []), l]); });
+  parCl.forEach((ls, cl) => {
+    if (ls.length < 2 || ls[0].commande.statut === 'non_recue') return;
+    const tot = ls.reduce((a, l) => a + l.qteApp, 0), recu = Number(cl.qte_recue ?? cl.quantite);
+    const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
+    ls.forEach(l => { if (l.statut === 'quantite' && l.detail.startsWith('facturé')) { l.statut = 'ok'; l.detail = ''; } });
+    if (tot - recu > tol) Object.assign(ls[ls.length - 1], { statut: 'quantite', detail: `facturé ${cuiQty(tot)} en ${ls.length} lignes, reçu ${cuiQty(recu)}` });
   });
   // 3) reçu mais pas facturé
   const nonFactures = [];
