@@ -26,6 +26,12 @@ function facConvPoids(p, unite) {
   if (!poids || !p.unite) return null;
   return (FAC_UNITES[(unite || '').toUpperCase()] === 'kilo' && facUniteApp(p.unite) !== 'kilo') ? poids : null;
 }
+// Quantité facturée pour 1 unité de l'appli, portée par la fiche produit (crème : 6 L par carton, mayo :
+// 4,65 kg par seau). Ne vaut que si la ligne de commande est dans l'unité actuelle de la fiche.
+function facFacteur(p, cl, unite) {
+  if (!p || !p.facture_qte || p.facture_unite !== FAC_UNITES[(unite || '').toUpperCase()]) return 0;
+  return facUniteApp(cl ? cl.unite : p.unite) === facUniteApp(p.unite) ? Number(p.facture_qte) : 0;
+}
 const facNorm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
 /* ─── Chargement ─── */
@@ -563,8 +569,9 @@ function facRapprocher(f) {
     const poidsPrix = facConvPoids(p, l.unite_prix || l.unite);
     // Vin commandé au carton, facturé à la bouteille : quantité ramenée au carton, prix déjà à la bouteille comme dans l'appli
     const btl = uf === 'bouteille' && (!cl || /caisse|carton|pack/i.test(cl.unite || '')) ? facParCarton(p) : 0;
-    const qteApp = poidsQte ? cuiPieces(l.qte, poidsQte) : btl ? Math.round(l.qte / btl * 1000) / 1000 : l.qte;
-    const compat = !!(p || cl) && (!!poidsQte || !!btl || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
+    const fq = !poidsQte && !btl ? facFacteur(p, cl, l.unite) : 0, fp = facFacteur(p, null, l.unite_prix || l.unite);
+    const qteApp = poidsQte ? cuiPieces(l.qte, poidsQte) : btl ? Math.round(l.qte / btl * 1000) / 1000 : fq ? Math.round(l.qte / fq * 1000) / 1000 : l.qte;
+    const compat = !!(p || cl) && (!!poidsQte || !!btl || !!fq || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
     let statut, detail = '';
     if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
     else if (!o) { statut = 'sans_commande'; }
@@ -579,7 +586,7 @@ function facRapprocher(f) {
     }
     // Prix facturé ramené à l'unité de prix de l'appli (bar : à la bouteille pour les caisses)
     const par = /de (\d+)/.exec(p ? p.conditionnement || '' : ''); const parCaisse = !btl && par && !l.litres && p && /caisse|carton|pack/i.test(p.unite) ? +par[1] : 1;
-    const puApp = l.pu ? Math.round((poidsPrix ? l.pu * poidsPrix : l.pu / parCaisse) * 1000) / 1000 : null;
+    const puApp = l.pu ? Math.round((poidsPrix ? l.pu * poidsPrix : fp && !btl ? l.pu * fp : l.pu / parCaisse) * 1000) / 1000 : null;
     let prix = null;
     if (p && compat && p.prix != null && puApp) prix = Math.round((puApp - p.prix) / p.prix * 1000) / 10;
     const refAncienne = assoc.refChangee.has(i) ? cl.reference || (p && p.reference) || null : null;
@@ -610,9 +617,9 @@ async function facOpen(id, relire) {
     cuiPATCH('cmd_factures?id=eq.' + f.id, { ecarts_json: f.ecarts_json }).then(facRender).catch(() => {});
   }
   const lj = f.lignes_json || {};
-  const stIcon = { ok: '✓', ok_unite: '✓', quantite: '⚠️', non_commande: '❓', sans_commande: '·', avoir: '↩' };
-  const stColor = { ok: 'var(--ok)', ok_unite: 'var(--ok)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)', avoir: 'var(--ok)' };
-  const stLabel = { ok: 'conforme', ok_unite: 'reçu (unité différente, quantité non comparée)', quantite: 'écart', non_commande: 'pas dans la commande', sans_commande: 'aucune commande dans l\'appli' , avoir: 'avoir / retour' };
+  const stIcon = { ok: '✓', ok_unite: '?', quantite: '⚠️', non_commande: '❓', sans_commande: '·', avoir: '↩' };
+  const stColor = { ok: 'var(--ok)', ok_unite: 'var(--warn)', quantite: 'var(--danger)', non_commande: 'var(--warn)', sans_commande: 'var(--muted)', avoir: 'var(--ok)' };
+  const stLabel = { ok: 'conforme', ok_unite: 'quantité non comparée : renseigner « Facturé pour 1 unité » sur la fiche produit', quantite: 'écart', non_commande: 'pas dans la commande', sans_commande: 'aucune commande dans l\'appli' , avoir: 'avoir / retour' };
   const lignesHtml = rap.lignes.map(l => `<div class="order-line" style="align-items:flex-start;gap:8px">
       <span style="color:${stColor[l.statut]};width:18px;flex-shrink:0">${stIcon[l.statut]}</span>
       <span style="flex:1;min-width:0">${cuiEsc(l.nom)}${l.produit ? '' : ' <span class="prod-meta">(produit inconnu)</span>'}
@@ -622,14 +629,14 @@ async function facOpen(id, relire) {
     </div>`).join('');
   const nonFact = rap.nonFactures.map(x => `<div class="order-line"><span style="color:var(--muted)">↩ ${cuiEsc(x.cmdLigne.nom)}<div class="prod-meta">reçu ${cuiQty(x.cmdLigne.qte_recue ?? x.cmdLigne.quantite)} ${cuiEsc(x.cmdLigne.unite || '')} (${cuiEsc(cuiNumAff(x.commande))}) — non facturé</div></span></div>`).join('');
   const cmdHtml = lj.bls && lj.bls.length ? lj.bls.map(b => { const o = rap.parBl[b.numero]; return `<div class="prod-meta">BL ${cuiEsc(b.numero)} du ${facD(b.date)} → ${o ? `<b style="color:var(--text)">${cuiEsc(cuiNumAff(o))}</b> (${o.date_reception ? 'réceptionnée ' + facD(o.date_reception) + (o.numero_bl ? ', BL ' + cuiEsc(o.numero_bl) : '') : 'livraison prévue ' + facD(o.date_livraison) + ', non réceptionnée'})` : '<span style="color:var(--warn)">aucune commande trouvée</span>'}</div>`; }).join('') : '<div class="prod-meta">Aucun bon de livraison identifié.</div>';
-  const nbE = rap.ecarts.length, lu = facLectureIncomplete(f);
+  const nbE = rap.ecarts.length, lu = facLectureIncomplete(f), nbU = rap.lignes.filter(l => l.statut === 'ok_unite').length;
   cuiModal(titre, `
     <div class="modal-section"><div class="cui-kv">
       <div><span>Statut</span><span class="cui-status ${f.statut === 'validee' || f.statut === 'payee' ? 'livree' : f.statut === 'contestee' ? 'annulee' : 'envoyee'}">${FAC_STATUTS[f.statut]}</span></div><div><span>Date</span>${facD(f.date_facture)}</div>
       <div><span>Échéance</span>${facD(f.date_echeance)}</div><div><span>Montants</span>${f.montant_ht != null ? cuiEur(f.montant_ht) + ' HT' : '—'}${f.montant_ttc != null ? ' · ' + cuiEur(f.montant_ttc) + ' TTC' : ''}</div>
     </div>${f.note ? `<div style="margin-top:8px" class="ms-val">${cuiEsc(f.note)}</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Livraisons</div>${cmdHtml}</div>
-    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length && lu == null ? '<span style="color:var(--ok)">· conforme</span>' : ''}</div>${lu != null ? `<div class="alert-banner" style="margin:0 0 10px">Lecture incomplète : lignes et frais lus ${cuiEur(lu)} pour ${cuiEur(f.montant_ht)} HT, soit ${cuiEur(Math.abs(f.montant_ht - lu))} d'écart — à contrôler sur le PDF.</div>` : ''}${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
+    ${rap.lignes.length ? `<div class="modal-section"><div class="ms-label">Lignes facturées ${nbE ? `<span style="color:var(--danger)">· ${nbE} écart${nbE > 1 ? 's' : ''}</span>` : rap.commandes.length && lu == null && !nbU ? '<span style="color:var(--ok)">· conforme</span>' : ''}${nbU ? ` <span style="color:var(--warn)">· ${nbU} non comparée${nbU > 1 ? 's' : ''}</span>` : ''}</div>${lu != null ? `<div class="alert-banner" style="margin:0 0 10px">Lecture incomplète : lignes et frais lus ${cuiEur(lu)} pour ${cuiEur(f.montant_ht)} HT, soit ${cuiEur(Math.abs(f.montant_ht - lu))} d'écart — à contrôler sur le PDF.</div>` : ''}${lignesHtml}${nonFact}</div>` : f.pdf_path ? `<div class="alert-banner" style="margin:0 0 10px">Lignes non lues${lj.parseur ? '' : ' : format de facture inconnu'} — contrôle manuel sur le PDF.</div>` : ''}
     <div class="modal-actions">
       ${f.pdf_path ? facFichiers(f).map((p, k, a) => `<button class="btn-secondary" onclick="facVoirPdf('${f.id}',${k})">📄 ${a.length > 1 ? `PDF ${k + 1}/${a.length}` : 'Voir le PDF'}</button>`).join('') : ''}
       <div class="cui-row-btns">
