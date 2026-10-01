@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Caisse">
 <meta name="theme-color" content="#c8a96e">
 <link rel="manifest" href="manifest.json">
+<script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
 <link rel="apple-touch-icon" href="../icon-192.png">
 <title>Caisse — Braise &amp; Co</title>
@@ -1979,7 +1980,7 @@ function fmtEur(n) {
   return (n || 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + ' €';
 }
 
-const APP_VERSION = '2026-10-01.10';
+const APP_VERSION = '2026-10-01.11';
 window.APP_VERSION = APP_VERSION;
 document.getElementById('appVersion').textContent = 'v' + APP_VERSION;
 

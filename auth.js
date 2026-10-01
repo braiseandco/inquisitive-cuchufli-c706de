@@ -5,11 +5,11 @@
 // compte par appareil (2 tablettes, téléphone de l'entreprise, téléphone et PC du patron),
 // qu'on peut couper seul si l'appareil est perdu.
 //
-// Utilisation dans une page : remplacer les en-têtes fixes par ceux-ci, et passer les appels par
-// braiseAuth.fetch, qui affiche l'écran de connexion et rejoue l'appel si la base refuse.
-//   headers: { ...(await braiseAuth.headers()), 'Content-Type': 'application/json' }
-// Tant que l'ancien accès est ouvert, un appareil non connecté continue de marcher avec la clé
-// publique : on peut brancher les pages une à une sans rien casser.
+// Une page se branche en chargeant ce fichier avant ses propres scripts. Il intercepte les appels
+// à la base qui portent la clé publique : appareil connecté, il y met son jeton ; base qui refuse
+// faute de connexion, il affiche l'écran de connexion puis rejoue l'appel. Les pages n'ont pas à
+// toucher leurs dizaines d'appels. Appareil non connecté et accès libre encore ouvert : l'appel
+// part tel quel, rien ne change.
 (function(){
   var SB = 'https://ugyrrnqpapeagpuocwob.supabase.co';
   var KEY = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
@@ -18,6 +18,7 @@
   var APPAREILS = ['tablette-1', 'tablette-2', 'tel-entreprise', 'tel-perso', 'pc-patron'];
   var STORE = 'braise_auth';
   var enCours = null, attente = null;
+  var natif = window.fetch.bind(window);
 
   function lire(){ try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch(e){ return null; } }
   function ecrire(s){ try { s ? localStorage.setItem(STORE, JSON.stringify(s)) : localStorage.removeItem(STORE); } catch(e){} }
@@ -28,7 +29,7 @@
   }
 
   async function auth(type, body){
-    var r = await fetch(SB + '/auth/v1/token?grant_type=' + type, {
+    var r = await natif(SB + '/auth/v1/token?grant_type=' + type, {
       method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var d = await r.json().catch(function(){ return {}; });
     if(!r.ok) throw new Error(d.error_description || d.msg || d.error || ('HTTP ' + r.status));
@@ -85,25 +86,38 @@
     return attente;
   }
 
-  // Comme fetch, avec les en-têtes de l'appareil. Base qui refuse faute de connexion
-  // (401, ou 403 « permission denied » une fois l'accès libre fermé) : écran, puis on rejoue.
-  async function bfetch(url, opts){
-    opts = opts || {};
-    for(var essai = 0; essai < 2; essai++){
-      var h = Object.assign({}, opts.headers || {}, await headers());
-      var r = await fetch(url, Object.assign({}, opts, { headers: h }));
-      if(r.status !== 401 && r.status !== 403) return r;
-      if(essai) return r;
-      var txt = await r.clone().text();
-      if(r.status === 403 && !/permission denied|row-level security|JWT/i.test(txt)) return r;
-      ecrire(null);
+  // Clé publique de la page (nouvelle « sb_publishable_ » ou ancienne clé anon) : à remplacer par le jeton
+  function estCle(b){
+    if(!b || b === KEY || b.indexOf('sb_publishable_') === 0) return true;
+    try { return JSON.parse(atob(b.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role === 'anon'; }
+    catch(e){ return false; }
+  }
+
+  // Seules les données et les fichiers passent par ici ; l'écran ne s'affiche que pour eux
+  function aProteger(url){
+    return typeof url === 'string' && (url.indexOf(SB + '/rest/v1/') === 0 || url.indexOf(SB + '/storage/v1/') === 0);
+  }
+
+  window.fetch = async function(input, init){
+    if(!aProteger(input)) return natif(input, init);
+    var o = Object.assign({}, init || {}), h = new Headers(o.headers || {});
+    if(!estCle((h.get('Authorization') || '').replace(/^Bearer\s+/i, ''))) return natif(input, init);
+    for(var essai = 0; ; essai++){
+      var t = await jeton();
+      if(t) h.set('Authorization', 'Bearer ' + t);
+      o.headers = h;
+      var r = await natif(input, o);
+      if(essai || (r.status !== 401 && r.status !== 403)) return r;
+      var txt = await r.clone().text().catch(function(){ return ''; });
+      if(r.status === 403 && !/permission denied|row-level security|42501|JWT/i.test(txt)) return r;
+      if(t) ecrire(null);
+      if(!document.body) await new Promise(function(ok){ document.addEventListener('DOMContentLoaded', ok, { once: true }); });
       await ecran('Cet appareil doit se connecter pour accéder aux données.');
     }
-  }
+  };
 
   window.braiseAuth = {
     headers: headers,
-    fetch: bfetch,
     connecte: function(){ return !!lire(); },
     appareil: function(){ var s = lire(); return s && s.appareil; },
     // À appeler au chargement d'une page branchée, une fois l'accès libre fermé

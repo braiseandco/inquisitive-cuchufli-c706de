@@ -463,7 +463,7 @@ function renderMobileCard(c){ window.currentMobileClient = c;
   async function loadRouletteEmployes(){
     var sel=document.getElementById('welcome-roulette-employe');
     try{
-      var emps=await sbResaFetch('employees?select=id,name&order=display_order.asc,name.asc');
+      var emps=await sbResaFetch('employes_noms?select=id,name&order=display_order.asc,name.asc');
       var saved=localStorage.getItem('roulette_employe')||'';
       sel.innerHTML='<option value="">— Votre prénom —</option>'+(Array.isArray(emps)?emps.map(function(e){return '<option value="'+e.name.replace(/"/g,'&quot;')+'"'+(e.name===saved?' selected':'')+'>'+e.name+'</option>';}).join(''):'');
     }catch(_){ sel.innerHTML='<option value="">— Erreur chargement —</option>'; }
@@ -1205,7 +1205,7 @@ document.getElementById('rn-submit').addEventListener('click',async function(){
     const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     const res=await fetch(RESA_SB_URL+'/rest/v1/reservations',{
       method:'POST',
-      headers:{'apikey':RESA_SB_KEY,'Authorization':'Bearer '+RESA_SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+      headers:{'apikey':RESA_SB_KEY,'Authorization':'Bearer '+RESA_SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({id,nom,telephone:tel,email:(window.currentMobileClient&&window.currentMobileClient.email)||null,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',created_at:new Date().toISOString()})
     });
     if(!res.ok)throw new Error();

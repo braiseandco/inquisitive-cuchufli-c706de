@@ -218,12 +218,14 @@ async function sbInsert(table, data) {
   return r.ok;
 }
 
+// Les gains des autres joueurs ne sont pas lisibles : la base répond seulement oui ou non
 async function sbCheckPlayed(tel) {
-  const r = await fetch(SB_URL + '/rest/v1/roulette_gains?telephone=eq.' + encodeURIComponent(tel) + '&select=id&limit=1', {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  const r = await fetch(SB_URL + '/rest/v1/rpc/roulette_deja_joue', {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tel })
   });
-  const d = await r.json();
-  return Array.isArray(d) && d.length > 0;
+  return (await r.json()) === true;
 }
 
 function selectPrize() {

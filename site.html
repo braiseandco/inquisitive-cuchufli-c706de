@@ -851,7 +851,7 @@ document.getElementById('rn-submit').addEventListener('click',async function(){
     const id=Date.now().toString(36)+Math.random().toString(36).slice(2,5);
     const res=await fetch(RESA_URL+'/rest/v1/reservations',{
       method:'POST',
-      headers:{'apikey':RESA_KEY,'Authorization':'Bearer '+RESA_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+      headers:{'apikey':RESA_KEY,'Authorization':'Bearer '+RESA_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({id,nom,telephone:tel,personnes:rnPax,date,heure,notes:notes||null,statut:'en-attente',created_at:new Date().toISOString()})
     });
     if(!res.ok)throw new Error();
