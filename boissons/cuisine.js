@@ -69,12 +69,15 @@ const cuiConfQte = (o, l) => {
   const un = u => CUI_UNITES_FOURN[u] || (u || '').toLowerCase();
   // Produit commandé au colis, confirmé au kilo : on affiche d'abord le nombre de poches
   const poids = typeof facConvPoids === 'function' ? facConvPoids({ unite: l.unite, poids_kg: cuiPoids(l) }, c.unite) : null;
-  if (poids) return ` · confirmé ${cuiQty(Math.round(c.qte / poids * 100) / 100)} ${(l.unite || '').toLowerCase()} (${cuiQty(c.qte)} ${un(c.unite)})`;
+  if (poids) return ` · confirmé ${cuiQty(cuiPieces(c.qte, poids))} ${(l.unite || '').toLowerCase()} (${cuiQty(c.qte)} ${un(c.unite)})`;
   const u = (c.unite_prix && c.unite_prix !== c.unite && c.montant && c.pu) ? ` = ${cuiQty(Math.round(c.montant / c.pu * 100) / 100)} ${un(c.unite_prix)}` : '';
   return ` · confirmé ${cuiQty(c.qte)} ${un(c.unite)}${u}`;
 };
 // Poids d'une unité de commande, porté par la fiche produit (2,5 kg pour une poche)
 const cuiPoids = l => { const p = CUI.prods.find(x => x.id === l.produit_id); return p ? p.poids_kg : null; };
+// Un bleu, un boudin se commandent à la pièce et se facturent au poids réel, qui varie : 2,31 kg d'un bleu
+// de 2,5 kg font 1 fromage, pas 0,92. Le nombre de pièces est l'arrondi, au moins 1 dès qu'il y a du poids.
+const cuiPieces = (kg, poids) => kg > 0 ? Math.max(1, Math.round(kg / poids)) : 0;
 // Recherche sans accents : « creme brulee » ou « oeufs » doivent trouver « crème brûlée » et « œufs »
 const cuiNorm = s => (s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 // Le numéro de commande est celui du fournisseur (accusé, Choco…) : BC… n'est qu'un identifiant
@@ -585,7 +588,7 @@ function cuiOpenReception(id) {
     const poids = typeof facConvPoids === 'function' ? facConvPoids({ unite: l.unite, poids_kg: cuiPoids(l) }, bls[0].unite) : null;
     if (!poids && u && typeof facUniteApp === 'function' && facUniteApp(l.unite) !== u) return null;
     const q = bls.reduce((a, x) => a + Number(x.qte || 0), 0);
-    return poids ? Math.round(q / poids * 100) / 100 : q;
+    return poids ? cuiPieces(q, poids) : q;
   };
   CUI._rec = { id, lines: o.lignes.map(l => { const q = qteBl(l); return { id: l.id, nom: l.nom, unite: l.unite, quantite: Number(l.quantite), qte_recue: l.qte_recue != null ? Number(l.qte_recue) : q != null ? q : Number(l.quantite), ecart: l.ecart || '', bl: q != null }; }) };
   cuiModal(`📦 Réception · ${cuiEsc(s.nom)}`, `

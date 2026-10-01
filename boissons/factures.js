@@ -4,7 +4,7 @@
    extrait les lignes selon le format de chaque fournisseur, puis on les rapproche des
    commandes et réceptions saisies dans l'onglet Cuisine. S'appuie sur cuisine.js (CUI, cui*). */
 
-const FAC = { rows: [], filtre: 'a_controler', loaded: false };
+const FAC = { rows: [], retires: [], filtre: 'a_controler', loaded: false };
 const FAC_STATUTS = { a_controler: 'À contrôler', validee: 'Validée', contestee: 'Contestée', payee: 'Payée', historique: 'Historique', document: 'Document' };
 // historique : factures antérieures au 25/09/2026, jamais contrôlées et laissées telles quelles (comptées dans le récap)
 const FAC_EST_FACTURE = f => !f.type || f.type === 'facture' || f.type === 'avoir';
@@ -32,6 +32,8 @@ const facNorm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g
 async function facLoad() {
   try {
     FAC.rows = await cuiGET('cmd_factures?order=date_facture.desc.nullslast,created_at.desc&limit=300');
+    // Fiches retirées du catalogue (boudin remplacé le 25/09/2026) : leurs factures passées gardent leur poids et leur prix
+    FAC.retires = await cuiGET('cmd_produits?actif=eq.false').catch(() => []);
     FAC.loaded = true;
   } catch (e) { console.error(e); cuiToast('Factures : erreur de connexion'); }
 }
@@ -526,9 +528,6 @@ function facAssocier(lignes, commandeDe) {
   });
   return res;
 }
-// Produit vendu entier et facturé au poids (bleu d'Auvergne ≈ 2,5 kg, boudin ≈ 1,7 kg) : le poids réel
-// s'écarte du poids moyen de la fiche, la quantité en pièces n'est comparée qu'à 15 % près
-const FAC_TOLERANCE_PIECE = 0.15;
 // Seuls ces problèmes de réception rendent une ligne facturée contestable : « Non commandé » ou une note
 // sur la quantité livrée relèvent de la réception, la facture est juste si elle facture ce qui a été reçu
 const FAC_PB_FACTURE = ['Abîmé', 'Périmé / DLC courte', 'Mauvais produit'];
@@ -554,7 +553,7 @@ function facRapprocher(f) {
   const usedL = new Set([...assoc.values()].map(cl => cl.id));
   const lignes = lj.lignes.map((l, i) => {
     let cl = assoc.get(i) || null;
-    const p = cl ? CUI.prods.find(x => x.id === cl.produit_id) || null : facTrouverProduit(f, l);
+    const p = cl ? CUI.prods.find(x => x.id === cl.produit_id) || FAC.retires.find(x => x.id === cl.produit_id) || null : facTrouverProduit(f, l);
     const o = commandeDe(l);
     if (!cl && p && o) { cl = o.lignes.find(x => x.produit_id === p.id && !usedL.has(x.id)) || null; if (cl) usedL.add(cl.id); }
     const uf = FAC_UNITES[(l.unite || '').toUpperCase()] || null;
@@ -564,8 +563,7 @@ function facRapprocher(f) {
     const poidsPrix = facConvPoids(p, l.unite_prix || l.unite);
     // Vin commandé au carton, facturé à la bouteille : quantité ramenée au carton, prix déjà à la bouteille comme dans l'appli
     const btl = uf === 'bouteille' && (!cl || /caisse|carton|pack/i.test(cl.unite || '')) ? facParCarton(p) : 0;
-    const qteApp = poidsQte ? Math.round(l.qte / poidsQte * 1000) / 1000 : btl ? Math.round(l.qte / btl * 1000) / 1000 : l.qte;
-    // Produit retiré du catalogue (boudin, 11/09/2026) : la ligne de commande suffit à comparer
+    const qteApp = poidsQte ? cuiPieces(l.qte, poidsQte) : btl ? Math.round(l.qte / btl * 1000) / 1000 : l.qte;
     const compat = !!(p || cl) && (!!poidsQte || !!btl || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
     let statut, detail = '';
     if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
@@ -573,7 +571,7 @@ function facRapprocher(f) {
     else if (!cl) { statut = 'non_commande'; }
     else {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
-      const tol = poidsQte ? Math.abs(recu) * FAC_TOLERANCE_PIECE : typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
+      const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
       if (o.statut === 'non_recue') { statut = 'quantite'; detail = 'facturé, commande déclarée non reçue'; }
       else if (compat && Math.abs(recu - qteApp) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
       else if (FAC_PB_FACTURE.includes(cl.ecart)) { statut = 'quantite'; detail = cl.ecart; }
