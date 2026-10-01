@@ -504,13 +504,18 @@ function facPrixProche(l, prix, p) {
   const n = facParCarton(p), kg = p && p.poids_kg ? Number(p.poids_kg) : 0;
   return [prix, prix / n, prix / kg].some(x => facProche(Number(x), l.pu));
 }
+// Fournisseur sans référence sur ses factures (ABH) : la désignation de la facture, notée sur la fiche, vaut une référence
+function facScoreFiche(l, nom, p) {
+  const d = p && p.designation_facture;
+  return d && facNorm(d) === facNorm(l.nom) ? 1 : Math.max(facScoreNom(l.nom, nom), d ? facScoreNom(l.nom, d) : 0);
+}
 function facTrouverProduit(f, l) {
   const prods = CUI.prods.filter(p => p.fournisseur_id === f.fournisseur_id);
   if (l.ref) { const p = prods.find(p => p.reference && facRefNorm(p.reference) === facRefNorm(l.ref)); if (p) return p; }
   // À nom aussi proche (« Château d'Alix rouge » : Château d'Alix ou Château d'As Rouge ?), le prix départage
   let best = null, score = 0, prixOk = false;
   prods.forEach(p => {
-    const nom = facScoreNom(l.nom, p.nom); if (nom < 0.5) return;
+    const nom = facScoreFiche(l, p.nom, p); if (nom < 0.5) return;
     const px = facPrixProche(l, p.prix, p);
     if (nom > score + 0.001 || (Math.abs(nom - score) <= 0.001 && px && !prixOk)) { best = p; score = nom; prixOk = px; }
   });
@@ -531,7 +536,7 @@ function facAssocier(lignes, commandeDe) {
       const px = facPrixProche(l, cl.prix, p) || facPrixProche(l, p && p.prix, p);
       const recu = Number(cl.qte_recue != null ? cl.qte_recue : cl.quantite);
       const qt = [recu, recu * n, recu * kg].some(x => facProche(x, Math.abs(l.qte)));
-      const nom = memeRef ? 1 : facScoreNom(l.nom, cl.nom);
+      const nom = memeRef ? 1 : facScoreFiche(l, cl.nom, p);
       if (nom >= 0.5 || (nom > 0 && (px || qt))) paires.push({ i, cl, s: nom + (px ? 0.25 : 0) + (qt ? 0.25 : 0) });
     });
   });
@@ -719,6 +724,9 @@ async function facValider(id) {
   const rap = facRapprocher(f);
   let maj = 0;
   for (const l of rap.lignes) {
+    if (!l.ref && l.cmdLigne && l.produit && !l.produit.designation_facture && f.lignes_json && f.lignes_json.parseur === 'abh') {
+      try { await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { designation_facture: l.nom }); l.produit.designation_facture = l.nom; } catch (e) { console.error(e); }
+    }
     if (l.refAncienne && l.produit) {
       try { await cuiPATCH('cmd_produits?id=eq.' + l.produit.id, { reference: l.ref }); l.produit.reference = l.ref; } catch (e) { console.error(e); }
     }

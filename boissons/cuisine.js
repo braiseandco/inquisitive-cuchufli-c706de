@@ -943,6 +943,7 @@ function cuiOpenProdEdit(id) {
       <div class="form-row"><label>Référence fournisseur</label><input id="cui-pRef" value="${cuiEsc(p.reference || '')}"></div>
     </div>
     <div class="form-row"><label>Conditionnement</label><input id="cui-pCond" value="${cuiEsc(p.conditionnement || '')}" placeholder="ex : carton de 6"></div>
+    <div class="form-row"><label>Désignation sur la facture (fournisseur sans référence)</label><input id="cui-pDesig" value="${cuiEsc(p.designation_facture || '')}" placeholder="ex : SENET LAVAGE MACHINE TTES EAUX 20L"></div>
     <div class="form-2col">
       <div class="form-row"><label>Stock mini</label><input id="cui-pMin" type="number" step="0.5" inputmode="decimal" value="${p.stock_mini ?? ''}"></div>
       <div class="form-row"><label>Poids d'une unité (kg)</label><input id="cui-pPoids" type="number" step="0.1" inputmode="decimal" value="${p.poids_kg ?? ''}" placeholder="ex : 2,5 (poche)"></div>
@@ -964,7 +965,7 @@ function cuiOpenProdEdit(id) {
 async function cuiSaveProd(id) {
   const nom = cui$('cui-pNom').value.trim(); if (!nom) { cuiToast('Nom obligatoire'); return; }
   const prixV = cui$('cui-pPrix').value; const prix = prixV === '' ? null : parseFloat(prixV.replace(',', '.'));
-  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), poids_kg: cui$('cui-pPoids').value === '' ? null : parseFloat(cui$('cui-pPoids').value.replace(',', '.')), facture_qte: cui$('cui-pFq').value === '' ? null : parseFloat(cui$('cui-pFq').value.replace(',', '.')), facture_unite: cui$('cui-pFu').value || null, prix_variable: cui$('cui-pVar').checked, updated_at: new Date().toISOString() };
+  const data = { nom, unite: cui$('cui-pUnite').value.trim() || 'Pièce(s)', prix, categorie_id: cui$('cui-pCat').value || null, reference: cui$('cui-pRef').value.trim() || null, conditionnement: cui$('cui-pCond').value.trim() || null, stock_mini: cui$('cui-pMin').value === '' ? null : parseFloat(cui$('cui-pMin').value), poids_kg: cui$('cui-pPoids').value === '' ? null : parseFloat(cui$('cui-pPoids').value.replace(',', '.')), facture_qte: cui$('cui-pFq').value === '' ? null : parseFloat(cui$('cui-pFq').value.replace(',', '.')), facture_unite: cui$('cui-pFu').value || null, prix_variable: cui$('cui-pVar').checked, designation_facture: cui$('cui-pDesig').value.trim() || null, updated_at: new Date().toISOString() };
   try {
     if (id) {
       const old = CUI.prods.find(x => x.id === id);
