@@ -542,14 +542,20 @@ function facRapprocher(f) {
   const orders = CUI.orders.filter(o => o.fournisseur_id === f.fournisseur_id && o.statut !== 'annulee' && o.statut !== 'brouillon');
   // 1) commandes : par n° de BL saisi à la réception, sinon par date de livraison proche
   const parBl = {};
-  const used = o => Object.values(parBl).includes(o);
+  // Une livraison peut porter deux BL le même jour (DS, 25/09/2026) : la commande n'est prise que par un BL d'une autre date
+  const used = (o, date) => Object.entries(parBl).some(([n, x]) => x === o && (lj.bls.find(b => b.numero === n) || {}).date !== date);
+  // Plusieurs BL saisis dans le même champ (« 1192895 + 1192885 ») : chacun compte
+  const nBl = n => String(n).replace(/\D/g, '').replace(/^0+/, '');
   lj.bls.forEach(b => {
-    const o = orders.find(o => o.numero_bl && o.numero_bl.replace(/\D/g, '') === String(b.numero).replace(/\D/g, ''));
+    const o = orders.find(o => o.numero_bl && o.numero_bl.split(/[^\w]*[+,;/&]|\s+et\s+/).map(nBl).includes(nBl(b.numero)));
     if (o) parBl[b.numero] = o;
   });
   lj.bls.filter(b => !parBl[b.numero] && b.date).forEach(b => {
     const d = new Date(b.date).getTime();
-    const o = orders.filter(o => !used(o) && !o.numero_bl).map(o => ({ o, dt: Math.abs(new Date(o.date_reception || o.date_livraison).getTime() - d) })).filter(x => x.dt <= 2 * 864e5).sort((a, b) => a.dt - b.dt).map(x => x.o)[0];
+    // Date de livraison prévue ou date de réception, la plus proche du BL : une commande réceptionnée
+    // le lendemain (Lodifrais du 11/09 saisie le 12) ne doit pas céder son BL à la commande du 9
+    const ecartJ = o => Math.min(...[o.date_livraison, o.date_reception].filter(Boolean).map(x => Math.abs(new Date(String(x).slice(0, 10)).getTime() - d)));
+    const o = orders.filter(o => !used(o, b.date) && !o.numero_bl).map(o => ({ o, dt: ecartJ(o) })).filter(x => x.dt <= 2 * 864e5).sort((a, b) => a.dt - b.dt).map(x => x.o)[0];
     if (o) parBl[b.numero] = o;
   });
   const commandes = [...new Set(Object.values(parBl))];
