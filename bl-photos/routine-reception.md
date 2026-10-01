@@ -487,18 +487,25 @@ where f.nom = '<fournisseur>'
 order by c.date_livraison;
 ```
 
-Puis ce qui a été livré, dans cet ordre de préférence :
+Puis ce qui a été livré. **Le BL fait foi** (règle du patron, 01/10/2026) : la
+facture doit correspondre au BL, pas à la commande ni à une réception recopiée
+de la commande. Dans cet ordre de préférence :
 
-1. la réception saisie : `qte_recue`, `ecart`, et `reception_note`, qui dit
-   souvent ce que les quantités taisent ;
-2. le BL reçu par mail : `bl_json` de la commande, ou `cmd_factures` de type `bl` ;
-3. le BL photographié : `BL\lus-a-blanc.txt` dit quelle photo porte quel BL, la
-   rouvrir au besoin avec les règles des points 1 et 2.
+1. le BL reçu par mail : `bl_json` de la commande, ou `cmd_factures` de type `bl` ;
+2. le BL photographié : `BL\lus-a-blanc.txt` dit quelle photo porte quel BL, la
+   rouvrir au besoin avec les règles des points 1 et 2 ;
+3. à défaut de BL, la réception saisie : `qte_recue`, `ecart` et
+   `reception_note`, qui dit souvent ce que les quantités taisent.
+
+Un article présent sur le BL mais absent de la commande ou de la réception a
+été livré : s'il est facturé au prix du BL, ce n'est pas « facturé, pas reçu ».
+Seule une réserve écrite sur le BL ou dans `reception_note` (manquant, refusé,
+abîmé) le contredit.
 
 ```sql
 select l.commande_id, l.reference, l.nom, l.unite, l.quantite, l.qte_recue, l.prix, l.ecart,
        p.prix as prix_fiche, p.unite as unite_fiche, p.poids_kg, p.conditionnement,
-       p.facture_qte, p.facture_unite
+       p.facture_qte, p.facture_unite, p.prix_variable
 from cmd_commande_lignes l left join cmd_produits p on p.id = l.produit_id
 where l.commande_id in ('<commande>')
 order by l.commande_id, l.ordre;
@@ -546,7 +553,10 @@ Quatre cas à connaître :
   s'en écarte de plus de 10 %.
 - **Prix** — prix facturé ramené à l'unité de l'appli en partant du montant de
   la ligne, le seul point fixe, puis comparé au prix de la ligne de commande et à
-  celui de la fiche. Un écart compte s'il dépasse 1 % ou 1 € sur la ligne ; en
+  celui de la fiche. **Poisson au cours du jour** (`prix_variable` sur la fiche :
+  lieu noir, saumon — le poisson seulement) : son prix change toute l'année, ce
+  n'est ni une hausse ni une baisse ; vérifier seulement que la facture reprend le
+  prix du BL. Un écart compte s'il dépasse 1 % ou 1 € sur la ligne ; en
   dessous, c'est de l'arrondi.
 - **Remplacement** — une autre référence livrée à la place de celle commandée :
   ne compte que si son prix diffère, comme une hausse ou une baisse.
