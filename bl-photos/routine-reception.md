@@ -497,7 +497,8 @@ Puis ce qui a été livré, dans cet ordre de préférence :
 
 ```sql
 select l.commande_id, l.reference, l.nom, l.unite, l.quantite, l.qte_recue, l.prix, l.ecart,
-       p.prix as prix_fiche, p.unite as unite_fiche, p.poids_kg, p.conditionnement
+       p.prix as prix_fiche, p.unite as unite_fiche, p.poids_kg, p.conditionnement,
+       p.facture_qte, p.facture_unite
 from cmd_commande_lignes l left join cmd_produits p on p.id = l.produit_id
 where l.commande_id in ('<commande>')
 order by l.commande_id, l.ordre;
@@ -513,7 +514,9 @@ Quatre cas à connaître :
   livrées : le BL IV296405 du 18/09, 427,88 € HT sur la facture Lodifrais
   73172530, est celui de la commande O260917QM6IFB. Une commande annulée reste
   donc candidate ; si un BL facturé y mène, c'est une **livraison jamais
-  réceptionnée**.
+  réceptionnée**. Le 01/10/2026, celles qu'une facture couvrait ont été remises
+  en `livree`, reçu = commandé, note « remise en livrée le 01/10/2026 » : ce sont
+  des réceptions de principe (cas suivant).
 - **Commande déclarée non reçue** — statut `non_recue`, posé par la touche
   « Non reçue » de l'appli, qui l'efface des écrans : rien n'est arrivé. Elle
   reste en base pour ce contrôle-ci. Tout ce qu'une facture en porte
@@ -536,7 +539,9 @@ Quatre cas à connaître :
   conditionnement dans la désignation : « 1L X6 » est un carton de 6 L, « 4K65 »
   un seau de 4,65 kg, « X90 » un carton de 90 œufs, « 25G X40 » un carton de 40
   choux, « 5K » un sac de 5 kg ; un fût Le Bihan se facture au litre, une caisse
-  en « 24 COL ». Conversion ambiguë : ne rien affirmer. Produit pesé : le poids
+  en « 24 COL ». La fiche produit porte la conversion quand elle est connue :
+  `facture_qte` `facture_unite` (crème : 6 litre par carton). Conversion ambiguë :
+  ne rien affirmer. Produit pesé : le poids
   facturé fait foi, sauf si la réception porte un poids réellement relevé qui
   s'en écarte de plus de 10 %.
 - **Prix** — prix facturé ramené à l'unité de l'appli en partant du montant de
