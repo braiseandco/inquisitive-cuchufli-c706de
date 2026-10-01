@@ -11,6 +11,8 @@ const DOC_TYPES = { bl: 'Bon de livraison', arc: 'Accusé de réception', confir
 
 /* ─── Lecteurs : { numero, date, date_livraison, ref_commande, ht, lignes:[{ref,nom,qte,unite,pu,montant}] } ─── */
 const DOC_PARSEURS = {
+  // Un même produit peut tenir sur deux lignes (rumsteak : 2 colis à 43,05 kg + 3 colis à 62,65 kg, 21/09/2026) :
+  // seule une ligne identique jusqu'au poids est un doublon de page
   bl_yesfood(L) {
     const r = { lignes: [] };
     L.forEach(t => {
@@ -18,7 +20,7 @@ const DOC_PARSEURS = {
       if ((m = /BON LIVRAISON N[°º]\s*(\d+)/.exec(t))) r.numero = r.numero || m[1];
       if ((m = /^du (\d\d\/\d\d\/\d{4})/.exec(t))) r.date = r.date || facDate(m[1]);
       if ((m = /^(\d{8}) (\d\d\/\d\d\/\d{4}) \S+(?: (\d\d\/\d\d\/\d{4}))?$/.exec(t))) { r.ref_commande = r.ref_commande || m[1]; r.date_livraison = m[3] ? facDate(m[3]) : null; }
-      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(-?\d+)\s+(-?[\d\s]+,\d{2,3})\s+(KG|PC|U)$/.exec(t)) && !r.lignes.some(l => l.ref === m[1] && l.nom === m[2].trim()))
+      if ((m = /^([A-Z0-9]{2,})\s+(.+?)\s+(-?\d+)\s+(-?[\d\s]+,\d{2,3})\s+(KG|PC|U)$/.exec(t)) && !r.lignes.some(l => l.ref === m[1] && l.nom === m[2].trim() && l.qte === facNum(m[4])))
         r.lignes.push({ ref: m[1], nom: m[2].trim(), colis: facNum(m[3]), qte: facNum(m[4]), unite: m[5] });
     });
     return r;

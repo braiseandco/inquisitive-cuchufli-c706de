@@ -570,7 +570,7 @@ function facRapprocher(f) {
     // Vin commandé au carton, facturé à la bouteille : quantité ramenée au carton, prix déjà à la bouteille comme dans l'appli
     const btl = uf === 'bouteille' && (!cl || /caisse|carton|pack/i.test(cl.unite || '')) ? facParCarton(p) : 0;
     const fq = !poidsQte && !btl ? facFacteur(p, cl, l.unite) : 0, fp = facFacteur(p, null, l.unite_prix || l.unite);
-    const qteApp = poidsQte ? cuiPieces(l.qte, poidsQte) : btl ? Math.round(l.qte / btl * 1000) / 1000 : fq ? Math.round(l.qte / fq * 1000) / 1000 : l.qte;
+    const qteApp = poidsQte ? cuiPieces(l.qte, poidsQte) : btl ? Math.round(l.qte / btl * 1000) / 1000 : fq ? (p.facture_unite === 'kilo' ? cuiPieces(l.qte, fq) : Math.round(l.qte / fq * 1000) / 1000) : l.qte;
     const compat = !!(p || cl) && (!!poidsQte || !!btl || !!fq || (!!uf && facUniteApp(cl ? cl.unite : p.unite) === uf));
     let statut, detail = '';
     if (lj.avoir) { statut = 'avoir'; detail = 'avoir / retour'; }
@@ -580,7 +580,8 @@ function facRapprocher(f) {
       const recu = cl.qte_recue != null ? Number(cl.qte_recue) : Number(cl.quantite);
       const tol = typeof cuiPese === 'function' && cuiPese(cl) ? Math.abs(recu) * CUI_TOLERANCE_POIDS : 0.01;
       if (o.statut === 'non_recue') { statut = 'quantite'; detail = 'facturé, commande déclarée non reçue'; }
-      else if (compat && Math.abs(recu - qteApp) > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
+      // Seul ce qui est facturé en plus du reçu se conteste : moins facturé que reçu est en notre faveur
+      else if (compat && qteApp - recu > tol) { statut = 'quantite'; detail = `facturé ${cuiQty(qteApp)}, ${cl.qte_recue != null ? 'reçu' : 'commandé'} ${cuiQty(recu)}`; }
       else if (FAC_PB_FACTURE.includes(cl.ecart)) { statut = 'quantite'; detail = cl.ecart; }
       else statut = compat ? 'ok' : 'ok_unite';
     }
