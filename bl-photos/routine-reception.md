@@ -192,16 +192,19 @@ left join cmd_bl_photos b on b.commande_id = c.id
 where c.id = '<commande>';
 ```
 
-Seule une observation écrite — `reception_note`, `ecart` d'une ligne, statut
-`non_recue`, ou une réserve manuscrite sur le BL — peut dire qu'un article du BL
-n'est pas arrivé (manquant, refusé, abîmé, reparti avec le chauffeur). Elle
-seule fait passer une ligne du BL en **FACTURÉ, PAS REÇU**.
+**Signalement de l'employé sur la tablette** — il dit qu'un article du BL n'est
+pas arrivé, ou pas en entier : une quantité reçue **inférieure à celle du BL**
+(0 compris), un problème coché sur la ligne (`ecart` : Abîmé, Périmé, Mauvais
+produit…), une remarque (`reception_note` : manquant, refusé, reparti avec le
+chauffeur), la commande déclarée « Non reçue », ou une réserve manuscrite sur
+le BL. Seul un signalement contredit le BL. Retenir pour chaque article signalé
+la quantité et le montant en jeu : si une facture le compte quand même (point
+8), c'est une **ALARME** (point 6).
 
-**La quantité saisie (`qte_recue`) n'est pas une référence**, et un écart avec
-le BL n'est pas une erreur : la saisie reprend souvent la commande (6 sacs de
-glace) quand le fournisseur n'en livre que deux ou trois. Le BL dit ce qui est
-arrivé ; le fournisseur facture le BL. Rien à signaler dans le mail. Seul compte
-un article du BL absent de la réception : « livré, non saisi », dans
+**Une saisie supérieure au BL n'est pas un signalement** : elle reprend souvent
+la commande (6 sacs de glace saisis) quand le fournisseur n'en livre que deux ou
+trois. Le BL dit ce qui est arrivé, rien à signaler. Un article du BL absent de
+la commande, donc sans ligne à saisir, est « livré, non saisi », dans
 CONTRÔLÉS.
 
 ## 4. Convertir dans l'unité de la ligne de commande
@@ -351,9 +354,17 @@ signaler » et ce qui a été contrôlé. L'envoyer **même les jours sans livra
 ni facture** : le silence doit vouloir dire « la routine est cassée », jamais
 « rien à signaler ».
 
+**ALARME** — un article signalé absent ou incomplet sur la tablette (point
+3 bis) et facturé quand même. L'objet commence alors par `ALARME — ` et le
+montant, et c'est la première rubrique du corps : pour chacun, le fournisseur,
+la facture, le BL, l'article, ce que l'employé a signalé et quand, le montant
+facturé à tort, et « avoir à demander ». Un signalement sans facture encore
+arrivée n'est pas une alarme : il se vérifie au passage où la facture arrive.
+
 Le corps, dans cet ordre, chaque rubrique seulement si elle a quelque chose à
 dire :
 
+0. **ALARME** — voir ci-dessus.
 1. **PRIX** — chaque prix qui bouge sur un BL lu ou une facture contrôlée, une
    ligne par produit : ▲ ou ▼ et le pourcentage, le produit, le fournisseur,
    l'ancien et le nouveau prix — au kilo pour tout ce qui se facture au poids,
@@ -533,8 +544,8 @@ de la commande. Dans cet ordre de préférence :
 
 Un article présent sur le BL mais absent de la commande ou de la réception a
 été livré : s'il est facturé au prix du BL, ce n'est pas « facturé, pas reçu ».
-Seule une réserve écrite sur le BL ou dans `reception_note` (manquant, refusé,
-abîmé) le contredit.
+Seul un signalement de l'employé sur la tablette (point 3 bis) le contredit :
+l'article signalé et facturé quand même est une **ALARME** (point 6).
 
 ```sql
 select l.commande_id, l.reference, l.nom, l.unite, l.quantite, l.qte_recue, l.prix, l.ecart,
