@@ -378,8 +378,8 @@ async function cuiSendSms(id, tel) { const o = await cuiEnregistrerAvantEnvoi(id
 // la commande ne passe en « envoyée » que si Gmail a accepté le mail. Avec l'appli mail du
 // téléphone, la commande DS du 23/09 est restée coincée 25 h alors qu'elle était « envoyée ».
 const CUI_MAIL_URL = 'https://script.google.com/macros/s/AKfycby33o4eLrk5ACzJwkLJ91Zr9iWeZmDWAzUx3fIrcJs9mORUNZAPceugRA51SoIJ030M/exec';
-async function cuiEnvoyerMail(id) {
-  const r = await fetch(CUI_MAIL_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ id }) });
+async function cuiEnvoyerMail(id, reclamation) {
+  const r = await fetch(CUI_MAIL_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(reclamation ? { id, reclamation } : { id }) });
   const res = await r.json();
   if (!res.ok) throw new Error(res.error || 'réponse inattendue');
   return res.commande;
@@ -734,11 +734,29 @@ function cuiReclamationSmsText(o) {
 }
 function cuiReclamationSms(id) {
   const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
-  ouvrirSms(s.commercial_tel.replace(/\s/g, ''), cuiReclamationSmsText(o));
+  ouvrirSms((s.commercial_tel || s.telephone).replace(/\s/g, ''), cuiReclamationSmsText(o));
 }
-function cuiReclamationMail(id) {
+async function cuiReclamationMail(id, btn) {
   const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
-  window.location.href = buildMailtoUrl(s.email, `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : 'du ' + cuiD(o.date_reception)} — Braise & Co`, cuiReclamationText(o)) + cuiCc(s);
+  if (btn) { btn.style.pointerEvents = 'none'; btn.textContent = '⏳ Envoi en cours…'; }
+  try {
+    await cuiEnvoyerMail(id, { sujet: `Réclamation livraison ${o.numero_bl ? 'BL ' + o.numero_bl : 'du ' + cuiD(o.date_reception)} — Braise & Co`, texte: cuiReclamationText(o) });
+    cuiToast(`✉️ Réclamation envoyée à ${s.nom}`);
+    cuiOpenOrder(id);
+  } catch (e) {
+    console.error(e);
+    alert(`❌ La réclamation n'est PAS partie chez ${s.nom}.\n\n${e.message}\n\nRéessayez, ou appelez le fournisseur.`);
+    if (btn) { btn.style.pointerEvents = ''; btn.textContent = `✉️ Envoyer la réclamation à ${s.nom}`; }
+  }
+}
+function cuiReclamationEnvoi(id) {
+  const o = CUI.orders.find(x => x.id === id); const s = cuiSup(o.fournisseur_id) || {};
+  if (s.mode_commande === 'appel') return `${s.telephone ? `<a class="btn-primary" href="tel:${cuiEsc(s.telephone.replace(/\s/g, ''))}">📞 Appeler ${cuiEsc(s.nom)} · ${cuiEsc(s.telephone)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas de numéro pour ce fournisseur — renseignez-le via ⚙️.</div>'}`;
+  if (s.mode_commande === 'sms') {
+    const tel = s.commercial_tel || s.telephone;
+    return tel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS · ${cuiEsc(s.commercial_nom || s.nom)} ${cuiEsc(tel)}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationSms('${id}')">📨 Envoyer la réclamation par SMS</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas de numéro pour ce fournisseur — renseignez-le via ⚙️.</div>';
+  }
+  return s.email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · ${cuiEsc(s.email)} · copie ${CUI_CC}${s.email_cc ? ', ' + cuiEsc(s.email_cc) : ''}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationMail('${id}', this)">✉️ Envoyer la réclamation à ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas d\'e-mail pour ce fournisseur — renseignez-le via ⚙️.</div>';
 }
 function cuiReclamationCopy(id) { navigator.clipboard.writeText(cuiReclamationText(CUI.orders.find(x => x.id === id))).then(() => cuiToast('📋 Copié')); }
 function cuiOpenReclamation(id) {
@@ -746,9 +764,7 @@ function cuiOpenReclamation(id) {
   cuiModal(`📣 Réclamation · ${cuiEsc(s.nom)}`, `
     <div class="modal-section"><div class="ms-label">Message</div><div class="ms-val" style="font-size:13px">${cuiEsc(cuiReclamationText(o))}</div></div>
     <div class="modal-actions">
-      ${s.commercial_tel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS au commercial · ${cuiEsc(s.commercial_nom || '')} ${cuiEsc(s.commercial_tel)}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiReclamationSms('${id}')">📨 SMS — ${cuiEsc(s.commercial_nom || s.nom)}</a>` : ''}
-      ${s.email ? `<div style="font-size:12px;color:var(--muted);margin:8px 0 6px;font-weight:600">Email · ${cuiEsc(s.email)}</div><a class="btn-primary" href="#" style="${s.commercial_tel ? 'background:var(--surf3);color:var(--text)' : ''}" onclick="event.preventDefault();cuiReclamationMail('${id}')">✉️ Email — ${cuiEsc(s.nom)}</a>` : ''}
-      <button class="btn-secondary" onclick="cuiReclamationCopy('${id}')">📋 Copier le texte</button>
+      ${cuiReclamationEnvoi(id)}
       <button class="btn-close" onclick="cuiOpenOrder('${id}')">Retour à la commande</button>
     </div>`);
 }

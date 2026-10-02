@@ -30,6 +30,11 @@ function doPost(e) {
     if (!o) return cmRep({ ok: false, error: 'Commande introuvable' });
     const s = o.f;
     if (!s.email) return cmRep({ ok: false, error: "Pas d'e-mail pour ce fournisseur" });
+    if (req.reclamation) {
+      if (!o.date_reception || !req.reclamation.texte) return cmRep({ ok: false, error: 'Réclamation sans réception ou sans texte' });
+      GmailApp.sendEmail(s.email, String(req.reclamation.sujet || 'Réclamation livraison — Braise & Co'), String(req.reclamation.texte), { cc: [CM_RESTO, s.email_cc].filter(Boolean).join(','), name: 'Braise & Co Biganos' });
+      return cmRep({ ok: true, commande: o });
+    }
     if (!o.lignes.length || !o.date_livraison) return cmRep({ ok: false, error: 'Commande incomplète (lignes ou date de livraison)' });
 
     const cc = essai ? '' : [CM_RESTO, s.email_cc].filter(Boolean).join(',');
