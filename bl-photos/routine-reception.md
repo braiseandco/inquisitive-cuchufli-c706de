@@ -197,11 +197,12 @@ Seule une observation écrite — `reception_note`, `ecart` d'une ligne, statut
 n'est pas arrivé (manquant, refusé, abîmé, reparti avec le chauffeur). Elle
 seule fait passer une ligne du BL en **FACTURÉ, PAS REÇU**.
 
-**La quantité saisie (`qte_recue`) n'est pas une référence.** Si elle diffère du
-BL sans observation écrite qui l'explique, c'est une saisie à corriger, pas un
-écart fournisseur : l'écrire dans CONTRÔLÉS (« saisie à corriger : 6 sacs de
-glace saisis, 3 au BL »), jamais dans FACTURÉ, PAS REÇU. Un article du BL absent
-de la réception est un « livré, non saisi ».
+**La quantité saisie (`qte_recue`) n'est pas une référence**, et un écart avec
+le BL n'est pas une erreur : la saisie reprend souvent la commande (6 sacs de
+glace) quand le fournisseur n'en livre que deux ou trois. Le BL dit ce qui est
+arrivé ; le fournisseur facture le BL. Rien à signaler dans le mail. Seul compte
+un article du BL absent de la réception : « livré, non saisi », dans
+CONTRÔLÉS.
 
 ## 4. Convertir dans l'unité de la ligne de commande
 
@@ -379,8 +380,8 @@ dire :
    YesFood, une centaine de kilos par semaine), le poids facturé et le prix au
    kilo sur la ligne du document : c'est le suivi des volumes, sans alerte. Pour
    un BL lu, ce que donnent les deux contrôles du point 3 bis : écarts avec la
-   commande, puis « saisie à corriger » ou « livré, non saisi » quand la
-   réception saisie s'écarte du BL sans observation écrite.
+   commande, et « livré, non saisi » pour un article du BL absent de la
+   réception.
    Pour un avoir, ce qu'il solde.
 4. **En pied**, une ligne chacun et seulement s'il y a lieu : les réceptions à
    saisir (point 7), les documents non lus et pourquoi, une action refusée qui a
