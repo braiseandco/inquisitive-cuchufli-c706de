@@ -171,6 +171,38 @@ BL peuvent couvrir une même commande : DS sépare par zone de température (le
 **En cas de doute sur la commande, ne rien écrire.** Une réception posée sur la
 mauvaise commande coûte plus cher à rattraper qu'une réception oubliée.
 
+## 3 bis. Deux contrôles, dans cet ordre (règle du patron, 02/10/2026)
+
+**Contrôle 1 — la commande, recoupée avec le BL photographié.** Ligne par ligne,
+quantités ramenées à l'unité de la commande (point 4) : livré comme commandé,
+livré en plus, livré en moins ou absent du BL, remplacé. **Le BL fait foi** : un
+article présent sur le BL a été livré, même s'il n'était pas dans la commande
+(la caisse de lieu noir du BL Mericq 23652956 du 29/09).
+
+**Contrôle 2 — les observations écrites à la réception**, le jour du BL et de la
+photo :
+
+```sql
+select c.statut, c.date_reception, c.recu_par, c.numero_bl, c.reception_note,
+       l.nom, l.quantite, l.qte_recue, l.ecart,
+       b.prise_par, b.created_at as photo_le
+from cmd_commandes c
+join cmd_commande_lignes l on l.commande_id = c.id
+left join cmd_bl_photos b on b.commande_id = c.id
+where c.id = '<commande>';
+```
+
+Seule une observation écrite — `reception_note`, `ecart` d'une ligne, statut
+`non_recue`, ou une réserve manuscrite sur le BL — peut dire qu'un article du BL
+n'est pas arrivé (manquant, refusé, abîmé, reparti avec le chauffeur). Elle
+seule fait passer une ligne du BL en **FACTURÉ, PAS REÇU**.
+
+**La quantité saisie (`qte_recue`) n'est pas une référence.** Si elle diffère du
+BL sans observation écrite qui l'explique, c'est une saisie à corriger, pas un
+écart fournisseur : l'écrire dans CONTRÔLÉS (« saisie à corriger : 6 sacs de
+glace saisis, 3 au BL »), jamais dans FACTURÉ, PAS REÇU. Un article du BL absent
+de la réception est un « livré, non saisi ».
+
 ## 4. Convertir dans l'unité de la ligne de commande
 
 DS facture au kilo des produits commandés au colis. La fiche produit porte
@@ -346,8 +378,9 @@ dire :
    contrôle. Pour un produit acheté au poids en gros volume (le cœur de rumsteak
    YesFood, une centaine de kilos par semaine), le poids facturé et le prix au
    kilo sur la ligne du document : c'est le suivi des volumes, sans alerte. Pour
-   un BL lu, s'il diffère de la réception déjà saisie dans l'appli, sur quelles
-   lignes : pendant la période à blanc, c'est la preuve que la lecture est juste.
+   un BL lu, ce que donnent les deux contrôles du point 3 bis : écarts avec la
+   commande, puis « saisie à corriger » ou « livré, non saisi » quand la
+   réception saisie s'écarte du BL sans observation écrite.
    Pour un avoir, ce qu'il solde.
 4. **En pied**, une ligne chacun et seulement s'il y a lieu : les réceptions à
    saisir (point 7), les documents non lus et pourquoi, une action refusée qui a
