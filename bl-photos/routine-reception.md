@@ -112,6 +112,12 @@ where b.path like '%' || '<nom du fichier>';
 Une photo venue du mail n'a pas de fiche : là, **la commande est à retrouver**
 (point 3).
 
+**BL complémentaire** : une photo prise *après* la réception de sa commande
+(`b.created_at > c.date_reception`) est la livraison du manquant (ex. Mericq
+BC261001-04, manquant livré le 03/10/2026). La recouper avec les seules lignes
+reçues en moins à la première réception ; les autres articles absents de ce BL
+ne sont pas des manquants.
+
 Une fois la réception écrite : `update cmd_bl_photos set traite_at = now() where id = '<id>';`
 puis déplacer le fichier dans `traités`. La photo reste dans le stockage de
 l'appli, attachée à la commande — c'est la preuve en cas de contestation et la

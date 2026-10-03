@@ -509,10 +509,9 @@ function cuiOpenOrder(id) {
       <div class="cui-row-btns">
         ${o.statut === 'envoyee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','confirmee')">✓ Confirmée</button>` : ''}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="${o.date_reception ? '' : 'background:var(--orange);color:#fff'}" onclick="cuiOpenReception('${o.id}')">📦 ${o.date_reception ? 'Modifier la réception' : 'Réceptionner'}</button>` : ''}
-        ${o.date_reception
-          ? `<button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>`
-          : `<button class="btn-secondary" onclick="document.getElementById('cui-o-photo-input').click()">📷 Prendre photo</button>
-             <input type="file" accept="image/*" capture="environment" id="cui-o-photo-input" style="display:none" onchange="cuiPhotoBL('${o.id}', this)">`}
+        ${o.statut !== 'annulee' ? `<button class="btn-secondary" onclick="document.getElementById('cui-o-photo-input').click()">📷 ${o.date_reception ? 'Photo d\'un BL complémentaire' : 'Prendre photo'}</button>
+             <input type="file" accept="image/*" capture="environment" id="cui-o-photo-input" style="display:none" onchange="cuiPhotoBL('${o.id}', this)">` : ''}
+        ${o.date_reception ? `<button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>` : ''}
         ${(o.statut === 'envoyee' || o.statut === 'confirmee') && !o.date_reception ? `<button class="btn-secondary" style="color:var(--orange)" onclick="cuiNonRecue('${o.id}')">🚫 Non reçue</button>` : ''}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="cuiSetStatus('${o.id}','annulee')">Annuler</button>` : ''}
       </div>
