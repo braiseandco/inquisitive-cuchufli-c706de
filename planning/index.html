@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-04.4';
+const APP_VERSION = '2026-10-04.5';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -4724,10 +4724,22 @@ function toast(msg) {
   logo.style.webkitUserSelect  = 'none';
   logo.style.userSelect        = 'none';
 
+  // La mise à jour passe avant le code : après le rechargement, la page repart sur la dernière version
+  async function openMgr() {
+    try {
+      if (window.braiseRemoteVersion && await window.braiseRemoteVersion()) {
+        toast('Mise à jour en cours…');
+        await window.braiseForceUpdate();
+        return;
+      }
+    } catch(e) {}
+    showMgrLogin();
+  }
+
   function startPress(e) {
     e.preventDefault();
     clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => { showMgrLogin(); }, 3000);
+    pressTimer = setTimeout(openMgr, 3000);
   }
   function cancelPress() {
     clearTimeout(pressTimer);
