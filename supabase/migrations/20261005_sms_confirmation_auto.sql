@@ -1,6 +1,8 @@
 -- Confirmation automatique des réservations : mail + SMS sans intervention.
 --
--- 1. Une réservation en ligne arrive « en-attente » : elle passe tout de suite en « confirmee ».
+-- 1. Une réservation en ligne arrive « en-attente » : elle passe tout de suite en « confirmee »,
+--    sauf si elle tombe pendant une fermeture (lundi, soir du dimanche au jeudi) : elle reste
+--    alors en attente, sans mail ni SMS.
 -- 2. Toute nouvelle réservation confirmée (en ligne ou saisie par l'équipe), ou passée en
 --    « confirmee » par l'équipe, est marquée « a-envoyer » et la fonction sms-confirmation est
 --    appelée : elle envoie le SMS depuis le téléphone Android du resto (appli SMS Gateway,
@@ -21,6 +23,9 @@ set search_path = public
 as $$
 declare
   auto_confirmee boolean := false;
+  jour int := extract(isodow from new.date);  -- 1 = lundi … 7 = dimanche
+  -- Horaires du site : midi du mardi au dimanche, soir le vendredi et le samedi, fermé le lundi
+  ouvert boolean := jour <> 1 and (new.heure < '15:00' or (jour in (5, 6) and new.heure >= '18:00'));
 begin
   if new.id like 'roulette\_%' or new.id like 'fid\_%'
      or new.date < (now() at time zone 'Europe/Paris')::date then
@@ -31,6 +36,11 @@ begin
   if tg_op = 'INSERT' then
     new.sms_auto := null;
     new.sms_auto_at := null;
+    -- Résa pendant une fermeture (lundi, soir en semaine…) : elle reste en attente, sans mail
+    -- ni SMS, pour que le patron rappelle le client
+    if not ouvert and auth.role() is distinct from 'authenticated' then
+      return new;
+    end if;
     if new.statut = 'en-attente' then
       new.statut := 'confirmee';
       auto_confirmee := true;
