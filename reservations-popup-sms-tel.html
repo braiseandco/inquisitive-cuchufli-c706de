@@ -3168,7 +3168,10 @@ async function checkConfirmedResas(){
       'reservations?statut=eq.confirmee&sms_envoye=not.eq.true&date=gte.'+today+'&id=not.like.roulette_%25&id=not.like.fid_%25&select=*'
     );
     if(!confirmed || confirmed.length === 0) return;
-    const nouvelles = confirmed.filter(r => !smsNotifiedIds.has(r.id));
+    // SMS en cours d'envoi automatique par le serveur : la fenêtre ne sert qu'en secours,
+    // s'il échoue (« erreur ») ou ne répond pas dans les 3 minutes
+    const autoEnCours = r => (r.sms_auto==='a-envoyer'||r.sms_auto==='envoi') && Date.now()-new Date(r.sms_auto_at).getTime() < 180000;
+    const nouvelles = confirmed.filter(r => !smsNotifiedIds.has(r.id) && !autoEnCours(r));
     for(const r of nouvelles){
       smsNotifiedIds.add(r.id);
       envoyerNotifSms(r);

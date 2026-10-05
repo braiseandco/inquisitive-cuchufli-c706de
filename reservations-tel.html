@@ -1202,7 +1202,10 @@ async function openDetail(id){
             }
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
-            if(r.telephone){
+            // Le serveur envoie le SMS tout seul (sms_auto) : la messagerie ne s'ouvre qu'à défaut
+            let smsAuto=false;
+            try{ const a=await sbFetch('reservations?id=eq.'+encodeURIComponent(id)+'&select=sms_auto'); smsAuto=!!(a&&a[0]&&a[0].sms_auto); }catch(e){}
+            if(r.telephone && !smsAuto){
               const msg = 'Votre réservation chez Braise & Co est confirmée pour le '+fmtDate(r.date)+' à '+r.heure.slice(0,5)+' pour '+r.personnes+' personne'+(r.personnes>1?'s':'')+'. À bientôt !';
               window.location.href = 'sms:'+r.telephone+'?body='+encodeURIComponent(msg);
               setTimeout(async()=>{await updateResa(id,{sms_envoye:true});loadResas(null,true);},1500);
