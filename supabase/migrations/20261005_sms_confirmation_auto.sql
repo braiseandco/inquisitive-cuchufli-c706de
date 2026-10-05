@@ -57,12 +57,18 @@ begin
     -- pg_net n'envoie la requête qu'après la validation de la transaction : la résa est alors lisible.
     -- Le mail n'est envoyé ici que pour les confirmations automatiques : quand l'équipe confirme
     -- à la main, l'appli l'envoie déjà elle-même.
-    perform net.http_post(
-      url := 'https://ugyrrnqpapeagpuocwob.supabase.co/functions/v1/sms-confirmation',
-      body := jsonb_build_object('id', new.id, 'mail', auto_confirmee),
-      headers := '{"Content-Type":"application/json"}'::jsonb,
-      timeout_milliseconds := 30000
-    );
+    -- Un souci d'envoi ne doit jamais faire perdre la réservation : on la garde, en envoi manuel
+    begin
+      perform net.http_post(
+        url := 'https://ugyrrnqpapeagpuocwob.supabase.co/functions/v1/sms-confirmation',
+        body := jsonb_build_object('id', new.id, 'mail', auto_confirmee),
+        headers := '{"Content-Type":"application/json"}'::jsonb,
+        timeout_milliseconds := 30000
+      );
+    exception when others then
+      new.sms_auto := 'erreur';
+      new.sms_auto_erreur := left(sqlerrm, 200);
+    end;
   end if;
   return new;
 end;
