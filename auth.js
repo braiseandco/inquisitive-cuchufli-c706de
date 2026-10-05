@@ -8,8 +8,7 @@
 // Une page se branche en chargeant ce fichier avant ses propres scripts. Il intercepte les appels
 // à la base qui portent la clé publique : appareil connecté, il y met son jeton ; base qui refuse
 // faute de connexion, il affiche l'écran de connexion puis rejoue l'appel. Les pages n'ont pas à
-// toucher leurs dizaines d'appels. Appareil non connecté et accès libre encore ouvert : l'appel
-// part tel quel, rien ne change.
+// toucher leurs dizaines d'appels. Appareil non connecté : l'écran s'affiche avant le premier appel.
 (function(){
   var SB = 'https://ugyrrnqpapeagpuocwob.supabase.co';
   var KEY = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
@@ -104,6 +103,12 @@
     if(!estCle((h.get('Authorization') || '').replace(/^Bearer\s+/i, ''))) return natif(input, init);
     for(var essai = 0; ; essai++){
       var t = await jeton();
+      // Sans connexion, la base répond 200 avec une liste vide au lieu de refuser : l'écran passe avant l'appel
+      if(!t){
+        if(!document.body) await new Promise(function(ok){ document.addEventListener('DOMContentLoaded', ok, { once: true }); });
+        await ecran();
+        t = await jeton();
+      }
       if(t) h.set('Authorization', 'Bearer ' + t);
       o.headers = h;
       var r = await natif(input, o);
