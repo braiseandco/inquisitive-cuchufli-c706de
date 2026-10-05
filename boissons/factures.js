@@ -71,8 +71,8 @@ async function facDemanderPin() {
   try { const r = await cuiGET('cmd_parametres?cle=eq.pin_patron&select=valeur'); hash = r.length ? r[0].valeur : null; } catch (e) { cuiToast('Connexion impossible'); return; }
   const creation = !hash;
   cuiModal(creation ? 'Créer le code patron' : 'Espace patron', `
-    <div class="prod-meta" style="margin-bottom:10px">${creation ? 'Premier accès : choisissez un code à 4 chiffres. Il sera demandé sur toutes les tablettes pour ouvrir les factures et le récap des achats.' : 'Code à 4 chiffres.'}</div>
-    <div style="text-align:center;font-size:32px;letter-spacing:14px;min-height:44px;padding:4px 0 10px" id="cui-pin-aff">····</div>
+    <div class="prod-meta" style="margin-bottom:10px">${creation ? 'Nouveau code patron à 6 chiffres. Il ouvre les factures, le récap des achats et l\'accès manager du planning.' : 'Code patron.'}</div>
+    <div style="text-align:center;font-size:32px;letter-spacing:14px;min-height:44px;padding:4px 0 10px" id="cui-pin-aff">······</div>
     ${creation ? '<div class="prod-meta" style="text-align:center" id="cui-pin-etape">Saisissez le code</div>' : ''}
     <div style="display:grid;grid-template-columns:repeat(3,72px);gap:10px;justify-content:center;margin:6px 0 12px">
       ${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map(k => k === '' ? '<span></span>' : `<button class="cui-chip" style="height:56px;font-size:22px;justify-content:center" onclick="facPinTouche('${k}')">${k}</button>`).join('')}
@@ -82,16 +82,21 @@ async function facDemanderPin() {
 }
 async function facPinTouche(k) {
   const p = FAC._pin; if (!p) return;
-  if (k === '⌫') p.saisie = p.saisie.slice(0, -1); else if (p.saisie.length < 4) p.saisie += k;
-  cui$('cui-pin-aff').textContent = (p.saisie.replace(/./g, '●') + '····').slice(0, 4);
-  if (p.saisie.length < 4) return;
+  if (k === '⌫') p.saisie = p.saisie.slice(0, -1); else if (p.saisie.length < 6) p.saisie += k;
+  cui$('cui-pin-aff').textContent = (p.saisie.replace(/./g, '●') + '······').slice(0, 6);
+  // Ancien code à 4 chiffres accepté tant qu'il n'est pas remplacé ; un nouveau code fait 6 chiffres
+  const n = p.saisie.length;
+  if (n < 4 || n === 5 || (n === 4 && p.creation)) return;
   const h = await facSha(p.saisie);
   if (p.creation) {
-    if (!p.premier) { p.premier = h; p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cui$('cui-pin-etape').textContent = 'Confirmez le code'; return; }
-    if (h !== p.premier) { p.premier = null; p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cui$('cui-pin-etape').textContent = 'Les deux codes diffèrent, recommencez'; return; }
+    if (!p.premier) { p.premier = h; p.saisie = ''; cui$('cui-pin-aff').textContent = '······'; cui$('cui-pin-etape').textContent = 'Confirmez le code'; return; }
+    if (h !== p.premier) { p.premier = null; p.saisie = ''; cui$('cui-pin-aff').textContent = '······'; cui$('cui-pin-etape').textContent = 'Les deux codes diffèrent, recommencez'; return; }
     try { await cuiPOST('cmd_parametres', { cle: 'pin_patron', valeur: h }); } catch (e) { cuiToast('Erreur'); return; }
     cuiToast('Code enregistré');
-  } else if (h !== p.hash) { p.saisie = ''; cui$('cui-pin-aff').textContent = '····'; cuiToast('Code incorrect'); return; }
+  } else if (h !== p.hash) {
+    if (n === 4) return;
+    p.saisie = ''; cui$('cui-pin-aff').textContent = '······'; cuiToast('Code incorrect'); return;
+  }
   try { sessionStorage.setItem('cui_patron_ok', String(Date.now())); } catch (e) {}
   FAC._pin = null; cuiOpenPatron(true);
 }
