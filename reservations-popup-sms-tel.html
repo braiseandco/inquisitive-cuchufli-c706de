@@ -2829,7 +2829,7 @@ async function loadRelances(){
       if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; map[tel].relance_envoye = r.relance_mois_envoye || false; }
     }
     const clients = Object.values(map)
-      .filter(c => new Date(c.derniere+'T12:00:00') < dateLimit && !c.relance_envoye && !stopSet.has(telFr(c.tel)))
+      .filter(c => c.derniere <= dateStr(dateLimit) && !c.relance_envoye && !stopSet.has(telFr(c.tel)))
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
     // ── Suivi de l'envoi automatique des dernières 24 h ──
@@ -3118,7 +3118,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-08.2';
+const APP_VERSION = '2026-10-08.3';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');

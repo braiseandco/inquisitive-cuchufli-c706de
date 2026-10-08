@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
   const stop = new Set((stops || []).map((s) => s.telephone));
   const limite = jourParis(-29);
   const clients = Object.entries(map)
-    .filter(([tel, c]) => c.derniere < limite && !c.relance && !stop.has(numeroFrancais(tel)));
+    .filter(([tel, c]) => c.derniere <= limite && !c.relance && !stop.has(numeroFrancais(tel)));
 
   const texte = message();
   const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
