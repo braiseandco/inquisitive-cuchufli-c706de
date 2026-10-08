@@ -2772,6 +2772,15 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── RELANCES SMS ──────────────────────────────────────────────
+// SMS de bienvenue : 3 jours de visites, pour qu'un jour sans ouvrir la liste (lundi fermé…) ne
+// perde pas ses clients. Jusqu'au 15/10/2026, rattrapage des oubliés depuis le 08/09 (26/09, 04/10…)
+function debutBienvenue(){
+  const d = new Date();
+  d.setDate(d.getDate() - 3);
+  const s = dateStr(d);
+  return dateStr(new Date()) <= '2026-10-15' && s > '2026-09-08' ? '2026-09-08' : s;
+}
+
 async function loadRelances(){
   const content = document.getElementById('relances-content');
   content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
@@ -2780,24 +2789,26 @@ async function loadRelances(){
     const hier = new Date();
     hier.setDate(hier.getDate() - 1);
     const hierStr = dateStr(hier);
+    const debutJ1Str = debutBienvenue();
 
     const sixMoisAvant = new Date();
     sixMoisAvant.setMonth(sixMoisAvant.getMonth() - 6);
     const sixMoisStr = dateStr(sixMoisAvant);
 
     const [resasHier, resas] = await Promise.all([
-      sbFetch('reservations?date=eq.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&bienvenue_envoye=eq.false&select=id,nom,telephone&id=not.like.roulette_%25&id=not.like.fid_%25'),
+      sbFetch('reservations?date=gte.'+debutJ1Str+'&date=lte.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone,date,bienvenue_envoye&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25')
     ]);
 
-    // ── J+1 : dédupliquer par téléphone ──────────────────────
+    // ── J+1 : dédupliquer par téléphone, sauf client qui l'a déjà reçu pour une autre visite ──
     const mapHier = {};
     for(const r of (resasHier||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
       if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
-      if(!mapHier[tel]) mapHier[tel] = {tel, nom: r.nom};
+      if(!mapHier[tel]) mapHier[tel] = {tel, nom: r.nom, date: r.date, recu: false};
+      if(r.bienvenue_envoye) mapHier[tel].recu = true;
     }
-    const clientsHier = Object.values(mapHier);
+    const clientsHier = Object.values(mapHier).filter(c => !c.recu);
 
     // ── J+30 : inactifs depuis 30 jours, relance non encore envoyée ──
     const map = {};
@@ -2826,7 +2837,7 @@ async function loadRelances(){
 
     // ── Section J+1 ──────────────────────────────────────────
     if(clientsHier.length > 0){
-      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 Visites d\'hier</div>';
+      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>';
       html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
       for(const c of clientsHier){
         const cid = 'j1-'+c.tel.replace(/\D/g,'');
@@ -2834,7 +2845,8 @@ async function loadRelances(){
         window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
         html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
           +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:12px;">📞 '+esc(c.tel)+'</div>'
+          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
+          +'<div style="font-size:11px;color:'+(c.date===hierStr?'var(--text-faint)':'#ef9a9a')+';margin-bottom:12px;">Visite : '+(c.date===hierStr?'hier':fmtDate(c.date))+'</div>'
           +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
           +'</div>';
       }
@@ -3063,7 +3075,7 @@ async function j1SmsClick(cid, tel){
   }
   toast('📋 Message copié — collez dans le SMS','ok');
   try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=eq.'+dateStr(new Date(Date.now()-86400000)), {method:'PATCH', body:JSON.stringify({bienvenue_envoye:true})});
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel)+'&date=gte.'+debutBienvenue()+'&date=lt.'+dateStr(new Date()), {method:'PATCH', body:JSON.stringify({bienvenue_envoye:true})});
   } catch(e){ console.error('j1 mark:', e); }
 }
 
@@ -3087,7 +3099,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-07.1';
+const APP_VERSION = '2026-10-08.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
