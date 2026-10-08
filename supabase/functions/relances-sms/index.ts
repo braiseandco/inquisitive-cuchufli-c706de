@@ -18,11 +18,16 @@ const cors = {
 const json = (o: unknown, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-function numeroMobile(tel: string): string | null {
+function numeroFrancais(tel: string): string {
   let d = tel.replace(/[^\d+]/g, '');
   if (d.startsWith('+33')) d = '0' + d.slice(3);
   else if (d.startsWith('0033')) d = '0' + d.slice(4);
   else if (/^33[67]\d{8}$/.test(d)) d = '0' + d.slice(2);
+  return d;
+}
+
+function numeroMobile(tel: string): string | null {
+  const d = numeroFrancais(tel);
   return /^0[67]\d{8}$/.test(d) ? '+33' + d.slice(1) : null;
 }
 
@@ -68,8 +73,11 @@ Deno.serve(async (req: Request) => {
     if (!map[tel]) map[tel] = { derniere: r.date, relance: !!r.relance_mois_envoye, bruts: new Set() };
     map[tel].bruts.add(r.telephone);
   }
+  const { data: stops } = await sb.from('sms_stop').select('telephone');
+  const stop = new Set((stops || []).map((s) => s.telephone));
   const limite = jourParis(-29);
-  const clients = Object.entries(map).filter(([, c]) => c.derniere < limite && !c.relance);
+  const clients = Object.entries(map)
+    .filter(([tel, c]) => c.derniere < limite && !c.relance && !stop.has(numeroFrancais(tel)));
 
   const texte = message();
   const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
@@ -86,6 +94,8 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
       });
       if (!res.ok) { erreurs.push(tel + ' : HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120)); continue; }
+      const envoi = await res.json().catch(() => ({}));
+      if (envoi.id) await sb.from('sms_envois').insert({ gate_id: envoi.id, telephone: numeroFrancais(tel) });
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));
       continue;
