@@ -15,8 +15,8 @@ rem  les seules autorisations dont elle a besoin. Toute autre action lui est
 rem  refusee (--permission-mode dontAsk), au lieu de la bloquer sur une question.
 rem  Les factures ne sont que lues : le dossier est la piece du comptable.
 rem
-rem  Passage en ECRITURE : il faudra aussi l'autoriser a deplacer les photos
-rem  dans BL\traites.
+rem  En ECRITURE (depuis le 09/10/2026) les photos ne sont plus deplacees : le
+rem  registre lus-a-blanc.txt suffit, aucune autorisation de plus.
 rem -------------------------------------------------------------------------
 
 set "BL=G:\.shortcut-targets-by-id\1FOsC4oL_N13Yjdpzr41SlKRJT82yKDL9\BL"

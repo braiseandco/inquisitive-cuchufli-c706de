@@ -10,8 +10,8 @@ livraisons, **sans jamais inventer un chiffre**.
 
 ## Mode de fonctionnement
 
-    MODE = À BLANC
-    MODE FACTURES = À BLANC
+    MODE = ÉCRITURE
+    MODE FACTURES = ÉCRITURE
 
 Deux étapes, deux lignes : `MODE` pour les BL (points 1 à 7), `MODE FACTURES`
 pour les factures (point 8). Chacune bascule seule, et c'est la seule ligne à
@@ -27,7 +27,11 @@ changer pour la faire basculer. Les deux valeurs possibles :
   `BL\factures-rapprochees.txt` (point 8 f), pour ne pas les reprendre au
   passage suivant.
 - **ÉCRITURE** — appliquer la procédure complète : points 5 et 6 pour les BL,
-  8 g pour les factures.
+  8 g pour les factures. Les registres `lus-a-blanc.txt` (malgré son nom),
+  `factures-rapprochees.txt` et `cmd_achats` se tiennent exactement comme à blanc.
+
+Les deux modes sont en ÉCRITURE depuis le 09/10/2026, sur décision du patron :
+l'employé ne saisit plus de réception, la routine est seule à le faire.
 
 Pendant la période à blanc, le récap sert de preuve : ce qu'il signale doit
 être vrai, et rien de ce qu'il fallait signaler ne doit manquer. La bascule est
@@ -89,9 +93,10 @@ relisait toutes les photos du mode à blanc et renvoyait les mêmes récaps. Apr
 l'envoi du récap, y ajouter une ligne par photo lue — y compris celles qui n'ont
 pas pu l'être, avec la raison. Créer le fichier s'il n'existe pas.
 
-Traiter toute photo qui n'est ni dans le registre ni dans `BL\traités\`, **y
-compris à la racine de `BL`** : une photo déposée à la main n'est pas dans un
-sous-dossier de date. Créer `traités` s'il n'existe pas.
+Traiter toute photo qui n'est ni dans le registre ni dans `BL\traités\` (ancien
+classement, plus alimenté), **y compris à la racine de `BL`** : une photo déposée
+à la main n'est pas dans un sous-dossier de date. Les photos ne se déplacent
+pas : le registre suffit.
 
 ### Retrouver la commande d'une photo
 
@@ -120,7 +125,7 @@ reçues en moins à la première réception ; les autres articles absents de ce 
 ne sont pas des manquants.
 
 Une fois la réception écrite : `update cmd_bl_photos set traite_at = now() where id = '<id>';`
-puis déplacer le fichier dans `traités`. La photo reste dans le stockage de
+La photo reste dans le stockage de
 l'appli, attachée à la commande — c'est la preuve en cas de contestation et la
 pièce du comptable.
 
@@ -256,6 +261,13 @@ désactivé, ne sert plus qu'aux factures d'avant.
 
 ## 5. Écrire la réception
 
+La quantité reçue est celle du BL, ramenée à l'unité de la commande (point 4),
+**moins ce que les réserves manuscrites disent manquant, refusé ou reparti**
+(point 3 bis) ; la réserve, recopiée, va dans `ecart`. Un article commandé
+absent du BL : `qte_recue = 0`, `ecart = 'absent du BL'`. Une commande qui a déjà
+une réception (saisie à la main, ou BL complémentaire) : ne compléter que les
+lignes concernées, jamais écraser une saisie du patron.
+
 ```sql
 update cmd_commande_lignes set qte_recue = <quantité convertie>,
        ecart = '<description>' -- uniquement si écart, sinon laisser null
@@ -340,8 +352,7 @@ rangé dans une catégorie ou corrigé.
 
 ## 6. Classer et rendre compte
 
-Déplacer la photo dans `BL\traités\` (même chemin qu'au début), puis, une fois
-les factures contrôlées (point 8), **envoyer le récap par mail** — un seul par
+Une fois les factures contrôlées (point 8), **envoyer le récap par mail** — un seul par
 passage — à braiseandcobiganos@gmail.com via le connecteur Gmail. Un récap affiché
 dans une fenêtre du PC n'est lu par personne, et surtout pas depuis le téléphone,
 d'où se pilotent les commandes.
@@ -782,7 +793,7 @@ et s'écrit au registre des achats, sans revenir dans le mail.
 - **Ne pas modifier le code de l'appli**, ni committer quoi que ce soit dans le
   dépôt. Cette routine ne touche qu'aux données de réception et au statut des
   factures.
-- **Ne pas supprimer de photo** : la déplacer dans `traités`, jamais l'effacer.
+- **Ne jamais supprimer ni déplacer une photo.**
 - **Ne rien écrire ni déplacer dans `Factures fournisseurs`**, ne jamais
   contester une facture ni écrire à un fournisseur.
 

@@ -136,7 +136,12 @@ dans chaque mail. Quand la routine s'est trompée sur une facture, écrire
 au bout de sa ligne « CORRIGÉ le <date> : <ce qui était faux> » — ou le demander
 à Claude : le compteur repart de zéro.
 
-Calendrier visé : à blanc d'octobre à novembre 2026, bascule en décembre,
+**Bascule faite le 09/10/2026, BL et factures**, sans attendre le critère : depuis
+que l'employé ne saisit plus de réception, la routine est seule à l'écrire. Une
+réception fausse se corrige depuis l'espace patron (« Réceptionner »), et se
+note comme une correction de la routine.
+
+Calendrier initial : à blanc d'octobre à novembre 2026, bascule en décembre,
 routine établie en janvier 2027. À la bascule, revoir le rythme : les réceptions
 ne s'écriront qu'au passage du mercredi ou du samedi.
 
