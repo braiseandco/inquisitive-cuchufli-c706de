@@ -305,6 +305,29 @@ mal reporté — le dire dans le récap.
 Un article offert (« GRATUIT », prix ou montant à 0,00 €) s'ajoute à
 `qte_recue` avec l'écart « dont N offert(s) », sans toucher au prix de la ligne.
 
+### 5 ter. Écriture annulée : la laisser en attente
+
+Le connecteur Supabase demande parfois de confirmer une écriture ; personne ne
+répond pendant la routine, il renvoie `{"status":"cancelled"}` et rien n'est
+écrit (09/10/2026). Ne pas la renvoyer ni la contourner : une tâche de l'appli
+Claude (« BL : rattraper les écritures annulées ») relit ce passage et rejoue
+le bloc tel quel quand l'appli est ouverte. Pour qu'il reste sans risque à
+rejouer, **chaque écriture est un bloc `begin; … commit;` à elle seule**, qui
+commence par une garde levant une erreur si elle a déjà été faite :
+
+```sql
+do $$ begin
+  if exists (select 1 from cmd_commandes where id = '<commande>' and statut = 'livree')
+  then raise exception 'deja ecrit'; end if;
+end $$;
+```
+
+(facture : `statut <> 'a_controler'` sur `cmd_factures` ; registre des achats :
+une ligne `cmd_achats` de cette facture existe déjà). Après une annulation,
+**continuer** les autres écritures. Au pied du récap : « écriture annulée, en
+attente de rattrapage : <quoi> ». Les registres se tiennent comme si elle avait
+été faite.
+
 ## 5 bis. Compléter le catalogue
 
 Un BL porte régulièrement un produit qui n'est pas encore dans la liste du
