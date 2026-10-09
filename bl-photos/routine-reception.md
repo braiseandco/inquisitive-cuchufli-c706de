@@ -83,7 +83,8 @@ PowerShell et Bash ne sont pas autorisés, inutile de les essayer. Si une photo 
 chercher — le dire dans le récap et passer à la suite.
 
 **Sauter toute photo déjà listée dans `BL\lus-a-blanc.txt`** (une ligne par photo :
-chemin sous `BL` ; date ; ce qui en a été fait). Sans ce registre, chaque passage
+chemin sous `BL` ; date ; ce qui en a été fait, manques et réserves manuscrites
+compris : le contrôle de la facture s'y reportera). Sans ce registre, chaque passage
 relisait toutes les photos du mode à blanc et renvoyait les mêmes récaps. Après
 l'envoi du récap, y ajouter une ligne par photo lue — y compris celles qui n'ont
 pas pu l'être, avec la raison. Créer le fichier s'il n'existe pas.
@@ -198,12 +199,19 @@ left join cmd_bl_photos b on b.commande_id = c.id
 where c.id = '<commande>';
 ```
 
-**Signalement de l'employé sur la tablette** — il dit qu'un article du BL n'est
-pas arrivé, ou pas en entier : une quantité reçue **inférieure à celle du BL**
+**Réserves manuscrites sur le BL** — depuis le 09/10/2026, l'employé contrôle la
+livraison sans l'appli, écrit sur le BL ce qui ne va pas (manquant, refusé,
+abîmé, quantité barrée et corrigée), puis le photographie : il ne saisit plus de
+réception. Lire chaque annotation manuscrite ; une rature ou un chiffre corrigé
+à la main remplace la quantité imprimée. Une annotation illisible se dit telle
+quelle dans le récap, sans l'interpréter.
+
+**Signalement de l'employé sur la tablette**, quand il y en a encore un — il dit
+qu'un article du BL n'est pas arrivé, ou pas en entier : une quantité reçue **inférieure à celle du BL**
 (0 compris), un problème coché sur la ligne (`ecart` : Abîmé, Périmé, Mauvais
 produit…), une remarque (`reception_note` : manquant, refusé, reparti avec le
 chauffeur), la commande déclarée « Non reçue », ou une réserve manuscrite sur
-le BL. Seul un signalement contredit le BL. Retenir pour chaque article signalé
+le BL. Seul un signalement — tablette ou réserve manuscrite — contredit le BL. Retenir pour chaque article signalé
 la quantité et le montant en jeu : si une facture le compte quand même (point
 8), c'est une **ALARME** (point 6).
 
@@ -340,21 +348,26 @@ d'où se pilotent les commandes.
 
 ### Ce que le patron veut lire
 
-Deux choses, et rien d'autre (sa demande du 25/09/2026) :
+Trois choses, et rien d'autre (ses demandes du 25/09 et du 09/10/2026) :
 
 1. **les prix qui bougent** — c'est ainsi qu'on a vu le jus d'ananas Norbert
    facturé 2,93 € la bouteille pour 1,55 € sur la fiche ;
 2. **ce qui est facturé sans avoir été reçu** — le fournisseur doit facturer ce
-   qui a été réceptionné, pas davantage.
+   qui a été réceptionné, pas davantage ;
+3. **chaque livraison photographiée, recoupée avec sa commande** (point 3 bis) —
+   le récap est son seul compte rendu, l'employé ne saisit plus rien : les
+   manques (commandé, absent du BL ou livré en moins), ce qui est livré sans
+   avoir été commandé, les remplacements, et les réserves manuscrites.
 
-Les écarts entre commandé et reçu ne l'intéressent pas : ruptures de stock,
-produits pesés au kilo, arrondis au colis ou à la pièce, ils s'expliquent
-presque toujours, et le restaurant ne paie que ce qu'il reçoit. **Ne pas les
-mettre dans le mail**, pas plus que les manquants, les offerts, les calculs
-justes, les conversions d'unités ou ce qui serait écrit en base : ce travail
-reste dans la session. Le mail se lit sur un écran de téléphone.
+Ne sont pas des manques : un produit pesé à moins de 10 % de la commande, une
+pièce ou un colis pesé (point 4), un arrondi au colis (3 kg de haricots
+commandés, une poche de 2,5 kg ou deux livrées), un article offert. **Ne pas les
+mettre dans le mail**, pas plus que les calculs justes, les conversions d'unités
+ou ce qui serait écrit en base : ce travail reste dans la session. Le mail se lit
+sur un écran de téléphone.
 
-Objet : `Réception du <date> — ` suivi de l'essentiel : le nombre de hausses de
+Objet : `Réception du <date> — ` suivi de l'essentiel : le nombre de livraisons
+avec un manque ou une réserve, le nombre de hausses de
 prix et leur effet total, le montant facturé sans avoir été reçu — ou « rien à
 signaler » et ce qui a été contrôlé. L'envoyer **même les jours sans livraison
 ni facture** : le silence doit vouloir dire « la routine est cassée », jamais
@@ -371,7 +384,13 @@ Le corps, dans cet ordre, chaque rubrique seulement si elle a quelque chose à
 dire :
 
 0. **ALARME** — voir ci-dessus.
-1. **PRIX** — chaque prix qui bouge sur un BL lu ou une facture contrôlée, une
+1. **LIVRAISONS** — une ligne par BL photographié lu à ce passage :
+   fournisseur, commande, BL, date, puis « conforme à la commande », ou, en
+   dessous, un article par ligne : `MANQUE` (commandé, non livré ou livré en
+   moins : quantités commandée et livrée), `EN PLUS` (livré sans être commandé),
+   `REMPLACÉ` (quoi par quoi), `RÉSERVE` (l'annotation manuscrite, recopiée). Un
+   BL complémentaire dit ce qu'il solde.
+2. **PRIX** — chaque prix qui bouge sur un BL lu ou une facture contrôlée, une
    ligne par produit : ▲ ou ▼ et le pourcentage, le produit, le fournisseur,
    l'ancien et le nouveau prix — au kilo pour tout ce qui se facture au poids,
    quel que soit le poids du colis —, **l'effet en euros** sur cette livraison ou
@@ -385,23 +404,21 @@ dire :
    la moins coûteuse, puis les baisses.
    Sous 1 % et sous 1 € sur la ligne, c'est de l'arrondi : rien à écrire. Un
    frais nouveau ou en hausse (8 e) est une hausse.
-2. **FACTURÉ, PAS REÇU** — ce que le fournisseur fait payer, sur sa facture ou
+3. **FACTURÉ, PAS REÇU** — ce que le fournisseur fait payer, sur sa facture ou
    déjà sur son BL, sans que la réception l'ait enregistré : un BL facturé sans
    aucune réception, une commande déclarée non reçue dans l'appli (8 c), une
    ligne facturée mais notée non livrée ou refusée, une
    quantité facturée supérieure à la quantité reçue (8 d), un avoir attendu
    depuis plus de 15 jours. Pour chacun : le montant, et ce qu'il faut faire.
-3. **CONTRÔLÉS** — une ligne par document : fournisseur, numéro, montant HT, et
+4. **CONTRÔLÉS** — une ligne par document : fournisseur, numéro, montant HT, et
    « conforme », ou le renvoi aux rubriques ci-dessus, ou ce qui a empêché le
    contrôle. Pour un produit acheté au poids en gros volume (le cœur de rumsteak
    YesFood, une centaine de kilos par semaine), le poids facturé et le prix au
    kilo sur la ligne du document : c'est le suivi des volumes, sans alerte. Pour
-   un BL lu, ce que donnent les deux contrôles du point 3 bis : écarts avec la
-   commande, et « livré, non saisi » pour un article du BL absent de la
-   réception.
+   un BL lu, le renvoi à LIVRAISONS.
    Pour un avoir, ce qu'il solde.
-4. **En pied**, une ligne chacun et seulement s'il y a lieu : les réceptions à
-   saisir (point 7), les documents non lus et pourquoi, une action refusée qui a
+5. **En pied**, une ligne chacun et seulement s'il y a lieu : les livraisons
+   sans photo (point 7), les documents non lus et pourquoi, une action refusée qui a
    empêché quelque chose, les produits ajoutés au catalogue (5 bis), et toujours
    le compteur de fiabilité des factures (8 f).
 
@@ -411,7 +428,14 @@ restaurant (payé plus cher, facturé sans avoir été reçu), − ce qui lui pr
 ### Modèle
 
 ```
-Objet : Réception du 25/09/2026 — 6 hausses de prix (+57,09 €) · facturé sans réception : 427,88 €
+Objet : Réception du 25/09/2026 — 1 livraison avec manque · 6 hausses de prix (+57,09 €) · facturé sans réception : 427,88 €
+
+LIVRAISONS
+  DS Restauration · BC260924-03 · BL 1202838 du 25/09 — conforme à la commande
+  Lodifrais · BC260923-02 · BL IV297811 du 25/09
+    MANQUE    Spéculoos : 2 commandés, 1 livré
+    REMPLACÉ  Bombe chantilly → crème sous pression
+    RÉSERVE   « carton œufs abîmé, 6 cassés » (écrit sur le BL)
 
 PRIX
   ▲ +89 %   Norbert jus d'ananas 1 L · Le Bihan    1,55 → 2,93 €/bouteille       +24,88 €   facture 20260950774 · fiche à mettre à jour
@@ -433,23 +457,25 @@ CONTRÔLÉS
   Mericq 47271835 — 1 138,29 € HT — commandes passées hors appli : prix seuls contrôlés
   Les Platins 2026-09-0410 — 1 141,80 € HT — conforme
   DS, avoirs 6088625 (−44,51 €, retour de thon du 29/08) et 6088626 (−14,75 €, persil manquant le 05/09) — conformes
-  Blason d'Or, BL 02297048 — 115,77 € HT — lu, réception pas encore saisie
+  Blason d'Or, BL 02297048 — 115,77 € HT — voir LIVRAISONS
 
-Réceptions à saisir : Mericq BC260923-06, livraison prévue le 24/09
+Livraisons sans photo : Mericq BC260923-06, livraison prévue le 24/09
 Factures : 3 d'affilée sans correction (bascule à 10)
 ```
 
-## 7. Les réceptions à saisir
+## 7. Les livraisons sans photo
 
-Tant qu'une commande livrée n'est pas réceptionnée, la facture qui arrivera
-n'aura rien à quoi se comparer : c'est le vrai trou de la chaîne. Lister en pied
-du mail, sur une ligne, les commandes dont la livraison est passée et qui ne
-sont toujours pas réceptionnées :
+Tant qu'une livraison n'a ni photo ni réception, la facture qui arrivera n'aura
+rien à quoi se comparer : c'est le vrai trou de la chaîne. Lister en pied du
+mail, sur une ligne, les commandes dont la livraison est passée, sans photo de
+BL, sans réception et sans BL reçu par mail :
 
 ```sql
 select f.nom, c.numero, c.date_livraison
 from cmd_commandes c join cmd_fournisseurs f on f.id = c.fournisseur_id
 where c.statut in ('envoyee','confirmee') and c.date_livraison < current_date
+  and c.bl_json is null
+  and not exists (select 1 from cmd_bl_photos b where b.commande_id = c.id)
 order by c.date_livraison;
 ```
 

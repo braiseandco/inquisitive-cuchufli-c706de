@@ -3,7 +3,10 @@ chcp 65001 >nul
 setlocal
 rem -------------------------------------------------------------------------
 rem  Reception des bons de livraison et controle des factures - lance par la
-rem  tache Windows " Reception BL " (mercredi et samedi a 15h). Voir README.md.
+rem  tache Windows " Reception BL " (tous les jours a 15h). Voir README.md.
+rem  La session ne demarre que mardi, mercredi et vendredi (factures et recap
+rem  attendu par alerte-routine.gs) ou s'il y a une photo pas encore lue : un
+rem  passage a vide coute 0,40 $, une photo est recoupee le jour meme ou le lendemain.
 rem
 rem  Tout ce que fait la session est decrit dans routine-reception.md, dont les
 rem  modes (A BLANC ou ECRITURE) sont la premiere consigne. Ce fichier ne decide
@@ -53,6 +56,14 @@ echo [Drive] dossier BL toujours absent apres 3 minutes >> "%JOURNAL%"
 set "ALERTE= ALERTE : le dossier BL est introuvable sur le PC, Google Drive pour ordinateur ne l'a pas monte. Mets-le en tete du recap, en premier, et envoie le recap quand meme."
 
 :drive_ok
+if defined ALERTE goto passage
+powershell -NoProfile -Command "$bl='%BL%'; if (@(2,3,5) -contains [int](Get-Date).DayOfWeek) { exit 1 }; $r=@{}; if (Test-Path -LiteralPath ($bl+'\lus-a-blanc.txt')) { Get-Content -LiteralPath ($bl+'\lus-a-blanc.txt') -Encoding UTF8 | %% { $r[($_ -split ';')[0].Trim()]=1 } }; $n=@(Get-ChildItem -LiteralPath $bl -Recurse -File | ? { $_.Extension -match '^\.(jpe?g|png|heic)$' -and $_.FullName -notmatch '\\trait' } | ? { -not $r.ContainsKey($_.FullName.Substring($bl.Length+1)) }).Count; Write-Output ('[photos] ' + $n + ' photo(s) pas encore lue(s)'); exit [int]($n -gt 0)" >> "%JOURNAL%"
+if not errorlevel 1 (
+  echo [passage saute] ni jour de factures ni photo nouvelle >> "%JOURNAL%"
+  exit /b 0
+)
+
+:passage
 if not exist "%FACTURES%\" (
   echo [Factures] dossier introuvable : %FACTURES% >> "%JOURNAL%"
   set "ALERTE=%ALERTE% ALERTE : le dossier des factures est introuvable sur le PC, aucune facture ne peut etre lue. Dis-le en tete du recap."

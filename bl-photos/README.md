@@ -12,9 +12,13 @@ livraisons. Les factures arrivent dans l'appli chaque soir par le script
 d'import, et leur PDF sur le PC vers 18 h 50 (`Bureau\Factures fournisseurs`) :
 elles sont contrôlées au passage suivant, dans le même mail.
 
-Le mail ne dit que ce que le patron veut savoir : **les prix qui bougent**, et
-**ce qui est facturé sans avoir été reçu**. Les écarts entre commandé et reçu —
-ruptures, produits pesés — n'y figurent pas.
+Le mail ne dit que ce que le patron veut savoir : **chaque livraison recoupée
+avec sa commande** (manques, livré en plus, remplacements, réserves écrites sur
+le BL), **les prix qui bougent**, et **ce qui est facturé sans avoir été reçu**.
+
+Depuis le 09/10/2026, l'employé ne réceptionne plus dans l'appli : il contrôle
+la marchandise, écrit sur le BL ce qui ne va pas, et photographie le BL depuis
+la commande (« 📷 Prendre photo »). Son rôle s'arrête là.
 
 ## La chaîne
 
@@ -101,17 +105,17 @@ lues. Le compte rendu s'écrit dans `%USERPROFILE%\bl-reception.log`.
 
 | Réglage | Valeur |
 |---|---|
-| Déclencheurs | le mercredi et le samedi à 15h |
+| Déclencheurs | tous les jours à 15h |
 | Action | `cmd /c start "Reception BL" /min /wait cmd /c "%USERPROFILE%\bl\reception-bl.bat"` |
 | Conditions | tourne sur batterie, réveille le PC, rattrape un passage manqué |
 | Instances | une seule à la fois, arrêt au bout d'1 h |
 
-Deux passages par semaine depuis le 26/09/2026, au lieu de deux par jour :
-chaque passage coûte environ 0,40 $ rien que pour démarrer, alors qu'une photo
-ou une facture n'est lue qu'une fois, quel que soit le rythme. Les livraisons
-tombent du lundi au mercredi (YesFood le lundi), puis le jeudi et le vendredi :
-le mercredi lit les premières, le samedi les suivantes, et son récap arrive la
-veille des commandes du dimanche, avec les prix à valider sur les fiches.
+Chaque passage coûte environ 0,40 $ rien que pour démarrer. Le lanceur ne
+démarre donc la session que le mardi, le mercredi et le vendredi (factures, et
+récap attendu par `alerte-routine.gs`) ou s'il trouve une photo absente de
+`lus-a-blanc.txt` : une livraison photographiée est recoupée le jour même si la
+photo est prise avant 15h, sinon le lendemain. Un jour sans photo ne coûte rien
+(« passage sauté » dans le journal).
 
 ## Du mode à blanc à l'écriture
 
