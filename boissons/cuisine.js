@@ -815,6 +815,17 @@ async function cuiSyncBarOrderNow(nomFournisseur, items, note) {
     // Prix de ligne = prix de l'unité commandée (le bar stocke le litre pour les fûts, la bouteille pour les caisses)
     lignes.push({ produit_id: p.id, nom: p.nom, unite: p.unite, reference: p.reference, prix: p.prix != null ? Math.round(p.prix * (it.litres || it.parCaisse || 1) * 1000) / 1000 : null, quantite: it.qte, ordre: lignes.length });
   }
+  // L'appli SMS recharge la page et le panier du bar n'est pas vidé : le 04/10/2026, la même commande Le Bihan
+  // a été enregistrée trois fois (BC261004-01, BC261004-05, BC261005-01). La garde de la page ne survit pas au
+  // rechargement ni au changement d'appareil : on cherche en base une commande identique de moins de 4 jours.
+  const sig = ls => ls.map(l => l.produit_id + ':' + Number(l.quantite)).sort().join(',');
+  const recentes = await cuiGET(`cmd_commandes?fournisseur_id=eq.${sup.id}&statut=not.in.(brouillon,annulee,non_recue)&date_commande=gte.${new Date(Date.now() - 4 * 864e5).toISOString()}&select=*,lignes:cmd_commande_lignes(*)`);
+  const deja = recentes.find(o => sig(o.lignes) === sig(lignes));
+  if (deja) {
+    if (!CUI.orders.some(o => o.id === deja.id)) CUI.orders.unshift(deja);
+    cuiToast(`Commande ${sup.nom} déjà enregistrée (${deja.numero})`);
+    return deja;
+  }
   const d = new Date();
   const [cmd] = await cuiPOST('cmd_commandes', { fournisseur_id: sup.id, statut: 'envoyee', numero: await cuiNumeroLibre(), date_commande: d.toISOString(), date_livraison: cuiDateLivraison(sup, sup.delai_livraison_jours ?? 2), note: note || null, commande_par: cuiWho() || null, total_estime: lignes.reduce((a, l) => a + (l.prix || 0) * l.quantite, 0) || null });
   const rows = await cuiPOST('cmd_commande_lignes', lignes.map(l => ({ ...l, commande_id: cmd.id })));
