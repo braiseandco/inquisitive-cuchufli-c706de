@@ -4,7 +4,7 @@
 // les mêmes règles que l'appli : on ne peut pas lui faire envoyer un SMS à un numéro choisi.
 // La passerelle met les messages en file ; c'est le téléphone qui les étale (Réglages → Messages
 // → Délai entre messages), pour ne pas envoyer 50 SMS d'un coup.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -36,8 +36,8 @@ const jourParis = (decalage: number) => {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 };
 
-// Pour ne réveiller personne : avant 10h30 ou après 20h (heure de Paris), le téléphone garde
-// les SMS jusqu'à 10h30 (champ scheduleAt de SMS Gate, appli 1.41+).
+// Pour ne réveiller personne : avant 10h30 ou après 20h (heure de Paris), les SMS attendent
+// 10h30 dans sms_programmes. Pas de scheduleAt : le téléphone ne renvoie pas l'état de ces SMS-là.
 function departPrevu(): string | null {
   const maintenant = new Date();
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
@@ -58,20 +58,57 @@ function message(): string {
     ', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14. A très bientôt ! STOP SMS : répondez STOP';
 }
 
+async function envoyerSms(auth: string, mobile: string, texte: string): Promise<string | undefined> {
+  const res = await fetch(SMSGATE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: auth },
+    body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120));
+  return (await res.json().catch(() => ({}))).id;
+}
+
+// Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
+async function viderFile(sb: SupabaseClient, auth: string) {
+  const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives')
+    .lte('envoyer_at', new Date().toISOString()).lt('tentatives', 3).order('id').limit(MAX_PAR_ENVOI);
+  let envoyes = 0;
+  const erreurs: string[] = [];
+  for (const s of dus || []) {
+    try {
+      const id = await envoyerSms(auth, s.telephone, s.texte);
+      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone) });
+      await sb.from('sms_programmes').delete().eq('id', s.id);
+      envoyes++;
+    } catch (e) {
+      await sb.from('sms_programmes').update({ tentatives: s.tentatives + 1 }).eq('id', s.id);
+      erreurs.push(s.telephone + ' : ' + String(e).slice(0, 120));
+    }
+  }
+  return { envoyes, erreurs };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-  // Appareils connectés seulement (pas la clé publique)
-  const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-  const { data: u } = await sb.auth.getUser(jwt);
-  if (!u?.user) return json({ error: 'appareil_non_connecte' }, 401);
+  const cronKey = req.headers.get('x-cron-key');
+  if (cronKey) {
+    const { data: jeton } = await sb.rpc('sms_gate_webhook_token');
+    if (!jeton || cronKey !== jeton) return json({ error: 'forbidden' }, 403);
+  } else {
+    // Appareils connectés seulement (pas la clé publique)
+    const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+    const { data: u } = await sb.auth.getUser(jwt);
+    if (!u?.user) return json({ error: 'appareil_non_connecte' }, 401);
+  }
 
   const { data: ids } = await sb.rpc('sms_gateway_identifiants');
   const cred = ids?.[0];
   if (!cred?.utilisateur || !cred?.mot_de_passe) return json({ error: 'passerelle_non_configuree' }, 503);
+  const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
+  if (cronKey) return json(await viderFile(sb, auth));
 
   // Mêmes règles que loadRelances : 6 mois de résas, dernière visite il y a plus de 29 jours
   const { data: resas, error } = await sb.from('reservations')
@@ -96,7 +133,6 @@ Deno.serve(async (req: Request) => {
 
   const texte = message();
   const programme = departPrevu();
-  const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
   let envoyes = 0, nonMobiles = 0;
   const erreurs: string[] = [];
 
@@ -104,14 +140,13 @@ Deno.serve(async (req: Request) => {
     const mobile = numeroMobile(tel);
     if (!mobile) { nonMobiles++; continue; }
     try {
-      const res = await fetch(SMSGATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: auth },
-        body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile], ...(programme && { scheduleAt: programme }) }),
-      });
-      if (!res.ok) { erreurs.push(tel + ' : HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120)); continue; }
-      const envoi = await res.json().catch(() => ({}));
-      if (envoi.id) await sb.from('sms_envois').insert({ gate_id: envoi.id, telephone: numeroFrancais(tel) });
+      if (programme) {
+        const { error: e } = await sb.from('sms_programmes').insert({ telephone: mobile, texte, envoyer_at: programme });
+        if (e) throw new Error(e.message);
+      } else {
+        const id = await envoyerSms(auth, mobile, texte);
+        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel) });
+      }
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));
       continue;
