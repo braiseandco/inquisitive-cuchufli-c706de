@@ -186,7 +186,7 @@ function cuiOrderRow(o) {
   return `<div class="hist-item cui-order-row" onclick="cuiOpenOrder('${o.id}')">
     <div class="hist-date">${cuiDT(o.date_commande)} · livraison ${cuiD(o.date_livraison)}${o.commande_par ? ' · ' + cuiEsc(o.commande_par) : ''}</div>
     <div class="hist-summary">${s.emoji || '📦'} ${cuiEsc(s.nom || '?')} <span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span><span style="float:right;color:var(--orange)">${tot ? cuiEur(tot) : ''}</span></div>
-    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(cuiNumAff(o))}${o.date_reception ? (cuiEcarts(o).length ? ` · <span style="color:var(--danger)">⚠️ ${cuiEcarts(o).length} écart${cuiEcarts(o).length > 1 ? 's' : ''}</span>` : ' · <span style="color:var(--ok)">✓ conforme</span>') : ''}</div>
+    <div class="hist-detail">${o.lignes.length} ligne${o.lignes.length > 1 ? 's' : ''} · ${cuiEsc(cuiNumAff(o))}${o.date_reception ? (cuiEcarts(o).length ? ` · <span style="color:var(--danger)">⚠️ ${cuiEcarts(o).length} écart${cuiEcarts(o).length > 1 ? 's' : ''}</span>` : ' · <span style="color:var(--ok)">✓ conforme</span>') : cuiPhotosDe(o.id).length ? ' · <span style="color:var(--ok)">📷 BL photographié</span>' : ''}</div>
   </div>`;
 }
 
@@ -489,6 +489,11 @@ async function cuiCopy(id) {
 function cuiOpenOrder(id) {
   const o = CUI.orders.find(x => x.id === id); if (!o) return;
   const s = cuiSup(o.fournisseur_id) || {};
+  // Depuis le 09/10/2026 l'employé annote le BL papier et le photographie, la routine du PC
+  // le recoupe avec la commande : la saisie de la réception est réservée à l'espace patron.
+  const patron = typeof facPatronOuvert === 'function' && facPatronOuvert();
+  const attendue = (o.statut === 'envoyee' || o.statut === 'confirmee') && !o.date_reception;
+  const nbPhotos = cuiPhotosDe(o.id).length;
   cuiModal(`${s.emoji || ''} ${cuiEsc(s.nom)} · ${cuiEsc(cuiNumAff(o))}`, `
     <div class="modal-section"><div class="cui-kv">
       <div><span>Statut</span><span class="cui-status ${o.statut}">${cuiStatus(o.statut)}</span></div><div><span>Livraison</span>${cuiD(o.date_livraison)}</div>
@@ -498,7 +503,8 @@ function cuiOpenOrder(id) {
     ${o.mail_envoye_le ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">✉️ Mail parti le ${cuiDT(o.mail_envoye_le)}</div>` : o.mail_erreur ? `<div class="prod-meta" style="margin-top:4px;color:var(--danger)">⚠️ Dernier envoi du mail en échec : ${cuiEsc(o.mail_erreur)}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
     ${o.statut === 'non_recue' ? `<div class="prod-meta" style="margin-top:4px;color:var(--orange)">🚫 ${cuiEsc(o.reception_note || 'Rien n\'est arrivé')} — ne doit pas être facturée</div>` : ''}
-    <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div></div>
+    <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div>
+    ${attendue && !nbPhotos ? `<div class="prod-meta" style="margin-top:8px">À la livraison : contrôlez la marchandise, écrivez sur le BL ce qui manque ou ne va pas, puis prenez-le en photo.</div>` : ''}</div>
     <div class="modal-section"><div class="ms-label">Produits</div>
       ${o.lignes.map(l => `<div class="order-line"><span>${cuiEsc(l.nom)}<div class="prod-meta">${l.reference ? cuiEsc(l.reference) + ' · ' : ''}${l.prix != null ? cuiEur(l.prix) + ' / ' : ''}${cuiEsc(l.unite || '')}${cuiEcartHtml(l)}</div></span><span class="order-line-qty">${cuiQty(l.quantite)} ${cuiEsc(l.unite || '')}${cuiConfQte(o, l)}${cuiLineTotal(l, o) != null ? ' · ' + cuiEur(cuiLineTotal(l, o)) : ''}</span></div>`).join('')}
     </div>
@@ -508,16 +514,30 @@ function cuiOpenOrder(id) {
     <div class="modal-actions">
       <div class="cui-row-btns">
         ${o.statut === 'envoyee' ? `<button class="btn-secondary" onclick="cuiSetStatus('${o.id}','confirmee')">✓ Confirmée</button>` : ''}
-        ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="${o.date_reception ? '' : 'background:var(--orange);color:#fff'}" onclick="cuiOpenReception('${o.id}')">📦 ${o.date_reception ? 'Modifier la réception' : 'Réceptionner'}</button>` : ''}
-        ${o.statut !== 'annulee' ? `<button class="btn-secondary" onclick="document.getElementById('cui-o-photo-input').click()">📷 ${o.date_reception ? 'Photo d\'un BL complémentaire' : 'Prendre photo'}</button>
+        ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="${attendue && !nbPhotos ? 'background:var(--orange);color:#fff' : ''}" onclick="document.getElementById('cui-o-photo-input').click()">📷 ${nbPhotos ? 'Ajouter une photo (autre page, complément)' : 'Prendre photo du BL'}</button>
              <input type="file" accept="image/*" capture="environment" id="cui-o-photo-input" style="display:none" onchange="cuiPhotoBL('${o.id}', this)">` : ''}
+        ${patron && o.statut !== 'annulee' ? `<button class="btn-secondary" onclick="cuiOpenReception('${o.id}')">📦 ${o.date_reception ? 'Modifier la réception' : 'Réceptionner'}</button>` : ''}
         ${o.date_reception ? `<button class="btn-secondary" onclick="cuiReorder('${o.id}')">↻ Recommander</button>` : ''}
-        ${(o.statut === 'envoyee' || o.statut === 'confirmee') && !o.date_reception ? `<button class="btn-secondary" style="color:var(--orange)" onclick="cuiNonRecue('${o.id}')">🚫 Non reçue</button>` : ''}
+        ${attendue && !nbPhotos ? `<button class="btn-secondary" style="color:var(--orange)" onclick="cuiNonRecue('${o.id}')">🚫 Non reçue</button>` : ''}
         ${o.statut !== 'annulee' ? `<button class="btn-secondary" style="color:var(--danger)" onclick="cuiSetStatus('${o.id}','annulee')">Annuler</button>` : ''}
       </div>
+      ${cuiContactHtml(s, o)}
       <details style="margin-top:6px"><summary style="color:var(--muted);font-size:13px;cursor:pointer;padding:6px 0">Renvoyer la commande…</summary><div style="padding-top:8px">${cuiSendButtons(o)}</div></details>
       <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
     </div>`);
+}
+// Le canal habituel du fournisseur (mode_commande) d'abord, puis les autres moyens renseignés sur sa fiche.
+function cuiContactHtml(s, o) {
+  const tel = t => t.replace(/\s/g, '');
+  const sujet = encodeURIComponent(`Commande ${cuiNumFourn(o) || o.numero || ''} — Braise & Co Biganos`);
+  const liens = [];
+  if (s.email) liens.push({ mode: 'mail', html: `<a class="btn-secondary" href="mailto:${cuiEsc(s.email)}?subject=${sujet}">✉️ Écrire · ${cuiEsc(s.email)}</a>` });
+  if (s.telephone) liens.push({ mode: 'appel', html: `<a class="btn-secondary" href="tel:${cuiEsc(tel(s.telephone))}">📞 Appeler · ${cuiEsc(s.telephone)}</a>` });
+  if (s.telephone) liens.push({ mode: 'sms', html: `<a class="btn-secondary" href="sms:${cuiEsc(tel(s.telephone))}">💬 SMS · ${cuiEsc(s.telephone)}</a>` });
+  if (s.commercial_tel) liens.push({ html: `<a class="btn-secondary" href="tel:${cuiEsc(tel(s.commercial_tel))}">📞 Commercial${s.commercial_nom ? ' ' + cuiEsc(s.commercial_nom) : ''} · ${cuiEsc(s.commercial_tel)}</a>` });
+  if (!liens.length) return '';
+  liens.sort((a, b) => (b.mode === s.mode_commande) - (a.mode === s.mode_commande));
+  return `<details style="margin-top:6px"><summary style="color:var(--muted);font-size:13px;cursor:pointer;padding:6px 0">📇 Contacter ${cuiEsc(s.nom)}…</summary><div class="cui-row-btns" style="padding-top:8px">${liens.map(l => l.html).join('')}</div></details>`;
 }
 async function cuiSetStatus(id, statut) {
   const o = CUI.orders.find(x => x.id === id);
@@ -665,7 +685,7 @@ async function cuiPhotoBL(commandeId, input) {
     const [row] = await cuiPOST('cmd_bl_photos', { commande_id: commandeId, path, prise_par: cuiWho() || null });
     CUI.photos.unshift(row);
     const rec = cui$('cui-r-photos'); if (rec) rec.innerHTML = cuiPhotosHtml(commandeId);
-    const det = cui$('cui-o-photos'); if (det) det.innerHTML = cuiPhotoLigne(commandeId);
+    if (cui$('cui-o-photos')) cuiOpenOrder(commandeId);
     cuiToast('✓ Photo enregistrée');
   } catch (e) { console.error(e); cuiToast("La photo n'est pas partie — réessayez"); }
 }
