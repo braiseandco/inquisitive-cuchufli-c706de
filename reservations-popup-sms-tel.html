@@ -2796,12 +2796,15 @@ async function loadRelances(){
     const sixMoisStr = dateStr(sixMoisAvant);
 
     const depuis24h = new Date(Date.now() - 86400000).toISOString();
-    const [resasHier, resas, stops, envois] = await Promise.all([
+    const [resasHier, resas, stops, envois24h] = await Promise.all([
       sbFetch('reservations?date=gte.'+debutJ1Str+'&date=lte.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone,date,bienvenue_envoye&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('sms_stop?select=telephone').catch(()=>[]),
       sbFetch('sms_envois?select=etat,cree_at&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[])
     ]);
+    // Envois du jour, plus ceux programmés la veille au soir qui attendent encore 10h30
+    const minuit = new Date(); minuit.setHours(0,0,0,0);
+    const envois = (envois24h||[]).filter(x => new Date(x.cree_at) >= minuit || x.etat === 'Pending' || x.etat === 'Processed');
     // Clients qui ont répondu STOP : plus aucun SMS commercial
     const telFr = t => { t=(t||'').replace(/[^\d+]/g,''); return t.startsWith('+33') ? '0'+t.slice(3) : t.startsWith('0033') ? '0'+t.slice(4) : t; };
     const stopSet = new Set((stops||[]).map(s => s.telephone));
@@ -2832,14 +2835,14 @@ async function loadRelances(){
       .filter(c => c.derniere <= dateStr(dateLimit) && !c.relance_envoye && !stopSet.has(telFr(c.tel)))
       .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
-    // ── Suivi de l'envoi automatique des dernières 24 h ──
+    // ── Suivi de l'envoi automatique du jour ──
     let suivi = '';
     if(envois && envois.length){
       const n = e => envois.filter(x => x.etat === e).length;
       const attente = envois.filter(x => x.etat === 'Pending' || x.etat === 'Processed');
       const bloque = attente.some(x => Date.now() - departSmsPrevu(new Date(x.cree_at)) > 10*60000);
       suivi = '<div style="background:var(--bg2);border:1px solid '+(bloque?'#e53935':'var(--border)')+';border-radius:14px;padding:14px;margin-bottom:16px;font-size:13px;">'
-        +'<div style="font-weight:800;margin-bottom:6px;">📤 Envoi automatique (24 h) : '+envois.length+' SMS</div>'
+        +'<div style="font-weight:800;margin-bottom:6px;">📤 Envoi automatique aujourd\'hui :'+envois.length+' SMS</div>'
         +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled'))+' échecs</div>'
         +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie que le téléphone du resto est allumé et que SMS Gate est sur « Online ».</div>':'')
         +'</div>';
@@ -3130,7 +3133,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-09.1';
+const APP_VERSION = '2026-10-09.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
