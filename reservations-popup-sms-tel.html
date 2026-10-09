@@ -2837,7 +2837,7 @@ async function loadRelances(){
     if(envois && envois.length){
       const n = e => envois.filter(x => x.etat === e).length;
       const attente = envois.filter(x => x.etat === 'Pending' || x.etat === 'Processed');
-      const bloque = attente.some(x => Date.now() - new Date(x.cree_at) > 10*60000);
+      const bloque = attente.some(x => Date.now() - departSmsPrevu(new Date(x.cree_at)) > 10*60000);
       suivi = '<div style="background:var(--bg2);border:1px solid '+(bloque?'#e53935':'var(--border)')+';border-radius:14px;padding:14px;margin-bottom:16px;font-size:13px;">'
         +'<div style="font-weight:800;margin-bottom:6px;">📤 Envoi automatique (24 h) : '+envois.length+' SMS</div>'
         +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled'))+' échecs</div>'
@@ -3054,8 +3054,20 @@ async function relanceSmsClick(cid, tel, date){
   } catch(e){ console.error('relance mark:', e); }
 }
 
+// Même règle que la fonction relances-sms : avant 10h30 ou après 20h, départ à 10h30
+function departSmsPrevu(d){
+  const m = d.getHours()*60 + d.getMinutes();
+  if(m >= 630 && m < 1200) return d;
+  const depart = new Date(d);
+  if(m >= 1200) depart.setDate(depart.getDate()+1);
+  depart.setHours(10,30,0,0);
+  return depart;
+}
+
 async function relancesToutEnvoyer(nb){
-  if(!confirm('Envoyer la relance aux '+nb+' clients depuis le téléphone du resto ?\nLes SMS partent un par un, espacés par l\'appli SMS Gate.')) return;
+  const depart = departSmsPrevu(new Date());
+  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent un par un, espacés par l\'appli SMS Gate.';
+  if(!confirm('Envoyer la relance aux '+nb+' clients depuis le téléphone du resto ?\n'+quand)) return;
   const btn = document.getElementById('relances-tout-btn');
   btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
   try {
@@ -3068,7 +3080,7 @@ async function relancesToutEnvoyer(nb){
       btn.disabled = false; btn.textContent = '📤 Réessayer';
       return;
     }
-    let msg = '✅ '+d.envoyes+' SMS en file d\'envoi';
+    let msg = '✅ '+d.envoyes+' SMS '+(d.programme ? 'programmés pour 10h30' : 'en file d\'envoi');
     if(d.nonMobiles) msg += ' · '+d.nonMobiles+' fixe'+(d.nonMobiles>1?'s':'')+' à faire à la main';
     if(d.erreurs && d.erreurs.length) msg += ' · '+d.erreurs.length+' en erreur';
     toast(msg, d.erreurs && d.erreurs.length ? 'ko' : 'ok');
@@ -3118,7 +3130,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-08.3';
+const APP_VERSION = '2026-10-09.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');

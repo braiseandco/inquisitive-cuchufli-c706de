@@ -36,6 +36,21 @@ const jourParis = (decalage: number) => {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
 };
 
+// Pour ne réveiller personne : avant 10h30 ou après 20h (heure de Paris), le téléphone garde
+// les SMS jusqu'à 10h30 (champ scheduleAt de SMS Gate, appli 1.41+).
+function departPrevu(): string | null {
+  const maintenant = new Date();
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Paris', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(maintenant).map((x) => [x.type, x.value]));
+  const minutes = +p.hour * 60 + +p.minute;
+  if (minutes >= 630 && minutes < 1200) return null;
+  const decalage = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(maintenant.getTime() / 60000) * 60000;
+  const jour = +p.day + (minutes >= 1200 ? 1 : 0);
+  return new Date(Date.UTC(+p.year, +p.month - 1, jour, 10, 30) - decalage).toISOString();
+}
+
 function message(): string {
   const fin = new Date(Date.now() + 7 * 86400_000)
     .toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
@@ -80,6 +95,7 @@ Deno.serve(async (req: Request) => {
     .filter(([tel, c]) => c.derniere <= limite && !c.relance && !stop.has(numeroFrancais(tel)));
 
   const texte = message();
+  const programme = departPrevu();
   const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
   let envoyes = 0, nonMobiles = 0;
   const erreurs: string[] = [];
@@ -91,7 +107,7 @@ Deno.serve(async (req: Request) => {
       const res = await fetch(SMSGATE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: auth },
-        body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
+        body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile], ...(programme && { scheduleAt: programme }) }),
       });
       if (!res.ok) { erreurs.push(tel + ' : HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120)); continue; }
       const envoi = await res.json().catch(() => ({}));
@@ -105,5 +121,5 @@ Deno.serve(async (req: Request) => {
     envoyes++;
   }
 
-  return json({ envoyes, nonMobiles, erreurs, restants: Math.max(0, clients.length - MAX_PAR_ENVOI) });
+  return json({ envoyes, nonMobiles, erreurs, programme, restants: Math.max(0, clients.length - MAX_PAR_ENVOI) });
 });
