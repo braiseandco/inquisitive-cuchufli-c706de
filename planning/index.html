@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-09.5';
+const APP_VERSION = '2026-10-10.1';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -3953,7 +3953,7 @@ async function printPlanningReport(week) {
   </table>
   </body></html>`;
 
-  openPrintOverlay(html);
+  openPrintOverlay(html, title);
 }
 
 // ── Override ──
@@ -5394,9 +5394,14 @@ async function loadSmsPlanList() {
 // ══════════════════════════════════════
 initHome();
 
-function openPrintOverlay(html) {
+// planningTitre : seulement pour le planning de la semaine, affiche « Valider et envoyer »
+function openPrintOverlay(html, planningTitre) {
   const overlay = document.getElementById('printOverlay');
   const frame   = document.getElementById('printFrame');
+  const btn     = document.getElementById('btnPlanningMms');
+  btn.style.display = planningTitre ? '' : 'none';
+  btn.dataset.titre = planningTitre || '';
+  btn.disabled = false;
   overlay.style.display = 'flex';
   frame.contentDocument.open();
   frame.contentDocument.write(html);
@@ -5406,6 +5411,54 @@ function closePrintOverlay() {
   document.getElementById('printOverlay').style.display = 'none';
   document.getElementById('printFrame').srcdoc = '';
 }
+// Photo du planning affiché envoyée en MMS par le téléphone du resto (fonction planning-mms).
+// La plupart des opérateurs refusent les MMS de plus de 300 Ko : on réduit qualité puis taille.
+async function sendPlanningMms() {
+  const btn = document.getElementById('btnPlanningMms');
+  if (!confirm('Envoyer le planning en MMS au 07 66 86 07 35 depuis le téléphone du resto ?')) return;
+  btn.disabled = true;
+  toast('Préparation de l\'image…');
+  try {
+    const doc = document.getElementById('printFrame').contentDocument, win = doc.defaultView;
+    if (!win.html2canvas) await new Promise((ok, ko) => {
+      const s = doc.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.onload = ok;
+      s.onerror = () => ko(new Error('bibliothèque image injoignable'));
+      doc.head.appendChild(s);
+    });
+    const canvas = await win.html2canvas(doc.body, {scale: 1.5, backgroundColor: '#fff', windowWidth: 1100, width: 1100,
+      ignoreElements: el => el.classList && el.classList.contains('print-btn')});
+    let image = '';
+    for (let largeur = Math.min(1600, canvas.width); !image && largeur >= 600; largeur = Math.round(largeur * 0.8)) {
+      const c = document.createElement('canvas');
+      c.width = largeur; c.height = Math.round(canvas.height * largeur / canvas.width);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(canvas, 0, 0, c.width, c.height);
+      for (const q of [0.85, 0.7, 0.55, 0.4]) {
+        const b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+        if (b64.length * 3 / 4 <= 290000) { image = b64; break; }
+      }
+    }
+    if (!image) throw new Error('image trop lourde pour un MMS');
+    toast('Envoi du MMS…');
+    const h = window.braiseAuth ? await braiseAuth.headers() : {apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY};
+    const res = await fetch(SB_URL + '/functions/v1/planning-mms', {method: 'POST',
+      headers: {...h, 'Content-Type': 'application/json'}, body: JSON.stringify({image, titre: btn.dataset.titre})});
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const raisons = {passerelle_non_configuree: 'SMS Gate n\'est pas branché', appareil_non_connecte: 'Appareil non connecté'};
+      throw new Error(raisons[d.error] || d.error || 'Erreur ' + res.status);
+    }
+    toast('✅ Planning envoyé au téléphone du resto');
+  } catch (e) {
+    console.error('planning-mms', e);
+    toast('❌ MMS non envoyé : ' + e.message);
+    btn.disabled = false;
+  }
+}
+
 // Enregistre le document affiché en fichier PDF. html2pdf est chargé dans l'iframe pour garder
 // les styles du document ; le dossier se choisit si le navigateur le permet (Chrome, Edge),
 // sinon le fichier part dans Téléchargements.
@@ -5455,6 +5508,7 @@ async function savePrintPdf() {
     <button onclick="closePrintOverlay()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">✕ Fermer</button>
     <button onclick="document.getElementById('printFrame').contentWindow.print()" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨️ Imprimer / PDF</button>
     <button onclick="savePrintPdf()" style="background:#1e88e5;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">💾 Enregistrer sur le PC</button>
+    <button id="btnPlanningMms" onclick="sendPlanningMms()" style="display:none;background:#43a047;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">✅ Valider et envoyer</button>
   </div>
   <iframe id="printFrame" style="flex:1;border:none;background:#fff"></iframe>
 </div>
