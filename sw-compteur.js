@@ -1,4 +1,4 @@
-const CACHE = 'bc-compteur-v15';
+const CACHE = 'bc-compteur-v16';
 const ASSETS = ['/compteur-social.html', '/images/tripadvisor.png'];
 
 self.addEventListener('install', e => {
