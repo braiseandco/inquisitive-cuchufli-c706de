@@ -70,14 +70,14 @@ async function envoyerSms(auth: string, mobile: string, texte: string): Promise<
 
 // Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
 async function viderFile(sb: SupabaseClient, auth: string) {
-  const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives')
+  const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives,type')
     .lte('envoyer_at', new Date().toISOString()).lt('tentatives', 3).order('id').limit(MAX_PAR_ENVOI);
   let envoyes = 0;
   const erreurs: string[] = [];
   for (const s of dus || []) {
     try {
       const id = await envoyerSms(auth, s.telephone, s.texte);
-      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone) });
+      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type });
       await sb.from('sms_programmes').delete().eq('id', s.id);
       envoyes++;
     } catch (e) {
@@ -86,6 +86,64 @@ async function viderFile(sb: SupabaseClient, auth: string) {
     }
   }
   return { envoyes, erreurs };
+}
+
+// Rattrapage depuis le 08/09 jusqu'au 15/10/2026, puis fenêtre de 3 jours (comme debutBienvenue de l'appli)
+function debutBienvenue(): string {
+  const s = jourParis(-3);
+  return jourParis(0) <= '2026-10-15' && s > '2026-09-08' ? '2026-09-08' : s;
+}
+
+function messageBienvenue(tel: string): string {
+  return 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\nhttps://app.braiseandco.fr/fidelite/inscription.html?tel=' +
+    encodeURIComponent(tel) + '\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
+}
+
+// SMS de bienvenue aux clients venus les jours précédents : mêmes règles que la section J+1 de l'appli
+async function envoyerBienvenue(sb: SupabaseClient, auth: string) {
+  const debut = debutBienvenue();
+  const { data: resas, error } = await sb.from('reservations')
+    .select('telephone,bienvenue_envoye')
+    .gte('date', debut).lte('date', jourParis(-1)).in('statut', ['confirmee', 'arrivee'])
+    .not('telephone', 'is', null).not('id', 'like', 'roulette_%').not('id', 'like', 'fid_%');
+  if (error) return { error: error.message };
+
+  const map: Record<string, { recu: boolean; bruts: Set<string> }> = {};
+  for (const r of resas || []) {
+    const tel = (r.telephone || '').replace(/\s/g, '');
+    if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+    if (!map[tel]) map[tel] = { recu: false, bruts: new Set() };
+    if (r.bienvenue_envoye) map[tel].recu = true;
+    map[tel].bruts.add(r.telephone);
+  }
+  const { data: stops } = await sb.from('sms_stop').select('telephone');
+  const stop = new Set((stops || []).map((s) => s.telephone));
+  const clients = Object.entries(map).filter(([tel, c]) => !c.recu && !stop.has(numeroFrancais(tel)));
+
+  const programme = departPrevu();
+  let envoyes = 0, nonMobiles = 0;
+  const erreurs: string[] = [];
+  for (const [tel, c] of clients.slice(0, MAX_PAR_ENVOI)) {
+    const mobile = numeroMobile(tel);
+    if (!mobile) { nonMobiles++; continue; }
+    const texte = messageBienvenue(tel);
+    try {
+      if (programme) {
+        const { error: e } = await sb.from('sms_programmes').insert({ telephone: mobile, texte, envoyer_at: programme, type: 'bienvenue' });
+        if (e) throw new Error(e.message);
+      } else {
+        const id = await envoyerSms(auth, mobile, texte);
+        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), type: 'bienvenue' });
+      }
+    } catch (e) {
+      erreurs.push(tel + ' : ' + String(e).slice(0, 120));
+      continue;
+    }
+    await sb.from('reservations').update({ bienvenue_envoye: true })
+      .in('telephone', [...c.bruts]).gte('date', debut).lt('date', jourParis(0));
+    envoyes++;
+  }
+  return { envoyes, nonMobiles, erreurs, programme };
 }
 
 Deno.serve(async (req: Request) => {
@@ -109,6 +167,11 @@ Deno.serve(async (req: Request) => {
   if (!cred?.utilisateur || !cred?.mot_de_passe) return json({ error: 'passerelle_non_configuree' }, 503);
   const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
   if (cronKey) return json(await viderFile(sb, auth));
+  const corps = await req.json().catch(() => ({}));
+  if (corps?.type === 'bienvenue') {
+    const r = await envoyerBienvenue(sb, auth);
+    return json(r, 'error' in r ? 500 : 200);
+  }
 
   // Mêmes règles que loadRelances : 6 mois de résas, dernière visite il y a plus de 29 jours
   const { data: resas, error } = await sb.from('reservations')
