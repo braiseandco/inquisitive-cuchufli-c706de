@@ -24,24 +24,27 @@
   function garder(d){
     var s = { access_token: d.access_token, refresh_token: d.refresh_token,
       expires_at: Date.now() + (d.expires_in || 3600) * 1000, appareil: (d.user && d.user.email || '').replace(DOMAINE, '') };
-    ecrire(s); return s;
+    ecrire(s); try { localStorage.setItem(STORE + '_appareil', s.appareil); } catch(e){}
+    return s;
   }
 
   async function auth(type, body){
     var r = await natif(SB + '/auth/v1/token?grant_type=' + type, {
       method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var d = await r.json().catch(function(){ return {}; });
-    if(!r.ok) throw new Error(d.error_description || d.msg || d.error || ('HTTP ' + r.status));
+    if(!r.ok){ var e = new Error(d.error_description || d.msg || d.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
     return garder(d);
   }
 
   // Jeton valide, renouvelé une minute avant expiration ; un seul renouvellement à la fois,
-  // sinon deux appels simultanés useraient le même jeton de renouvellement et le second échouerait
+  // sinon deux appels simultanés useraient le même jeton de renouvellement et le second échouerait.
+  // Seul un refus de la base déconnecte : un téléphone qui sort de veille a souvent un réseau pas
+  // encore prêt alors que navigator.onLine dit vrai, et l'appareil était déconnecté pour rien.
   async function jeton(){
     var s = lire(); if(!s) return null;
     if(s.expires_at - Date.now() > 60000) return s.access_token;
     if(!enCours) enCours = auth('refresh_token', { refresh_token: s.refresh_token })
-      .catch(function(e){ if(!navigator.onLine) throw e; ecrire(null); return null; })
+      .catch(function(e){ if(!e.status || e.status >= 500) throw e; ecrire(null); return null; })
       .finally(function(){ enCours = null; });
     var n = await enCours; return n ? n.access_token : null;
   }
@@ -66,7 +69,9 @@
         + '<label style="font-size:12px;color:#aaa">Mot de passe</label>'
         + '<input name="p" type="password" autocomplete="current-password" required style="width:100%;box-sizing:border-box;margin:4px 0 16px;padding:11px;border-radius:10px;border:1px solid #3a3a3c;background:#2c2c2e;color:#fff;font-size:16px">'
         + '<button style="width:100%;padding:13px;border:0;border-radius:10px;background:#ff6b35;color:#fff;font-size:16px;font-weight:700">Se connecter</button></form>';
-      var s = lire(); if(s && s.appareil) d.querySelector('select').value = s.appareil;
+      var dernier = (lire() || {}).appareil;
+      try { dernier = dernier || localStorage.getItem(STORE + '_appareil'); } catch(e){}
+      if(dernier) d.querySelector('select').value = dernier;
       d.querySelector('form').onsubmit = async function(e){
         e.preventDefault();
         var f = e.target, msg = d.querySelector('#braise-auth-msg'), b = f.querySelector('button');
