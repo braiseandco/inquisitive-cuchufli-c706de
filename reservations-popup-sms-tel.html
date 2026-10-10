@@ -2852,8 +2852,11 @@ async function loadRelances(){
         +'</div>';
     }
 
+    const bienvenueVide = '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>'
+      + '<button disabled style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--bg3);color:var(--text-faint);font-weight:900;font-size:15px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:default;margin-bottom:16px;">📤 Tout envoyer automatiquement (0)</button>';
+
     if(clientsHier.length === 0 && clients.length === 0){
-      content.innerHTML = suivi + '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
+      content.innerHTML = suivi + bienvenueVide + '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
       return;
     }
 
@@ -2862,14 +2865,16 @@ async function loadRelances(){
     let html = suivi;
 
     // ── Section J+1 ──────────────────────────────────────────
-    if(clientsHier.length > 0){
+    if(clientsHier.length === 0){
+      html += bienvenueVide + '<div style="height:1px;background:var(--border);margin:20px 0;"></div>';
+    } else {
       html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>';
       html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
       html += '<button id="bienvenue-tout-btn" onclick="bienvenueToutEnvoyer('+clientsHier.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clientsHier.length+')</button>';
       for(const c of clientsHier){
         const cid = 'j1-'+c.tel.replace(/\D/g,'');
         const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
-        window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
+        window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
         html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
           +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
           +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
@@ -3197,7 +3202,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-10.4';
+const APP_VERSION = '2026-10-10.5';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');

@@ -96,7 +96,7 @@ function debutBienvenue(): string {
 
 function messageBienvenue(tel: string): string {
   return 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\nhttps://app.braiseandco.fr/fidelite/inscription.html?tel=' +
-    encodeURIComponent(tel) + '\n\nÀ très bientôt autour du feu ! Braise & Co 🍖';
+    encodeURIComponent(tel) + '\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
 }
 
 // SMS de bienvenue aux clients venus les jours précédents : mêmes règles que la section J+1 de l'appli
