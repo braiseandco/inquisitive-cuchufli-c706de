@@ -2800,7 +2800,7 @@ async function loadRelances(){
       sbFetch('reservations?date=gte.'+debutJ1Str+'&date=lte.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone,date,bienvenue_envoye&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('sms_stop?select=telephone').catch(()=>[]),
-      sbFetch('sms_envois?select=etat,cree_at,maj_at&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
+      sbFetch('sms_envois?select=etat,cree_at,maj_at&type=eq.relance_j30&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
       sbFetch('sms_programmes?select=id&tentatives=lt.3').catch(()=>[])
     ]);
     // Envois du jour, plus ceux de la veille encore en attente
@@ -2954,7 +2954,8 @@ async function loadRouletteGains(){
 
     const fmtDate = d => new Date(d).toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
     window._rouletteMsgs = {};
-    let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>';
+    let html = '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);color:#c9a84c;font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:14px;">🎰 '+gains.length+' cadeau'+(gains.length>1?'x':'')+' à confirmer</div>'
+      + '<button id="roulette-tout-btn" onclick="rouletteToutEnvoyer('+gains.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,#c9a84c,#f0d080);color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+gains.length+')</button>';
     for(const g of gains){
       const cadeauTexte = {'Café offert':'un café','Digestif offert':'un digestif','Apéro offert':'un apéro','Dessert offert':'un dessert'}[g.cadeau] || g.cadeau.toLowerCase();
       const msg = 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir '+cadeauTexte+' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co) Offre valable 30 jours.';
@@ -2983,6 +2984,34 @@ async function loadRouletteGains(){
   } catch(e){
     list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-faint);">❌ Erreur de chargement</div>';
     console.error(e);
+  }
+}
+
+async function rouletteToutEnvoyer(nb){
+  if(!confirm('Envoyer les '+nb+' SMS cadeaux depuis le téléphone du resto ?\nIls partent tout de suite.')) return;
+  const btn = document.getElementById('roulette-tout-btn');
+  btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
+  try {
+    const h = window.braiseAuth ? await braiseAuth.headers() : {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY};
+    const res = await fetch(SB_URL+'/functions/v1/roulette-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:'{}'});
+    const d = await res.json().catch(()=>({}));
+    if(!res.ok){
+      const raisons = {passerelle_non_configuree:'SMS Gate n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
+      toast('❌ '+(raisons[d.error] || d.error || 'Erreur '+res.status),'ko');
+      btn.disabled = false; btn.textContent = '📤 Réessayer';
+      return;
+    }
+    let msg = '✅ '+d.envoyes+' SMS cadeau'+(d.envoyes>1?'x':'')+' en file d\'envoi';
+    if(d.nonMobiles) msg += ' · '+d.nonMobiles+' fixe'+(d.nonMobiles>1?'s':'')+' à faire à la main';
+    if(d.erreurs && d.erreurs.length) msg += ' · '+d.erreurs.length+' en erreur';
+    toast(msg, d.erreurs && d.erreurs.length ? 'ko' : 'ok');
+    if(d.erreurs && d.erreurs.length) console.error('roulette-sms', d.erreurs);
+    loadRouletteGains();
+    checkRouletteBadge();
+  } catch(e){
+    console.error(e);
+    toast('❌ Envoi impossible — réessaie','ko');
+    btn.disabled = false; btn.textContent = '📤 Réessayer';
   }
 }
 
@@ -3137,7 +3166,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-10.1';
+const APP_VERSION = '2026-10-10.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
