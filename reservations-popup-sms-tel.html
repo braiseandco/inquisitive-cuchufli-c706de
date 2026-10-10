@@ -2935,7 +2935,8 @@ async function loadRouletteGains(){
     const tabBtn = document.getElementById('tab-roulette');
     if(!gains || gains.length === 0){
       if(tabBtn) tabBtn.innerHTML = '🎰 Roulette';
-      list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-faint);font-size:13px;">✅ Aucun cadeau en attente</div>';
+      list.innerHTML = '<button disabled style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--bg3);color:var(--text-faint);font-weight:900;font-size:15px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:default;margin-bottom:6px;">📤 Tout envoyer automatiquement (0)</button>'
+        + '<div style="text-align:center;padding:18px;color:var(--text-faint);font-size:13px;">✅ Aucun cadeau en attente</div>';
       return;
     }
     if(tabBtn) tabBtn.innerHTML = '🎰 Roulette <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+gains.length+'</span>';
@@ -3166,7 +3167,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-10.2';
+const APP_VERSION = '2026-10-10.3';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
