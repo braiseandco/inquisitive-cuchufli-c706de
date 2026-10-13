@@ -55,7 +55,7 @@ function doPost(e) {
 
 function cmTexte(o, s) {
   const lignes = o.lignes.slice().sort(function (a, b) { return (a.ordre || 0) - (b.ordre || 0); }).map(function (l) {
-    return '• ' + String(Math.round(l.quantite * 100) / 100).replace('.', ',') + ' ' + (l.unite || '') + ' — ' + l.nom + (l.reference ? ' (réf. ' + l.reference + ')' : '');
+    return '• ' + String(Math.round(l.quantite * 100) / 100).replace('.', ',') + ' ' + (/^kilo/i.test(l.unite || '') ? 'kg' : (l.unite || '')) + ' — ' + l.nom + (l.reference ? ' (réf. ' + l.reference + ')' : '');
   }).join('\n');
   return 'Bonjour,\n\nCommande Braise & Co Biganos' + (s.numero_client ? ' (client ' + s.numero_client + ')' : '') +
     '\nLivraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + lignes + '\n' +

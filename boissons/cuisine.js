@@ -344,9 +344,11 @@ async function cuiNumeroLibre() {
   const n = rows.reduce((m, r) => Math.max(m, parseInt(r.numero.split('-')[1], 10) || 0), 0) + 1;
   return 'BC' + ymd + '-' + String(n).padStart(2, '0');
 }
+// « 30 kg » plutôt que « 30 Kilo(s) » : le fournisseur ne doit pas lire 30 colis
+const cuiUniteTxt = u => /^kilo/i.test(u || '') ? 'kg' : (u || '');
 function cuiOrderText(o) {
   const s = cuiSup(o.fournisseur_id) || {};
-  const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${l.unite || ''} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
+  const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${cuiUniteTxt(l.unite)} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nLivraison souhaitée le ${liv}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
 }
@@ -356,7 +358,7 @@ function cuiCc(s) { return '&cc=' + encodeURIComponent([CUI_CC, s.email_cc].filt
 function cuiOrderById(id) { return CUI.orders.find(x => x.id === id) || CUI._pending; }
 // Fournisseur en mode SMS : texte court, envoyé au fournisseur puis en copie au restaurant
 function cuiOrderSmsText(o) {
-  const lines = o.lignes.map(l => `- ${cuiQty(l.quantite)} ${l.unite || ''} ${l.nom}`).join('\n');
+  const lines = o.lignes.map(l => `- ${cuiQty(l.quantite)} ${cuiUniteTxt(l.unite)} ${l.nom}`).join('\n');
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lines}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
