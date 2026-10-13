@@ -684,6 +684,18 @@ function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);r
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 let _tt;
 function toast(msg,type){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(type?' '+type:'');clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('show'),3200);}
+
+// SMS de confirmation envoyé par le téléphone du resto (SMS Gate) ; secours : appli SMS de ce téléphone
+async function envoyerSmsResto(r, id){
+  try{
+    const h = window.braiseAuth ? await braiseAuth.headers() : {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY};
+    const res = await fetch(SB_URL+'/functions/v1/confirmation-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:JSON.stringify({id})});
+    if(res.ok){ toast('📲 SMS de confirmation parti du tél du resto','ok'); loadResas(null,true); return; }
+  }catch(e){ console.log('confirmation-sms:', e); }
+  const msg = 'Votre réservation chez Braise & Co est confirmée pour le '+fmtDate(r.date)+' à '+r.heure.slice(0,5)+' pour '+r.personnes+' personne'+(r.personnes>1?'s':'')+'. À bientôt !';
+  window.location.href = 'sms:'+r.telephone+'?body='+encodeURIComponent(msg);
+  setTimeout(async()=>{await updateResa(id,{sms_envoye:true});loadResas(null,true);},1500);
+}
 function showLoader(v){document.getElementById('loader').classList.toggle('show',v);}
 
 // ── State ─────────────────────────────────────────────────────
@@ -1202,11 +1214,7 @@ async function openDetail(id){
             }
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
-            if(r.telephone){
-              const msg = 'Votre réservation chez Braise & Co est confirmée pour le '+fmtDate(r.date)+' à '+r.heure.slice(0,5)+' pour '+r.personnes+' personne'+(r.personnes>1?'s':'')+'. À bientôt !';
-              window.location.href = 'sms:'+r.telephone+'?body='+encodeURIComponent(msg);
-              setTimeout(async()=>{await updateResa(id,{sms_envoye:true});loadResas(null,true);},1500);
-            }
+            if(r.telephone) envoyerSmsResto(r, id);
             toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
           } else {
             showLoader(false);
@@ -2230,7 +2238,7 @@ document.getElementById('btn-export-excel').onclick = async function(){
 };
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-13.1';
+const APP_VERSION = '2026-10-13.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');

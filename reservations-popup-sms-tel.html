@@ -1748,6 +1748,7 @@ async function openDetail(id){
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
             toast('✅ Confirmée'+(r.email?' — email envoyé à '+r.email:''),'ok');
+            checkConfirmedResas();
           } else {
             showLoader(false);
             document.getElementById('modal-detail').classList.remove('open');
@@ -1950,6 +1951,7 @@ document.getElementById('btn-resa-save').onclick=async function(){
         setTimeout(()=>{if(document.body.contains(t))document.body.removeChild(t);},5000);
       }
     }
+    checkConfirmedResas();
   }catch(e){showLoader(false);const msg=e.message||'';toast('Erreur: '+msg.slice(0,80),'ko');console.error('Erreur création résa:',e);}
 };
 
@@ -3202,7 +3204,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-13.1';
+const APP_VERSION = '2026-10-13.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3338,7 +3340,22 @@ function buildSmsUrl(telephone, msg){
 
 let _smsCurrentResaId = null;
 
-function envoyerNotifSms(r){
+async function envoyerNotifSms(r){
+  try{
+    const h = window.braiseAuth ? await braiseAuth.headers() : {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY};
+    const res = await fetch(SB_URL+'/functions/v1/confirmation-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:JSON.stringify({id:r.id})});
+    const d = await res.json().catch(()=>({}));
+    if(res.ok){
+      if(!d.deja) toast('📲 SMS de confirmation parti du tél du resto — '+r.nom,'ok');
+      loadResas(null,true);
+      return;
+    }
+  }catch(e){ console.log('confirmation-sms:', e); }
+  ouvrirPopupSms(r);
+}
+
+// Secours si SMS Gate ne répond pas ou numéro fixe : SMS à envoyer à la main depuis ce téléphone
+function ouvrirPopupSms(r){
   const dd = r.date.slice(8,10), mm = r.date.slice(5,7);
   const msg = 'Votre reservation chez Braise et Co est confirmee le '+dd+'/'+mm+' a '+r.heure.slice(0,5)+' pour '+r.personnes+' pers. A bientot !';
 
