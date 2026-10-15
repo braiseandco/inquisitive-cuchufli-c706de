@@ -5,7 +5,7 @@
    qui envoie, et la commande ne passe en « envoyée » que si Gmail a accepté le mail.
 
    Les destinataires sont lus dans la base, jamais dans la requête : ce script ne
-   peut écrire qu'aux fournisseurs enregistrés.
+   peut écrire qu'aux fournisseurs enregistrés, et à Samier (PDF du planning).
 
    Installation (compte braiseandcobiganos) : script.google.com → Nouveau projet →
    coller ce fichier → Déployer → Nouveau déploiement → Application Web,
@@ -17,6 +17,8 @@ const CM_SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
 // dans les propriétés du script (bascule sécurité)
 const CM_SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVneXJybnFwYXBlYWdwdW9jd29iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTU0OTAsImV4cCI6MjA4ODU3MTQ5MH0.QNK7DQM0UZTiA3jxN-Z7k58u64LrTU1dOK1oZlKH0Go';
 const CM_RESTO = 'braiseandcobiganos@gmail.com';
+// Comptable (cabinet Groupe ECE) : seul destinataire possible des PDF du planning
+const CM_SAMIER = 'J.Samier@groupe-ece.com';
 const CM_JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const CM_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -24,6 +26,7 @@ function doPost(e) {
   let id = '', essai = false;
   try {
     const req = JSON.parse(e.postData.contents);
+    if (req.samier) return cmSamier(req.samier);
     id = req.id; essai = !!req.essai;
     if (!id) return cmRep({ ok: false, error: 'id manquant' });
     const o = cmSb('cmd_commandes?id=eq.' + encodeURIComponent(id) + '&select=*,lignes:cmd_commande_lignes(*),f:cmd_fournisseurs(*)')[0];
@@ -51,6 +54,16 @@ function doPost(e) {
     if (id && !essai) { try { cmSb('cmd_commandes?id=eq.' + encodeURIComponent(id), 'patch', { mail_erreur: msg }); } catch (e2) {} }
     return cmRep({ ok: false, error: msg });
   }
+}
+
+// PDF par employé de l'appli Planning (bouton « Envoyer à Samier »)
+function cmSamier(m) {
+  if (!m.pdf || !/\.pdf$/.test(m.nom || '')) return cmRep({ ok: false, error: 'PDF manquant' });
+  if (m.pdf.length > 15000000) return cmRep({ ok: false, error: 'PDF trop lourd' });
+  const pj = Utilities.newBlob(Utilities.base64Decode(m.pdf), 'application/pdf', String(m.nom).slice(0, 100));
+  GmailApp.sendEmail(CM_SAMIER, String(m.sujet || 'Planning Braise & Co').slice(0, 200), String(m.texte || '').slice(0, 2000),
+    { attachments: [pj], name: 'Braise & Co Biganos' });
+  return cmRep({ ok: true });
 }
 
 function cmTexte(o, s) {
