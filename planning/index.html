@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-15.2';
+const APP_VERSION = '2026-10-15.3';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -1190,6 +1190,10 @@ function empActiveInRange(emp, startYmd, endYmd) {
   if (emp.date_arrivee && emp.date_arrivee > endYmd) return false;
   if (emp.date_depart  && emp.date_depart  < startYmd) return false;
   return true;
+}
+// Le jour ds (YYYY-MM-DD) est-il dans sa période d'emploi ?
+function empInPost(emp, ds) {
+  return !(emp.date_arrivee && ds < emp.date_arrivee) && !(emp.date_depart && ds > emp.date_depart);
 }
 
 // Normalise un nom pour comparaison : sans accents, majuscules, découpé en mots.
@@ -3682,6 +3686,7 @@ async function generateWeekFromBase() {
     const rows = [];
     for (const emp of employees) {
       for (let i = 1; i <= 6; i++) {
+        if (!empInPost(emp, dateStr(dates[i]))) continue;
         const dn = i + 1; // 2=Mar … 7=Dim
         const sched = schedByEmp[emp.id]?.[dn];
         const row = buildOvFromSched(emp.id, dateStr(dates[i]), dn, sched);
@@ -3769,14 +3774,15 @@ async function printEmpReport() {
   const to   = document.getElementById('empRptTo').value;
   if ((from && !to) || (!from && to)) { toast('Choisir les deux dates, ou « Tout »'); return; }
   if (from > to) { toast('La date de début doit être avant la fin'); return; }
-  const inRange = ds => !from || (ds >= from && ds <= to);
+  const inRange = ds => (!from || (ds >= from && ds <= to)) && empInPost(emp, ds);
   const range = from ? `&date=gte.${from}&date=lte.${to}` : '';
 
   // Récupérer overrides ET signatures
-  const [allOv, allSigsEmp] = await Promise.all([
+  const [ovRows, allSigsEmp] = await Promise.all([
     GET(`weekly_overrides?employee_id=eq.${empId}${range}&order=date.asc&select=*`),
     GET(`daily_signatures?employee_id=eq.${empId}${range}&order=date.asc&select=date,signature_data`)
   ]);
+  const allOv = ovRows.filter(o => inRange(o.date));
   if (!allOv.length) { toast('Aucun planning trouvé pour cet employé sur cette période'); return; }
   const sigMap = {};
   allSigsEmp.forEach(s => { sigMap[s.date] = s.signature_data; });
@@ -4477,6 +4483,7 @@ async function saveFermeture() {
   const rows = [];
   for (const emp of employees) {
     for (const d of dates) {
+      if (!empInPost(emp, d)) continue;
       const dow = new Date(d + 'T12:00').getDay() || 7;
       const sched = (schedIdx[emp.id] || {})[dow];
       const ov = (ovIdx[emp.id] || {})[d];
@@ -5034,6 +5041,7 @@ const EDIT_COLS = [
 ];
 // Note : lundi (offset:0) exclu du modal modifier — restaurant fermé
 let editWeekOvCache = {};
+let editWeekEmps = [];
 
 function editCellVal(ov, svc) {
   if (!ov) return '';
@@ -5059,6 +5067,7 @@ async function openEditWeek() {
   // Cache des overrides existants (empId → date → ov) pour conserver les pauses repas à l'enregistrement
   editWeekOvCache = {};
   allOv.forEach(o => { (editWeekOvCache[o.employee_id] = editWeekOvCache[o.employee_id] || {})[o.date] = o; });
+  editWeekEmps = employees.filter(emp => empActiveInRange(emp, weekStart, weekEnd));
 
   // thead
   let head = '<tr><th class="edit-week-th" style="text-align:left">Employé</th>';
@@ -5071,7 +5080,7 @@ async function openEditWeek() {
 
   // tbody
   let body = '';
-  employees.forEach((emp, ei) => {
+  editWeekEmps.forEach((emp, ei) => {
     const ovMap = {};
     allOv.filter(o => o.employee_id === emp.id).forEach(o => ovMap[o.date] = o);
     body += `<tr><td class="edit-week-td edit-week-name">
@@ -5098,7 +5107,7 @@ async function saveEditWeek() {
 
   // Construire les overrides à partir des inputs
   const byEmpDate = {}; // empId → date → {morn, eve}
-  employees.forEach((emp, ei) => {
+  editWeekEmps.forEach((emp, ei) => {
     byEmpDate[emp.id] = {};
     EDIT_COLS.forEach((c, ci) => {
       const ds = localDate(dates[c.offset]);
@@ -5113,7 +5122,7 @@ async function saveEditWeek() {
   const keepBreak = (bs, be, s, e) => (bs && be && s && e && hmMin(bs) >= hmMin(s) && hmMid(be) <= hmMid(e));
 
   const overrides = [];
-  for (const emp of employees) {
+  for (const emp of editWeekEmps) {
     for (const [ds, svcs] of Object.entries(byEmpDate[emp.id])) {
       const mornVal = (svcs.morn || svcs.day || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
@@ -5160,7 +5169,7 @@ async function saveEditWeek() {
   try {
     const btn = document.querySelector('#modalEditWeek .btn-primary');
     btn.disabled = true; btn.textContent = '⏳…';
-    for (const emp of employees) {
+    for (const emp of editWeekEmps) {
       await sb(`weekly_overrides?employee_id=eq.${emp.id}&date=gte.${weekStart}&date=lte.${weekEnd}`,
         { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
     }
@@ -5580,7 +5589,7 @@ async function loadSmsPlanList() {
   const monday = dates[0], sunday = dates[6];
   const weekStr = `du ${monday.getDate()}/${String(monday.getMonth()+1).padStart(2,'0')} au ${sunday.getDate()}/${String(sunday.getMonth()+1).padStart(2,'0')}`;
 
-  const cards = employees.map(emp => {
+  const cards = employees.filter(emp => empActiveInRange(emp, weekStart, weekEnd)).map(emp => {
     const schedsByDay = schedsMap[emp.id] || {};
     const ovsByDate   = ovMap[emp.id]    || {};
 
