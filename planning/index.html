@@ -11,10 +11,11 @@
 <link rel="manifest" href="manifest.json">
 <script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
+<script src="contrat-salarie.js" defer></script>
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-14.1';
+const APP_VERSION = '2026-10-15.1';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -374,30 +375,45 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   </div>
 </div>
 
-<!-- ═══ MODAL FICHE CONTRAT EXTRA ═══ -->
+<!-- ═══ MODAL FICHE SALARIÉ (identité + contrat) ═══ -->
 <div class="modal-overlay" id="modalEmpContrat">
   <div class="modal">
-    <h3>Fiche contrat — <span id="contratEmpName"></span></h3>
+    <h3>Fiche salarié — <span id="contratEmpName"></span></h3>
     <p style="font-size:11px;color:var(--text-faint);margin:-6px 0 14px;line-height:1.5">
-      Infos légales utilisées pour générer les contrats d'extra (CCN HCR). Remplissage manager uniquement.
+      Sert au contrat CDI / CDD, aux contrats d'extra et à l'estimation des salaires. Remplissage manager uniquement.
     </p>
+    <div class="form-label" style="margin:4px 0 8px;color:var(--accent)">Identité</div>
     <div style="display:flex;gap:10px">
       <div class="form-group" style="flex:0 0 90px">
         <label class="form-label">Civilité</label>
         <select class="form-input" id="contratCivilite">
-          <option value="Mr">Mr</option>
+          <option value="Mr">M.</option>
           <option value="Mme">Mme</option>
           <option value="Mlle">Mlle</option>
         </select>
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Nationalité</label>
-        <input class="form-input" type="text" id="contratNationalite" placeholder="française" value="française">
+        <label class="form-label">Nom</label>
+        <input class="form-input" type="text" id="contratNom" placeholder="DUPONT" autocomplete="off">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Prénom</label>
+        <input class="form-input" type="text" id="contratPrenom" placeholder="Marie" autocomplete="off">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Nom de naissance</label>
+        <input class="form-input" type="text" id="contratNomNaissance" placeholder="si différent" autocomplete="off">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Téléphone</label>
+        <input class="form-input" type="tel" id="contratPhone" placeholder="06 12 34 56 78" autocomplete="off">
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">Adresse complète</label>
-      <input class="form-input" type="text" id="contratAdresse" placeholder="Ex: 8 rue pomponne 33380 biganos">
+      <textarea class="form-input" id="contratAdresse" rows="3" placeholder="8 rue Pomponne&#10;33380 BIGANOS"></textarea>
     </div>
     <div style="display:flex;gap:10px">
       <div class="form-group" style="flex:1">
@@ -405,36 +421,121 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <input class="form-input" type="date" id="contratNaissance">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Taux horaire (EUR)</label>
-        <input class="form-input" type="number" step="0.01" min="0" id="contratTaux" value="12.31">
+        <label class="form-label">Lieu de naissance</label>
+        <input class="form-input" type="text" id="contratLieuNaissance" placeholder="BORDEAUX (33)">
       </div>
     </div>
     <div style="display:flex;gap:10px">
       <div class="form-group" style="flex:1">
-        <label class="form-label">N° sécurité sociale</label>
-        <input class="form-input" type="text" id="contratNumSecu" placeholder="Ex: 1 07 05 33 011 244 65">
+        <label class="form-label">Nationalité</label>
+        <input class="form-input" type="text" id="contratNationalite" placeholder="Française">
       </div>
-      <div class="form-group" style="flex:0 0 140px">
+      <div class="form-group" style="flex:1.4">
+        <label class="form-label">N° sécurité sociale</label>
+        <input class="form-input" type="text" id="contratNumSecu" placeholder="1 07 05 33 011 244 65">
+      </div>
+    </div>
+
+    <div class="form-label" style="margin:10px 0 8px;color:var(--accent)">Contrat</div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Type de contrat</label>
+        <select class="form-input" id="contratType" onchange="toggleFicheType()">
+          <option value="">—</option>
+          <option value="CDI">CDI</option>
+          <option value="CDD">CDD</option>
+          <option value="CDD saisonnier">CDD saisonnier</option>
+          <option value="Apprentissage">Apprentissage</option>
+          <option value="Extra">Extra</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Matricule paie</label>
+        <input class="form-input" type="text" id="contratMatricule" placeholder="0000001205">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Début du contrat</label>
+        <input class="form-input" type="date" id="contratDebut" onchange="toggleFicheType()">
+      </div>
+      <div class="form-group" style="flex:1" id="contratFinWrap">
+        <label class="form-label">Fin du contrat</label>
+        <input class="form-input" type="date" id="contratFin" onchange="toggleFicheType()">
+      </div>
+    </div>
+    <div id="contratCddWrap" style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Motif du CDD</label>
+        <select class="form-input" id="contratMotif" onchange="toggleFicheType()">
+          <option value="accroissement">Accroissement temporaire d'activité</option>
+          <option value="remplacement">Remplacement d'un salarié absent</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1" id="contratRemplaceWrap">
+        <label class="form-label">Salarié remplacé (nom + poste)</label>
+        <input class="form-input" type="text" id="contratRemplace" placeholder="Mme X, employée polyvalente">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:2">
+        <label class="form-label">Emploi</label>
+        <input class="form-input" type="text" id="contratEmploi" placeholder="Employé(e) polyvalent(e)">
+      </div>
+      <div class="form-group" style="flex:0 0 64px">
+        <label class="form-label">Niveau</label>
+        <input class="form-input" type="text" id="contratNiveau" placeholder="I">
+      </div>
+      <div class="form-group" style="flex:0 0 64px">
+        <label class="form-label">Échelon</label>
+        <input class="form-input" type="text" id="contratEchelon" placeholder="1">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
         <label class="form-label">H/semaine contrat</label>
         <input class="form-input" type="number" step="0.5" min="0" max="60" id="contratHeuresHebdo" placeholder="35">
       </div>
-    </div>
-    <div style="display:flex;gap:10px">
       <div class="form-group" style="flex:1">
-        <label class="form-label">Salaire net de base (EUR / mois)</label>
-        <input class="form-input" type="number" step="10" min="0" id="contratSalaireBase" placeholder="Ex: 1500">
+        <label class="form-label">Taux horaire brut</label>
+        <input class="form-input" type="number" step="0.01" min="0" id="contratTaux" value="12.31">
       </div>
-      <div class="form-group" style="flex:0 0 160px">
-        <label class="form-label">Loyer logement (EUR / mois)</label>
-        <input class="form-input" type="number" step="10" min="0" id="contratLoyer" placeholder="Ex: 250">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Période d'essai</label>
+        <input class="form-input" type="text" id="contratEssai" placeholder="2 mois">
       </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="contratLogeChk" onchange="toggleFicheType()" style="width:18px;height:18px">
+        Logement de fonction (clause logement dans le contrat)
+      </label>
+    </div>
+    <div id="contratLogeWrap" style="display:flex;gap:10px">
+      <div class="form-group" style="flex:2">
+        <label class="form-label">Adresse du logement</label>
+        <input class="form-input" type="text" id="contratLogementAdresse" placeholder="18 G Rue des Navarries 33380 MIOS">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Loyer (EUR / mois)</label>
+        <input class="form-input" type="number" step="10" min="0" id="contratLoyer" placeholder="250">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Salaire net de base (EUR / mois)</label>
+      <input class="form-input" type="number" step="10" min="0" id="contratSalaireBase" placeholder="Ex: 1500">
     </div>
     <p style="font-size:10px;color:var(--text-faint);margin:-6px 0 8px;line-height:1.4">
-      💡 H/semaine = heures du contrat (35h temps plein, 20h mi-temps) → sert au calcul des heures sup. Salaire net de base = salaire mensuel pour ce contrat ; les heures au-delà du contrat sont ajoutées majorées de 10 % dans l'estimation salaires. Loyer logement = montant prélevé chaque mois sur le salaire si l'employé est logé.
+      💡 H/semaine = heures du contrat (35h temps plein ; en dessous, contrat à temps partiel avec la répartition tirée des horaires de base). Salaire net de base = sert à l'estimation salaires. Le loyer est prélevé chaque mois sur le salaire.
     </p>
-    <div class="modal-btns">
+    <div id="ficheScheduleWrap" style="display:none">
+      <div class="form-label" style="margin:10px 0 8px;color:var(--accent)">Horaires par défaut (planning)</div>
+      <div class="schedule-grid" id="ficheScheduleGrid"></div>
+    </div>
+    <div class="modal-btns" style="flex-wrap:wrap">
       <button class="btn-secondary" onclick="closeModal('modalEmpContrat')">Annuler</button>
-      <button class="btn-primary" onclick="saveEmpContrat()">Enregistrer</button>
+      <button class="btn-primary" onclick="saveEmpContrat(false)">Enregistrer</button>
+      <button class="btn-primary" id="btnFicheContrat" onclick="saveEmpContrat(true)">📄 Enregistrer + contrat</button>
     </div>
   </div>
 </div>
@@ -521,7 +622,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tab-content active" id="tab-employees">
     <div class="section-head">
       <div class="section-title">Employés</div>
-      <button class="btn-add" onclick="openAddEmployee()">+ Ajouter</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn-add" onclick="openEmpContrat(null)">+ Salarié (contrat)</button>
+        <button class="btn-add" onclick="openAddEmployee()">+ Extra</button>
+      </div>
     </div>
     <div id="empCardList"></div>
   </div>
@@ -1533,15 +1637,15 @@ function loadEmpCards() {
   const el = document.getElementById('empCardList');
   if (!employees.length) { el.innerHTML = '<div style="color:var(--text-faint);text-align:center;padding:40px">Aucun employé</div>'; return; }
   el.innerHTML = employees.map(e => {
-    const hasContrat = !!(e.adresse && e.num_secu && e.date_naissance);
+    const hasContrat = !!(e.adresse && e.num_secu && e.date_naissance && e.nom && e.prenom);
     return `
     <div class="emp-card" onclick="openEmpWeek('${e.id}')" style="cursor:pointer">
       <div class="emp-card-avatar" style="background:${e.color}">${e.name.charAt(0).toUpperCase()}</div>
       <div style="flex:1">
         <div class="emp-card-name">${e.name}</div>
-        <div class="emp-card-sub">${e.phone || 'Voir le planning →'}</div>
+        <div class="emp-card-sub">${[e.type_contrat, e.phone].filter(Boolean).join(' · ') || 'Voir le planning →'}</div>
       </div>
-      <button class="btn-rename" onclick="event.stopPropagation();openEmpContrat('${e.id}')" title="Fiche contrat extra" style="font-size:14px">${hasContrat ? '📄' : '📄❗'}</button>
+      <button class="btn-rename" onclick="event.stopPropagation();openEmpContrat('${e.id}')" title="Fiche salarié / contrat" style="font-size:14px">${hasContrat ? '📄' : '📄❗'}</button>
       <button class="btn-rename" onclick="event.stopPropagation();openRenameEmp('${e.id}')" title="Renommer">✏️</button>
       <button class="btn-del" onclick="event.stopPropagation();archiveEmployee('${e.id}','${jsStr(e.name)}')">Archiver</button>
     </div>
@@ -1652,53 +1756,138 @@ async function saveDemission() {
   }
 }
 
-// ═══ FICHE CONTRAT EXTRA (manager only) ═══
+// ═══ FICHE SALARIÉ (manager only) ═══
 const SMIC_HORAIRE_HCR = 12.31; // SMIC HCR niveau 1 échelon 1
-let contratTargetId = null;
+let contratTargetId = null; // null = création d'un nouveau salarié
+const FICHE_TEXT_FIELDS = {
+  contratNom: 'nom', contratPrenom: 'prenom', contratNomNaissance: 'nom_naissance', contratAdresse: 'adresse',
+  contratLieuNaissance: 'lieu_naissance', contratNationalite: 'nationalite', contratNumSecu: 'num_secu',
+  contratMatricule: 'matricule', contratEmploi: 'emploi', contratNiveau: 'niveau', contratEchelon: 'echelon',
+  contratRemplace: 'personne_remplacee', contratEssai: 'periode_essai', contratLogementAdresse: 'logement_adresse',
+};
+
 function openEmpContrat(empId) {
   contratTargetId = empId;
-  const emp = employees.find(e => e.id === empId);
+  const emp = empId ? employees.find(e => e.id === empId) : {};
   if (!emp) { toast('Employé introuvable'); return; }
-  document.getElementById('contratEmpName').textContent = emp.name;
+  document.getElementById('contratEmpName').textContent = empId ? emp.name : 'nouveau';
+  for (const [id, k] of Object.entries(FICHE_TEXT_FIELDS)) document.getElementById(id).value = emp[k] || '';
   document.getElementById('contratCivilite').value    = emp.civilite || 'Mr';
-  document.getElementById('contratNationalite').value = emp.nationalite || 'française';
-  document.getElementById('contratAdresse').value     = emp.adresse || '';
+  document.getElementById('contratPhone').value       = emp.phone || '';
   document.getElementById('contratNaissance').value   = emp.date_naissance || '';
-  document.getElementById('contratNumSecu').value     = emp.num_secu || '';
+  document.getElementById('contratType').value        = emp.type_contrat || (empId ? '' : 'CDI');
+  document.getElementById('contratDebut').value       = emp.date_arrivee || '';
+  document.getElementById('contratFin').value         = emp.date_fin_contrat || '';
+  document.getElementById('contratMotif').value       = emp.motif_cdd || 'accroissement';
   document.getElementById('contratTaux').value        = emp.taux_horaire != null ? emp.taux_horaire : SMIC_HORAIRE_HCR;
-  document.getElementById('contratHeuresHebdo').value = emp.heures_hebdo_contrat != null ? emp.heures_hebdo_contrat : '';
-  document.getElementById('contratSalaireBase').value  = emp.salaire_base_net != null ? emp.salaire_base_net : '';
-  document.getElementById('contratLoyer').value        = emp.loyer_logement != null ? emp.loyer_logement : '';
+  document.getElementById('contratHeuresHebdo').value = emp.heures_hebdo_contrat != null ? +emp.heures_hebdo_contrat : (empId ? '' : 35);
+  document.getElementById('contratSalaireBase').value = emp.salaire_base_net != null ? emp.salaire_base_net : '';
+  document.getElementById('contratLoyer').value       = emp.loyer_logement != null ? emp.loyer_logement : '';
+  document.getElementById('contratLogeChk').checked   = +(emp.loyer_logement || 0) > 0;
+  if (!empId) {
+    document.getElementById('contratNationalite').value = 'Française';
+    document.getElementById('contratNiveau').value = 'I';
+    document.getElementById('contratEchelon').value = '1';
+  }
+  // Création : la grille d'horaires de base alimente le planning dès l'enregistrement.
+  // Mêmes ids que la grille de « + Extra » : on vide l'autre pour éviter les doublons.
+  document.getElementById('scheduleGrid').innerHTML = '';
+  document.getElementById('ficheScheduleGrid').innerHTML = '';
+  document.getElementById('ficheScheduleWrap').style.display = empId ? 'none' : 'block';
+  if (!empId) buildScheduleGrid('ficheScheduleGrid', {1: {is_off: true}});
+  toggleFicheType();
   openModal('modalEmpContrat');
 }
 
-async function saveEmpContrat() {
-  if (!contratTargetId) return;
-  const civilite       = document.getElementById('contratCivilite').value;
-  const nationalite    = document.getElementById('contratNationalite').value.trim() || null;
-  const adresse        = document.getElementById('contratAdresse').value.trim() || null;
-  const date_naissance = document.getElementById('contratNaissance').value || null;
-  const num_secu       = document.getElementById('contratNumSecu').value.trim() || null;
-  const tauxRaw        = document.getElementById('contratTaux').value.replace(',', '.');
-  const taux_horaire   = tauxRaw ? parseFloat(tauxRaw) : null;
-  const hebdoRaw       = document.getElementById('contratHeuresHebdo').value.replace(',', '.');
-  const heures_hebdo_contrat = hebdoRaw ? parseFloat(hebdoRaw) : null;
-  const baseRaw        = document.getElementById('contratSalaireBase').value.replace(',', '.');
-  const salaire_base_net = baseRaw ? parseFloat(baseRaw) : null;
-  const loyerRaw       = document.getElementById('contratLoyer').value.replace(',', '.');
-  const loyer_logement = loyerRaw ? parseFloat(loyerRaw) : null;
-  if (taux_horaire != null && taux_horaire > 0 && taux_horaire < SMIC_HORAIRE_HCR) {
-    if (!confirm(`Le taux saisi (${taux_horaire.toFixed(2)} €/h) est inférieur au SMIC HCR (${SMIC_HORAIRE_HCR.toFixed(2)} €/h).\n\nEnregistrer quand même ?`)) return;
+function toggleFicheType() {
+  const type = document.getElementById('contratType').value;
+  const cdd = type === 'CDD' || type === 'CDD saisonnier';
+  document.getElementById('contratFinWrap').style.visibility = (cdd || type === 'Apprentissage' || type === 'Extra') ? 'visible' : 'hidden';
+  document.getElementById('contratCddWrap').style.display = type === 'CDD' ? 'flex' : 'none';
+  document.getElementById('contratRemplaceWrap').style.visibility = document.getElementById('contratMotif').value === 'remplacement' ? 'visible' : 'hidden';
+  document.getElementById('contratLogeWrap').style.display = document.getElementById('contratLogeChk').checked ? 'flex' : 'none';
+  document.getElementById('btnFicheContrat').style.display = CONTRAT_TYPES_IMPRIMABLES.includes(type) ? '' : 'none';
+  document.getElementById('contratEssai').placeholder =
+    essaiParDefaut(type, document.getElementById('contratDebut').value, document.getElementById('contratFin').value) || '—';
+}
+
+function readScheduleRows(empId) {
+  return DAYS.map((_,i) => {
+    const dayNum = i+1;
+    const on = document.getElementById('chk'+dayNum).checked;
+    const hasEvening = EVENING_DAY_NUM.has(dayNum);
+    const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
+    const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
+    return {employee_id: empId, day_of_week: dayNum, is_off: !on,
+            start_time:  (!on || mornOff) ? null : (document.getElementById('st'+dayNum).value || null),
+            break_start: (!on || mornOff) ? null : (document.getElementById('bs'+dayNum).value || null),
+            break_end:   (!on || mornOff) ? null : (document.getElementById('be'+dayNum).value || null),
+            end_time:    (!on || mornOff) ? null : (document.getElementById('et'+dayNum).value || null),
+            evening_start:       (hasEvening && !eveOff) ? (document.getElementById('est'+dayNum)?.value || null) : null,
+            evening_break_start: (hasEvening && !eveOff) ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
+            evening_break_end:   (hasEvening && !eveOff) ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
+            evening_end:         (hasEvening && !eveOff) ? (document.getElementById('eet'+dayNum)?.value || null) : null};
+  });
+}
+
+async function saveEmpContrat(withContrat) {
+  const num = id => { const v = document.getElementById(id).value.replace(',', '.'); return v ? parseFloat(v) : null; };
+  const patch = {};
+  for (const [id, k] of Object.entries(FICHE_TEXT_FIELDS)) patch[k] = document.getElementById(id).value.trim() || null;
+  if (patch.nom) patch.nom = patch.nom.toUpperCase();
+  const type = document.getElementById('contratType').value || null;
+  const loge = document.getElementById('contratLogeChk').checked;
+  Object.assign(patch, {
+    civilite: document.getElementById('contratCivilite').value,
+    phone: document.getElementById('contratPhone').value.trim().replace(/\s/g,'') || null,
+    date_naissance: document.getElementById('contratNaissance').value || null,
+    type_contrat: type,
+    date_arrivee: document.getElementById('contratDebut').value || null,
+    date_fin_contrat: document.getElementById('contratFin').value || null,
+    motif_cdd: type === 'CDD' ? document.getElementById('contratMotif').value : (type === 'CDD saisonnier' ? 'saisonnier' : null),
+    taux_horaire: num('contratTaux'),
+    heures_hebdo_contrat: num('contratHeuresHebdo'),
+    salaire_base_net: num('contratSalaireBase'),
+    loyer_logement: loge ? num('contratLoyer') : null,
+  });
+  if (!loge) patch.logement_adresse = null;
+  if (patch.motif_cdd !== 'remplacement') patch.personne_remplacee = null;
+  if (loge && !(patch.loyer_logement > 0)) { toast('Indique le loyer du logement'); return; }
+  if (patch.taux_horaire != null && patch.taux_horaire > 0 && patch.taux_horaire < SMIC_HORAIRE_HCR) {
+    if (!confirm(`Le taux saisi (${patch.taux_horaire.toFixed(2)} €/h) est inférieur au SMIC HCR (${SMIC_HORAIRE_HCR.toFixed(2)} €/h).\n\nEnregistrer quand même ?`)) return;
   }
+  if (!contratTargetId && !(patch.nom && patch.prenom)) { toast('Nom et prénom obligatoires'); return; }
+  if (withContrat) {
+    const manquants = contratChampsManquants(patch);
+    if (manquants.length) { toast('Pour le contrat, il manque : ' + manquants.join(', ')); return; }
+  }
+  // Fenêtre ouverte tout de suite (clic) sinon le bloqueur de popups l'arrête après les requêtes.
+  const w = withContrat ? window.open('', '_blank') : null;
   try {
-    const patch = {civilite, nationalite, adresse, date_naissance, num_secu, taux_horaire, heures_hebdo_contrat, salaire_base_net, loyer_logement};
-    await PATCH(`employees?id=eq.${contratTargetId}`, patch);
-    const emp = employees.find(e => e.id === contratTargetId);
-    if (emp) Object.assign(emp, patch);
+    let emp, scheds;
+    if (contratTargetId) {
+      await PATCH(`employees?id=eq.${contratTargetId}`, patch);
+      emp = employees.find(e => e.id === contratTargetId);
+      Object.assign(emp, patch);
+      if (withContrat) scheds = await GET(`schedules?employee_id=eq.${emp.id}&select=*`);
+    } else {
+      const name = `${patch.prenom} ${patch.nom}`;
+      [emp] = await POST('employees', {...patch, name, color: COLORS[employees.length % COLORS.length], display_order: employees.length + 1});
+      scheds = readScheduleRows(emp.id);
+      await POST('schedules', scheds);
+      employees.push(emp);
+    }
     closeModal('modalEmpContrat');
-    toast('Fiche contrat enregistrée');
+    toast(contratTargetId ? 'Fiche salarié enregistrée' : `${emp.name} ajouté au planning`);
     loadEmpCards();
+    if (w) {
+      ouvrirContratSalarie(w, emp, scheds);
+      const totalBase = scheds.reduce((t, s) => t + calcDayHours(s), 0);
+      if (+emp.heures_hebdo_contrat < 35 && Math.abs(totalBase - emp.heures_hebdo_contrat) > 0.25)
+        toast(`⚠ Horaires de base = ${String(+totalBase.toFixed(2)).replace('.', ',')} h, contrat = ${emp.heures_hebdo_contrat} h : corrige les horaires puis réimprime`);
+    }
   } catch(e) {
+    if (w) w.close();
     toast('Erreur : ' + e.message);
   }
 }
@@ -1844,6 +2033,7 @@ function openAddEmployee() {
   document.getElementById('empPhoneInput').value = '';
   document.getElementById('empArriveeInput').value = '';
   buildColorPicker('modalEmployee', COLORS[0]);
+  document.getElementById('ficheScheduleGrid').innerHTML = '';
   buildScheduleGrid('scheduleGrid', null);
   openModal('modalEmployee');
 }
@@ -1974,23 +2164,7 @@ async function saveEmployee() {
   const phone = document.getElementById('empPhoneInput').value.trim().replace(/\s/g,'') || null;
   const date_arrivee = document.getElementById('empArriveeInput').value || null;
   const [emp] = await POST('employees', {name, color: selectedColor, phone, date_arrivee, display_order: employees.length + 1});
-  // Save schedules
-  const rows = DAYS.map((_,i) => {
-    const dayNum = i+1;
-    const on = document.getElementById('chk'+dayNum).checked;
-    const hasEvening = EVENING_DAY_NUM.has(dayNum);
-    const mornOff = hasEvening && document.getElementById('morntog'+dayNum)?.classList.contains('off');
-    const eveOff  = hasEvening && document.getElementById('evetog'+dayNum)?.classList.contains('off');
-    return {employee_id: emp.id, day_of_week: dayNum, is_off: !on,
-            start_time:  (!on || mornOff) ? null : (document.getElementById('st'+dayNum).value || null),
-            break_start: (!on || mornOff) ? null : (document.getElementById('bs'+dayNum).value || null),
-            break_end:   (!on || mornOff) ? null : (document.getElementById('be'+dayNum).value || null),
-            end_time:    (!on || mornOff) ? null : (document.getElementById('et'+dayNum).value || null),
-            evening_start:       (hasEvening && !eveOff) ? (document.getElementById('est'+dayNum)?.value || null) : null,
-            evening_break_start: (hasEvening && !eveOff) ? (document.getElementById('ebs'+dayNum)?.value || null) : null,
-            evening_break_end:   (hasEvening && !eveOff) ? (document.getElementById('ebe'+dayNum)?.value || null) : null,
-            evening_end:         (hasEvening && !eveOff) ? (document.getElementById('eet'+dayNum)?.value || null) : null};
-  });
+  const rows = readScheduleRows(emp.id);
   await POST('schedules', rows);
   employees.push(emp);
   closeModal('modalEmployee');
@@ -2006,6 +2180,7 @@ async function openEditSchedule(empId) {
   const scheds = await GET(`schedules?employee_id=eq.${empId}&select=*`);
   const schedMap = {};
   scheds.forEach(s => schedMap[s.day_of_week] = s);
+  document.getElementById('ficheScheduleGrid').innerHTML = '';
   buildScheduleGrid('schedEditGrid', schedMap);
   openModal('modalSchedule');
 }
