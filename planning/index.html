@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-15.3';
+const APP_VERSION = '2026-10-15.4';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -433,6 +433,52 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <div class="form-group" style="flex:1.4">
         <label class="form-label">N° sécurité sociale</label>
         <input class="form-input" type="text" id="contratNumSecu" placeholder="1 07 05 33 011 244 65">
+      </div>
+    </div>
+
+    <div class="form-label" style="margin:10px 0 8px;color:var(--accent)">Dossier administratif</div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" id="contratEmail" placeholder="marie.dupont@gmail.com" autocomplete="off">
+      </div>
+      <div class="form-group" style="flex:1.4">
+        <label class="form-label">IBAN</label>
+        <input class="form-input" type="text" id="contratIban" placeholder="FR76 ..." autocomplete="off">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1.4">
+        <label class="form-label">Contact d'urgence</label>
+        <input class="form-input" type="text" id="contratUrgenceNom" placeholder="Paul DUPONT (père)" autocomplete="off">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Tél. urgence</label>
+        <input class="form-input" type="tel" id="contratUrgenceTel" placeholder="06 ..." autocomplete="off">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1.4">
+        <label class="form-label">Pièce d'identité</label>
+        <input class="form-input" type="text" id="contratPiece" placeholder="CNI / titre de séjour + n°" autocomplete="off">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Valable jusqu'au</label>
+        <input class="form-input" type="date" id="contratPieceExp">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mutuelle</label>
+      <input class="form-input" type="text" id="contratMutuelle" placeholder="Adhérent / Dispense (mutuelle du conjoint)" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">DPAE faite le</label>
+        <input class="form-input" type="date" id="contratDpae">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Visite médicale le</label>
+        <input class="form-input" type="date" id="contratVisite">
       </div>
     </div>
 
@@ -1793,6 +1839,9 @@ const FICHE_TEXT_FIELDS = {
   contratLieuNaissance: 'lieu_naissance', contratNationalite: 'nationalite', contratNumSecu: 'num_secu',
   contratMatricule: 'matricule', contratEmploi: 'emploi', contratNiveau: 'niveau', contratEchelon: 'echelon',
   contratRemplace: 'personne_remplacee', contratEssai: 'periode_essai', contratLogementAdresse: 'logement_adresse',
+  contratEmail: 'email', contratIban: 'iban', contratUrgenceNom: 'urgence_nom', contratUrgenceTel: 'urgence_tel',
+  contratPiece: 'piece_identite', contratPieceExp: 'piece_expiration', contratMutuelle: 'mutuelle',
+  contratDpae: 'date_dpae', contratVisite: 'date_visite_medicale',
 };
 
 function openEmpContrat(empId) {
@@ -1864,6 +1913,7 @@ async function saveEmpContrat(withContrat) {
   const patch = {};
   for (const [id, k] of Object.entries(FICHE_TEXT_FIELDS)) patch[k] = document.getElementById(id).value.trim() || null;
   if (patch.nom) patch.nom = patch.nom.toUpperCase();
+  if (patch.iban) patch.iban = patch.iban.replace(/\s/g, '').toUpperCase().replace(/(.{4})(?=.)/g, '$1 ');
   const type = document.getElementById('contratType').value || null;
   const loge = document.getElementById('contratLogeChk').checked;
   Object.assign(patch, {
