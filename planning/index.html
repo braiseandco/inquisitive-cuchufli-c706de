@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-16.1';
+const APP_VERSION = '2026-10-16.2';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -4158,21 +4158,34 @@ async function printPlanningReport(week) {
     const cells = COLS.map(col => {
       const ds = dateStr(col.d);
       const row = dayRow(ds, col.dn);
-      if (!row || row.is_off)        return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
-      if (row.status === 'absent')   return `<td style="color:#c62828;text-align:center;font-weight:700">Absent</td>`;
-      if (row.status === 'vacation') return `<td style="color:#1565c0;text-align:center;font-weight:700">Congé</td>`;
+      const tdRepos = `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
+      const tdLbl = (color, txt) => `<td style="color:${color};text-align:center;font-weight:700">${txt}</td>`;
+      if (!row || row.is_off)        return tdRepos;
+      if (row.fin_essai && row.status === 'off') return tdLbl('#6a1b9a', finLabel(row));
+      if (row.status === 'off')      return tdRepos;
+      if (row.status === 'vacation') return tdLbl('#1565c0', 'Congé');
+      // État par service (morn_status/eve_status), avec repli sur l'ancien statut global — comme l'appli
+      const isMorn = col.svc === 'morn' || col.svc === 'day';
+      const svcState = (isMorn ? row.morn_status : row.eve_status)
+        || (['absent', 'arret', 'accident'].includes(row.status) ? row.status : 'on');
+      if (svcState === 'absent')    return tdLbl('#c62828', 'Absent');
+      if (svcState === 'accident')  return tdLbl('#ad1457', 'Acc. travail');
+      if (svcState === 'partielle') return tdLbl('#00838f', 'Act. partielle');
+      if (svcState === 'ecole')     return tdLbl('#6a1b9a', 'École');
+      if (svcState === 'repos')     return tdRepos;
       let s, bs, be, e;
-      if (col.svc === 'morn' || col.svc === 'day') {
-        if (!row.start_time) return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
+      if (isMorn) {
         s=row.start_time; bs=row.break_start; be=row.break_end; e=row.end_time;
       } else {
-        if (!row.evening_start) return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
         s=row.evening_start; bs=row.evening_break_start; be=row.evening_break_end; e=row.evening_end;
       }
+      // Malade : sans horaire = journée d'arrêt ; avec horaire = heures faites, signalées « Malade »
+      if (!s) return svcState === 'arret' ? tdLbl('#e65100', 'Malade') : tdRepos;
+      const maladeTxt = svcState === 'arret' ? `<div style="font-size:9px;color:#e65100;font-weight:700">Malade</div>` : '';
       const mins = calcSvc(s, bs, be, e);
       const hStr = (mins/60).toFixed(1).replace('.0','')+'h';
       const pauseTxt = bs ? `<div style="font-size:8px;color:#888">${fmtT(bs)}-${fmtT(be)}</div>` : '';
-      return `<td style="text-align:center;font-size:11px">${fmtT(s)}-${fmtT(e)}${pauseTxt}<div style="font-size:9px;color:#e53935;font-weight:700">${hStr}</div></td>`;
+      return `<td style="text-align:center;font-size:11px">${fmtT(s)}-${fmtT(e)}${pauseTxt}<div style="font-size:9px;color:#e53935;font-weight:700">${hStr}</div>${maladeTxt}</td>`;
     }).join('');
 
     // Ligne signature : Mar Mer Jeu Ven(colspan=2) Sam(colspan=2) Dim — Total vide
