@@ -4147,13 +4147,17 @@ async function printPlanningReport(week) {
     const ovMap = {};
     allOv.filter(o=>o.employee_id===emp.id).forEach(o=>ovMap[o.date]=o);
     const empSigs = sigMap[emp.id] || {};
+    // Comme dans l'appli : dès que la semaine a des overrides pour l'employé, un jour sans
+    // override est un repos — on ne retombe pas sur l'horaire de base (repos permuté).
+    const hasOvThisWeek = Object.keys(ovMap).length > 0;
+    const dayRow = (ds, dn) => hasOvThisWeek ? ovMap[ds] : schedMap[dn];
 
     let total = 0;
-    for (let i = 1; i <= 6; i++) total += calcDayHours(ovMap[dateStr(dates[i])] || schedMap[i+1]);
+    for (let i = 1; i <= 6; i++) total += calcDayHours(dayRow(dateStr(dates[i]), i+1));
 
     const cells = COLS.map(col => {
       const ds = dateStr(col.d);
-      const row = ovMap[ds] || schedMap[col.dn];
+      const row = dayRow(ds, col.dn);
       if (!row || row.is_off)        return `<td style="color:#aaa;text-align:center;font-style:italic">Repos</td>`;
       if (row.status === 'absent')   return `<td style="color:#c62828;text-align:center;font-weight:700">Absent</td>`;
       if (row.status === 'vacation') return `<td style="color:#1565c0;text-align:center;font-weight:700">Congé</td>`;
