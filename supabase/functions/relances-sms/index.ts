@@ -70,14 +70,14 @@ async function envoyerSms(auth: string, mobile: string, texte: string): Promise<
 
 // Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
 async function viderFile(sb: SupabaseClient, auth: string) {
-  const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives,type')
+  const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives,type,essai')
     .lte('envoyer_at', new Date().toISOString()).lt('tentatives', 3).order('id').limit(MAX_PAR_ENVOI);
   let envoyes = 0;
   const erreurs: string[] = [];
   for (const s of dus || []) {
     try {
       const id = await envoyerSms(auth, s.telephone, s.texte);
-      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type });
+      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type, texte: s.texte, essai: s.essai });
       await sb.from('sms_programmes').delete().eq('id', s.id);
       envoyes++;
     } catch (e) {
@@ -133,7 +133,7 @@ async function envoyerBienvenue(sb: SupabaseClient, auth: string) {
         if (e) throw new Error(e.message);
       } else {
         const id = await envoyerSms(auth, mobile, texte);
-        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), type: 'bienvenue' });
+        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), type: 'bienvenue', texte });
       }
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));
@@ -208,7 +208,7 @@ Deno.serve(async (req: Request) => {
         if (e) throw new Error(e.message);
       } else {
         const id = await envoyerSms(auth, mobile, texte);
-        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel) });
+        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), texte });
       }
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));

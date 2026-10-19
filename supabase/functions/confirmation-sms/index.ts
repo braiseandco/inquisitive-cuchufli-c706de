@@ -66,6 +66,6 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'HTTP ' + res.status + ' ' + (await res.text()).slice(0, 200) }, 502);
   }
   const gateId = (await res.json().catch(() => ({}))).id;
-  if (gateId) await sb.from('sms_envois').insert({ gate_id: gateId, telephone: local, type: 'confirmation' });
+  if (gateId) await sb.from('sms_envois').insert({ gate_id: gateId, telephone: local, type: 'confirmation', texte });
   return json({ ok: true, id: gateId });
 });

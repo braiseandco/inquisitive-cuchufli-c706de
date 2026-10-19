@@ -2803,7 +2803,7 @@ async function loadRelances(){
       sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('sms_stop?select=telephone').catch(()=>[]),
       sbFetch('sms_envois?select=etat,cree_at,maj_at&type=in.(relance_j30,bienvenue)&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
-      sbFetch('sms_programmes?select=id&tentatives=lt.3').catch(()=>[])
+      sbFetch('sms_programmes?select=id,envoyer_at&tentatives=lt.3').catch(()=>[])
     ]);
     // Envois du jour, plus ceux de la veille encore en attente
     const minuit = new Date(); minuit.setHours(0,0,0,0);
@@ -2840,8 +2840,9 @@ async function loadRelances(){
 
     // ── Suivi de l'envoi automatique du jour ──
     let suivi = '';
-    const nbProg = (programmes||[]).length;
-    if(envois.length || nbProg){
+    const nbRenvoi = (programmes||[]).filter(p => !p.envoyer_at).length;
+    const nbProg = (programmes||[]).length - nbRenvoi;
+    if(envois.length || nbProg || nbRenvoi){
       const n = e => envois.filter(x => x.etat === e).length;
       const attente = envois.filter(x => x.etat === 'Pending' || x.etat === 'Processed');
       // Le téléphone espace les SMS : bloqué seulement si plus rien n'a bougé depuis 10 min
@@ -2850,6 +2851,7 @@ async function loadRelances(){
         +'<div style="font-weight:800;margin-bottom:6px;">📤 Envoi automatique aujourd\'hui : '+(envois.length+nbProg)+' SMS</div>'
         +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled'))+' échecs</div>'
         +(nbProg?'<div style="color:var(--text-dim);margin-top:4px;">🕥 '+nbProg+' programmé'+(nbProg>1?'s':'')+' pour 10h30</div>':'')
+        +(nbRenvoi?'<div style="color:var(--text-dim);margin-top:4px;">🔁 '+nbRenvoi+' en échec, renvoyé'+(nbRenvoi>1?'s':'')+' tout seul'+(nbRenvoi>1?'s':'')+' dès que le téléphone refonctionne</div>':'')
         +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie que le téléphone du resto est allumé et que SMS Gate est sur « Online ».</div>':'')
         +'</div>';
     }
@@ -3204,7 +3206,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-16.3';
+const APP_VERSION = '2026-10-19.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');

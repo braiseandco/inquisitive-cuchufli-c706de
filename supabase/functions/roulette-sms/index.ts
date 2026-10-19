@@ -60,16 +60,17 @@ Deno.serve(async (req: Request) => {
   for (const g of gains || []) {
     const mobile = numeroMobile(g.telephone || '');
     if (!mobile) { nonMobiles++; continue; }
+    const texte = message(g.cadeau);
     try {
       const res = await fetch(SMSGATE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: auth },
-        body: JSON.stringify({ textMessage: { text: message(g.cadeau) }, phoneNumbers: [mobile] }),
+        body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
       });
       if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120));
       const id = (await res.json().catch(() => ({}))).id;
       await sb.from('roulette_gains').update({ sms_envoye: true }).eq('id', g.id);
-      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(g.telephone), type: 'roulette' });
+      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(g.telephone), type: 'roulette', texte });
       envoyes++;
     } catch (e) {
       erreurs.push(g.telephone + ' : ' + String(e).slice(0, 120));
