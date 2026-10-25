@@ -29,8 +29,15 @@ function _ctDateLong(ymd) {
 function _ctEuros(n) {
   return n.toFixed(2).replace('.', ',');
 }
-function _ctRoman(n) {
-  return ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'][n - 1];
+// La fenêtre d'impression est about:blank : le logo doit être en URL absolue.
+function _ctEntete(kicker, titre, sub) {
+  const E = EMPLOYEUR_CONTRAT;
+  const logo = new URL('logo-braise.png', location.href).href;
+  return `<header class="cs-head">
+      <img class="cs-logo" src="${logo}" alt="Braise &amp; Co">
+      <div class="cs-soc"><b>${E.societe}</b> · Restaurant Braise &amp; Co<br>${E.adresse}<br>${E.cp_ville}<br>SIRET ${E.siret} · APE ${E.ape}</div>
+    </header>
+    <div class="cs-titre"><div class="cs-kicker">${kicker}</div><h1>${titre}</h1>${sub ? `<div class="cs-sub">${sub}</div>` : ''}</div>`;
 }
 
 // Période d'essai par défaut. CDD : 1 jour par semaine, plafond 2 semaines si ≤ 6 mois, 1 mois au-delà (L. 1242-10).
@@ -88,7 +95,8 @@ function contratSalarieHtml(emp, scheds) {
   const loge = +(emp.loyer_logement || 0) > 0;
   const hStr = String(heures).replace('.', ',');
 
-  const titre = `CONTRAT DE TRAVAIL A TEMPS ${partiel ? 'PARTIEL' : 'COMPLET'}<br>A DUREE ${isCdd ? 'DETERMINEE' + (saisonnier ? ' SAISONNIER' : '') : 'INDETERMINEE'}`;
+  const titre = `À durée ${isCdd ? 'déterminée' + (saisonnier ? ' saisonnier' : '') : 'indéterminée'}`;
+  const sousTitre = `Temps ${partiel ? 'partiel' : 'complet'} · ${hStr} heures par semaine · Convention collective HCR (IDCC 1979)`;
   const articles = [];
   const art = (titreArt, paras) => articles.push({titre: titreArt, paras});
 
@@ -249,26 +257,30 @@ function contratSalarieHtml(emp, scheds) {
 
   const adresse = _ctEsc(emp.adresse).replace(/\n/g, '<br>');
   const naissance = `${f ? 'Née' : 'Né'} le ${_ctDateLong(emp.date_naissance)} à ${_ctEsc(emp.lieu_naissance)}`;
-  const corps = articles.map((a, i) => `<h2>ARTICLE N°${_ctRoman(i + 1)} – ${_ctEsc(a.titre)}</h2>` +
+  const corps = articles.map((a, i) => `<h2><span class="cs-num">Article ${i + 1}</span>${_ctEsc(a.titre)}</h2>` +
     a.paras.filter(Boolean).map(p => `<p>${p}</p>`).join('')).join('');
 
   const contrat = `
   <section class="contrat-page cs">
-    <header class="contrat-header"><h1>${titre}</h1></header>
-    <p>Entre les soussignés :</p>
-    <p class="bloc">La Société ${E.societe}<br>${E.adresse}<br>${E.cp_ville}<br>SIRET N° : ${E.siret}<br>Code APE : ${E.ape}<br>
-      Agissant par l'intermédiaire de son représentant légal ${E.representant}, en qualité de ${E.qualite}.<br>
-      Les cotisations de sécurité sociale sont versées sous le numéro ${E.urssaf} à l'URSSAF d'Aquitaine.</p>
-    <p class="cs-part">D'UNE PART</p>
-    <p>Et :</p>
-    <p class="bloc">${X}<br>${adresse}<br>${naissance}<br>Nationalité : ${_ctEsc(emp.nationalite || 'Française')}<br>N° de sécurité sociale : ${_ctEsc(emp.num_secu)}</p>
-    <p class="cs-part">D'AUTRE PART</p>
-    <p><b>IL A ETE CONVENU ET ARRETE CE QUI SUIT :</b></p>
+    ${_ctEntete('Contrat de travail', titre, sousTitre)}
+    <p class="cs-entre">Entre les soussignés :</p>
+    <div class="cs-parties">
+      <div class="cs-partie"><div class="cs-role">L'employeur</div>
+        <p>La Société <b>${E.societe}</b><br>${E.adresse}<br>${E.cp_ville}<br>SIRET N° : ${E.siret} · Code APE : ${E.ape}</p>
+        <p>Agissant par l'intermédiaire de son représentant légal ${E.representant}, en qualité de ${E.qualite}.</p>
+        <p>Les cotisations de sécurité sociale sont versées sous le numéro ${E.urssaf} à l'URSSAF d'Aquitaine.</p>
+        <div class="cs-part">D'une part</div></div>
+      <div class="cs-partie"><div class="cs-role">${f ? 'La salariée' : 'Le salarié'}</div>
+        <p>${X}<br>${adresse}</p>
+        <p>${naissance}<br>Nationalité : ${_ctEsc(emp.nationalite || 'Française')}<br>N° de sécurité sociale : ${_ctEsc(emp.num_secu)}</p>
+        <div class="cs-part">D'autre part</div></div>
+    </div>
+    <p class="cs-convenu">Il a été convenu et arrêté ce qui suit :</p>
     ${corps}
-    <p class="fait-en-deux">Fait à BIGANOS<br>Le ……………………………<br>En trois exemplaires dont un remis à ${leSal}<br>Signatures précédées de la mention manuscrite « Lu et approuvé »</p>
+    <p class="fait-en-deux">Fait à BIGANOS, le ……………………………<br>En trois exemplaires dont un remis à ${leSal}.<br><i>Signatures précédées de la mention manuscrite « Lu et approuvé ».</i></p>
     <div class="sign-block">
       <div class="sign-col"><div class="sign-label">${f ? 'Mme' : 'M.'} ${_ctEsc(String(emp.nom).toUpperCase())} ${_ctEsc(emp.prenom)}</div><div class="sign-sub">${f ? 'Salariée' : 'Salarié'}</div><div class="sign-box"></div></div>
-      <div class="sign-col"><div class="sign-label">${E.representant}</div><div class="sign-sub">${E.qualite}</div><div class="sign-box"></div></div>
+      <div class="sign-col"><div class="sign-label">${E.representant}</div><div class="sign-sub">${E.qualite}, pour ${E.societe}</div><div class="sign-box"></div></div>
     </div>
   </section>`;
 
@@ -279,7 +291,7 @@ function _ctAnnexeRgpd(f) {
   const sal = f ? 'la salariée' : 'le salarié';
   return `
   <section class="contrat-page cs">
-    <header class="contrat-header"><h1>ANNEXE<br>Protection des données</h1></header>
+    ${_ctEntete('Annexe au contrat de travail', 'Protection des données personnelles')}
     <p>Vos données personnelles font l'objet d'un traitement automatisé par notre entreprise.</p>
     <p>Le traitement de vos données personnelles a pour finalité :<br>• la gestion administrative du personnel (identification du salarié et gestion de la paie, dossier disciplinaire, remboursement des frais professionnels),<br>• la formation et l'évaluation du personnel,<br>• la mise à disposition d'outils informatiques et l'organisation du travail,<br>tout en répondant aux obligations légales et réglementaires ainsi qu'à l'exercice des prérogatives reconnues à l'entreprise par la loi et la jurisprudence.</p>
     <p>Les catégories de données traitées pour la réalisation des finalités indiquées ci-dessus sont les suivantes :</p>
@@ -318,7 +330,7 @@ function _ctAccusePrevoyance(X, f) {
   const E = EMPLOYEUR_CONTRAT;
   return `
   <section class="contrat-page cs">
-    <header class="contrat-header"><h1>IMPORTANT<br>A COMPLETER ET A REMETTRE A VOTRE EMPLOYEUR</h1></header>
+    ${_ctEntete('Important · à compléter et à remettre à votre employeur', 'Accusé de réception prévoyance')}
     <p><b>Accusé de réception notices d'information garanties de prévoyance et bulletins d'affiliation.</b></p>
     <p>Je soussigné${f ? 'e' : ''}, ${X}, reconnais :</p>
     <p>- avoir reçu une notice d'information sur les garanties prévoyance (et une notice d'information sur le régime frais de santé ainsi que le(s) bulletin(s) d'affiliation afférent(s). Je m'engage à renvoyer ce(s) bulletin(s) dument complété(s) et signé(s), dans les meilleurs délais.</p>
@@ -335,12 +347,37 @@ function _ctAccusePrevoyance(X, f) {
 
 // Ouvre le contrat dans une fenêtre déjà ouverte (ouverte au clic pour éviter le bloqueur de popups).
 function ouvrirContratSalarie(w, emp, scheds) {
-  const css = _contratPrintCss() + `
-    .cs .contrat-header h1 { font-size:14pt; line-height:1.4; }
-    .cs h2 { font-size:11pt; border-bottom:none; margin-top:14px; }
-    .cs .bloc { margin:4px 0 4px 0; }
-    .cs .cs-part { text-align:right; font-weight:700; margin:6px 0 12px; }`;
   const titre = `Contrat ${emp.type_contrat} ${String(emp.nom).toUpperCase()} ${emp.prenom}`;
+  const pied = `${EMPLOYEUR_CONTRAT.societe} · ${titre}`.replace(/["\\]/g, '');
+  const css = _contratPrintCss() + `
+    @page { size:A4; margin:16mm 17mm 18mm;
+      @bottom-left { content:"${pied}"; font:7.5pt Helvetica,Arial,sans-serif; color:#888; }
+      @bottom-right { content:"Paraphes : ________    Page " counter(page) " / " counter(pages); font:7.5pt Helvetica,Arial,sans-serif; color:#888; } }
+    body { font-family:'Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9.8pt; line-height:1.55; color:#222; }
+    .cs { padding:14mm 17mm; }
+    .cs-head { display:flex; align-items:center; gap:16px; padding-bottom:10px; border-bottom:2px solid #FF6B00; }
+    .cs-logo { width:84px; height:auto; filter:brightness(0); }
+    .cs-soc { margin-left:auto; text-align:right; font-size:8.3pt; line-height:1.45; color:#555; }
+    .cs-soc b { color:#222; letter-spacing:.5px; }
+    .cs-titre { text-align:center; margin:26px 0 22px; }
+    .cs-kicker { font-size:8.5pt; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#FF6B00; }
+    .cs-titre h1 { margin:4px 0 0; font-size:20pt; font-weight:700; letter-spacing:.3px; color:#1b1b1b; }
+    .cs-sub { margin-top:6px; font-size:9pt; color:#666; }
+    .cs-entre { font-weight:600; margin-bottom:8px; }
+    .cs-parties { display:flex; gap:12px; margin-bottom:14px; break-inside:avoid; }
+    .cs-partie { flex:1; border:1px solid #ddd; border-top:3px solid #222; border-radius:3px; padding:8px 12px 6px; }
+    .cs-partie p { text-align:left; margin:0 0 6px; font-size:9.3pt; }
+    .cs-role { font-size:7.8pt; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#888; margin-bottom:5px; }
+    .cs-part { text-align:right; font-size:8pt; font-style:italic; color:#888; }
+    .cs-convenu { text-align:center; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; font-size:9pt; margin:18px 0 6px; }
+    .cs h2 { display:flex; align-items:baseline; gap:10px; font-size:10.5pt; margin:18px 0 6px; padding-bottom:4px; border-bottom:1px solid #e3e3e3; break-after:avoid; }
+    .cs-num { flex:none; font-size:7.8pt; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#FF6B00; }
+    .cs p { margin:4px 0; }
+    .cs .fait-en-deux { margin-top:24px; break-before:avoid; }
+    .cs .sign-block { break-inside:avoid; }
+    .cs .sign-label { font-size:9.5pt; }
+    .cs .sign-box { height:90px; border:1px solid #ccc; border-radius:3px; background:#fff; }
+    @media print { .cs { padding:0; } }`;
   w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${_ctEsc(titre)}</title><style>${css}</style></head><body>
     <div class="toolbar"><button onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button><span class="toolbar-hint">Dans la boîte d'impression, décochez<br><b>« En-têtes et pieds de page »</b></span></div>
