@@ -663,7 +663,7 @@
     <span id="cocktail-articles" class="panier-empty">Aucun article sélectionné</span>
   </div>
   <div style="display:flex;gap:8px">
-    <button class="btn-send" id="btn-send-cocktail" disabled onclick="envoyerSMSCocktail()"
+    <button class="btn-send" id="btn-send-cocktail" disabled onclick="envoyerMailCocktail(this, true)"
             style="flex:1;font-size:14px">📱 SMS</button>
     <button class="btn-send" id="btn-send-cocktail-email" disabled onclick="envoyerMailCocktail(this)"
             style="flex:1;font-size:14px;background:var(--surf3);color:var(--text)">✉️ Email</button>
@@ -899,7 +899,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-10-26.2';
+const APP_VERSION = '2026-10-26.3';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1085,8 +1085,8 @@ const PRODUITS_DEFAUT = [
 ];
 
 /* ═══════════════ COCKTAILS ═══════════════ */
-const COCKTAIL_TEL = '0673544939';
 const COCKTAIL_MAIL_LIBELLE = '✉️ Email';
+const COCKTAIL_SMS_LIBELLE = '📱 SMS';
 
 // Commandes des onglets Vin / Cocktails / Café : copie dans l'historique commun (réception, factures, récap)
 // dès l'appui sur le bouton d'envoi ; une seule fois par panier identique.
@@ -1119,23 +1119,25 @@ function avantEnvoi(p) {
   return Promise.race([p.catch(e => console.error(e)), new Promise(r => setTimeout(r, 4000))]);
 }
 // Comme les commandes cuisine : le mail part de la boîte du restaurant (commandes-mail/envoyer-commande.gs),
-// vers l'adresse de la fiche fournisseur, et on sait s'il est vraiment parti
-const barMailEnvoye = {};
-async function envoyerMailBar(btn, fournisseur, enregistrer, libelle) {
+// vers l'adresse de la fiche fournisseur, et on sait s'il est vraiment parti. Le SMS part du téléphone
+// du resto (cuiEnvoyerSms), vers le numéro de la fiche fournisseur.
+const barMailEnvoye = {}, barSmsEnvoye = {};
+async function envoyerMailBar(btn, fournisseur, enregistrer, libelle, sms) {
+  const canal = sms ? 'SMS' : 'mail', deja = sms ? barSmsEnvoye : barMailEnvoye;
   btn.style.pointerEvents = 'none'; btn.textContent = '⏳ Envoi en cours…';
   try {
     await enregistrer();
     const cmd = await barCommande[fournisseur];
-    if (barMailEnvoye[fournisseur] !== cmd.id || confirm(`Cette commande est déjà partie par mail chez ${fournisseur}. La renvoyer ?`)) {
-      const row = await cuiEnvoyerMail(cmd.id);
-      barMailEnvoye[fournisseur] = cmd.id;
+    if (deja[fournisseur] !== cmd.id || confirm(`Cette commande est déjà partie par ${canal} chez ${fournisseur}. La renvoyer ?`)) {
+      const row = await (sms ? cuiEnvoyerSms(cmd.id) : cuiEnvoyerMail(cmd.id));
+      deja[fournisseur] = cmd.id;
       const o = CUI.orders.find(x => x.id === cmd.id);
       if (o) Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null });
     }
-    btn.textContent = '✓ Mail envoyé';
+    btn.textContent = `✓ ${canal} envoyé`;
   } catch (e) {
     console.error(e);
-    alert(`❌ La commande n'est PAS partie par mail chez ${fournisseur}.\n\n${e.message}\n\nEnvoyez-la par SMS.`);
+    alert(`❌ La commande n'est PAS partie par ${canal} chez ${fournisseur}.\n\n${e.message}\n\n${sms ? 'Réessayez, ou appelez le fournisseur.' : 'Envoyez-la par SMS.'}`);
     btn.textContent = libelle;
   }
   btn.style.pointerEvents = '';
@@ -1166,9 +1168,9 @@ const COCKTAIL_EXTRAS = [
 ];
 
 /* ═══════════════ VINS ═══════════════ */
-const VIN_TEL_MAIN    = '0684803816';
-const VIN_TEL_MOSCATO = '0614274109';
 const VIN_MAIL_LIBELLE = '✉️ Email — Vins (rouge, rosé, blanc)';
+const VIN_SMS_LIBELLE = '📨 SMS — Vins (rouge, rosé, blanc)';
+const MOSCATO_SMS_LIBELLE = '📨 SMS — Moscato';
 const VIN_PRODUITS = [
   { id:'v001', nom:'Château d\'As Rouge',        cat:'Rouge',   min:20, fourn:'main', parCaisse:6 },
   { id:'v002', nom:'Château Landreau',            cat:'Rouge',   min:5,  fourn:'main', parCaisse:6 },
@@ -1785,6 +1787,7 @@ function updateCocktailBar() {
   const btnMail = document.getElementById('btn-send-cocktail-email');
   const info = document.getElementById('cocktail-articles');
   btnMail.textContent = COCKTAIL_MAIL_LIBELLE;
+  btn.textContent = COCKTAIL_SMS_LIBELLE;
   if (!ids.length) {
     info.textContent = 'Aucun article sélectionné';
     info.className = 'panier-empty';
@@ -1807,29 +1810,8 @@ function saveCocktailNote() {
   localStorage.setItem('bc_cocktail_note', document.getElementById('cocktail-note').value);
 }
 
-function envoyerSMSCocktail() {
-  const ids = Object.keys(commandeCocktail).filter(id => commandeCocktail[id] > 0);
-  if (!ids.length) return;
-
-  const now = new Date();
-  const allProduits = [...COCKTAIL_PRODUITS, ...COCKTAIL_EXTRAS];
-  const lines = ids.map(id => {
-    const p = allProduits.find(x => x.id === id);
-    const unite = (p && p.unite) ? p.unite : 'carton';
-    return `${commandeCocktail[id]}x ${p ? p.nom : id} (${unite})`;
-  });
-
-  const note = (localStorage.getItem('bc_cocktail_note') || '').trim();
-  const msg = `COMMANDE COCKTAILEXPRESS - ${now.toLocaleDateString('fr-FR')}\n\n`
-    + lines.join('\n')
-    + (note ? `\n\nNote : ${note}` : '')
-    + `\n\nMerci de confirmer la réception par SMS.`;
-
-  enregistrerEnvoiBar('Cocktails Express', commandeCocktail, allProduits, 'carton', 'bc_cocktail_note').then(() => ouvrirSms(COCKTAIL_TEL, msg));
-}
-
-function envoyerMailCocktail(btn) {
-  envoyerMailBar(btn, 'Cocktails Express', () => enregistrerEnvoiBar('Cocktails Express', commandeCocktail, [...COCKTAIL_PRODUITS, ...COCKTAIL_EXTRAS], 'carton', 'bc_cocktail_note'), COCKTAIL_MAIL_LIBELLE);
+function envoyerMailCocktail(btn, sms) {
+  envoyerMailBar(btn, 'Cocktails Express', () => enregistrerEnvoiBar('Cocktails Express', commandeCocktail, [...COCKTAIL_PRODUITS, ...COCKTAIL_EXTRAS], 'carton', 'bc_cocktail_note'), sms ? COCKTAIL_SMS_LIBELLE : COCKTAIL_MAIL_LIBELLE, sms);
 }
 
 /* ═══════════════ CAFÉ RICHARD ═══════════════ */
@@ -1946,8 +1928,6 @@ function openConfirmVin() {
   if (!allIds.length) return;
 
   const now = new Date();
-  const dateStr = now.toLocaleDateString('fr-FR');
-  const note = (localStorage.getItem('bc_vin_note') || '').trim();
 
   const mainIds    = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'main'; });
   const moscatoIds = allIds.filter(id => { const p = VIN_PRODUITS.find(x => x.id === id); return p && p.fourn === 'moscato'; });
@@ -1967,13 +1947,11 @@ function openConfirmVin() {
 
   const mainSection = document.getElementById('vin-fourn-main');
   if (mainIds.length) {
-    const lines = mainIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
-    const msg = `COMMANDE VIN BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
-      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const envoiMain = () => enregistrerEnvoiBar('Les Platins', Object.fromEntries(mainIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note');
     const btnVinMain = document.getElementById('conf-vin-sms-main');
     btnVinMain.href = '#';
-    btnVinMain.onclick = (e) => { e.preventDefault(); envoiMain().then(() => ouvrirSms(VIN_TEL_MAIN, msg)); };
+    btnVinMain.textContent = VIN_SMS_LIBELLE;
+    btnVinMain.onclick = (e) => { e.preventDefault(); envoyerMailBar(btnVinMain, 'Les Platins', envoiMain, VIN_SMS_LIBELLE, true); };
     const btnVinMail = document.getElementById('conf-vin-mail-main');
     btnVinMail.textContent = VIN_MAIL_LIBELLE;
     btnVinMail.onclick = (e) => { e.preventDefault(); envoyerMailBar(btnVinMail, 'Les Platins', envoiMain, VIN_MAIL_LIBELLE); };
@@ -1984,12 +1962,10 @@ function openConfirmVin() {
 
   const moscatoSection = document.getElementById('vin-fourn-moscato');
   if (moscatoIds.length) {
-    const lines = moscatoIds.map(id => { const p = VIN_PRODUITS.find(x => x.id === id); return `${vinQuantite(p, commandeVin[id])} — ${p.nom}`; });
-    const msg = `COMMANDE MOSCATO BRAISE & CO - ${dateStr}\n\n${lines.join('\n')}`
-      + (note ? `\n\nNote : ${note}` : '') + `\n\nMerci de confirmer la réception de la commande par SMS.`;
     const btnVinMoscato = document.getElementById('conf-vin-sms-moscato');
     btnVinMoscato.href = '#';
-    btnVinMoscato.onclick = (e) => { e.preventDefault(); enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note').then(() => ouvrirSms(VIN_TEL_MOSCATO, msg)); };
+    btnVinMoscato.textContent = MOSCATO_SMS_LIBELLE;
+    btnVinMoscato.onclick = (e) => { e.preventDefault(); envoyerMailBar(btnVinMoscato, 'Carniato', () => enregistrerEnvoiBar('Carniato', Object.fromEntries(moscatoIds.map(id => [id, commandeVin[id]])), VIN_PRODUITS, 'carton', 'bc_vin_note'), MOSCATO_SMS_LIBELLE, true); };
     moscatoSection.classList.remove('hidden');
   } else {
     moscatoSection.classList.add('hidden');

@@ -362,20 +362,16 @@ function cuiOrderSmsText(o) {
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lines}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
-// Le mail ou le SMS s'ouvre dans une autre appli : on enregistre la commande avant de quitter la page,
-// sinon elle reste en brouillon sans numéro quand personne ne revient taper « terminer »
-async function cuiEnregistrerAvantEnvoi(id) {
-  const o = cuiOrderById(id);
-  if (!CUI._pending || o !== CUI._pending) return o;
-  await cuiValidate();
-  if (CUI._pending) return o;
-  const saved = cuiOrderById(o.id); const s = cuiSup(saved.fournisseur_id) || {};
-  cuiModal(`${cuiEsc(s.nom)} · ${cuiEsc(cuiNumAff(saved))}`, `
-    <div class="prod-meta" style="margin-bottom:10px">Commande enregistrée. Si l'envoi n'a pas abouti, renvoyez-la :</div>
-    <div class="modal-actions">${cuiSendButtons(saved)}<button class="btn-close" onclick="cuiCloseModal()">Fermer</button></div>`);
-  return saved;
+// Le SMS part du téléphone du resto (SMS Gate, supabase/functions/commande-sms), au fournisseur puis en copie :
+// la commande ne passe en « envoyée » que si SMS Gate l'a accepté. Avec l'appli SMS de l'appareil, les
+// commandes Mericq et Les Platins du 25/10 étaient « envoyées » sans qu'aucun SMS ne parte.
+async function cuiEnvoyerSms(id) {
+  const h = window.braiseAuth ? await braiseAuth.headers() : { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
+  const r = await fetch(SB_URL + '/functions/v1/commande-sms', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const res = await r.json().catch(() => ({}));
+  if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
+  return res.commande;
 }
-async function cuiSendSms(id, tel) { const o = await cuiEnregistrerAvantEnvoi(id); ouvrirSms(tel.replace(/\s/g, ''), cuiOrderSmsText(o)); }
 // Le mail part de la boîte du restaurant (script Google, commandes-mail/envoyer-commande.gs) :
 // la commande ne passe en « envoyée » que si Gmail a accepté le mail. Avec l'appli mail du
 // téléphone, la commande DS du 23/09 est restée coincée 25 h alors qu'elle était « envoyée ».
@@ -386,9 +382,11 @@ async function cuiEnvoyerMail(id, reclamation) {
   if (!res.ok) throw new Error(res.error || 'réponse inattendue');
   return res.commande;
 }
-async function cuiSendMail(id, btn) {
+async function cuiSendOrder(id, btn) {
   const pending = CUI._pending && cuiOrderById(id) === CUI._pending;
   const o = cuiOrderById(id); const s = cuiSup(o.fournisseur_id) || {};
+  const sms = s.mode_commande === 'sms';
+  const libelle = sms ? `📨 Envoyer par SMS à ${s.nom}` : `✉️ Envoyer à ${s.nom}`;
   if (!pending && !confirm(`Renvoyer la commande du ${cuiD(o.date_commande)} à ${s.nom} ?`)) return;
   if (btn) { btn.style.pointerEvents = 'none'; btn.textContent = '⏳ Envoi en cours…'; }
   try {
@@ -400,14 +398,14 @@ async function cuiSendMail(id, btn) {
       await cuiPATCH('cmd_commandes?id=eq.' + d.id, { numero: o.numero, date_livraison: o.date_livraison, note: o.note || null, commande_par: o.commande_par || null });
       cmdId = d.id;
     }
-    const row = await cuiEnvoyerMail(cmdId);
+    const row = await (sms ? cuiEnvoyerSms(cmdId) : cuiEnvoyerMail(cmdId));
     if (pending) await cuiValidate();
     else { Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null }); cuiCloseModal(); }
-    cuiToast(`✉️ Commande envoyée à ${s.nom}`);
+    cuiToast(`${sms ? '📨' : '✉️'} Commande envoyée à ${s.nom}`);
   } catch (e) {
     console.error(e);
     alert(`❌ La commande n'est PAS partie chez ${s.nom}.\n\n${e.message}\n\nRéessayez, ou appelez le fournisseur.`);
-    if (btn) { btn.style.pointerEvents = ''; btn.textContent = `✉️ Envoyer à ${s.nom}`; }
+    if (btn) { btn.style.pointerEvents = ''; btn.textContent = libelle; }
   }
 }
 function cuiSendButtons(o) {
@@ -417,11 +415,10 @@ function cuiSendButtons(o) {
     ${s.telephone ? `<a class="btn-primary" href="tel:${cuiEsc(s.telephone.replace(/\s/g, ''))}">📞 Appeler ${cuiEsc(s.nom)} · ${cuiEsc(s.telephone)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas de numéro pour ce fournisseur — renseignez-le via ⚙️.</div>'}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte</button>`;
   if (s.mode_commande === 'sms') return `
-    ${s.telephone ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS · ${cuiEsc(s.nom)} ${cuiEsc(s.telephone)}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendSms('${o.id}','${cuiEsc(s.telephone)}')">📨 SMS — ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas de numéro pour ce fournisseur — renseignez-le via ⚙️.</div>'}
-    ${s.sms_copie_tel ? `<div style="font-size:12px;color:var(--muted);margin:8px 0 6px;font-weight:600">SMS copie · ${cuiEsc(s.sms_copie_tel)}</div><a class="btn-primary" href="#" style="background:var(--surf3);color:var(--text)" onclick="event.preventDefault();cuiSendSms('${o.id}','${cuiEsc(s.sms_copie_tel)}')">📨 SMS — copie restaurant</a>` : ''}
+    ${s.telephone ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">SMS · ${cuiEsc(s.telephone)}${s.sms_copie_tel ? ' · copie ' + cuiEsc(s.sms_copie_tel) : ''} · depuis le tél du resto</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendOrder('${o.id}', this)">📨 Envoyer par SMS à ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas de numéro pour ce fournisseur — renseignez-le via ⚙️.</div>'}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte</button>`;
   return `
-    ${s.email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · ${cuiEsc(s.email)} · copie ${CUI_CC}${s.email_cc ? ', ' + cuiEsc(s.email_cc) : ''}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendMail('${o.id}', this)">✉️ Envoyer à ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas d\'e-mail pour ce fournisseur — renseignez-le via ⚙️.</div>'}
+    ${s.email ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Email · ${cuiEsc(s.email)} · copie ${CUI_CC}${s.email_cc ? ', ' + cuiEsc(s.email_cc) : ''}</div><a class="btn-primary" href="#" onclick="event.preventDefault();cuiSendOrder('${o.id}', this)">✉️ Envoyer à ${cuiEsc(s.nom)}</a>` : '<div class="alert-banner" style="margin:0 0 8px">⚠️ Pas d\'e-mail pour ce fournisseur — renseignez-le via ⚙️.</div>'}
     <button class="btn-secondary" style="margin-top:8px" onclick="cuiCopy('${o.id}')">📋 Copier le texte (WhatsApp…)</button>`;
 }
 function cuiOpenConfirm() {
@@ -436,7 +433,7 @@ function cuiOpenConfirm() {
     <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val" id="cui-c-total">${cuiEur(cuiOrderTotal(d)) || '—'}</div></div>
     ${CUI._pending.note ? `<div class="modal-section"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(CUI._pending.note)}</div></div>` : ''}
     <div class="modal-actions">${cuiSendButtons(CUI._pending)}
-      <button class="btn-close" onclick="cuiValidate()">${s.mode_commande === 'appel' ? '✓ Commande passée — terminer' : s.mode_commande === 'sms' ? '✓ Commande envoyée — terminer' : 'Déjà transmise autrement — terminer'}</button>
+      <button class="btn-close" onclick="cuiValidate()">${s.mode_commande === 'appel' ? '✓ Commande passée — terminer' : 'Déjà transmise autrement — terminer'}</button>
       <button class="btn-close" style="color:var(--danger)" onclick="cuiClearDraft()">Vider le panier</button>
     </div>`);
 }
@@ -502,7 +499,7 @@ function cuiOpenOrder(id) {
       <div><span>Commandé le</span>${cuiDT(o.date_commande)}</div><div><span>Par</span>${cuiEsc(o.commande_par || '—')}</div>
     </div>${o.note ? `<div style="margin-top:8px"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(o.note)}</div></div>` : ''}
     ${o.confirmation_json ? `<div class="prod-meta" style="margin-top:8px">✓ Confirmation fournisseur n° ${cuiEsc(o.confirmation_json.numero || '')}${o.confirmation_json.date ? ' du ' + cuiD(o.confirmation_json.date) : ''}${o.confirmation_json.ht != null ? ' · ' + cuiEur(o.confirmation_json.ht) + ' HT' : ''}</div>` : ''}
-    ${o.mail_envoye_le ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">✉️ Mail parti le ${cuiDT(o.mail_envoye_le)}</div>` : o.mail_erreur ? `<div class="prod-meta" style="margin-top:4px;color:var(--danger)">⚠️ Dernier envoi du mail en échec : ${cuiEsc(o.mail_erreur)}</div>` : ''}
+    ${o.mail_envoye_le ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">${s.mode_commande === 'sms' ? '📨 SMS parti' : '✉️ Mail parti'} le ${cuiDT(o.mail_envoye_le)}</div>` : o.mail_erreur ? `<div class="prod-meta" style="margin-top:4px;color:var(--danger)">⚠️ Dernier envoi en échec : ${cuiEsc(o.mail_erreur)}</div>` : ''}
     ${o.bl_json && !o.date_reception ? `<div class="prod-meta" style="margin-top:4px;color:var(--ok)">📄 BL ${cuiEsc(o.bl_json.numero || '')} reçu par mail — la réception est pré-remplie</div>` : ''}
     ${o.statut === 'non_recue' ? `<div class="prod-meta" style="margin-top:4px;color:var(--orange)">🚫 ${cuiEsc(o.reception_note || 'Rien n\'est arrivé')} — ne doit pas être facturée</div>` : ''}
     <div id="cui-o-photos">${cuiPhotoLigne(o.id)}</div>
