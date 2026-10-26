@@ -3,7 +3,7 @@
 // si le SMS partait : le 25/10/2026, Mericq et Les Platins n'ont rien reçu.
 // Ici la commande ne passe en « envoyée » que si SMS Gate a accepté le SMS du fournisseur.
 // Le texte et les numéros viennent de la base : la fonction ne peut écrire qu'aux fournisseurs enregistrés.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -27,11 +27,12 @@ function numeroFrancais(tel: string): string {
 const qty = (n: number) => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
 const unite = (u: string, n: number) => /^kilo/i.test(u || '') ? 'kg' : n > 1 && /^[a-zà-ÿ]+$/i.test(u || '') && !/s$/.test(u) ? u + 's' : (u || '');
 
-// Même texte que cuiOrderSmsText dans boissons/cuisine.js (« carton » du bar mis au pluriel)
-function texte(o: any) {
+// Même texte que cuiOrderSmsText dans boissons/cuisine.js (« carton » du bar mis au pluriel).
+// Au bar la date de livraison est calculée, pas choisie : « pour cette semaine » à la place.
+function texte(o: any, semaine: boolean) {
   const lignes = [...o.lignes].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
     .map((l: any) => `- ${qty(l.quantite)} ${unite(l.unite, Number(l.quantite))} ${l.nom}`).join('\n');
-  const liv = new Date(o.date_livraison + 'T12:00:00Z')
+  const liv = semaine ? 'cette semaine' : new Date(o.date_livraison + 'T12:00:00Z')
     .toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
   return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lignes}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
@@ -45,7 +46,7 @@ Deno.serve(async (req: Request) => {
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return json({ error: 'Appareil non connecté' }, 401);
 
-  const { id } = await req.json().catch(() => ({}));
+  const { id, semaine = false } = await req.json().catch(() => ({}));
   if (typeof id !== 'string' || !id) return json({ error: 'id manquant' }, 400);
 
   const echec = async (error: string, status: number) => {
@@ -65,7 +66,7 @@ Deno.serve(async (req: Request) => {
   const cred = ids?.[0];
   if (!cred?.utilisateur || !cred?.mot_de_passe) return echec("SMS Gate n'est pas branché", 503);
 
-  const msg = texte(o);
+  const msg = texte(o, semaine === true);
   const envoyer = async (tel: string) => {
     const res = await fetch(SMSGATE_URL, {
       method: 'POST',

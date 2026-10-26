@@ -365,9 +365,10 @@ function cuiOrderSmsText(o) {
 // Le SMS part du téléphone du resto (SMS Gate, supabase/functions/commande-sms), au fournisseur puis en copie :
 // la commande ne passe en « envoyée » que si SMS Gate l'a accepté. Avec l'appli SMS de l'appareil, les
 // commandes Mericq et Les Platins du 25/10 étaient « envoyées » sans qu'aucun SMS ne parte.
-async function cuiEnvoyerSms(id) {
+// semaine : « pour cette semaine » à la place de la date (commandes du bar)
+async function cuiEnvoyerSms(id, semaine) {
   const h = window.braiseAuth ? await braiseAuth.headers() : { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY };
-  const r = await fetch(SB_URL + '/functions/v1/commande-sms', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const r = await fetch(SB_URL + '/functions/v1/commande-sms', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ id, semaine: !!semaine }) });
   const res = await r.json().catch(() => ({}));
   if (!r.ok || !res.ok) throw new Error(res.error || 'HTTP ' + r.status);
   return res.commande;
@@ -398,7 +399,8 @@ async function cuiSendOrder(id, btn) {
       await cuiPATCH('cmd_commandes?id=eq.' + d.id, { numero: o.numero, date_livraison: o.date_livraison, note: o.note || null, commande_par: o.commande_par || null });
       cmdId = d.id;
     }
-    const row = await (sms ? cuiEnvoyerSms(cmdId) : cuiEnvoyerMail(cmdId));
+    const bar = typeof TYPE_HISTORIQUE_BAR !== 'undefined' && s.nom in TYPE_HISTORIQUE_BAR;
+    const row = await (sms ? cuiEnvoyerSms(cmdId, bar) : cuiEnvoyerMail(cmdId));
     if (pending) await cuiValidate();
     else { Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null }); cuiCloseModal(); }
     cuiToast(`${sms ? '📨' : '✉️'} Commande envoyée à ${s.nom}`);
