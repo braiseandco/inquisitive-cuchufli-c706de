@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-25.1';
+const APP_VERSION = '2026-10-26.2';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -964,9 +964,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 <div class="modal-overlay" id="modalOverride">
   <div class="modal">
     <h3 id="overrideTitle">Modifier journée</h3>
-    <div class="override-opts">
+    <div class="override-opts" style="flex-wrap:wrap">
       <div class="ov-opt selected" id="ov-present" onclick="selectOv('present')">Présent</div>
       <div class="ov-opt" id="ov-vacation" onclick="selectOv('vacation')">Congé</div>
+      <div class="ov-opt" id="ov-accident" onclick="selectOv('accident')">Accident travail</div>
       <div class="ov-opt" id="ov-fin_essai" onclick="selectOv('fin_essai')">Fin d'essai</div>
       <div class="ov-opt" id="ov-fin_contrat" onclick="selectOv('fin_contrat')">Fin de contrat</div>
     </div>
@@ -4276,10 +4277,11 @@ async function openOverride(empId, dateS, dayIdx) {
     const sched = Array.isArray(schedRes) ? schedRes[0] : null;
     overrideTarget.wasEcole = !!ov && ov.morn_status === 'ecole';
 
-    // Déterminer le statut global (present, vacation ou fin d'essai)
+    // Déterminer le statut global (present, vacation, accident ou fin d'essai)
     // fin_essai + status 'off' = jour rempli automatiquement après le départ → rouvrir en "présent"
     const globalStatus = (ov && ov.status === 'vacation') ? 'vacation'
                        : (ov && ov.fin_essai && ov.status !== 'off') ? 'fin_essai'
+                       : (ov && ov.morn_status === 'accident' && (!EVENING_DAY_IDX.has(dayIdx) || ov.eve_status === 'accident')) ? 'accident'
                        : 'present';
     selectOv(globalStatus);
     const st = (v, fb) => v ? String(v).slice(0,5) : fb;
@@ -4337,10 +4339,10 @@ async function openOverride(empId, dateS, dayIdx) {
 
 function selectOv(status) {
   currentOvStatus = status;
-  ['present','vacation','fin_essai','fin_contrat'].forEach(s => {
+  ['present','vacation','accident','fin_essai','fin_contrat'].forEach(s => {
     document.getElementById('ov-'+s).classList.toggle('selected', s===status);
   });
-  document.getElementById('ovTimeFields').style.display = status === 'vacation' || status === 'fin_contrat' ? 'none' : '';
+  document.getElementById('ovTimeFields').style.display = status === 'vacation' || status === 'accident' || status === 'fin_contrat' ? 'none' : '';
   document.getElementById('ovFinEssaiHint').style.display = status === 'fin_essai' ? '' : 'none';
   document.getElementById('ovFinContratHint').style.display = status === 'fin_contrat' ? '' : 'none';
 }
@@ -4400,8 +4402,10 @@ async function saveOverride() {
       if (!confirm(`Fin de période d'essai de ${emp ? emp.name : 'cet employé'} au ${date} ?\n${date} reste travaillé avec ses horaires.\n${suite}\nIl n'apparaîtra plus dans les semaines suivantes.`)) return;
     }
 
-    const mornState = isVacation ? 'on' : (document.getElementById('ovMornToggle').dataset.state || 'on');
-    const eveState  = (isVacation || !hasEvening) ? 'on' : (document.getElementById('ovEveToggle').dataset.state || 'on');
+    // Accident travail = journée entière : même forme que deux services passés en AT, déjà gérée par tous les écrans
+    const isAccident = currentOvStatus === 'accident';
+    const mornState = isVacation ? 'on' : isAccident ? 'accident' : (document.getElementById('ovMornToggle').dataset.state || 'on');
+    const eveState  = (isVacation || !hasEvening) ? 'on' : isAccident ? 'accident' : (document.getElementById('ovEveToggle').dataset.state || 'on');
 
     // Dériver le statut global pour rétrocompatibilité
     // Si congé → vacation ; sinon present (les détails sont dans morn_status/eve_status)
