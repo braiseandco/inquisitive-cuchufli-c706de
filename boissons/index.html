@@ -899,7 +899,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-10-26.3';
+const APP_VERSION = '2026-10-26.4';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1129,7 +1129,7 @@ async function envoyerMailBar(btn, fournisseur, enregistrer, libelle, sms) {
     await enregistrer();
     const cmd = await barCommande[fournisseur];
     if (deja[fournisseur] !== cmd.id || confirm(`Cette commande est déjà partie par ${canal} chez ${fournisseur}. La renvoyer ?`)) {
-      const row = await (sms ? cuiEnvoyerSms(cmd.id) : cuiEnvoyerMail(cmd.id));
+      const row = await (sms ? cuiEnvoyerSms(cmd.id, true) : cuiEnvoyerMail(cmd.id));
       deja[fournisseur] = cmd.id;
       const o = CUI.orders.find(x => x.id === cmd.id);
       if (o) Object.assign(o, { mail_envoye_le: row.mail_envoye_le, mail_erreur: null });
