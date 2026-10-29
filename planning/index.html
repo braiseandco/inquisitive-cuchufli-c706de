@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-26.6';
+const APP_VERSION = '2026-10-29.2';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -555,6 +555,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
         <input type="checkbox" id="contratLogeChk" onchange="toggleFicheType()" style="width:18px;height:18px">
         Logement de fonction (clause logement dans le contrat)
+      </label>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="contratSemaineFixe" style="width:18px;height:18px">
+        Semaine fixe (horaires de base appliqués chaque semaine)
       </label>
     </div>
     <div id="contratLogeWrap" style="display:flex;gap:10px">
@@ -1352,6 +1358,8 @@ async function loadHome() {
     const monday = getMonday(new Date());
     const weekStart = dateStr(monday);
     const weekEnd = dateStr(weekDates(monday)[6]);
+    fillFixedWeeks([0,1,2,3,4].map(n => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7*n)))
+      .catch(e => console.error('fillFixedWeeks', e));
     const sigs = await GET(`daily_signatures?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`);
     const signedIds = new Set(sigs.map(s => s.employee_id));
 
@@ -1866,6 +1874,7 @@ function openEmpContrat(empId) {
   document.getElementById('contratSalaireBase').value = emp.salaire_base_net != null ? emp.salaire_base_net : '';
   document.getElementById('contratLoyer').value       = emp.loyer_logement != null ? emp.loyer_logement : '';
   document.getElementById('contratLogeChk').checked   = +(emp.loyer_logement || 0) > 0;
+  document.getElementById('contratSemaineFixe').checked = !!emp.semaine_fixe;
   if (!empId) {
     document.getElementById('contratNationalite').value = 'Française';
     document.getElementById('contratNiveau').value = 'I';
@@ -1932,6 +1941,7 @@ async function saveEmpContrat(withContrat) {
     heures_hebdo_contrat: num('contratHeuresHebdo'),
     salaire_base_net: num('contratSalaireBase'),
     loyer_logement: loge ? num('contratLoyer') : null,
+    semaine_fixe: document.getElementById('contratSemaineFixe').checked,
   });
   if (!loge) patch.logement_adresse = null;
   if (patch.motif_cdd !== 'remplacement') patch.personne_remplacee = null;
@@ -2315,6 +2325,9 @@ async function loadPlanningTab() {
   const weekStart = dateStr(planningWeek);
   const weekEnd   = dateStr(dates[6]);
 
+  if (planningWeek >= getMonday(new Date())) {
+    try { await fillFixedWeeks([planningWeek]); } catch(e) { console.error('fillFixedWeeks', e); }
+  }
   const [allScheds, allOv] = await Promise.all([
     GET('schedules?select=*'),
     GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=*`)
@@ -3708,6 +3721,39 @@ function buildOvFromSched(empId, ds, dn, sched) {
     evening_end:         eveWorks ? sched.evening_end         : null,
     note: null
   };
+}
+
+// Employés « semaine fixe » : une semaine sans aucun horaire est remplie depuis les horaires de base.
+// Une semaine déjà touchée (congé, ajustement…) n'est jamais modifiée.
+async function fillFixedWeeks(mondays) {
+  const fixed = employees.filter(e => e.semaine_fixe);
+  if (!fixed.length || !mondays.length) return;
+  const ids = fixed.map(e => e.id).join(',');
+  const first = dateStr(mondays[0]), last = dateStr(weekDates(mondays[mondays.length - 1])[6]);
+  const [scheds, ovs] = await Promise.all([
+    GET(`schedules?employee_id=in.(${ids})&select=*`),
+    GET(`weekly_overrides?employee_id=in.(${ids})&date=gte.${first}&date=lte.${last}&select=employee_id,date`)
+  ]);
+  const has = new Set(ovs.map(o => o.employee_id + '|' + o.date));
+  const rows = [];
+  for (const m of mondays) {
+    const days = weekDates(m).map(dateStr);
+    for (const emp of fixed) {
+      if (days.some(ds => has.has(emp.id + '|' + ds))) continue;
+      for (let i = 1; i <= 6; i++) {
+        if (!empInPost(emp, days[i])) continue;
+        const sched = scheds.find(s => s.employee_id === emp.id && s.day_of_week === i + 1);
+        const row = buildOvFromSched(emp.id, days[i], i + 1, sched);
+        if (row) rows.push(row);
+      }
+    }
+  }
+  if (!rows.length) return;
+  await sb('weekly_overrides?on_conflict=employee_id,date', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
+    body: JSON.stringify(rows)
+  });
 }
 
 // Génère toute la semaine visible à partir des horaires de base de chaque employé
