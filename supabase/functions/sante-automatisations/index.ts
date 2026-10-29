@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
     posts?.length ? `${posts.length} en retard : ${posts.map((p: any) => p.id).join(', ')}` : 'rien en retard');
 
   const { data: sms } = await sb.from('sms_envois').select('etat,cree_at').gt('cree_at', new Date(Date.now() - 48 * H).toISOString());
-  const echoues = (sms || []).filter((s: any) => s.etat === 'Failed' && heures(s.cree_at) < 24).length;
+  const echoues = (sms || []).filter((s: any) => (s.etat === 'Failed' || s.etat === 'Rejected') && heures(s.cree_at) < 24).length;
   const bloques = (sms || []).filter((s: any) => s.etat === 'Pending' && heures(s.cree_at) > 24).length;
   noter('SMS envoyés', echoues || bloques ? 'alerte' : 'ok',
     echoues || bloques ? `${echoues} en échec, ${bloques} bloqués depuis plus de 24 h` : `${(sms || []).length} sur 48 h, aucun en échec`);

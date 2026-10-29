@@ -1,15 +1,15 @@
-// SMS de confirmation d'une réservation, envoyé tout de suite depuis le téléphone du resto
-// (appli SMS Gate, mode Cloud), quel que soit l'appareil qui a confirmé.
+// SMS de confirmation d'une réservation, envoyé tout de suite par Brevo (expéditeur BRAISEANDCO),
+// quel que soit l'appareil qui a confirmé.
 //
 // Appelée par l'appli Réservations dès qu'une résa est confirmée. Le texte et le numéro viennent
 // de la résa en base : la fonction ne peut pas envoyer un SMS libre à un numéro choisi.
 // Plusieurs appareils peuvent appeler pour la même résa : sms_envoye est posé avant l'envoi,
 // un seul passe.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { expediteurBrevo } from '../_shared/brevo.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const SMSGATE_URL = 'https://api.sms-gate.app/3rdparty/v1/message';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -38,9 +38,8 @@ Deno.serve(async (req: Request) => {
   const { id } = await req.json().catch(() => ({}));
   if (typeof id !== 'string' || !id) return json({ error: 'id_manquant' }, 400);
 
-  const { data: ids } = await sb.rpc('sms_gateway_identifiants');
-  const cred = ids?.[0];
-  if (!cred?.utilisateur || !cred?.mot_de_passe) return json({ error: 'passerelle_non_configuree' }, 503);
+  const envoyer = await expediteurBrevo(sb);
+  if (!envoyer) return json({ error: 'passerelle_non_configuree' }, 503);
 
   const { data: r } = await sb.from('reservations').update({ sms_envoye: true })
     .eq('id', id).eq('statut', 'confirmee').or('sms_envoye.is.null,sms_envoye.eq.false')
@@ -53,19 +52,15 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'numero_non_mobile' }, 422);
   }
 
-  const texte = 'Votre reservation chez Braise et Co est confirmee le ' + r.date.slice(8, 10) + '/' + r.date.slice(5, 7) +
-    ' a ' + r.heure.slice(0, 5) + ' pour ' + r.personnes + ' pers. A bientot !';
-  const res = await fetch(SMSGATE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe) },
-    // priority >= 100 : passe devant les relances en file et ignore le délai entre messages du téléphone
-    body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: ['+33' + local.slice(1)], priority: 100 }),
-  });
-  if (!res.ok) {
+  const texte = 'Réservation confirmée le ' + r.date.slice(8, 10) + '/' + r.date.slice(5, 7) +
+    ' à ' + r.heure.slice(0, 5) + ' pour ' + r.personnes + ' pers. A bientot chez Braise & Co !';
+  let smsId: string;
+  try {
+    smsId = await envoyer('+33' + local.slice(1), texte, 'confirmation');
+  } catch (e) {
     await sb.from('reservations').update({ sms_envoye: false }).eq('id', id);
-    return json({ error: 'HTTP ' + res.status + ' ' + (await res.text()).slice(0, 200) }, 502);
+    return json({ error: String(e).slice(0, 200) }, 502);
   }
-  const gateId = (await res.json().catch(() => ({}))).id;
-  if (gateId) await sb.from('sms_envois').insert({ gate_id: gateId, telephone: local, type: 'confirmation', texte });
-  return json({ ok: true, id: gateId });
+  await sb.from('sms_envois').insert({ gate_id: smsId, telephone: local, type: 'confirmation', texte });
+  return json({ ok: true, id: smsId });
 });

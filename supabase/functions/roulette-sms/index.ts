@@ -1,13 +1,13 @@
-// Envoi groupé des SMS cadeaux de la roulette depuis le téléphone du resto (appli SMS Gate, mode Cloud).
+// Envoi groupé des SMS cadeaux de la roulette par Brevo (expéditeur BRAISEANDCO).
 //
 // Appelée par le bouton « Tout envoyer » de l'onglet Roulette. Envoi immédiat, sans attendre 10h30
 // comme les relances : le client vient de jouer et attend son cadeau. Un gain n'est marqué envoyé
-// qu'une fois accepté par la passerelle ; un numéro fixe reste dans la liste, à faire à la main.
+// qu'une fois accepté par Brevo ; un numéro fixe reste dans la liste, à faire à la main.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { expediteurBrevo } from '../_shared/brevo.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const SMSGATE_URL = 'https://api.sms-gate.app/3rdparty/v1/message';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,12 +29,11 @@ function numeroMobile(tel: string): string | null {
   return /^0[67]\d{8}$/.test(d) ? '+33' + d.slice(1) : null;
 }
 
-// Même texte que la carte de l'onglet Roulette
+// Transactionnel (pas de STOP) : le SMS répond au jeu du client
 function message(cadeau: string): string {
   const texte = ({ 'Café offert': 'un café', 'Digestif offert': 'un digestif', 'Apéro offert': 'un apéro', 'Dessert offert': 'un dessert' } as Record<string, string>)[cadeau]
     || (cadeau || '').toLowerCase();
-  return 'Merci d\'avoir joué à notre jeu chez Braise & Co ! 🎰 Nous sommes heureux de vous offrir ' + texte +
-    ' lors de votre prochaine visite. À très bientôt ! 🔥 (SMS à présenter lors de votre prochaine visite au Braise & Co) Offre valable 30 jours.';
+  return 'Bravo ! Vous avez gagné ' + texte + ' lors de votre prochaine visite chez Braise & Co. Montrez ce SMS, valable 30 jours.';
 }
 
 Deno.serve(async (req: Request) => {
@@ -46,10 +45,8 @@ Deno.serve(async (req: Request) => {
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return json({ error: 'appareil_non_connecte' }, 401);
 
-  const { data: ids } = await sb.rpc('sms_gateway_identifiants');
-  const cred = ids?.[0];
-  if (!cred?.utilisateur || !cred?.mot_de_passe) return json({ error: 'passerelle_non_configuree' }, 503);
-  const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
+  const envoyer = await expediteurBrevo(sb);
+  if (!envoyer) return json({ error: 'passerelle_non_configuree' }, 503);
 
   const { data: gains, error } = await sb.from('roulette_gains').select('id,telephone,cadeau')
     .eq('sms_envoye', false).order('created_at').limit(100);
@@ -62,15 +59,9 @@ Deno.serve(async (req: Request) => {
     if (!mobile) { nonMobiles++; continue; }
     const texte = message(g.cadeau);
     try {
-      const res = await fetch(SMSGATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: auth },
-        body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120));
-      const id = (await res.json().catch(() => ({}))).id;
+      const id = await envoyer(mobile, texte, 'roulette');
       await sb.from('roulette_gains').update({ sms_envoye: true }).eq('id', g.id);
-      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(g.telephone), type: 'roulette', texte });
+      await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(g.telephone), type: 'roulette', texte });
       envoyes++;
     } catch (e) {
       erreurs.push(g.telephone + ' : ' + String(e).slice(0, 120));

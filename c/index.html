@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#000000">
+<title>Merci — Braise & Co</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{min-height:100%;background:#0a0a0a;font-family:'Raleway',sans-serif;color:#fff;overflow-x:hidden;}
+.page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:28px 20px;text-align:center;}
+.logo{width:80px;height:auto;margin-bottom:4px;}
+.logo-sub{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#555;margin-bottom:28px;}
+.card{background:#141414;border:1px solid #2a2a2a;border-radius:20px;padding:24px;width:100%;max-width:400px;margin-bottom:20px;}
+.card-title{font-family:'Cinzel',serif;font-size:20px;color:#c9a84c;margin-bottom:8px;}
+.card-text{font-size:14px;color:#aaa;line-height:1.6;}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:400px;padding:17px;border-radius:14px;font-size:15px;font-weight:700;text-decoration:none;margin-bottom:12px;transition:opacity .2s;}
+.btn:active{opacity:.8;}
+.btn-main{background:linear-gradient(135deg,#c9a84c,#f0d080);color:#000;font-weight:900;font-size:16px;box-shadow:0 0 30px rgba(201,168,76,.3);}
+.btn-ghost{background:#141414;border:1px solid #c9a84c;color:#c9a84c;}
+.section{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#666;margin:18px 0 12px;}
+.socials{display:flex;gap:10px;width:100%;max-width:400px;}
+.socials .btn{flex:1;padding:14px 6px;font-size:13px;margin-bottom:0;color:#fff;}
+.btn-insta{background:linear-gradient(135deg,#f58529,#dd2a7b,#8134af);}
+.btn-fb{background:#1877f2;}
+.btn-tt{background:#111;border:1px solid #69c9d0;}
+</style>
+</head>
+<body>
+<div class="page">
+  <img class="logo" src="/images/logo-blanc.png" alt="Braise & Co">
+  <div class="logo-sub">Biganos — Bassin d'Arcachon</div>
+
+  <div class="card">
+    <div class="card-title">Merci de votre visite !</div>
+    <div class="card-text">Un petit cadeau vous attend : tentez votre chance à la roulette et profitez de notre carte fidélité.</div>
+  </div>
+
+  <a class="btn btn-main" href="/roulette/">🎰 Jouer à la roulette</a>
+  <a class="btn btn-ghost" id="lien-fidelite" href="/fidelite/inscription.html">🔥 Ma carte fidélité</a>
+
+  <div class="section">Suivez-nous</div>
+  <div class="socials">
+    <a class="btn btn-insta" href="https://www.instagram.com/braiseandco/" target="_blank" rel="noopener">Instagram</a>
+    <a class="btn btn-fb" href="https://www.facebook.com/braiseandco/" target="_blank" rel="noopener">Facebook</a>
+    <a class="btn btn-tt" href="https://www.tiktok.com/@braise.and.co" target="_blank" rel="noopener">TikTok</a>
+  </div>
+</div>
+<script>
+const tel = (new URLSearchParams(location.search).get('t') || '').replace(/[^\d+]/g, '');
+if (tel) document.getElementById('lien-fidelite').href += '?tel=' + encodeURIComponent(tel);
+</script>
+</body>
+</html>

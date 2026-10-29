@@ -1,14 +1,14 @@
-// Envoi groupé des relances J+30 depuis le téléphone Android du resto (appli SMS Gate, mode Cloud).
+// Envoi groupé des relances J+30 et des SMS de bienvenue J+1 par Brevo (expéditeur BRAISEANDCO).
 //
-// Appelée par le bouton « Tout envoyer » de l'onglet Relances. La liste est recalculée ici, avec
+// Appelée par les boutons « Tout envoyer » de l'onglet Relances. La liste est recalculée ici, avec
 // les mêmes règles que l'appli : on ne peut pas lui faire envoyer un SMS à un numéro choisi.
-// La passerelle met les messages en file ; c'est le téléphone qui les étale (Réglages → Messages
-// → Délai entre messages), pour ne pas envoyer 50 SMS d'un coup.
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { expediteurBrevo, STOP } from '../_shared/brevo.ts';
+
+type Envoyer = (mobile: string, texte: string, tag: string) => Promise<string>;
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const SMSGATE_URL = 'https://api.sms-gate.app/3rdparty/v1/message';
 const MAX_PAR_ENVOI = 100;
 
 const cors = {
@@ -37,7 +37,7 @@ const jourParis = (decalage: number) => {
 };
 
 // Pour ne réveiller personne : avant 10h30 ou après 20h (heure de Paris), les SMS attendent
-// 10h30 dans sms_programmes. Pas de scheduleAt : le téléphone ne renvoie pas l'état de ces SMS-là.
+// 10h30 dans sms_programmes.
 function departPrevu(): string | null {
   const maintenant = new Date();
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
@@ -54,30 +54,20 @@ function departPrevu(): string | null {
 function message(): string {
   const fin = new Date(Date.now() + 7 * 86400_000)
     .toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
-  return 'Bonjour, ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le ' + fin +
-    ', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14. A très bientôt ! STOP SMS : répondez STOP';
-}
-
-async function envoyerSms(auth: string, mobile: string, texte: string): Promise<string | undefined> {
-  const res = await fetch(SMSGATE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: auth },
-    body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: [mobile] }),
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120));
-  return (await res.json().catch(() => ({}))).id;
+  return 'Vous nous manquez ! Venez avant le ' + fin +
+    ' et montrez ce SMS : l\'apéro est offert (1 par table). Résa : braiseandco-biganos.fr ou 0986129714' + STOP;
 }
 
 // Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
-async function viderFile(sb: SupabaseClient, auth: string) {
+async function viderFile(sb: SupabaseClient, envoyerSms: Envoyer) {
   const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives,type,essai')
     .lte('envoyer_at', new Date().toISOString()).lt('tentatives', 3).order('id').limit(MAX_PAR_ENVOI);
   let envoyes = 0;
   const erreurs: string[] = [];
   for (const s of dus || []) {
     try {
-      const id = await envoyerSms(auth, s.telephone, s.texte);
-      if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type, texte: s.texte, essai: s.essai });
+      const id = await envoyerSms(s.telephone, s.texte, s.type);
+      await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type, texte: s.texte, essai: s.essai });
       await sb.from('sms_programmes').delete().eq('id', s.id);
       envoyes++;
     } catch (e) {
@@ -94,13 +84,14 @@ function debutBienvenue(): string {
   return jourParis(0) <= '2026-10-15' && s > '2026-09-08' ? '2026-09-08' : s;
 }
 
+// La page /c/ regroupe roulette, carte fidélité (numéro pré-rempli) et réseaux : un seul lien, un seul SMS
 function messageBienvenue(tel: string): string {
-  return 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\nhttps://app.braiseandco.fr/fidelite/inscription.html?tel=' +
-    encodeURIComponent(tel) + '\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
+  return 'Merci de votre visite chez Braise & Co ! Un cadeau vous attend : roulette, carte fidélité et nos réseaux ici app.braiseandco.fr/c/?t=' +
+    numeroFrancais(tel) + STOP;
 }
 
 // SMS de bienvenue aux clients venus les jours précédents : mêmes règles que la section J+1 de l'appli
-async function envoyerBienvenue(sb: SupabaseClient, auth: string) {
+async function envoyerBienvenue(sb: SupabaseClient, envoyerSms: Envoyer) {
   const debut = debutBienvenue();
   const { data: resas, error } = await sb.from('reservations')
     .select('telephone,bienvenue_envoye')
@@ -132,8 +123,8 @@ async function envoyerBienvenue(sb: SupabaseClient, auth: string) {
         const { error: e } = await sb.from('sms_programmes').insert({ telephone: mobile, texte, envoyer_at: programme, type: 'bienvenue' });
         if (e) throw new Error(e.message);
       } else {
-        const id = await envoyerSms(auth, mobile, texte);
-        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), type: 'bienvenue', texte });
+        const id = await envoyerSms(mobile, texte, 'bienvenue');
+        await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), type: 'bienvenue', texte });
       }
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));
@@ -162,14 +153,12 @@ Deno.serve(async (req: Request) => {
     if (!u?.user) return json({ error: 'appareil_non_connecte' }, 401);
   }
 
-  const { data: ids } = await sb.rpc('sms_gateway_identifiants');
-  const cred = ids?.[0];
-  if (!cred?.utilisateur || !cred?.mot_de_passe) return json({ error: 'passerelle_non_configuree' }, 503);
-  const auth = 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe);
-  if (cronKey) return json(await viderFile(sb, auth));
+  const envoyerSms = await expediteurBrevo(sb);
+  if (!envoyerSms) return json({ error: 'passerelle_non_configuree' }, 503);
+  if (cronKey) return json(await viderFile(sb, envoyerSms));
   const corps = await req.json().catch(() => ({}));
   if (corps?.type === 'bienvenue') {
-    const r = await envoyerBienvenue(sb, auth);
+    const r = await envoyerBienvenue(sb, envoyerSms);
     return json(r, 'error' in r ? 500 : 200);
   }
 
@@ -207,8 +196,8 @@ Deno.serve(async (req: Request) => {
         const { error: e } = await sb.from('sms_programmes').insert({ telephone: mobile, texte, envoyer_at: programme });
         if (e) throw new Error(e.message);
       } else {
-        const id = await envoyerSms(auth, mobile, texte);
-        if (id) await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), texte });
+        const id = await envoyerSms(mobile, texte, 'relance_j30');
+        await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), texte });
       }
     } catch (e) {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));

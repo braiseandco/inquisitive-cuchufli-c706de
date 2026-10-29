@@ -2849,10 +2849,10 @@ async function loadRelances(){
       const bloque = attente.length && Date.now() - Math.max(...envois.map(x => new Date(x.maj_at))) > 10*60000;
       suivi = '<div style="background:var(--bg2);border:1px solid '+(bloque?'#e53935':'var(--border)')+';border-radius:14px;padding:14px;margin-bottom:16px;font-size:13px;">'
         +'<div style="font-weight:800;margin-bottom:6px;">📤 Envoi automatique aujourd\'hui : '+(envois.length+nbProg)+' SMS</div>'
-        +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled'))+' échecs</div>'
+        +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled')+n('Rejected'))+' échecs</div>'
         +(nbProg?'<div style="color:var(--text-dim);margin-top:4px;">🕥 '+nbProg+' programmé'+(nbProg>1?'s':'')+' pour 10h30</div>':'')
         +(nbRenvoi?'<div style="color:var(--text-dim);margin-top:4px;">🔁 '+nbRenvoi+' en échec, renvoyé'+(nbRenvoi>1?'s':'')+' tout seul'+(nbRenvoi>1?'s':'')+' dès que le téléphone refonctionne</div>':'')
-        +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie que le téléphone du resto est allumé et que SMS Gate est sur « Online ».</div>':'')
+        +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie qu'il reste des crédits SMS sur Brevo.</div>':'')
         +'</div>';
     }
 
@@ -3007,7 +3007,7 @@ async function rouletteToutEnvoyer(nb){
     const res = await fetch(SB_URL+'/functions/v1/roulette-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:'{}'});
     const d = await res.json().catch(()=>({}));
     if(!res.ok){
-      const raisons = {passerelle_non_configuree:'SMS Gate n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
+      const raisons = {passerelle_non_configuree:'L\'envoi de SMS (Brevo) n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
       toast('❌ '+(raisons[d.error] || d.error || 'Erreur '+res.status),'ko');
       btn.disabled = false; btn.textContent = '📤 Réessayer';
       return;
@@ -3113,7 +3113,7 @@ function departSmsPrevu(d){
 
 async function relancesToutEnvoyer(nb){
   const depart = departSmsPrevu(new Date());
-  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent un par un, espacés par l\'appli SMS Gate.';
+  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent tout de suite.';
   if(!confirm('Envoyer la relance aux '+nb+' clients depuis le téléphone du resto ?\n'+quand)) return;
   const btn = document.getElementById('relances-tout-btn');
   btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
@@ -3122,7 +3122,7 @@ async function relancesToutEnvoyer(nb){
     const res = await fetch(SB_URL+'/functions/v1/relances-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:'{}'});
     const d = await res.json().catch(()=>({}));
     if(!res.ok){
-      const raisons = {passerelle_non_configuree:'SMS Gate n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
+      const raisons = {passerelle_non_configuree:'L\'envoi de SMS (Brevo) n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
       toast('❌ '+(raisons[d.error] || d.error || 'Erreur '+res.status),'ko');
       btn.disabled = false; btn.textContent = '📤 Réessayer';
       return;
@@ -3142,7 +3142,7 @@ async function relancesToutEnvoyer(nb){
 
 async function bienvenueToutEnvoyer(nb){
   const depart = departSmsPrevu(new Date());
-  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent un par un, espacés par l\'appli SMS Gate.';
+  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent tout de suite.';
   if(!confirm('Envoyer le SMS de bienvenue aux '+nb+' clients depuis le téléphone du resto ?\n'+quand)) return;
   const btn = document.getElementById('bienvenue-tout-btn');
   btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
@@ -3151,7 +3151,7 @@ async function bienvenueToutEnvoyer(nb){
     const res = await fetch(SB_URL+'/functions/v1/relances-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:JSON.stringify({type:'bienvenue'})});
     const d = await res.json().catch(()=>({}));
     if(!res.ok){
-      const raisons = {passerelle_non_configuree:'SMS Gate n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
+      const raisons = {passerelle_non_configuree:'L\'envoi de SMS (Brevo) n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
       toast('❌ '+(raisons[d.error] || d.error || 'Erreur '+res.status),'ko');
       btn.disabled = false; btn.textContent = '📤 Réessayer';
       return;
@@ -3206,7 +3206,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-29.4';
+const APP_VERSION = '2026-10-29.5';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3356,7 +3356,7 @@ async function envoyerNotifSms(r){
   ouvrirPopupSms(r);
 }
 
-// Secours si SMS Gate ne répond pas ou numéro fixe : SMS à envoyer à la main depuis ce téléphone
+// Secours si Brevo ne répond pas ou numéro fixe : SMS à envoyer à la main depuis ce téléphone
 function ouvrirPopupSms(r){
   const dd = r.date.slice(8,10), mm = r.date.slice(5,7);
   const msg = 'Votre reservation chez Braise et Co est confirmee le '+dd+'/'+mm+' a '+r.heure.slice(0,5)+' pour '+r.personnes+' pers. A bientot !';
