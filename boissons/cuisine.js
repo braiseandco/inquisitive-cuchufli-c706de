@@ -87,6 +87,8 @@ const cuiNumAff = o => cuiNumFourn(o) ? 'n° ' + cuiNumFourn(o) : 'n° fournisse
 const cuiStatus = s => ({ brouillon: 'Brouillon', envoyee: 'Envoyée', confirmee: 'Confirmée', livree: 'Livrée', annulee: 'Annulée', non_recue: 'Non reçue' }[s] || s);
 // Une commande non reçue est effacée de l'appli : aucune liste ne la montre
 const cuiVisible = o => o.statut !== 'non_recue';
+// Plus récente d'abord : une commande recréée depuis un document est ajoutée en tête de CUI.orders, quelle que soit sa date
+const cuiParDate = list => list.slice().sort((a, b) => new Date(b.date_commande) - new Date(a.date_commande));
 
 /* ─── Chargement ─── */
 async function cuiLoad(silent) {
@@ -175,9 +177,12 @@ function cuiRenderHome() {
   }).join('') + `<button class="cui-card cui-card-add" onclick="cuiOpenSupEdit(true)">＋ Fournisseur</button>`;
   // Une livraison du jour ne doit jamais sortir de l'écran d'accueil : le 23/09, la commande
   // Le Bihan attendue le matin était passée 7e derrière des commandes créées depuis des accusés.
-  const auj = cuiIso(Date.now());
-  const aRecevoir = CUI.orders.filter(o => (o.statut === 'envoyee' || o.statut === 'confirmee') && o.date_livraison && o.date_livraison <= auj && o.date_livraison >= cuiIso(Date.now() - 864e5));
-  const liste = aRecevoir.concat(CUI.orders.filter(o => !aRecevoir.includes(o) && cuiVisible(o)).slice(0, Math.max(0, 6 - aRecevoir.length)));
+  // Le 29/10, 4 commandes livrées la veille (jamais réceptionnées, l'équipe photographie le BL
+  // depuis le 09/10) prenaient 4 des 6 places : on garde toute la semaine, en ordre chronologique.
+  const auj = cuiIso(Date.now()), semaine = Date.now() - 8 * 864e5;
+  const aRecevoir = o => (o.statut === 'envoyee' || o.statut === 'confirmee') && o.date_livraison && o.date_livraison <= auj && o.date_livraison >= cuiIso(Date.now() - 864e5);
+  const visibles = cuiParDate(CUI.orders.filter(cuiVisible));
+  const liste = visibles.filter((o, i) => i < 6 || aRecevoir(o) || new Date(o.date_commande) >= semaine);
   cui$('cui-orders').innerHTML = liste.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande pour l\'instant.</div>';
 }
 function cuiOrderRow(o) {
@@ -845,7 +850,7 @@ function cuiOpenHistory() {
 }
 function cuiRenderHistory() {
   const f = cui$('cui-hist-sup').value;
-  const list = CUI.orders.filter(o => cuiVisible(o) && (!f || o.fournisseur_id === f));
+  const list = cuiParDate(CUI.orders.filter(o => cuiVisible(o) && (!f || o.fournisseur_id === f)));
   cui$('cui-hist-list').innerHTML = list.map(cuiOrderRow).join('') || '<div class="empty-state">Aucune commande.</div>';
 }
 
