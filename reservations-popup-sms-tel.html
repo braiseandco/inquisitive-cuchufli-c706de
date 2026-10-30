@@ -2852,7 +2852,7 @@ async function loadRelances(){
         +'<div style="color:var(--text-dim);">✅ '+n('Delivered')+' reçus · 📨 '+n('Sent')+' envoyés · ⏳ '+attente.length+' en attente · ❌ '+(n('Failed')+n('Cancelled')+n('Rejected'))+' échecs</div>'
         +(nbProg?'<div style="color:var(--text-dim);margin-top:4px;">🕥 '+nbProg+' programmé'+(nbProg>1?'s':'')+' pour 10h30</div>':'')
         +(nbRenvoi?'<div style="color:var(--text-dim);margin-top:4px;">🔁 '+nbRenvoi+' en échec, renvoyé'+(nbRenvoi>1?'s':'')+' tout seul'+(nbRenvoi>1?'s':'')+' dès que le téléphone refonctionne</div>':'')
-        +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie qu'il reste des crédits SMS sur Brevo.</div>':'')
+        +(bloque?'<div style="color:#ef9a9a;font-weight:700;margin-top:8px;">⚠️ Des SMS attendent depuis plus de 10 min : vérifie qu\'il reste des crédits SMS sur Brevo.</div>':'')
         +'</div>';
     }
 
