@@ -26,6 +26,24 @@ function numeroFrancais(tel: string): string {
   return d;
 }
 
+// Base de la carte fidélité (autre projet Supabase), lue avec sa clé publique comme les pages fidélité.
+// Si cette base est un jour fermée à la clé publique, la phrase carte fidélité ne partira plus.
+const FID_URL = 'https://ipnuwxirmfumxsguudvi.supabase.co/rest/v1/clients';
+const FID_KEY = 'sb_publishable_iIxaYsXCZMBekFbl8596zQ_z7ENQ9n1';
+
+// En cas de doute (base injoignable), on répond oui : la confirmation part sans la phrase
+async function aCarteFidelite(local: string): Promise<boolean> {
+  try {
+    const res = await fetch(FID_URL + '?select=id&limit=1&tel=eq.' + local, {
+      headers: { apikey: FID_KEY, Authorization: 'Bearer ' + FID_KEY },
+      signal: AbortSignal.timeout(3000),
+    });
+    return !res.ok || (await res.json()).length > 0;
+  } catch {
+    return true;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -53,7 +71,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const texte = 'Réservation confirmée le ' + r.date.slice(8, 10) + '/' + r.date.slice(5, 7) +
-    ' à ' + r.heure.slice(0, 5) + ' pour ' + r.personnes + ' pers. A bientot chez Braise & Co !';
+    ' à ' + r.heure.slice(0, 5) + ' pour ' + r.personnes + ' pers. ' +
+    (await aCarteFidelite(local) ? '' : 'Pensez à demander votre carte fidélité au barman. ') +
+    'A bientot chez Braise & Co !';
   let smsId: string;
   try {
     smsId = await envoyer('+33' + local.slice(1), texte, 'confirmation');
