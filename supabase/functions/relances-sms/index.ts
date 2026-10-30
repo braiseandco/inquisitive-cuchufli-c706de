@@ -203,8 +203,8 @@ Deno.serve(async (req: Request) => {
       erreurs.push(tel + ' : ' + String(e).slice(0, 120));
       continue;
     }
-    // Comme le bouton manuel : relance notée, numéro effacé
-    await sb.from('reservations').update({ relance_mois_envoye: true, telephone: null }).in('telephone', [...c.bruts]);
+    // Numéro gardé pour reconnaître le client à sa prochaine résa : le drapeau suffit à ne pas le relancer deux fois
+    await sb.from('reservations').update({ relance_mois_envoye: true }).in('telephone', [...c.bruts]);
     envoyes++;
   }
 

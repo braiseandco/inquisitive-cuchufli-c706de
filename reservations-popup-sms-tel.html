@@ -3143,7 +3143,7 @@ async function relanceSmsClick(cid, tel, date){
     btn.textContent = '✅ Relance envoyée';
   }
   try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true, telephone:null})});
+    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
   } catch(e){ console.error('relance mark:', e); }
 }
 
@@ -3252,7 +3252,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-30.2';
+const APP_VERSION = '2026-10-30.3';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
