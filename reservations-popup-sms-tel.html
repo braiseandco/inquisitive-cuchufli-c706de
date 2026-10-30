@@ -100,6 +100,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 .resa-card.annulee::before{background:var(--red);opacity:0.5;}
 .resa-card:active{transform:scale(0.99);}
 /* Badge origine web */
+.resa-client-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(67,160,71,0.15);border:1px solid rgba(67,160,71,0.45);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#81c784;}
 .resa-web-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.2);border:1px solid rgba(229,57,53,0.5);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;color:#ef9a9a;}
 /* ── ARRIVÉE → fond sombre ── */
 .resa-card.arrivee{background:var(--bg2);border-color:rgba(67,160,71,0.4);}
@@ -941,6 +942,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <input type="email" class="field-input" id="r-email" placeholder="nom@email.com" autocomplete="off">
       </div>
     </div>
+    <div id="r-client-hint" class="resa-meta" style="margin:-4px 0 10px;"></div>
     <div class="form-row">
       <div class="field-group">
         <label class="field-label">Date *</label>
@@ -1163,6 +1165,43 @@ async function sbFetch(path,opts={}){
 }
 const getResas=date=>sbFetch('reservations?date=eq.'+date+'&select=*&order=heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
 const getAllResas=()=>sbFetch('reservations?select=*&order=date.asc,heure.asc&id=not.like.roulette_%25&id=not.like.fid_%25');
+
+// ── HISTORIQUE CLIENT (déjà venu ?) ──────────────────────────
+let clientHisto=null, clientHistoAt=0, clientHistoP=null;
+const clientHistoFrais=()=>clientHisto&&Date.now()-clientHistoAt<600000;
+// 9 derniers chiffres : 06…, 6… et +336… donnent la même clé
+const telKey=t=>{const d=String(t||'').replace(/\D/g,'');return d.length>=9&&!/^0+$/.test(d)?d.slice(-9):'';};
+const mailKey=m=>String(m||'').trim().toLowerCase();
+async function loadClientHisto(){
+  const rows=[];
+  // PostgREST plafonne à 1000 lignes par requête
+  for(let off=0;;off+=1000){
+    const p=await sbFetch('reservations?select=id,date,statut,telephone,email&or=(telephone.not.is.null,email.not.is.null)&id=not.like.roulette_%25&id=not.like.fid_%25&order=id.asc&limit=1000&offset='+off)||[];
+    rows.push(...p);
+    if(p.length<1000)break;
+  }
+  clientHisto=rows;clientHistoAt=Date.now();
+}
+function clientPasse(tel,email,avant,exclId){
+  const t=telKey(tel),m=mailKey(email);
+  if(!clientHisto||(!t&&!m))return null;
+  const h=clientHisto.filter(x=>x.id!==exclId&&x.date<avant&&((t&&telKey(x.telephone)===t)||(m&&mailKey(x.email)===m)));
+  const venues=h.filter(x=>!['annulee','annulé','no-show'].includes(x.statut));
+  const noShow=h.filter(x=>x.statut==='no-show').length;
+  if(!venues.length&&!noShow)return null;
+  return {n:venues.length,derniere:venues.reduce((a,x)=>x.date>a?x.date:a,''),noShow};
+}
+function clientBadge(c){
+  if(!c)return '';
+  return (c.n?'<span class="resa-client-badge">🔁 Déjà venu '+c.n+'×'+' · dernière '+fmtDateShort(c.derniere)+'</span>':'')+
+    (c.noShow?'<span class="resa-retard-badge">⚠ '+c.noShow+' no-show</span>':'');
+}
+function updateClientHint(){
+  const el=document.getElementById('r-client-hint');
+  const c=clientPasse(document.getElementById('r-tel').value,document.getElementById('r-email').value,
+    document.getElementById('r-date').value||new Date().toISOString().slice(0,10),editMode?currentResaId:null);
+  el.innerHTML=clientBadge(c);
+}
 const getTables=()=>sbFetch('tables_salle?select=*&order=numero.asc');
 const getElements=()=>sbFetch('elements_salle?select=*');
 const createResa=d=>sbFetch('reservations',{method:'POST',prefer:'return=representation',body:JSON.stringify(d)});
@@ -1514,6 +1553,8 @@ async function loadResas(highlightId, silent=false){
     // Sort alphabetically by name
     resas.sort((a,b)=>a.nom.localeCompare(b.nom,'fr',{sensitivity:'base'}));
     renderResas(resas);
+    if(!clientHistoFrais()&&!clientHistoP) clientHistoP=loadClientHisto().then(()=>loadResas(null,true))
+      .catch(e=>console.warn('Historique clients :',e)).finally(()=>{clientHistoP=null;});
     // Surligner + scroller vers la nouvelle résa
     if(highlightId){
       setTimeout(()=>{
@@ -1686,6 +1727,7 @@ function resaCardHtml(r){
     (isArrivee?'<span class="resa-arrivee-badge">✓ ARRIVÉ'+(heureArrivee?' '+heureArrivee:'')+'</span>':'')+
     (isEnRetard?'<span class="resa-retard-badge">⚠ Pas arrivé</span>':'')+
     (isWeb?'<span class="resa-web-badge">🌐 En ligne</span>':'')+
+    clientBadge(clientPasse(r.telephone,r.email,r.date,r.id))+
     (enfantsInfo?'<span style="color:var(--accent2);font-weight:600;">👶 '+esc(enfantsInfo)+'</span>':'')+
     (r.email?'<span>✉ '+esc(r.email)+'</span>':'')+
     (r.mail_confirmation_envoye?'<span style="background:rgba(67,160,71,0.15);color:#81c784;border:1px solid rgba(67,160,71,0.3);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">✉️ Mail envoyé</span>':'')+
@@ -1715,6 +1757,7 @@ async function openDetail(id){
       '<div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">'+fmtDate(r.date)+' à '+r.heure.slice(0,5)+'</div><div class="detail-lbl">Date & heure</div></div></div>'+
       (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
       (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
+      (()=>{const c=clientPasse(r.telephone,r.email,r.date,r.id);return c?'<div class="detail-row"><div class="detail-ico">🔁</div><div><div class="detail-val">'+clientBadge(c)+'</div><div class="detail-lbl">Historique client</div></div></div>':'';})()+
       '<div class="detail-row"><div class="detail-ico">🪑</div><div><div class="detail-val">'+(r.table_id?(()=>{const _t=allTables.find(t=>t.id===r.table_id);return 'Table '+(_t?_t.numero:r.table_id.replace('t',''));})():'Non affectée')+'</div><div class="detail-lbl">Table</div></div></div>'+
       (r.enfants?'<div class="detail-row"><div class="detail-ico">👶</div><div><div class="detail-val">'+esc(r.enfants)+'</div><div class="detail-lbl">Âge des enfants</div></div></div>':'')+
       (r.notes?'<div class="detail-row"><div class="detail-ico">📝</div><div><div class="detail-val">'+esc(r.notes)+'</div><div class="detail-lbl">Notes</div></div></div>':'');
@@ -1823,6 +1866,7 @@ function openNewForm(tableId=null, tableNum=null){
   const activePlan = document.getElementById('screen-plan').classList.contains('active');
   document.getElementById('r-date').value = activePlan ? planDate : currentDate;
   document.getElementById('r-heure').value='';
+  document.getElementById('r-client-hint').innerHTML='';
   document.querySelectorAll('.time-pill').forEach(p=>p.classList.remove('active'));
   ['nom','pax','date','heure','tel'].forEach(f=>{
     document.getElementById('err-'+f).classList.remove('show');
@@ -1870,6 +1914,7 @@ async function openEditForm(id){
     document.getElementById('r-date').value=r.date||'';
     document.getElementById('r-heure').value=r.heure||'';
     document.querySelectorAll('.time-pill').forEach(p=>{p.classList.toggle('active',p.dataset.time===r.heure);});
+    updateClientHint();
     document.getElementById('modal-resa').classList.add('open');
   }catch(e){showLoader(false);toast('Erreur','ko');}
 }
@@ -1883,6 +1928,7 @@ document.querySelectorAll('.time-pill').forEach(pill=>{
   });
 });
 
+['r-tel','r-email','r-date'].forEach(id=>document.getElementById(id).addEventListener('input',updateClientHint));
 document.getElementById('btn-resa-save').onclick=async function(){
   const nom=document.getElementById('r-nom').value.trim();
   const pax=parseInt(document.getElementById('r-pax').value);
@@ -3206,7 +3252,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-30.1';
+const APP_VERSION = '2026-10-30.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
