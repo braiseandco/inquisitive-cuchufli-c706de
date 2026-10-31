@@ -360,8 +360,7 @@ const CUI_RAPPEL = "RAPPEL : livraison au plus tard à 10h30 dans notre local li
 function cuiOrderText(o) {
   const s = cuiSup(o.fournisseur_id) || {};
   const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${cuiUniteTxt(l.unite)} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
-  const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nLivraison souhaitée le ${liv}\n\n${CUI_RAPPEL}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
+  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\n\n${CUI_RAPPEL}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
 }
 // Copie systématique au restaurant : trace de chaque commande dans la boîte mail
 const CUI_CC = 'braiseandcobiganos@gmail.com';
@@ -370,8 +369,7 @@ function cuiOrderById(id) { return CUI.orders.find(x => x.id === id) || CUI._pen
 // Fournisseur en mode SMS : texte court, envoyé au fournisseur puis en copie au restaurant
 function cuiOrderSmsText(o) {
   const lines = o.lignes.map(l => `- ${cuiQty(l.quantite)} ${cuiUniteTxt(l.unite)} ${l.nom}`).join('\n');
-  const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lines}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
+  return `Bonjour, commande Braise & Co Biganos :\n${lines}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
 // Le SMS part du téléphone du resto (SMS Gate, supabase/functions/commande-sms), au fournisseur puis en copie :
 // la commande ne passe en « envoyée » que si SMS Gate l'a accepté. Avec l'appli SMS de l'appareil, les
@@ -441,7 +439,7 @@ function cuiOpenConfirm() {
   const defDate = d.date_livraison && d.date_livraison >= mini ? cuiSansLundi(d.date_livraison) : mini;
   CUI._pending = { ...d, numero: cuiNextNumero(), date_livraison: defDate, commande_par: cuiWho(), note: cui$('cui-note').value.trim() };
   cuiModal(`Commander ${cuiEsc(s.nom)}`, `
-    <div class="modal-section"><div class="ms-label">Livraison souhaitée</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="cuiChoisirLivraison(this)"></div>
+    <div class="modal-section"><div class="ms-label">Livraison prévue (pour le suivi, pas envoyée au fournisseur)</div><input type="date" class="settings-field" id="cui-c-date" value="${defDate}" onchange="cuiChoisirLivraison(this)"></div>
     <div class="modal-section"><div class="ms-label">Produits commandés</div><div id="cui-c-lines">${d.lignes.map(cuiRecapLine).join('')}</div></div>
     <div class="modal-section"><div class="ms-label">Montant HT estimé</div><div class="ms-val" id="cui-c-total">${cuiEur(cuiOrderTotal(d)) || '—'}</div></div>
     ${CUI._pending.note ? `<div class="modal-section"><div class="ms-label">Note</div><div class="ms-val">${cuiEsc(CUI._pending.note)}</div></div>` : ''}

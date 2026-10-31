@@ -19,8 +19,6 @@ const CM_SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const CM_RESTO = 'braiseandcobiganos@gmail.com';
 // Comptable (cabinet Groupe ECE) : seul destinataire possible des PDF du planning
 const CM_SAMIER = 'J.Samier@groupe-ece.com';
-const CM_JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-const CM_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 // Même texte que CUI_RAPPEL (boissons/cuisine.js)
 const CM_RAPPEL = 'RAPPEL : livraison au plus tard à 10h30 dans notre local livraison (clé à votre disposition ; sans clé, appelez-nous pour convenir d\'un rendez-vous). ' +
   'BL laissé dans le local pour une livraison avant 8h30, remis en main propre à un employé après 8h30. ' +
@@ -43,10 +41,10 @@ function doPost(e) {
       GmailApp.sendEmail(s.email, String(req.reclamation.sujet || 'Réclamation livraison — Braise & Co'), String(req.reclamation.texte), { cc: [CM_RESTO, s.email_cc].filter(Boolean).join(','), name: 'Braise & Co Biganos' });
       return cmRep({ ok: true, commande: o });
     }
-    if (!o.lignes.length || !o.date_livraison) return cmRep({ ok: false, error: 'Commande incomplète (lignes ou date de livraison)' });
+    if (!o.lignes.length) return cmRep({ ok: false, error: 'Commande sans produit' });
 
     const cc = essai ? '' : [CM_RESTO, s.email_cc].filter(Boolean).join(',');
-    GmailApp.sendEmail(essai ? CM_RESTO : s.email, (essai ? '[ESSAI] ' : '') + 'Commande Braise & Co — livraison ' + cmJour(o.date_livraison), cmTexte(o, s), { cc: cc, name: 'Braise & Co Biganos' });
+    GmailApp.sendEmail(essai ? CM_RESTO : s.email, (essai ? '[ESSAI] ' : '') + 'Commande Braise & Co Biganos', cmTexte(o, s), { cc: cc, name: 'Braise & Co Biganos' });
     if (essai) return cmRep({ ok: true, essai: true });
 
     const now = new Date().toISOString();
@@ -76,13 +74,8 @@ function cmTexte(o, s) {
     return '• ' + String(Math.round(l.quantite * 100) / 100).replace('.', ',') + ' ' + (/^kilo/i.test(l.unite || '') ? 'kg' : (l.unite || '')) + ' — ' + l.nom + (l.reference ? ' (réf. ' + l.reference + ')' : '');
   }).join('\n');
   return 'Bonjour,\n\nCommande Braise & Co Biganos' + (s.numero_client ? ' (client ' + s.numero_client + ')' : '') +
-    '\nLivraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + CM_RAPPEL + '\n\n' + lignes + '\n' +
+    '\n\n' + CM_RAPPEL + '\n\n' + lignes + '\n' +
     (o.note ? '\nNote : ' + o.note + '\n' : '') + '\nMerci,\n' + (o.commande_par || '') + ' — Braise & Co\n174 av. de la Côte d\'Argent, 33380 Biganos';
-}
-
-function cmJour(iso) {
-  const p = iso.split('-').map(Number); const d = new Date(p[0], p[1] - 1, p[2]);
-  return CM_JOURS[d.getDay()] + ' ' + d.getDate() + ' ' + CM_MOIS[d.getMonth()];
 }
 
 function cmSb(path, method, body) {
