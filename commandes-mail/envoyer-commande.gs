@@ -21,6 +21,11 @@ const CM_RESTO = 'braiseandcobiganos@gmail.com';
 const CM_SAMIER = 'J.Samier@groupe-ece.com';
 const CM_JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const CM_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+// Même texte que CUI_RAPPEL (boissons/cuisine.js)
+const CM_RAPPEL = 'RAPPEL : livraison au plus tard à 10h30 dans notre local livraison (clé à votre disposition ; sans clé, appelez-nous pour convenir d\'un rendez-vous). ' +
+  'BL laissé dans le local pour une livraison avant 8h30, remis en main propre à un employé après 8h30. ' +
+  'Toute rupture, tout produit manquant ou tout retard doit nous être signalé AVANT la livraison au 06 60 74 78 21. ' +
+  'Aucun remplacement ni produit hors commande sans notre accord.';
 
 function doPost(e) {
   let id = '', essai = false;
@@ -71,7 +76,7 @@ function cmTexte(o, s) {
     return '• ' + String(Math.round(l.quantite * 100) / 100).replace('.', ',') + ' ' + (/^kilo/i.test(l.unite || '') ? 'kg' : (l.unite || '')) + ' — ' + l.nom + (l.reference ? ' (réf. ' + l.reference + ')' : '');
   }).join('\n');
   return 'Bonjour,\n\nCommande Braise & Co Biganos' + (s.numero_client ? ' (client ' + s.numero_client + ')' : '') +
-    '\nLivraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + lignes + '\n' +
+    '\nLivraison souhaitée le ' + cmJour(o.date_livraison) + '\n\n' + CM_RAPPEL + '\n\n' + lignes + '\n' +
     (o.note ? '\nNote : ' + o.note + '\n' : '') + '\nMerci,\n' + (o.commande_par || '') + ' — Braise & Co\n174 av. de la Côte d\'Argent, 33380 Biganos';
 }
 
