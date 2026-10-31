@@ -39,11 +39,12 @@ function cuiTropTard(s, iso) {
   const veille = cuiIso(new Date(iso + 'T12:00:00').getTime() - 864e5), auj = cuiIso(Date.now()), now = new Date();
   return auj > veille || (auj === veille && String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') >= s.heure_limite.slice(0, 5));
 }
-// Aujourd'hui + délai, avancé au premier jour où le fournisseur livre (jours_livraison : Le Bihan le mercredi) et encore commandable
+// Aujourd'hui + délai, avancé au premier jour où le fournisseur livre (jours_livraison : Le Bihan le mercredi).
+// L'heure limite ne décale jamais la date : elle déclenche seulement un avertissement.
 function cuiDateLivraison(s, delai) {
   const x = new Date(); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() + delai);
   const jours = s.jours_livraison || [];
-  for (let i = 0; i < 14 && (x.getDay() === 1 || (jours.length && !jours.includes(x.getDay())) || cuiTropTard(s, cuiIso(x))); i++) x.setDate(x.getDate() + 1);
+  for (let i = 0; i < 14 && (x.getDay() === 1 || (jours.length && !jours.includes(x.getDay()))); i++) x.setDate(x.getDate() + 1);
   return cuiIso(x);
 }
 function cuiWho() { return (typeof settings !== 'undefined' && settings.serveur) || ''; }
@@ -443,6 +444,7 @@ function cuiOpenConfirm() {
       <button class="btn-close" onclick="cuiValidate()">${s.mode_commande === 'appel' ? '✓ Commande passée — terminer' : 'Déjà transmise autrement — terminer'}</button>
       <button class="btn-close" style="color:var(--danger)" onclick="cuiClearDraft()">Vider le panier</button>
     </div>`);
+  if (cuiTropTard(s, defDate)) cuiToast(`Heure limite passée : ${s.nom} prend les commandes jusqu'à ${s.heure_limite.slice(0, 5).replace(':', 'h')} la veille`);
 }
 function cuiChoisirLivraison(input) {
   if (input.value && cuiSansLundi(input.value) !== input.value) { input.value = cuiSansLundi(input.value); cuiToast('Pas de livraison le lundi : passée au mardi'); }
