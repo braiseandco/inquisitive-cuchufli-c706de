@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-10-31.3';
+const APP_VERSION = '2026-10-31.4';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -5799,11 +5799,12 @@ function closePrintOverlay() {
   document.getElementById('printOverlay').style.display = 'none';
   document.getElementById('printFrame').srcdoc = '';
 }
-// Photo du planning affiché envoyée en MMS par le téléphone du resto (fonction planning-mms).
+// Photo du planning affiché envoyée en MMS au téléphone du resto, par le téléphone perso du patron
+// qui porte SMS Gate (fonction planning-mms).
 // La plupart des opérateurs refusent les MMS de plus de 300 Ko : on réduit qualité puis taille.
 async function sendPlanningMms() {
   const btn = document.getElementById('btnPlanningMms');
-  if (!confirm('Envoyer le planning en MMS au 07 66 86 07 35 depuis le téléphone du resto ?')) return;
+  if (!confirm('Envoyer le planning en MMS depuis ton téléphone perso (06 60 74 78 21) vers le téléphone du resto (07 66 86 07 35) ?')) return;
   btn.disabled = true;
   toast('Préparation de l\'image…');
   try {
