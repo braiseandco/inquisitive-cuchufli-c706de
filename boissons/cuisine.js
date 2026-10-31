@@ -352,11 +352,16 @@ async function cuiNumeroLibre() {
 }
 // « 30 kg » plutôt que « 30 Kilo(s) » : le fournisseur ne doit pas lire 30 colis
 const cuiUniteTxt = u => /^kilo/i.test(u || '') ? 'kg' : (u || '');
+// Même texte que CM_RAPPEL (commandes-mail/envoyer-commande.gs)
+const CUI_RAPPEL = "RAPPEL : livraison au plus tard à 10h30 dans notre local livraison (clé à votre disposition ; sans clé, appelez-nous pour convenir d'un rendez-vous). " +
+  'BL laissé dans le local pour une livraison avant 8h30, remis en main propre à un employé après 8h30. ' +
+  'Toute rupture, tout produit manquant ou tout retard doit nous être signalé AVANT la livraison au 06 60 74 78 21. ' +
+  'Aucun remplacement ni produit hors commande sans notre accord.';
 function cuiOrderText(o) {
   const s = cuiSup(o.fournisseur_id) || {};
   const lines = o.lignes.map(l => `• ${cuiQty(l.quantite)} ${cuiUniteTxt(l.unite)} — ${l.nom}${l.reference ? ' (réf. ' + l.reference + ')' : ''}`).join('\n');
   const liv = new Date(o.date_livraison).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nLivraison souhaitée le ${liv}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
+  return `Bonjour,\n\nCommande Braise & Co Biganos${s.numero_client ? ' (client ' + s.numero_client + ')' : ''}\nLivraison souhaitée le ${liv}\n\n${CUI_RAPPEL}\n\n${lines}\n${o.note ? '\nNote : ' + o.note + '\n' : ''}\nMerci,\n${o.commande_par || ''} — Braise & Co\n174 av. de la Côte d'Argent, 33380 Biganos`;
 }
 // Copie systématique au restaurant : trace de chaque commande dans la boîte mail
 const CUI_CC = 'braiseandcobiganos@gmail.com';
