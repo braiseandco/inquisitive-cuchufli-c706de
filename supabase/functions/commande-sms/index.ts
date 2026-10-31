@@ -28,13 +28,11 @@ const qty = (n: number) => Number(n).toLocaleString('fr-FR', { maximumFractionDi
 const unite = (u: string, n: number) => /^kilo/i.test(u || '') ? 'kg' : n > 1 && /^[a-zà-ÿ]+$/i.test(u || '') && !/s$/.test(u) ? u + 's' : (u || '');
 
 // Même texte que cuiOrderSmsText dans boissons/cuisine.js (« carton » du bar mis au pluriel).
-// Au bar la date de livraison est calculée, pas choisie : « pour cette semaine » à la place.
-function texte(o: any, semaine: boolean) {
+// Pas de date de livraison : chaque fournisseur livre selon son propre planning.
+function texte(o: any) {
   const lignes = [...o.lignes].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
     .map((l: any) => `- ${qty(l.quantite)} ${unite(l.unite, Number(l.quantite))} ${l.nom}`).join('\n');
-  const liv = semaine ? 'cette semaine' : new Date(o.date_livraison + 'T12:00:00Z')
-    .toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
-  return `Bonjour, commande Braise & Co Biganos pour ${liv} :\n${lignes}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
+  return `Bonjour, commande Braise & Co Biganos :\n${lignes}${o.note ? '\n' + o.note : ''}\nMerci, ${o.commande_par || ''}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -46,7 +44,7 @@ Deno.serve(async (req: Request) => {
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return json({ error: 'Appareil non connecté' }, 401);
 
-  const { id, semaine = false } = await req.json().catch(() => ({}));
+  const { id } = await req.json().catch(() => ({}));
   if (typeof id !== 'string' || !id) return json({ error: 'id manquant' }, 400);
 
   const echec = async (error: string, status: number) => {
@@ -60,13 +58,13 @@ Deno.serve(async (req: Request) => {
   const s = o.f;
   const local = numeroFrancais(s.telephone || '');
   if (!/^0[67]\d{8}$/.test(local)) return echec(`Pas de numéro de mobile pour ${s.nom}`, 400);
-  if (!o.lignes.length || !o.numero || !o.date_livraison) return echec('Commande incomplète (lignes, numéro ou date)', 400);
+  if (!o.lignes.length || !o.numero) return echec('Commande incomplète (lignes ou numéro)', 400);
 
   const { data: ids } = await sb.rpc('sms_gateway_identifiants');
   const cred = ids?.[0];
   if (!cred?.utilisateur || !cred?.mot_de_passe) return echec("SMS Gate n'est pas branché", 503);
 
-  const msg = texte(o, semaine === true);
+  const msg = texte(o);
   const envoyer = async (tel: string) => {
     const res = await fetch(SMSGATE_URL, {
       method: 'POST',
