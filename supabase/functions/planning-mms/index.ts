@@ -1,4 +1,5 @@
-// Envoi du planning de la semaine en MMS depuis le téléphone du resto (appli SMS Gate, mode Cloud).
+// Envoi du planning de la semaine en MMS au téléphone du resto, depuis le téléphone perso du patron
+// (06 60 74 78 21) qui porte l'appli SMS Gate en mode Cloud.
 //
 // Appelée par le bouton « Valider et envoyer » de l'aperçu du planning (appli Planning, sur le PC).
 // L'image arrive déjà compressée. Le destinataire est fixé ici : la fonction ne peut pas servir
