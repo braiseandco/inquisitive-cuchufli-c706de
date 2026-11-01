@@ -3252,7 +3252,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-10-31.4';
+const APP_VERSION = '2026-11-01.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -4259,8 +4259,12 @@ initSmsPolling();
       if(typeof JSZip === 'undefined') throw new Error('Librairie ZIP non chargée');
       const zip = await JSZip.loadAsync(buf);
       let xml = await zip.file('content.xml').async('string');
-      xml = cloneRecapInXml(xml, srcRecap, tgtRecap, year, month);
-      xml = cloneCaisseInXml(xml, srcCaisse, tgtCaisse, year, month);
+      // Un onglet déjà présent (créé à la main, ou mois créé à moitié) ne doit
+      // pas empêcher de créer l'autre : sinon l'export du mois reste bloqué.
+      const created = [];
+      if(!findTableBlock(xml, tgtRecap)){ xml = cloneRecapInXml(xml, srcRecap, tgtRecap, year, month); created.push(tgtRecap); }
+      if(!findTableBlock(xml, tgtCaisse)){ xml = cloneCaisseInXml(xml, srcCaisse, tgtCaisse, year, month); created.push(tgtCaisse); }
+      if(!created.length) throw new Error('Les onglets ' + tgtRecap + ' et ' + tgtCaisse + ' existent déjà');
       zip.file('content.xml', xml);
       const blob = await zip.generateAsync({ type:'blob', mimeType:'application/vnd.oasis.opendocument.spreadsheet' });
       let writable;
@@ -4271,7 +4275,7 @@ initSmsPolling();
       }
       await writable.write(blob);
       await writable.close();
-      showToast('✅ ' + tgtRecap + ' + ' + tgtCaisse + ' ajoutés dans le fichier');
+      showToast('✅ ' + created.join(' + ') + ' ajouté(s) dans le fichier');
       closeMonthModal();
     } catch(e){ console.error(e); showToast('Erreur : ' + e.message, true); }
     finally { btn.disabled = false; btn.textContent = '✓ Créer dans le fichier lié'; }
