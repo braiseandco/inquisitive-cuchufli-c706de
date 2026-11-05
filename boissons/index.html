@@ -899,7 +899,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-11-01.1';
+const APP_VERSION = '2026-11-05.1';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1014,7 +1014,7 @@ async function loadFromSupabase() {
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
    DATA_VERSION : incrémenter pour forcer reset localStorage
 ═══════════════════════════════════════════════════ */
-const DATA_VERSION = 6;
+const DATA_VERSION = 7;
 
 const PRODUITS_DEFAUT = [
   // PRESSIONS
@@ -1035,6 +1035,7 @@ const PRODUITS_DEFAUT = [
   { id:'p065', code:'',       nom:'Pepsi Zero 33cl VC',                cat:'Sodas',           unite:'caisse',    prix:0.67,  parCaisse:24, min:1 },
   { id:'p066', code:'',       nom:'7up 33cl VC',                       cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
   { id:'p067', code:'',       nom:'Orangina 25cl VC',                  cat:'Sodas',           unite:'caisse',    prix:0.889, parCaisse:24, min:1 },
+  { id:'p070', code:'',       nom:'Oasis 25cl VC',                     cat:'Sodas',           unite:'caisse',    prix:0.924, parCaisse:24, min:1 },
   { id:'p068', code:'',       nom:'Lipton Ice Tea 25cl VC',            cat:'Sodas',           unite:'caisse',    prix:0.71,  parCaisse:24, min:2 },
   { id:'p019', code:'002085', nom:'Limonette 1L PET',                  cat:'Sodas',           unite:'pack de 12',prix:1.20, parCaisse:12, min:1 },
   // JUS DE FRUITS
@@ -1062,6 +1063,8 @@ const PRODUITS_DEFAUT = [
   // VINS
   { id:'p043', code:'009273', nom:'Vin Blanc Sec BIB 10L — Ronde du Vin', cat:'Vins',        unite:'BIB',       prix:15.81, min:1 },
   { id:'p044', code:'009274', nom:'Vin Rouge BIB 10L — Ronde du Vin',     cat:'Vins',        unite:'BIB',       prix:20.32, min:1 },
+  { id:'p071', code:'',       nom:'Château les Margelles',             cat:'Vins',            unite:'carton',    prix:7.18, parCaisse:6, min:1 },
+  { id:'p072', code:'',       nom:'Uby N°4',                           cat:'Vins',            unite:'carton',    prix:6.43, parCaisse:6, min:1 },
   // ALCOOLS
   { id:'p045', code:'000152', nom:'Ricard 45° 1L',                    cat:'Alcools',         unite:'bouteille', prix:22.40, min:2 },
   { id:'p046', code:'701827', nom:'Whisky Cutty Sark 70cl',           cat:'Alcools',         unite:'bouteille', prix:15.61, min:2 },
