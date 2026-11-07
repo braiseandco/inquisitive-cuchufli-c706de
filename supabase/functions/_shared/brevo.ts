@@ -7,6 +7,12 @@ import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export const STOP = ' STOP au [STOP_CODE]';
 
+// Numéros de remplissage saisis quand le client n'en donne pas (0606060606…) : jamais de SMS, payé pour rien.
+export function fauxNumero(tel: string): boolean {
+  const d = (tel || '').replace(/\D/g, '').replace(/^(0033|33)/, '0');
+  return /^0{6,}/.test(d) || /^(\d\d)\1{4}$/.test(d) || /^0[67](\d)\1{7}$/.test(d) || /^0[67]12345678$/.test(d);
+}
+
 export async function expediteurBrevo(sb: SupabaseClient) {
   const { data: cle } = await sb.rpc('brevo_api_key');
   if (!cle) return null;
@@ -15,6 +21,7 @@ export async function expediteurBrevo(sb: SupabaseClient) {
   const webUrl = Deno.env.get('SUPABASE_URL') + '/functions/v1/sms-gate-webhook?k=' + jeton;
 
   return async (mobile: string, texte: string, tag: string): Promise<string> => {
+    if (fauxNumero(mobile)) throw new Error('faux_numero');
     const res = await fetch('https://api.brevo.com/v3/transactionalSMS/send', {
       method: 'POST',
       headers: { 'api-key': cle, 'Content-Type': 'application/json', Accept: 'application/json' },

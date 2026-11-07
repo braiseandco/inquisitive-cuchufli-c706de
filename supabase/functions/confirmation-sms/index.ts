@@ -6,7 +6,7 @@
 // Plusieurs appareils peuvent appeler pour la même résa : sms_envoye est posé avant l'envoi,
 // un seul passe.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { expediteurBrevo } from '../_shared/brevo.ts';
+import { expediteurBrevo, fauxNumero } from '../_shared/brevo.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -68,6 +68,8 @@ Deno.serve(async (req: Request) => {
   if (!r) return json({ ok: true, deja: true });
 
   const local = numeroFrancais(r.telephone || '');
+  // sms_envoye reste posé : ni nouvel essai, ni fenêtre d'envoi à la main sur la tablette
+  if (fauxNumero(local)) return json({ ok: true, deja: true });
   if (!/^0[67]\d{8}$/.test(local)) {
     await sb.from('reservations').update({ sms_envoye: false }).eq('id', id);
     return json({ error: 'numero_non_mobile' }, 422);

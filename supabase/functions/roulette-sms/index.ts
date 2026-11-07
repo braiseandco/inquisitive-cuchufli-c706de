@@ -4,7 +4,7 @@
 // comme les relances : le client vient de jouer et attend son cadeau. Un gain n'est marqué envoyé
 // qu'une fois accepté par Brevo ; un numéro fixe reste dans la liste, à faire à la main.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { expediteurBrevo } from '../_shared/brevo.ts';
+import { expediteurBrevo, fauxNumero } from '../_shared/brevo.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -55,6 +55,11 @@ Deno.serve(async (req: Request) => {
   let envoyes = 0, nonMobiles = 0;
   const erreurs: string[] = [];
   for (const g of gains || []) {
+    // Sorti de la liste sans envoi : le gain reste noté dans roulette_gains
+    if (fauxNumero(g.telephone || '')) {
+      await sb.from('roulette_gains').update({ sms_envoye: true }).eq('id', g.id);
+      continue;
+    }
     const mobile = numeroMobile(g.telephone || '');
     if (!mobile) { nonMobiles++; continue; }
     const texte = message(g.cadeau);

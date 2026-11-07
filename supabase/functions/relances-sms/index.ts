@@ -3,7 +3,7 @@
 // Appelée par les boutons « Tout envoyer » de l'onglet Relances. La liste est recalculée ici, avec
 // les mêmes règles que l'appli : on ne peut pas lui faire envoyer un SMS à un numéro choisi.
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { expediteurBrevo, STOP } from '../_shared/brevo.ts';
+import { expediteurBrevo, fauxNumero, STOP } from '../_shared/brevo.ts';
 
 type Envoyer = (mobile: string, texte: string, tag: string) => Promise<string>;
 
@@ -65,6 +65,10 @@ async function viderFile(sb: SupabaseClient, envoyerSms: Envoyer) {
   let envoyes = 0;
   const erreurs: string[] = [];
   for (const s of dus || []) {
+    if (fauxNumero(s.telephone)) {
+      await sb.from('sms_programmes').delete().eq('id', s.id);
+      continue;
+    }
     try {
       const id = await envoyerSms(s.telephone, s.texte, s.type);
       await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type, texte: s.texte, essai: s.essai });
@@ -102,7 +106,7 @@ async function envoyerBienvenue(sb: SupabaseClient, envoyerSms: Envoyer) {
   const map: Record<string, { recu: boolean; bruts: Set<string> }> = {};
   for (const r of resas || []) {
     const tel = (r.telephone || '').replace(/\s/g, '');
-    if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+    if (!tel || tel.length < 9 || fauxNumero(tel)) continue;
     if (!map[tel]) map[tel] = { recu: false, bruts: new Set() };
     if (r.bienvenue_envoye) map[tel].recu = true;
     map[tel].bruts.add(r.telephone);
@@ -173,7 +177,7 @@ Deno.serve(async (req: Request) => {
   const map: Record<string, { derniere: string; relance: boolean; bruts: Set<string> }> = {};
   for (const r of resas || []) {
     const tel = (r.telephone || '').replace(/\s/g, '');
-    if (!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+    if (!tel || tel.length < 9 || fauxNumero(tel)) continue;
     if (!map[tel]) map[tel] = { derniere: r.date, relance: !!r.relance_mois_envoye, bruts: new Set() };
     map[tel].bruts.add(r.telephone);
   }

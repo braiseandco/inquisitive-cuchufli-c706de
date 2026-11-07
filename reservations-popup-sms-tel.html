@@ -1224,6 +1224,11 @@ const updateElement=(id,d)=>sbFetch('elements_salle?id=eq.'+id,{method:'PATCH',p
 
 // ── Utils ─────────────────────────────────────────────────────
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// Numéros de remplissage (0606060606…) : jamais de SMS. Même règle que _shared/brevo.ts
+function fauxNumero(tel){
+  const d=(tel||'').replace(/\D/g,'').replace(/^(0033|33)/,'0');
+  return /^0{6,}/.test(d)||/^(\d\d)\1{4}$/.test(d)||/^0[67](\d)\1{7}$/.test(d)||/^0[67]12345678$/.test(d);
+}
 function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
 function fmtDateShort(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});}
 function todayStr(){return dateStr(new Date());}
@@ -2862,7 +2867,7 @@ async function loadRelances(){
     const mapHier = {};
     for(const r of (resasHier||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
-      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!tel || tel.length < 9 || fauxNumero(tel)) continue;
       if(!mapHier[tel]) mapHier[tel] = {tel, nom: r.nom, date: r.date, recu: false};
       if(r.bienvenue_envoye) mapHier[tel].recu = true;
     }
@@ -2874,7 +2879,7 @@ async function loadRelances(){
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of (resas||[])){
       const tel = (r.telephone||'').replace(/\s/g,'');
-      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!tel || tel.length < 9 || fauxNumero(tel)) continue;
       // order=date.desc : premier enregistrement = le plus récent
       if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0, relance_envoye: r.relance_mois_envoye || false};
       map[tel].nb++;
@@ -3252,7 +3257,7 @@ async function relanceEffacer(tel, cid){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-11-07.1';
+const APP_VERSION = '2026-11-07.2';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3284,7 +3289,7 @@ async function checkRelancesBadge(){
     dateLimit.setDate(dateLimit.getDate() - 29);
     for(const r of resas){
       const tel = (r.telephone||'').replace(/\s/g,'');
-      if(!tel || tel.length < 9 || /^0{6,}/.test(tel)) continue;
+      if(!tel || tel.length < 9 || fauxNumero(tel)) continue;
       if(!map[tel] || r.date > map[tel].date) map[tel] = {date: r.date, envoye: !!r.relance_mois_envoye};
     }
     const nb = Object.values(map).filter(c => new Date(c.date+'T12:00:00') < dateLimit && !c.envoye).length;
