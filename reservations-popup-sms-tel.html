@@ -580,7 +580,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tabs">
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
-    <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
+    <button class="tab" data-screen="relances" id="tab-relances">📲 Bienvenue</button>
     <button class="tab" data-screen="roulette" id="tab-roulette">🎰 Roulette</button>
     <button class="tab" data-screen="caisse" id="tab-caisse">💰 Caisse</button>
   </div>
@@ -2838,22 +2838,17 @@ async function loadRelances(){
   const content = document.getElementById('relances-content');
   content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
   try {
-    // ── Fetch J+1 et J+30 en parallèle ───────────────────────
+    // ── Fetch J+1 ─────────────────────────────────────────────
     const hier = new Date();
     hier.setDate(hier.getDate() - 1);
     const hierStr = dateStr(hier);
     const debutJ1Str = debutBienvenue();
 
-    const sixMoisAvant = new Date();
-    sixMoisAvant.setMonth(sixMoisAvant.getMonth() - 6);
-    const sixMoisStr = dateStr(sixMoisAvant);
-
     const depuis24h = new Date(Date.now() - 86400000).toISOString();
-    const [resasHier, resas, stops, envois24h, programmes] = await Promise.all([
+    const [resasHier, stops, envois24h, programmes] = await Promise.all([
       sbFetch('reservations?date=gte.'+debutJ1Str+'&date=lte.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone,date,bienvenue_envoye&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25'),
-      sbFetch('reservations?select=telephone,nom,date,relance_mois_envoye&date=gte.'+sixMoisStr+'&order=date.desc&limit=5000&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('sms_stop?select=telephone').catch(()=>[]),
-      sbFetch('sms_envois?select=etat,cree_at,maj_at&type=in.(relance_j30,bienvenue)&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
+      sbFetch('sms_envois?select=etat,cree_at,maj_at&type=eq.bienvenue&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
       sbFetch('sms_programmes?select=id,envoyer_at&tentatives=lt.3').catch(()=>[])
     ]);
     // Envois du jour, plus ceux de la veille encore en attente
@@ -2872,22 +2867,6 @@ async function loadRelances(){
       if(r.bienvenue_envoye) mapHier[tel].recu = true;
     }
     const clientsHier = Object.values(mapHier).filter(c => !c.recu && !stopSet.has(telFr(c.tel)));
-
-    // ── J+30 : inactifs depuis 30 jours, relance non encore envoyée ──
-    const map = {};
-    const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 29);
-    for(const r of (resas||[])){
-      const tel = (r.telephone||'').replace(/\s/g,'');
-      if(!tel || tel.length < 9 || fauxNumero(tel)) continue;
-      // order=date.desc : premier enregistrement = le plus récent
-      if(!map[tel]) map[tel] = {tel, nom:r.nom, derniere:r.date, nb:0, relance_envoye: r.relance_mois_envoye || false};
-      map[tel].nb++;
-      if(r.date > map[tel].derniere){ map[tel].derniere = r.date; map[tel].nom = r.nom; map[tel].relance_envoye = r.relance_mois_envoye || false; }
-    }
-    const clients = Object.values(map)
-      .filter(c => c.derniere <= dateStr(dateLimit) && !c.relance_envoye && !stopSet.has(telFr(c.tel)))
-      .sort((a,b) => a.derniere.localeCompare(b.derniere));
 
     // ── Suivi de l'envoi automatique du jour ──
     let suivi = '';
@@ -2910,8 +2889,8 @@ async function loadRelances(){
     const bienvenueVide = '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>'
       + '<button disabled style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--bg3);color:var(--text-faint);font-weight:900;font-size:15px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:default;margin-bottom:16px;">📤 Tout envoyer automatiquement (0)</button>';
 
-    if(clientsHier.length === 0 && clients.length === 0){
-      content.innerHTML = suivi + bienvenueVide + '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun client à relancer</div><div style="font-size:13px;margin-top:6px;">Tous vos clients sont venus<br>dans les 30 derniers jours !</div></div>';
+    if(clientsHier.length === 0){
+      content.innerHTML = suivi + bienvenueVide + '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun SMS de bienvenue à envoyer</div></div>';
       return;
     }
 
@@ -2920,50 +2899,19 @@ async function loadRelances(){
     let html = suivi;
 
     // ── Section J+1 ──────────────────────────────────────────
-    if(clientsHier.length === 0){
-      html += bienvenueVide + '<div style="height:1px;background:var(--border);margin:20px 0;"></div>';
-    } else {
-      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>';
-      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
-      html += '<button id="bienvenue-tout-btn" onclick="bienvenueToutEnvoyer('+clientsHier.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clientsHier.length+')</button>';
-      for(const c of clientsHier){
-        const cid = 'j1-'+c.tel.replace(/\D/g,'');
-        const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
-        window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
-        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
-          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
-          +'<div style="font-size:11px;color:'+(c.date===hierStr?'var(--text-faint)':'#ef9a9a')+';margin-bottom:12px;">Visite : '+(c.date===hierStr?'hier':fmtDate(c.date))+'</div>'
-          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
-          +'</div>';
-      }
-      if(clients.length > 0){
-        html += '<div style="height:1px;background:var(--border);margin:20px 0;"></div>';
-      }
-    }
-
-    // ── Section J+30 ─────────────────────────────────────────
-    if(clients.length > 0){
-      html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">💬 Relances J+30</div>';
-      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:16px;">📋 '+clients.length+' client'+(clients.length>1?'s':'')+' à relancer</div>';
-      html += '<button id="relances-tout-btn" onclick="relancesToutEnvoyer('+clients.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clients.length+')</button>';
-      const buildSms = () => {
-        const expiry = new Date();
-        expiry.setDate(expiry.getDate() + 7);
-        const expiryStr = expiry.toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
-        return 'Bonjour, ça fait un moment qu\'on ne vous a pas vu au Braise & Co, vous nous manquez !! Si vous venez avant le '+expiryStr+', présentez nous ce sms et on vous offre votre apéro ! (un seul apéro par table) 🔥 Vous pouvez réserver via notre site internet : www.braiseandco-biganos.fr ou par tél au : 09 86 12 97 14. A très bientôt ! STOP SMS : répondez STOP';
-      };
-      for(const c of clients){
-        const msg = buildSms();
-        const cid = 'rc-'+c.tel.replace(/\D/g,'');
-        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">'
-          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-          +'<div style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;" id="'+cid+'-tel">📞 '+esc(c.tel)+'</div>'
-          +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
-          +'<span id="'+cid+'-msg" style="display:none;">'+esc(msg)+'</span>'
-          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;" onclick="relanceSmsClick(\''+cid+'\',\''+c.tel+'\',\''+c.derniere+'\')">💬 Envoyer la relance SMS</a>'
-          +'</div>';
-      }
+    html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>';
+    html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
+    html += '<button id="bienvenue-tout-btn" onclick="bienvenueToutEnvoyer('+clientsHier.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clientsHier.length+')</button>';
+    for(const c of clientsHier){
+      const cid = 'j1-'+c.tel.replace(/\D/g,'');
+      const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
+      window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
+      html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
+        +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
+        +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
+        +'<div style="font-size:11px;color:'+(c.date===hierStr?'var(--text-faint)':'#ef9a9a')+';margin-bottom:12px;">Visite : '+(c.date===hierStr?'hier':fmtDate(c.date))+'</div>'
+        +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
+        +'</div>';
     }
 
     content.innerHTML = html;
@@ -3135,23 +3083,6 @@ document.getElementById('btn-send-roulette').addEventListener('click', async fun
   } catch(e){ console.error('roulette_envois insert:', e); }
 });
 
-async function relanceSmsClick(cid, tel, date){
-  const msg = document.getElementById(cid+'-msg').textContent;
-  if(navigator.clipboard) navigator.clipboard.writeText(msg).catch(()=>{});
-  toast('📋 Message copié — collez dans le SMS','ok');
-  const btn = document.getElementById(cid+'-btn');
-  if(btn){
-    btn.style.background = 'rgba(76,175,80,0.15)';
-    btn.style.color = '#4CAF70';
-    btn.style.border = '1px solid #4CAF70';
-    btn.style.pointerEvents = 'none';
-    btn.textContent = '✅ Relance envoyée';
-  }
-  try {
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH', body:JSON.stringify({relance_mois_envoye:true})});
-  } catch(e){ console.error('relance mark:', e); }
-}
-
 // Même règle que la fonction relances-sms : avant 10h30 ou après 20h, départ à 10h30
 function departSmsPrevu(d){
   const m = d.getHours()*60 + d.getMinutes();
@@ -3160,35 +3091,6 @@ function departSmsPrevu(d){
   if(m >= 1200) depart.setDate(depart.getDate()+1);
   depart.setHours(10,30,0,0);
   return depart;
-}
-
-async function relancesToutEnvoyer(nb){
-  const depart = departSmsPrevu(new Date());
-  const quand = depart > new Date() ? 'Ils partiront '+(depart.getDate() !== new Date().getDate() ? 'demain ' : '')+'à 10h30, un par un.' : 'Les SMS partent tout de suite.';
-  if(!confirm('Envoyer la relance aux '+nb+' clients depuis le téléphone du resto ?\n'+quand)) return;
-  const btn = document.getElementById('relances-tout-btn');
-  btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
-  try {
-    const h = window.braiseAuth ? await braiseAuth.headers() : {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY};
-    const res = await fetch(SB_URL+'/functions/v1/relances-sms', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:'{}'});
-    const d = await res.json().catch(()=>({}));
-    if(!res.ok){
-      const raisons = {passerelle_non_configuree:'L\'envoi de SMS (Brevo) n\'est pas encore branché', appareil_non_connecte:'Appareil non connecté'};
-      toast('❌ '+(raisons[d.error] || d.error || 'Erreur '+res.status),'ko');
-      btn.disabled = false; btn.textContent = '📤 Réessayer';
-      return;
-    }
-    let msg = '✅ '+d.envoyes+' SMS '+(d.programme ? 'programmés pour 10h30' : 'en file d\'envoi');
-    if(d.nonMobiles) msg += ' · '+d.nonMobiles+' fixe'+(d.nonMobiles>1?'s':'')+' à faire à la main';
-    if(d.erreurs && d.erreurs.length) msg += ' · '+d.erreurs.length+' en erreur';
-    toast(msg, d.erreurs && d.erreurs.length ? 'ko' : 'ok');
-    if(d.erreurs && d.erreurs.length) console.error('relances-sms', d.erreurs);
-    loadRelances();
-  } catch(e){
-    console.error(e);
-    toast('❌ Envoi impossible — réessaie','ko');
-    btn.disabled = false; btn.textContent = '📤 Réessayer';
-  }
 }
 
 async function bienvenueToutEnvoyer(nb){
@@ -3237,27 +3139,8 @@ async function j1SmsClick(cid, tel){
   } catch(e){ console.error('j1 mark:', e); }
 }
 
-async function relanceEffacer(tel, cid){
-  const btn = document.getElementById(cid+'-efface');
-  btn.textContent = '⏳ Effacement…';
-  btn.disabled = true;
-  try{
-    await sbFetch('reservations?telephone=eq.'+encodeURIComponent(tel), {method:'PATCH',body:JSON.stringify({telephone:null})});
-    const card = document.getElementById(cid);
-    card.style.opacity = '0.4';
-    card.style.pointerEvents = 'none';
-    document.getElementById(cid+'-tel').textContent = '🗑 Coordonnées effacées';
-    document.getElementById(cid+'-tel').style.color = 'var(--text-faint)';
-    toast('Coordonnées effacées ✓','ok');
-  } catch(e){
-    btn.textContent = '🗑 Effacer les coordonnées';
-    btn.disabled = false;
-    toast('Erreur — réessaie','ko');
-  }
-}
-
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-11-07.2';
+const APP_VERSION = '2026-11-07.3';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
@@ -3279,29 +3162,6 @@ async function checkAndUpdate(){
 document.getElementById('displayed-version').textContent = APP_VERSION;
 loadResas(); // affichage rapide (sans noms de tables)
 getTables().then(t=>{ allTables=t||[]; loadResas(); }).catch(()=>{}); // rechargement avec noms corrects
-
-// ── BADGE RELANCES ────────────────────────────────────────────
-async function checkRelancesBadge(){
-  try {
-    const resas = await sbFetch('reservations?select=telephone,date,relance_mois_envoye&order=date.desc&limit=2000&id=not.like.roulette_%25&id=not.like.fid_%25');
-    const map = {};
-    const dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 29);
-    for(const r of resas){
-      const tel = (r.telephone||'').replace(/\s/g,'');
-      if(!tel || tel.length < 9 || fauxNumero(tel)) continue;
-      if(!map[tel] || r.date > map[tel].date) map[tel] = {date: r.date, envoye: !!r.relance_mois_envoye};
-    }
-    const nb = Object.values(map).filter(c => new Date(c.date+'T12:00:00') < dateLimit && !c.envoye).length;
-    const tab = document.getElementById('tab-relances');
-    if(nb > 0){
-      tab.innerHTML = '💬 Relances <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
-    } else {
-      tab.textContent = '💬 Relances';
-    }
-  } catch(e){}
-}
-checkRelancesBadge();
 
 // ── BADGE ROULETTE ────────────────────────────────────────────
 async function checkRouletteBadge(){

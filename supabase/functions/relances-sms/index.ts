@@ -1,6 +1,6 @@
-// Envoi groupé des relances J+30 et des SMS de bienvenue J+1 par Brevo (expéditeur BRAISEANDCO).
+// Envoi groupé des SMS de bienvenue J+1 par Brevo (expéditeur BRAISEANDCO).
 //
-// Appelée par les boutons « Tout envoyer » de l'onglet Relances. La liste est recalculée ici, avec
+// Appelée par le bouton « Tout envoyer » de l'onglet Bienvenue. La liste est recalculée ici, avec
 // les mêmes règles que l'appli : on ne peut pas lui faire envoyer un SMS à un numéro choisi.
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { expediteurBrevo, fauxNumero, STOP } from '../_shared/brevo.ts';
@@ -49,13 +49,6 @@ function departPrevu(): string | null {
   const decalage = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(maintenant.getTime() / 60000) * 60000;
   const jour = +p.day + (minutes >= 1200 ? 1 : 0);
   return new Date(Date.UTC(+p.year, +p.month - 1, jour, 10, 30) - decalage).toISOString();
-}
-
-function message(): string {
-  const fin = new Date(Date.now() + 7 * 86400_000)
-    .toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'Europe/Paris' });
-  return 'Vous nous manquez ! Venez avant le ' + fin +
-    ' et montrez ce SMS : l\'apéro est offert (1 par table). Résa : braiseandco-biganos.fr ou 0986129714' + STOP;
 }
 
 // Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
@@ -161,56 +154,8 @@ Deno.serve(async (req: Request) => {
   if (!envoyerSms) return json({ error: 'passerelle_non_configuree' }, 503);
   if (cronKey) return json(await viderFile(sb, envoyerSms));
   const corps = await req.json().catch(() => ({}));
-  if (corps?.type === 'bienvenue') {
-    const r = await envoyerBienvenue(sb, envoyerSms);
-    return json(r, 'error' in r ? 500 : 200);
-  }
-
-  // Mêmes règles que loadRelances : 6 mois de résas, dernière visite il y a plus de 29 jours
-  const { data: resas, error } = await sb.from('reservations')
-    .select('telephone,nom,date,relance_mois_envoye')
-    .gte('date', jourParis(-183)).not('telephone', 'is', null)
-    .not('id', 'like', 'roulette_%').not('id', 'like', 'fid_%')
-    .order('date', { ascending: false }).limit(5000);
-  if (error) return json({ error: error.message }, 500);
-
-  const map: Record<string, { derniere: string; relance: boolean; bruts: Set<string> }> = {};
-  for (const r of resas || []) {
-    const tel = (r.telephone || '').replace(/\s/g, '');
-    if (!tel || tel.length < 9 || fauxNumero(tel)) continue;
-    if (!map[tel]) map[tel] = { derniere: r.date, relance: !!r.relance_mois_envoye, bruts: new Set() };
-    map[tel].bruts.add(r.telephone);
-  }
-  const { data: stops } = await sb.from('sms_stop').select('telephone');
-  const stop = new Set((stops || []).map((s) => s.telephone));
-  const limite = jourParis(-29);
-  const clients = Object.entries(map)
-    .filter(([tel, c]) => c.derniere <= limite && !c.relance && !stop.has(numeroFrancais(tel)));
-
-  const texte = message();
-  const programme = departPrevu();
-  let envoyes = 0, nonMobiles = 0;
-  const erreurs: string[] = [];
-
-  for (const [tel, c] of clients.slice(0, MAX_PAR_ENVOI)) {
-    const mobile = numeroMobile(tel);
-    if (!mobile) { nonMobiles++; continue; }
-    try {
-      if (programme) {
-        const { error: e } = await sb.from('sms_programmes').insert({ telephone: mobile, texte, envoyer_at: programme });
-        if (e) throw new Error(e.message);
-      } else {
-        const id = await envoyerSms(mobile, texte, 'relance_j30');
-        await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(tel), texte });
-      }
-    } catch (e) {
-      erreurs.push(tel + ' : ' + String(e).slice(0, 120));
-      continue;
-    }
-    // Numéro gardé pour reconnaître le client à sa prochaine résa : le drapeau suffit à ne pas le relancer deux fois
-    await sb.from('reservations').update({ relance_mois_envoye: true }).in('telephone', [...c.bruts]);
-    envoyes++;
-  }
-
-  return json({ envoyes, nonMobiles, erreurs, programme, restants: Math.max(0, clients.length - MAX_PAR_ENVOI) });
+  // SMS J+30 supprimés le 07/11/2026 : refus aussi pour une tablette restée sur une ancienne version
+  if (corps?.type !== 'bienvenue') return json({ error: 'relance_j30_supprimee' }, 410);
+  const r = await envoyerBienvenue(sb, envoyerSms);
+  return json(r, 'error' in r ? 500 : 200);
 });
