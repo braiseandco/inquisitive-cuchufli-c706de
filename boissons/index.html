@@ -899,7 +899,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-11-07.4';
+const APP_VERSION = '2026-11-07.5';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -1014,7 +1014,7 @@ async function loadFromSupabase() {
    DONNÉES PRODUITS (mercuriale Le Bihan 30/03/2026)
    DATA_VERSION : incrémenter pour forcer reset localStorage
 ═══════════════════════════════════════════════════ */
-const DATA_VERSION = 8;
+const DATA_VERSION = 9;
 
 const PRODUITS_DEFAUT = [
   // PRESSIONS
@@ -1062,8 +1062,6 @@ const PRODUITS_DEFAUT = [
   { id:'p039', code:'007132', nom:'Abatilles Plate 50cl PET',          cat:'Eaux',            unite:'pack de 12',prix:0.71, parCaisse:12, min:1 },
   { id:'p040', code:'007133', nom:'Abatilles Pétillante 50cl PET',     cat:'Eaux',            unite:'pack de 12',prix:0.80, parCaisse:12, min:1 },
   // VINS
-  { id:'p043', code:'009273', nom:'Vin Blanc Sec BIB 10L — Ronde du Vin', cat:'Vins',        unite:'BIB',       prix:15.81, min:1 },
-  { id:'p044', code:'009274', nom:'Vin Rouge BIB 10L — Ronde du Vin',     cat:'Vins',        unite:'BIB',       prix:20.32, min:1 },
   { id:'p071', code:'',       nom:'Château les Margelles',             cat:'Vins',            unite:'carton',    prix:7.18, parCaisse:6, min:1 },
   { id:'p072', code:'',       nom:'Uby N°4',                           cat:'Vins',            unite:'carton',    prix:6.43, parCaisse:6, min:1 },
   // ALCOOLS
@@ -1082,8 +1080,6 @@ const PRODUITS_DEFAUT = [
   { id:'p057', code:'230722', nom:'Crème de Cassis Fuego 1L',        cat:'Alcools',         unite:'bouteille', prix:7.91,  min:2 },
   { id:'p059', code:'000559', nom:'Martini Rosso 1L',                 cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
   { id:'p060', code:'000562', nom:'Martini Bianco 1L',                cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
-  { id:'p061', code:'707507', nom:'Vermouth Martini Bianco 1L',       cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
-  { id:'p062', code:'707508', nom:'Vermouth Martini Rosso 1L',        cat:'Alcools',         unite:'bouteille', prix:12.27, min:2 },
   // DIVERS
   { id:'p063', code:'005111', nom:'Tube CO2 10kg',                    cat:'Divers',          unite:'tube',      prix:41.46, min:1 },
 ];
