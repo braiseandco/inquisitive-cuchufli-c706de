@@ -9,8 +9,7 @@ const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 const ETATS: Record<string, string> = {
   'sms:sent': 'Sent', 'sms:delivered': 'Delivered', 'sms:failed': 'Failed', 'sms:cancelled': 'Cancelled',
 };
-// Failed déclenche un renvoi automatique (trigger sms_envois_renvoi) : seulement pour un échec passager.
-// Numéro invalide, refusé ou bloqué chez Brevo → Rejected, jamais renvoyé.
+// Failed = échec passager ; numéro invalide, refusé ou bloqué chez Brevo → Rejected. Aucun SMS n'est renvoyé.
 const ETATS_BREVO: Record<string, string> = {
   sent: 'Sent', accepted: 'Sent', delivered: 'Delivered', soft_bounce: 'Failed',
   hard_bounce: 'Rejected', rej: 'Rejected', rejected: 'Rejected', bl: 'Rejected', blacklisted: 'Rejected', skip: 'Rejected',
