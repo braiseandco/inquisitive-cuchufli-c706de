@@ -1,7 +1,7 @@
 // SMS de confirmation d'une réservation, envoyé tout de suite par Brevo (expéditeur BRAISEANDCO),
 // quel que soit l'appareil qui a confirmé.
 //
-// Appelée par l'appli Réservations dès qu'une résa est confirmée. Le texte et le numéro viennent
+// Appelée par l'appli Réservations dès qu'une résa du formulaire Webador (id email_…) est confirmée. Le texte et le numéro viennent
 // de la résa en base : la fonction ne peut pas envoyer un SMS libre à un numéro choisi.
 // Plusieurs appareils peuvent appeler pour la même résa : sms_envoye est posé avant l'envoi,
 // un seul passe.
@@ -55,6 +55,9 @@ Deno.serve(async (req: Request) => {
 
   const { id } = await req.json().catch(() => ({}));
   if (typeof id !== 'string' || !id) return json({ error: 'id_manquant' }, 400);
+  // Le client qui réserve par téléphone a déjà sa confirmation de vive voix. Refus côté serveur
+  // aussi : une tablette restée sur une ancienne version de l'appli ne doit plus rien envoyer.
+  if (!id.startsWith('email_')) return json({ ok: true, deja: true });
 
   const envoyer = await expediteurBrevo(sb);
   if (!envoyer) return json({ error: 'passerelle_non_configuree' }, 503);
