@@ -1565,11 +1565,19 @@ function closeConfirmLebihan() {
 
 // Empreinte du panier au moment de l'envoi : évite le double enregistrement (SMS puis mail, ou "terminer")
 let lebihanEnvoye = '';
+// Le 08/11/2026, la commande Le Bihan est partie mais n'a jamais atteint l'historique commun : un 2e appui
+// (autre bouton SMS, mail…) passait la garde ci-dessous sans attendre l'enregistrement en cours, l'appli SMS
+// s'ouvrait aussitôt et Chrome gelait la page au milieu de l'enregistrement. Le 2e appui attend donc le 1er.
+let lebihanEnvoiEnCours = Promise.resolve();
 const lebihanEmpreinte = () => JSON.stringify(Object.keys(commande).filter(id => commande[id] > 0).sort().map(id => [id, commande[id]]));
 function enregistrerEnvoiLebihan() {
   const ids = Object.keys(commande).filter(id => commande[id] > 0);
-  if (!ids.length || lebihanEnvoye === lebihanEmpreinte()) return Promise.resolve();
+  if (!ids.length) return Promise.resolve();
+  if (lebihanEnvoye === lebihanEmpreinte()) return lebihanEnvoiEnCours;
   lebihanEnvoye = lebihanEmpreinte();
+  return lebihanEnvoiEnCours = enregistrerEnvoiLebihanNow(ids);
+}
+function enregistrerEnvoiLebihanNow(ids) {
 
   const now = new Date();
   const lines = ids.map(id => {
