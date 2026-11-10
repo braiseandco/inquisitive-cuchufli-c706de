@@ -31,3 +31,36 @@ export async function expediteurBrevo(sb: SupabaseClient) {
     return String((await res.json()).messageId);
   };
 }
+
+// Mails clients par Brevo (même clé API que les SMS). L'adresse d'expédition doit être validée
+// dans Brevo (Expéditeurs, domaines et IP dédiées), sinon Brevo refuse l'envoi.
+export const EXPEDITEUR_MAIL = {
+  name: 'Braise & Co',
+  email: Deno.env.get('BREVO_MAIL_EXPEDITEUR') || 'contact@braiseandco-biganos.fr',
+};
+
+export type Mail = { to: string; nom?: string; sujet: string; html: string; texte: string; tag: string; desinscription?: string };
+
+export async function expediteurMailBrevo(sb: SupabaseClient) {
+  const { data: cle } = await sb.rpc('brevo_api_key');
+  if (!cle) return null;
+  return async (m: Mail): Promise<string> => {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': cle, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        sender: EXPEDITEUR_MAIL,
+        replyTo: EXPEDITEUR_MAIL,
+        to: [m.nom ? { email: m.to, name: m.nom } : { email: m.to }],
+        subject: m.sujet,
+        htmlContent: m.html,
+        textContent: m.texte,
+        tags: [m.tag],
+        // Bouton « Se désinscrire » de Gmail, Outlook…
+        ...(m.desinscription ? { headers: { 'List-Unsubscribe': '<' + m.desinscription + '>' } } : {}),
+      }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + (await res.text()).slice(0, 120));
+    return String((await res.json()).messageId);
+  };
+}

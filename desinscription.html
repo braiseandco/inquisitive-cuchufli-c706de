@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Désinscription — Braise &amp; Co</title>
+<style>
+  :root{--bg:#fafaf9;--text:#1c1917;--muted:#57534e;--accent:#f97316;--border:#e7e5e4;}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;
+    max-width:520px;margin:0 auto;padding:64px 20px;text-align:center}
+  h1{font-size:24px;font-weight:800;margin-bottom:6px}
+  .sub{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:32px}
+  .box{background:#fff;border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:28px 20px}
+  .ico{font-size:40px;margin-bottom:10px}
+  p{color:var(--muted)}
+  b{color:var(--text)}
+  button{margin-top:20px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+</style>
+</head>
+<body>
+<h1>Braise &amp; Co</h1>
+<div class="sub">Biganos</div>
+<div class="box" id="box"><p>Chargement…</p></div>
+
+<script>
+// Lien « Se désinscrire » des mails de relance : ?e=adresse&k=signature (fonction relances-mail).
+// Un bouton plutôt qu'une désinscription à l'ouverture : les antivirus des messageries ouvrent les liens.
+const SB_URL = 'https://ugyrrnqpapeagpuocwob.supabase.co';
+const SB_KEY = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
+const q = new URLSearchParams(location.search);
+const email = (q.get('e') || '').trim().toLowerCase();
+const k = q.get('k') || '';
+const box = document.getElementById('box');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function afficher(ico, html){ box.innerHTML = '<div class="ico">'+ico+'</div>'+html; }
+
+if(!email || !k){
+  afficher('⚠️', '<p>Ce lien de désinscription est incomplet.</p>');
+} else {
+  afficher('✉️', '<p>Ne plus recevoir les mails de Braise &amp; Co à l\'adresse<br><b>'+esc(email)+'</b> ?</p><button id="ok">Me désinscrire</button>');
+  document.getElementById('ok').onclick = async function(){
+    this.disabled = true; this.textContent = 'Un instant…';
+    try {
+      const r = await fetch(SB_URL+'/rest/v1/rpc/desinscription_mail', {
+        method: 'POST',
+        headers: { apikey: SB_KEY, Authorization: 'Bearer '+SB_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ e: email, k })
+      });
+      const ok = r.ok && await r.json();
+      if(ok) afficher('✅', '<p>C\'est fait : vous ne recevrez plus nos mails.</p><p style="margin-top:10px;">À bientôt autour du feu quand même !</p>');
+      else afficher('⚠️', '<p>Ce lien de désinscription n\'est pas valide.</p>');
+    } catch(e){
+      this.disabled = false; this.textContent = 'Réessayer';
+    }
+  };
+}
+</script>
+</body>
+</html>

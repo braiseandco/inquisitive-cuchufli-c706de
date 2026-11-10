@@ -580,7 +580,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
   <div class="tabs">
     <button class="tab active" data-screen="reservations">📋 Réservations</button>
     <button class="tab" data-screen="plan">🗺 Plan de salle</button>
-    <button class="tab" data-screen="relances" id="tab-relances">📲 Bienvenue</button>
+    <button class="tab" data-screen="relances" id="tab-relances">💬 Relances</button>
     <button class="tab" data-screen="roulette" id="tab-roulette">🎰 Roulette</button>
     <button class="tab" data-screen="caisse" id="tab-caisse">💰 Caisse</button>
   </div>
@@ -2838,18 +2838,19 @@ async function loadRelances(){
   const content = document.getElementById('relances-content');
   content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-faint);">⏳ Chargement…</div>';
   try {
-    // ── Fetch J+1 ─────────────────────────────────────────────
+    // ── Fetch J+1 et liste J+30 (mails) en parallèle ──────────
     const hier = new Date();
     hier.setDate(hier.getDate() - 1);
     const hierStr = dateStr(hier);
     const debutJ1Str = debutBienvenue();
 
     const depuis24h = new Date(Date.now() - 86400000).toISOString();
-    const [resasHier, stops, envois24h, programmes] = await Promise.all([
+    const [resasHier, stops, envois24h, programmes, relancesJ30] = await Promise.all([
       sbFetch('reservations?date=gte.'+debutJ1Str+'&date=lte.'+hierStr+'&statut=in.(confirmee,arrivee)&telephone=not.is.null&select=id,nom,telephone,date,bienvenue_envoye&order=date.desc&id=not.like.roulette_%25&id=not.like.fid_%25'),
       sbFetch('sms_stop?select=telephone').catch(()=>[]),
       sbFetch('sms_envois?select=etat,cree_at,maj_at&type=eq.bienvenue&cree_at=gte.'+encodeURIComponent(depuis24h)).catch(()=>[]),
-      sbFetch('sms_programmes?select=id,envoyer_at&tentatives=lt.3').catch(()=>[])
+      sbFetch('sms_programmes?select=id,envoyer_at&tentatives=lt.3').catch(()=>[]),
+      chargerRelancesJ30()
     ]);
     // Envois du jour, plus ceux de la veille encore en attente
     const minuit = new Date(); minuit.setHours(0,0,0,0);
@@ -2886,33 +2887,58 @@ async function loadRelances(){
         +'</div>';
     }
 
-    const bienvenueVide = '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>'
-      + '<button disabled style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--bg3);color:var(--text-faint);font-weight:900;font-size:15px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:default;margin-bottom:16px;">📤 Tout envoyer automatiquement (0)</button>';
-
-    if(clientsHier.length === 0){
-      content.innerHTML = suivi + bienvenueVide + '<div style="text-align:center;padding:60px 20px;color:var(--text-faint);"><div style="font-size:48px;margin-bottom:12px;">🎉</div><div style="font-size:15px;font-weight:700;color:var(--text-dim);">Aucun SMS de bienvenue à envoyer</div></div>';
-      return;
-    }
+    const titre = t => '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">'+t+'</div>';
+    const pastille = t => '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">'+t+'</div>';
+    const boutonVide = '<button disabled style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--bg3);color:var(--text-faint);font-weight:900;font-size:15px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:default;margin-bottom:16px;">📤 Tout envoyer automatiquement (0)</button>';
+    const vide = t => '<div style="text-align:center;padding:24px 20px 8px;color:var(--text-faint);"><div style="font-size:36px;margin-bottom:8px;">🎉</div><div style="font-size:14px;font-weight:700;color:var(--text-dim);">'+t+'</div></div>';
 
     window._j1Msgs = {};
     const fmtDate = d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
     let html = suivi;
 
     // ── Section J+1 ──────────────────────────────────────────
-    html += '<div style="font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:10px;">📲 SMS de bienvenue</div>';
-    html += '<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,107,0,0.12);border:1px solid var(--border2);color:var(--accent);font-weight:700;font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:12px;">🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter</div>';
-    html += '<button id="bienvenue-tout-btn" onclick="bienvenueToutEnvoyer('+clientsHier.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clientsHier.length+')</button>';
-    for(const c of clientsHier){
-      const cid = 'j1-'+c.tel.replace(/\D/g,'');
-      const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
-      window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
-      html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
-        +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
-        +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
-        +'<div style="font-size:11px;color:'+(c.date===hierStr?'var(--text-faint)':'#ef9a9a')+';margin-bottom:12px;">Visite : '+(c.date===hierStr?'hier':fmtDate(c.date))+'</div>'
-        +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
-        +'</div>';
+    html += titre('📲 SMS de bienvenue');
+    if(clientsHier.length === 0){
+      html += boutonVide + vide('Aucun SMS de bienvenue à envoyer');
+    } else {
+      html += pastille('🔥 '+clientsHier.length+' client'+(clientsHier.length>1?'s':'')+' à contacter');
+      html += '<button id="bienvenue-tout-btn" onclick="bienvenueToutEnvoyer('+clientsHier.length+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+clientsHier.length+')</button>';
+      for(const c of clientsHier){
+        const cid = 'j1-'+c.tel.replace(/\D/g,'');
+        const lienFidelite = 'https://app.braiseandco.fr/fidelite/inscription.html?tel='+encodeURIComponent(c.tel);
+        window._j1Msgs[cid] = 'Bonjour ! Pour vous remercier de votre passage chez Braise & Co, nous aimerions vous offrir un petit cadeau 🎁\n\n🎰 Jouez à notre jeu de la roulette :\nhttps://app.braiseandco.fr/roulette/\n\n🔥 Et profitez davantage avec notre carte fidélité :\n'+lienFidelite+'\n\nÀ très bientôt autour du feu ! Braise & Co 🍖\n\nSTOP SMS : répondez STOP';
+        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid rgba(255,107,0,0.35);border-radius:14px;padding:16px;margin-bottom:12px;">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
+          +'<div id="'+cid+'-tel" style="font-size:14px;color:var(--accent);font-weight:800;letter-spacing:0.5px;margin-bottom:3px;">📞 '+esc(c.tel)+'</div>'
+          +'<div style="font-size:11px;color:'+(c.date===hierStr?'var(--text-faint)':'#ef9a9a')+';margin-bottom:12px;">Visite : '+(c.date===hierStr?'hier':fmtDate(c.date))+'</div>'
+          +'<a href="sms:'+c.tel+'" id="'+cid+'-btn" onclick="j1SmsClick(\''+cid+'\',\''+c.tel+'\')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;text-decoration:none;margin-bottom:8px;">📲 Envoyer SMS bienvenue</a>'
+          +'</div>';
+      }
     }
+
+    // ── Section J+30 : par mail seulement (plus de SMS J+30 depuis le 07/11/2026) ──
+    html += '<div style="height:1px;background:var(--border);margin:20px 0;"></div>';
+    html += titre('✉️ Relances J+30 par mail');
+    if(relancesJ30 === null){
+      html += '<div style="text-align:center;padding:20px;color:var(--text-faint);font-size:13px;">❌ Liste des relances indisponible</div>';
+    } else if(relancesJ30.length === 0){
+      html += boutonVide + vide('Aucun client à relancer par mail');
+    } else {
+      const nb = relancesJ30.length;
+      html += pastille('📋 '+nb+' client'+(nb>1?'s':'')+' à relancer');
+      html += '<button id="relances-tout-btn" onclick="relancesMailToutEnvoyer('+nb+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:16px;">📤 Tout envoyer automatiquement ('+nb+')</button>';
+      relancesJ30.forEach((c, i) => {
+        const cid = 'rm-'+i;
+        html += '<div id="'+cid+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">'
+          +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;">👤 '+esc(c.nom||'(sans nom)')+'</div>'
+          +'<div style="font-size:14px;color:var(--accent);font-weight:800;margin-bottom:3px;word-break:break-all;">✉ '+esc(c.email)+'</div>'
+          +'<div style="font-size:11px;color:var(--text-faint);margin-bottom:14px;">Dernière visite : '+fmtDate(c.derniere)+' &nbsp;·&nbsp; '+c.nb+' résa'+(c.nb>1?'s':'')+'</div>'
+          +'<button id="'+cid+'-btn" onclick="relanceMailUn(\''+cid+'\','+i+')" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;font-weight:900;font-size:15px;border:none;border-radius:12px;cursor:pointer;margin-bottom:8px;">✉️ Envoyer la relance par mail</button>'
+          +'</div>';
+      });
+    }
+    window._relancesJ30 = relancesJ30 || [];
+    if(relancesJ30) majBadgeRelances(relancesJ30.length);
 
     content.innerHTML = html;
   } catch(e){
@@ -3119,6 +3145,72 @@ async function bienvenueToutEnvoyer(nb){
     console.error(e);
     toast('❌ Envoi impossible — réessaie','ko');
     btn.disabled = false; btn.textContent = '📤 Réessayer';
+  }
+}
+
+// ── RELANCES J+30 PAR MAIL ────────────────────────────────────
+// Liste calculée par la base (fonction relance_j30_mail), la même que celle de la fonction
+// relances-mail qui envoie : clients venus il y a 29 jours ou plus, pas encore relancés, ni STOP.
+async function chargerRelancesJ30(){
+  try { return await sbFetch('rpc/relance_j30_mail', {method:'POST', body:'{}'}) || []; }
+  catch(e){ console.error('relances J+30:', e); return null; }
+}
+
+function majBadgeRelances(nb){
+  const tab = document.getElementById('tab-relances');
+  if(!tab) return;
+  if(nb > 0) tab.innerHTML = '💬 Relances <span style="background:#e53935;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:10px;margin-left:2px;">🔥'+nb+'</span>';
+  else tab.textContent = '💬 Relances';
+}
+
+async function appelRelancesMail(corps){
+  const h = window.braiseAuth ? await braiseAuth.headers() : {apikey:SB_KEY, Authorization:'Bearer '+SB_KEY};
+  const res = await fetch(SB_URL+'/functions/v1/relances-mail', {method:'POST', headers:{...h,'Content-Type':'application/json'}, body:JSON.stringify(corps||{})});
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok){
+    const raisons = {passerelle_non_configuree:'L\'envoi de mails (Brevo) n\'est pas branché', appareil_non_connecte:'Appareil non connecté'};
+    throw new Error(raisons[d.error] || d.error || 'Erreur '+res.status);
+  }
+  if(d.erreurs && d.erreurs.length) console.error('relances-mail', d.erreurs);
+  return d;
+}
+
+// Pastille de l'onglet dès l'ouverture de l'appli : nombre de clients à relancer par mail
+chargerRelancesJ30().then(l => { if(l) majBadgeRelances(l.length); });
+
+async function relancesMailToutEnvoyer(nb){
+  if(!confirm('Envoyer le mail de relance (apéro offert pendant 7 jours) aux '+nb+' clients ?')) return;
+  const btn = document.getElementById('relances-tout-btn');
+  btn.disabled = true; btn.textContent = '⏳ Envoi en cours…';
+  try {
+    const d = await appelRelancesMail({});
+    let msg = '✅ '+d.envoyes+' mail'+(d.envoyes>1?'s':'')+' envoyé'+(d.envoyes>1?'s':'');
+    if(d.erreurs && d.erreurs.length) msg += ' · '+d.erreurs.length+' en erreur';
+    if(d.restants) msg += ' · '+d.restants+' restants : relance le bouton';
+    toast(msg, d.erreurs && d.erreurs.length ? 'ko' : 'ok');
+    loadRelances();
+  } catch(e){
+    toast('❌ '+e.message,'ko');
+    btn.disabled = false; btn.textContent = '📤 Réessayer';
+  }
+}
+
+async function relanceMailUn(cid, i){
+  const c = (window._relancesJ30 || [])[i];
+  const btn = document.getElementById(cid+'-btn');
+  if(!c || !btn) return;
+  btn.disabled = true; btn.textContent = '⏳ Envoi…';
+  try {
+    const d = await appelRelancesMail({email: c.email});
+    if(!d.envoyes) throw new Error((d.erreurs && d.erreurs[0]) || 'Mail non envoyé');
+    btn.style.background = 'rgba(76,175,80,0.15)';
+    btn.style.color = '#4CAF50';
+    btn.style.border = '1px solid #4CAF50';
+    btn.textContent = '✅ Relance envoyée';
+    toast('✅ Mail envoyé à '+c.email,'ok');
+  } catch(e){
+    toast('❌ '+e.message,'ko');
+    btn.disabled = false; btn.textContent = '✉️ Réessayer';
   }
 }
 
