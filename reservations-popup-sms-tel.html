@@ -225,8 +225,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
 
 .table-num{font-size:18px;font-weight:900;color:var(--text);}
 .table-cap{font-size:10px;color:var(--text-faint);letter-spacing:1px;margin-top:1px;}
-.table-resa-name{font-size:12px;color:var(--text);margin-top:4px;font-family:'Raleway',sans-serif;font-weight:900;text-align:center;max-width:115px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;line-height:1.2;text-transform:uppercase;}
-.table-resa-tel{font-size:11px;color:#ffa726;margin-top:3px;font-family:'Raleway',sans-serif;font-weight:900;text-align:center;max-width:115px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 6px;background:rgba(0,0,0,0.4);border-radius:4px;border:1px solid rgba(255,167,38,0.3);}
+.table-resa-name{color:var(--text);margin-top:3px;font-family:'Raleway',sans-serif;font-weight:900;text-align:center;padding:0 3px;line-height:1.1;text-transform:uppercase;letter-spacing:0;white-space:nowrap;overflow:hidden;box-sizing:border-box;}
+.table-resa-pax{font-size:13px;color:#000;font-family:'Raleway',sans-serif;font-weight:900;text-align:center;white-space:nowrap;padding:1px 8px;background:#ffa726;border-radius:10px;line-height:1.3;}
 .table-merge-badge{position:absolute;top:-9px;right:-9px;background:var(--accent);color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:10px;font-family:'Raleway',sans-serif;}
 .table-late-badge{position:absolute;top:-9px;left:-9px;background:var(--red);color:#fff;font-size:11px;font-weight:900;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Raleway',sans-serif;animation:latePulse 1.2s ease-in-out infinite;box-shadow:0 0 8px rgba(229,57,53,0.7);z-index:10;}
 @keyframes latePulse{0%,100%{transform:scale(1);box-shadow:0 0 8px rgba(229,57,53,0.7);}50%{transform:scale(1.18);box-shadow:0 0 16px rgba(229,57,53,0.95);}}
@@ -2093,15 +2093,31 @@ function renderPlan(){
     el.dataset.id = t.id;
     el.style.cssText = 'left:'+(t.x_pos||80)+'px;top:'+(t.y_pos||80)+'px;width:'+w+'px;height:'+h+'px;';
 
-    const shortName = resa ? (resa.nom.split(' ').pop()) : '';
+    const shortName = resa ? (String(resa.nom||'').trim().split(/\s+/).pop()) : '';
+    // Nom affiché en entier : taille adaptée à la largeur de la table, et si le
+    // nom est trop long pour une ligne, coupure propre sur 2 lignes (au tiret, sinon au milieu)
+    const fitFont = txt => Math.floor((w-10)/(Math.max(1,txt.length)*0.72));
+    let nameLines = [shortName];
+    let nameFont = Math.min(15, fitFont(shortName));
+    if(shortName && nameFont < 12 && shortName.length >= 6){
+      const hy = shortName.indexOf('-');
+      const cut = (hy > 0 && hy < shortName.length-1) ? hy+1 : Math.ceil(shortName.length/2);
+      nameLines = [shortName.slice(0,cut), shortName.slice(cut)];
+      nameFont = Math.min(14, fitFont(nameLines[0].length >= nameLines[1].length ? nameLines[0] : nameLines[1]));
+    }
+    nameFont = Math.max(10, nameFont);
+    const lowTable = h < 80;
+    const nameHtml = resa ? '<div class="table-resa-name" style="max-width:'+(w-6)+'px;font-size:'+nameFont+'px;'+(lowTable?'margin-top:1px;':'')+'">'+nameLines.map(esc).join('<br>')+'</div>' : '';
+    const paxHtml = (resa && resa.personnes) ? '<div class="table-resa-pax" style="margin-top:3px">'+resa.personnes+' pers.</div>' : '';
     el.innerHTML =
       '<div class="table-shape '+status+' '+shapeClass+'" style="width:'+w+'px;height:'+h+'px;">'+
       (isLate ? '<div class="table-late-badge">!</div>' : '')+
       (t.merged_with ? '<div class="table-merge-badge">⬌ '+t.merged_with+'</div>' : '')+
-      '<div class="table-num">'+t.numero+'</div>'+
-      '<div class="table-cap">'+t.capacite+'p</div>'+
-      (resa ? '<div class="table-resa-name">'+esc(shortName)+'</div>' : '')+
-      (resa && resa.telephone ? '<div class="table-resa-tel">'+esc(resa.telephone)+'</div>' : '')+
+      (lowTable && resa
+        // Table basse (rectangle horizontal) : numéro + couverts sur la même ligne pour laisser la place au nom
+        ? '<div style="display:flex;align-items:center;gap:6px;"><div class="table-num">'+t.numero+'</div>'+paxHtml.replace('margin-top:3px','')+'</div>'+nameHtml
+        : '<div class="table-num">'+t.numero+'</div>'+
+          (resa ? nameHtml+paxHtml : '<div class="table-cap">'+t.capacite+'p</div>'))+
       '</div>';
 
     setupTableInteractions(el, t, visible);
