@@ -1231,6 +1231,21 @@ function fauxNumero(tel){
 }
 function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
 function fmtDateShort(d){return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});}
+// Encadré « Enregistrée le … » du pop-up détail : created_at est en UTC, affiché à l'heure de Paris.
+function encadreEnregistrement(r){
+  if(!r||!r.created_at)return '';
+  const d=new Date(String(r.created_at).replace(' ','T').replace(/([+-]\d\d)$/,'$1:00'));
+  if(isNaN(d))return '';
+  const tz={timeZone:'Europe/Paris'};
+  const jour=d.toLocaleDateString('fr-FR',{...tz,weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const heure=d.toLocaleTimeString('fr-FR',{...tz,hour:'2-digit',minute:'2-digit'}).replace(':','h');
+  const source=String(r.id).startsWith('email_')?'📧 Arrivée par mail (site)':'✍️ Saisie dans l\'appli (téléphone / sur place)';
+  return '<div style="border:1px solid var(--accent);background:rgba(255,107,0,0.08);border-radius:12px;padding:12px 14px;margin:4px 0 12px;">'+
+    '<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px;">📅 Réservation enregistrée le</div>'+
+    '<div style="font-weight:800;font-size:15px;color:var(--accent);">'+jour.charAt(0).toUpperCase()+jour.slice(1)+' à '+heure+'</div>'+
+    '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+source+'</div>'+
+  '</div>';
+}
 function todayStr(){return dateStr(new Date());}
 function dateStr(d){const p=s=>s.toString().padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function addDays(s,n){const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return dateStr(d);}
@@ -1759,6 +1774,7 @@ async function openDetail(id){
     currentResaId=id;
     document.getElementById('detail-nom').textContent=r.nom+' — '+r.personnes+' pers.';
     document.getElementById('detail-body').innerHTML=
+      encadreEnregistrement(r)+
       '<div class="detail-row"><div class="detail-ico">🕐</div><div><div class="detail-val">'+fmtDate(r.date)+' à '+r.heure.slice(0,5)+'</div><div class="detail-lbl">Date & heure</div></div></div>'+
       (r.telephone?'<div class="detail-row"><div class="detail-ico">📞</div><div><div class="detail-val">'+esc(r.telephone)+'</div><div class="detail-lbl">Téléphone</div></div></div>':'')+
       (r.email?'<div class="detail-row"><div class="detail-ico">✉</div><div><div class="detail-val">'+esc(r.email)+'</div><div class="detail-lbl">Email</div></div></div>':'')+
@@ -3156,7 +3172,7 @@ async function j1SmsClick(cid, tel){
 }
 
 // ── MISE À JOUR ───────────────────────────────────────────────
-const APP_VERSION = '2026-11-12.1';
+const APP_VERSION = '2026-11-14.1';
 window.APP_VERSION = APP_VERSION;
 async function checkAndUpdate(){
   const btn = document.getElementById('btn-update');
