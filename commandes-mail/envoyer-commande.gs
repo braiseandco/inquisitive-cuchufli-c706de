@@ -30,6 +30,7 @@ function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
     if (req.samier) return cmSamier(req.samier);
+    if (req.scan) return cmScan(req.scan, req.jeton);
     id = req.id; essai = !!req.essai;
     if (!id) return cmRep({ ok: false, error: 'id manquant' });
     const o = cmSb('cmd_commandes?id=eq.' + encodeURIComponent(id) + '&select=*,lignes:cmd_commande_lignes(*),f:cmd_fournisseurs(*)')[0];
@@ -67,6 +68,34 @@ function cmSamier(m) {
   GmailApp.sendEmail(CM_SAMIER, String(m.sujet || 'Planning Braise & Co').slice(0, 200), String(m.texte || '').slice(0, 2000),
     { attachments: [pj], name: 'Braise & Co Biganos' });
   return cmRep({ ok: true });
+}
+
+// Appli Scanner (/scan/) : PDF envoyé à l'adresse choisie et rangé dans Drive /Scans/AAAA-MM,
+// synchronisé sur le PC. Destinataire libre, donc réservé aux appareils connectés :
+// sans ce contrôle, quiconque lit l'URL dans le dépôt public enverrait des mails au nom du resto.
+function cmScan(m, jeton) {
+  const key = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
+  const u = UrlFetchApp.fetch(CM_SB_URL + '/auth/v1/user', { muteHttpExceptions: true, headers: { apikey: key, Authorization: 'Bearer ' + (jeton || '') } });
+  if (u.getResponseCode() !== 200) return cmRep({ ok: false, error: 'Appareil non connecté' });
+  const dest = String(m.dest || '').trim();
+  if (!/^[^@\s,;]+@[^@\s,;]+\.[a-z]{2,}$/i.test(dest)) return cmRep({ ok: false, error: 'Adresse mail invalide' });
+  if (!m.pdf || m.pdf.length > 25000000) return cmRep({ ok: false, error: 'PDF manquant ou trop lourd' });
+
+  const tz = 'Europe/Paris', now = new Date();
+  const titre = String(m.titre || 'Scan').replace(/[\\/:*?"<>|]/g, '-').trim().slice(0, 80) || 'Scan';
+  const nom = Utilities.formatDate(now, tz, "yyyy-MM-dd HH'h'mm") + ' - ' + titre + '.pdf';
+  const pdf = Utilities.newBlob(Utilities.base64Decode(m.pdf), 'application/pdf', nom);
+
+  const racine = cmDossier(DriveApp.getRootFolder(), 'Scans');
+  const fichier = cmDossier(racine, Utilities.formatDate(now, tz, 'yyyy-MM')).createFile(pdf);
+  GmailApp.sendEmail(dest, titre + ' — Braise & Co', (String(m.texte || '').slice(0, 2000) || 'Bonjour,\n\nVeuillez trouver le document en pièce jointe.') +
+    '\n\nBraise & Co\n174 av. de la Côte d\'Argent, 33380 Biganos', { attachments: [pdf], name: 'Braise & Co Biganos' });
+  return cmRep({ ok: true, nom: nom, drive: fichier.getUrl() });
+}
+
+function cmDossier(parent, nom) {
+  const it = parent.getFoldersByName(nom);
+  return it.hasNext() ? it.next() : parent.createFolder(nom);
 }
 
 function cmTexte(o, s) {
