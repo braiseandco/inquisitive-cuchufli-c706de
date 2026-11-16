@@ -12,7 +12,7 @@
 <script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
 <script>
-const APP_VERSION = '2026-11-16.3';
+const APP_VERSION = '2026-11-16.4';
 window.APP_VERSION = APP_VERSION;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/scan/sw.js', { scope: '/scan/', updateViaCache: 'none' });
 </script>
@@ -429,29 +429,36 @@ function warp(img, q) {
   return out;
 }
 
-// « Amélioré » : divise chaque canal par le fond (papier) estimé, ombres et teinte jaune disparaissent
+// « Amélioré » : divise chaque canal par le fond (papier) estimé, ombres et teinte jaune disparaissent.
+// Fond estimé par fermeture (efface l'encre, garde le bord net de l'ombre du téléphone) : un simple
+// flou laissait le contour de l'ombre en fantôme sur les vrais BL.
 function applyFilter(canvas, f) {
   const out = document.createElement('canvas'); out.width = canvas.width; out.height = canvas.height;
   if (f === 'couleur' || !cvReady) { out.getContext('2d').drawImage(canvas, 0, 0); return out; }
   const src = cv.imread(canvas), rgb = new cv.Mat(), ch = new cv.MatVector(), res = new cv.MatVector();
   cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
   cv.split(rgb, ch);
-  const small = new cv.Size(Math.max(1, Math.round(canvas.width / 4)), Math.max(1, Math.round(canvas.height / 4)));
-  const k = cv.Mat.ones(5, 5, cv.CV_8U);
+  const s = 600 / Math.max(canvas.width, canvas.height);
+  const small = new cv.Size(Math.max(1, Math.round(canvas.width * s)), Math.max(1, Math.round(canvas.height * s)));
+  const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(17, 17));
+  const lut = new cv.Mat(1, 256, cv.CV_8U);
+  for (let i = 0; i < 256; i++) lut.data[i] = Math.round(255 * Math.pow(Math.min(1, i / 255 / 0.88), 1.8));
   for (let i = 0; i < 3; i++) {
     const c = ch.get(i), bg = new cv.Mat(), o = new cv.Mat();
     cv.resize(c, bg, small, 0, 0, cv.INTER_AREA);
-    cv.dilate(bg, bg, k);
-    cv.medianBlur(bg, bg, 9);
+    cv.morphologyEx(bg, bg, cv.MORPH_CLOSE, k);
+    cv.medianBlur(bg, bg, 5);
     cv.resize(bg, bg, c.size(), 0, 0, cv.INTER_LINEAR);
     cv.divide(c, bg, o, 255);
+    cv.LUT(o, lut, o);
     res.push_back(o); [c, bg, o].forEach(m => m.delete());
   }
+  lut.delete();
   const merged = new cv.Mat(); cv.merge(res, merged);
   if (f === 'auto') cv.imshow(out, merged);
   else {
     const g = new cv.Mat(); cv.cvtColor(merged, g, cv.COLOR_RGB2GRAY);
-    if (f === 'nb') cv.adaptiveThreshold(g, g, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 12);
+    if (f === 'nb') cv.threshold(g, g, 150, 255, cv.THRESH_BINARY);
     cv.imshow(out, g); g.delete();
   }
   [src, rgb, ch, res, k, merged].forEach(m => m.delete());
