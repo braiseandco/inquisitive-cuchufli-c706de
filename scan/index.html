@@ -12,7 +12,7 @@
 <script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
 <script>
-const APP_VERSION = '2026-11-16.1';
+const APP_VERSION = '2026-11-16.2';
 window.APP_VERSION = APP_VERSION;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/scan/sw.js', { scope: '/scan/', updateViaCache: 'none' });
 </script>
@@ -51,6 +51,9 @@ video, #overlay { position:absolute; inset:0; width:100%; height:100%; object-fi
 label { display:block; color:var(--mut); font-size:14px; margin:14px 0 6px; }
 input, textarea { width:100%; font:inherit; font-size:16px; color:var(--txt); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
 textarea { min-height:80px; resize:vertical; }
+[hidden] { display:none !important; }
+button.big { display:block; width:100%; margin-top:16px; padding:16px; font-size:17px; }
+.center { text-align:center; margin-top:6px; }
 .quick { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
 #status { margin-top:14px; font-weight:600; min-height:24px; }
 #status.ok { color:var(--ok); } #status.err { color:var(--err); }
@@ -114,16 +117,21 @@ textarea { min-height:80px; resize:vertical; }
     <div class="mut" id="pdfInfo"></div>
     <label for="titre">Nom du document</label>
     <input id="titre" placeholder="ex. Facture Metro">
-    <label for="dest">Envoyer à</label>
-    <input id="dest" type="email" inputmode="email" autocomplete="email" placeholder="adresse@mail.fr">
-    <div class="quick" id="quick"></div>
     <label for="texte">Message (facultatif)</label>
     <textarea id="texte" placeholder="Bonjour, veuillez trouver le document en pièce jointe."></textarea>
+    <button id="btnCompta" class="or big">Envoyer au comptable</button>
+    <div class="mut center">J. Samier — Groupe ECE</div>
+    <button id="btnAutre" class="big">Autre adresse…</button>
+    <div id="autre" hidden>
+      <label for="dest">Adresse mail</label>
+      <input id="dest" type="email" inputmode="email" autocomplete="email" placeholder="adresse@mail.fr">
+      <div class="quick" id="quick"></div>
+      <button id="btnSend" class="or big">Envoyer à cette adresse</button>
+    </div>
     <div id="status"></div>
   </div>
   <div class="bar">
-    <button id="btnSave">Télécharger</button>
-    <button id="btnSend" class="or">Envoyer le PDF</button>
+    <button id="btnSave">Télécharger le PDF</button>
   </div>
 </section>
 
@@ -134,6 +142,7 @@ textarea { min-height:80px; resize:vertical; }
 // la boîte du restaurant envoie le mail et range le PDF dans Drive /Scans/AAAA-MM, synchronisé sur le PC
 const SCAN_URL = 'https://script.google.com/macros/s/AKfycby33o4eLrk5ACzJwkLJ91Zr9iWeZmDWAzUx3fIrcJs9mORUNZAPceugRA51SoIJ030M/exec';
 const CONTACTS_KEY = 'scan_contacts';
+const COMPTABLE = 'J.Samier@groupe-ece.com';
 const $ = id => document.getElementById(id);
 const video = $('video'), overlay = $('overlay'), hint = $('hint');
 let cvReady = false, stream = null, track = null, auto = true, torch = false;
@@ -424,7 +433,7 @@ function openSend() {
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = m;
     b.onclick = () => { $('dest').value = m; }; q.appendChild(b);
   });
-  if (!$('dest').value && contacts()[0]) $('dest').value = contacts()[0];
+  $('autre').hidden = true; $('btnAutre').hidden = false;
   $('status').textContent = ''; $('status').className = '';
   show('sSend');
 }
@@ -446,8 +455,12 @@ function titre() { return $('titre').value.trim() || 'Scan'; }
 
 $('btnSave').onclick = () => { busy('Création du PDF…'); setTimeout(() => { makePdf().save(titre() + '.pdf'); busy(''); }, 30); };
 
-$('btnSend').onclick = async () => {
-  const dest = $('dest').value.trim(), st = $('status');
+$('btnAutre').onclick = () => { $('autre').hidden = false; $('btnAutre').hidden = true; $('dest').focus(); };
+$('btnCompta').onclick = () => envoyer(COMPTABLE);
+$('btnSend').onclick = () => envoyer($('dest').value.trim());
+
+async function envoyer(dest) {
+  const st = $('status');
   if (!/^[^@\s,;]+@[^@\s,;]+\.[a-z]{2,}$/i.test(dest)) { st.className = 'err'; st.textContent = 'Adresse mail invalide'; return; }
   busy('Création du PDF…');
   try {
@@ -459,15 +472,15 @@ $('btnSend').onclick = async () => {
       body: JSON.stringify({ jeton: (h.Authorization || '').replace('Bearer ', ''), scan: { dest, titre: titre(), texte: $('texte').value.trim(), pdf } }) });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Envoi refusé');
-    try { localStorage.setItem(CONTACTS_KEY, JSON.stringify([dest, ...contacts().filter(m => m !== dest)].slice(0, 10))); } catch (e) {}
+    if (dest !== COMPTABLE) try { localStorage.setItem(CONTACTS_KEY, JSON.stringify([dest, ...contacts().filter(m => m !== dest)].slice(0, 10))); } catch (e) {}
     busy('');
     alert('PDF envoyé à ' + dest + '\nRangé sur le PC : Scans\\' + d.nom.slice(0, 7) + '\\' + d.nom);
-    pages = []; cur = -1; $('titre').value = ''; $('texte').value = ''; updCount(); show('sCam');
+    pages = []; cur = -1; $('titre').value = ''; $('texte').value = ''; $('dest').value = ''; updCount(); show('sCam');
   } catch (e) {
     busy(''); st.className = 'err';
     st.textContent = 'Échec : ' + (e.message || e) + ' — rien n\'est parti, réessayez ou « Télécharger »';
   }
-};
+}
 
 startCam();
 </script>
