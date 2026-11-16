@@ -12,7 +12,7 @@
 <script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
 <script>
-const APP_VERSION = '2026-11-16.2';
+const APP_VERSION = '2026-11-16.3';
 window.APP_VERSION = APP_VERSION;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/scan/sw.js', { scope: '/scan/', updateViaCache: 'none' });
 </script>
@@ -23,7 +23,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/scan/sw.js'
 html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:Barlow, system-ui, sans-serif; overflow:hidden; }
 .screen { position:fixed; inset:0; display:none; flex-direction:column; }
 .screen.on { display:flex; }
-h1 { font-family:Anton, Impact, sans-serif; font-weight:400; letter-spacing:.5px; margin:0; font-size:22px; }
+h1 { text-transform:uppercase; font-family:Anton, Impact, sans-serif; font-weight:400; letter-spacing:.5px; margin:0; font-size:22px; }
 .top { display:flex; align-items:center; justify-content:space-between; padding:calc(10px + env(safe-area-inset-top)) 16px 10px; gap:10px; }
 .bar { display:flex; align-items:center; justify-content:space-around; gap:10px; padding:14px 16px calc(14px + env(safe-area-inset-bottom)); background:rgba(0,0,0,.55); }
 button { font:inherit; border:0; border-radius:12px; padding:12px 16px; font-weight:700; color:var(--txt); background:var(--panel); cursor:pointer; }
@@ -85,7 +85,7 @@ button.big { display:block; width:100%; margin-top:16px; padding:16px; font-size
 </section>
 
 <section id="sCrop" class="screen">
-  <div class="top"><h1>AJUSTER LES BORDS</h1></div>
+  <div class="top"><h1 id="cropTitle">AJUSTER LES BORDS</h1></div>
   <div class="stage" id="cropStage"><div id="cropWrap"><canvas id="cropCanvas"></canvas></div></div>
   <div class="bar">
     <button id="btnRetake">Reprendre</button>
@@ -95,7 +95,7 @@ button.big { display:block; width:100%; margin-top:16px; padding:16px; font-size
 </section>
 
 <section id="sPage" class="screen">
-  <div class="top"><h1 id="pageTitle">PAGE 1</h1><button id="btnRot" class="chip">Pivoter</button></div>
+  <div class="top"><h1 id="pageTitle">PAGE 1</h1><div style="display:flex;gap:8px"><button id="btnCrop" class="chip">Recadrer</button><button id="btnRot" class="chip">Pivoter</button></div></div>
   <div id="pageView"></div>
   <div class="filters">
     <button class="chip on" data-f="auto">Amélioré</button>
@@ -169,9 +169,71 @@ function orderPts(p) {
   return [p[s.indexOf(Math.min(...s))], p[d.indexOf(Math.min(...d))], p[s.indexOf(Math.max(...s))], p[d.indexOf(Math.max(...d))]];
 }
 
-// Cherche le plus grand quadrilatère convexe : le contour de la feuille
-function detect(canvas) {
+// Coins de la feuille dans `canvas`, ou null. 400 px suffisent pour l'aperçu en direct ;
+// la photo finale passe à 800 px pour des coins plus précis (réglages mis à l'échelle).
+function detect(canvas, taille = 400) {
   if (!cvReady) return null;
+  const sc = taille / Math.max(canvas.width, canvas.height), c = document.createElement('canvas');
+  c.width = Math.round(canvas.width * sc); c.height = Math.round(canvas.height * sc);
+  c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+  const q = detectPapier(c) || detectBords(c);
+  return q && q.map(p => ({ x: p.x / sc, y: p.y / sc }));
+}
+
+function quadDe(hull) {
+  const peri = cv.arcLength(hull, true);
+  for (let e = 0.02; e <= 0.12; e += 0.01) {
+    const ap = new cv.Mat(); cv.approxPolyDP(hull, ap, e * peri, true);
+    const ok = ap.rows === 4, q = [];
+    if (ok) for (let j = 0; j < 4; j++) q.push({ x: ap.data32S[j * 2], y: ap.data32S[j * 2 + 1] });
+    ap.delete();
+    if (ok) return orderPts(q);
+  }
+  return null;
+}
+
+// Papier clair sur fond plus sombre. Testé sur de vrais BL photographiés (froissés, ombre du téléphone,
+// bas de feuille moins éclairé) : le seuil d'Otsu seul coupe le papier à l'ombre, d'où les seuils
+// décroissants ; on garde le plus grand quadrilatère qui épouse encore bien la tache claire.
+function detectPapier(canvas) {
+  const A = canvas.width * canvas.height, z = Math.max(canvas.width, canvas.height) / 400;
+  const t = n => { const v = Math.round(n * z) | 1; return new cv.Size(v, v); };
+  const src = cv.imread(canvas), g = new cv.Mat(), bw = new cv.Mat();
+  const m = t(15).width;
+  const k1 = cv.getStructuringElement(cv.MORPH_ELLIPSE, t(15)), k2 = cv.getStructuringElement(cv.MORPH_ELLIPSE, t(7));
+  let best = null;
+  try {
+    cv.cvtColor(src, g, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(g, g, t(7), 0);
+    const otsu = cv.threshold(g, bw, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    for (const f of [1, 0.85, 0.7, 0.6, 0.5, 0.4]) {
+      cv.threshold(g, bw, otsu * f, 255, cv.THRESH_BINARY);
+      // marge recopiée autour de l'image, sinon la fermeture colle au bord une feuille qui en est toute proche
+      const pad = new cv.Mat(); cv.copyMakeBorder(bw, pad, m, m, m, m, cv.BORDER_REPLICATE);
+      cv.morphologyEx(pad, pad, cv.MORPH_OPEN, k2);
+      cv.morphologyEx(pad, pad, cv.MORPH_CLOSE, k1);
+      const roi = pad.roi(new cv.Rect(m, m, bw.cols, bw.rows)); roi.copyTo(bw); roi.delete(); pad.delete();
+      const cs = new cv.MatVector(), hi = new cv.Mat();
+      cv.findContours(bw, cs, hi, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      let bi = -1, bA = 0;
+      for (let i = 0; i < cs.size(); i++) { const a = cv.contourArea(cs.get(i)); if (a > bA) { bA = a; bi = i; } }
+      if (bi >= 0 && bA > 0.15 * A && bA < 0.98 * A) {
+        const hull = new cv.Mat(); cv.convexHull(cs.get(bi), hull, false, true);
+        const hA = cv.contourArea(hull), q = quadDe(hull);
+        if (q) {
+          const qm = cv.matFromArray(4, 1, cv.CV_32SC2, q.flatMap(p => [p.x, p.y])), qA = cv.contourArea(qm); qm.delete();
+          if (bA / hA > 0.85 && Math.min(hA, qA) / Math.max(hA, qA) > 0.9 && (!best || qA > best.a)) best = { q, a: qA };
+        }
+        hull.delete();
+      }
+      cs.delete(); hi.delete();
+    }
+  } finally { [src, g, bw, k1, k2].forEach(m => m.delete()); }
+  return best && best.q;
+}
+
+// Secours (feuille blanche sur fond clair) : plus grand contour à 4 côtés
+function detectBords(canvas) {
   const src = cv.imread(canvas), g = new cv.Mat(), e = new cv.Mat(), cs = new cv.MatVector(), h = new cv.Mat();
   const k = cv.Mat.ones(3, 3, cv.CV_8U);
   let best = null, bestA = canvas.width * canvas.height * 0.12;
@@ -215,7 +277,7 @@ function loop() {
   clearTimeout(loopT);
   loopT = setTimeout(loop, 180);
   if (!video.videoWidth || !$('sCam').classList.contains('on')) return;
-  const W = 480, sc = W / video.videoWidth;
+  const W = 400, sc = W / video.videoWidth;
   small.width = W; small.height = Math.round(video.videoHeight * sc);
   small.getContext('2d').drawImage(video, 0, 0, small.width, small.height);
   const q = detect(small);
@@ -248,10 +310,11 @@ function drawOverlay(q, w, h) {
 function capture() {
   if (!video.videoWidth) return;
   busyCap = true; stable = 0;
+  const sc = Math.min(1, 3000 / Math.max(video.videoWidth, video.videoHeight));
   shot = document.createElement('canvas');
-  shot.width = video.videoWidth; shot.height = video.videoHeight;
-  shot.getContext('2d').drawImage(video, 0, 0);
-  openCrop();
+  shot.width = Math.round(video.videoWidth * sc); shot.height = Math.round(video.videoHeight * sc);
+  shot.getContext('2d').drawImage(video, 0, 0, shot.width, shot.height);
+  traiter();
 }
 
 $('shutter').onclick = capture;
@@ -267,10 +330,10 @@ $('fileIn').onchange = e => {
   const img = new Image();
   img.onload = () => {
     shot = document.createElement('canvas');
-    const sc = Math.min(1, 4000 / Math.max(img.width, img.height));
+    const sc = Math.min(1, 3000 / Math.max(img.width, img.height));
     shot.width = Math.round(img.width * sc); shot.height = Math.round(img.height * sc);
     shot.getContext('2d').drawImage(img, 0, 0, shot.width, shot.height);
-    URL.revokeObjectURL(img.src); busyCap = true; openCrop();
+    URL.revokeObjectURL(img.src); busyCap = true; traiter();
   };
   img.src = URL.createObjectURL(f); e.target.value = '';
 };
@@ -278,12 +341,19 @@ $('fileIn').onchange = e => {
 // ─── Recadrage ───
 const cropCanvas = $('cropCanvas');
 function fullCorners() { return [{ x: 0, y: 0 }, { x: shot.width, y: 0 }, { x: shot.width, y: shot.height }, { x: 0, y: shot.height }]; }
-function openCrop() {
-  const sc = 800 / Math.max(shot.width, shot.height), c = document.createElement('canvas');
-  c.width = Math.round(shot.width * sc); c.height = Math.round(shot.height * sc);
-  c.getContext('2d').drawImage(shot, 0, 0, c.width, c.height);
-  const q = detect(c);
-  corners = q ? q.map(p => ({ x: p.x / sc, y: p.y / sc })) : fullCorners();
+let editIdx = null;
+// Feuille trouvée : page créée directement, sans passer par le recadrage (« Recadrer » reste possible)
+function traiter() {
+  busy('Traitement…');
+  setTimeout(() => {
+    const q = detect(shot, 800);
+    editIdx = null;
+    if (q) { corners = q; valider(); return; }
+    busy(''); corners = fullCorners(); openCrop('Feuille non trouvée : placez les coins');
+  }, 30);
+}
+function openCrop(titre) {
+  $('cropTitle').textContent = titre;
   show('sCrop');
   requestAnimationFrame(layoutCrop);
 }
@@ -325,16 +395,21 @@ function dragHandle(h) {
     h.onpointerup = () => { h.onpointermove = null; };
   };
 }
-$('btnRetake').onclick = () => { busyCap = false; show('sCam'); };
+$('btnRetake').onclick = () => { busyCap = false; if (editIdx !== null) show('sPage'); else show('sCam'); };
 $('btnFull').onclick = () => { corners = fullCorners(); drawCrop(); };
-$('btnCropOk').onclick = () => {
+$('btnCropOk').onclick = valider;
+function valider() {
   busy('Traitement…');
   setTimeout(() => {
-    try { pages.push({ warp: warp(shot, orderPts(corners)), f: 'auto', rot: 0 }); cur = pages.length - 1; renderPage(); show('sPage'); }
-    catch (e) { alert('Erreur de traitement : ' + e.message); }
-    busy(''); busyCap = false;
+    try {
+      const w = warp(shot, orderPts(corners));
+      if (editIdx !== null) { const p = pages[editIdx]; Object.assign(p, { warp: w, corners: corners.slice(), out: null }); cur = editIdx; }
+      else { pages.push({ shot, corners: corners.slice(), warp: w, f: 'auto', rot: 0 }); cur = pages.length - 1; }
+      renderPage(); show('sPage');
+    } catch (e) { alert('Erreur de traitement : ' + e.message); }
+    busy(''); busyCap = false; editIdx = null;
   }, 30);
-};
+}
 window.addEventListener('resize', () => { if ($('sCrop').classList.contains('on')) layoutCrop(); });
 
 // Redresse la feuille (vue de face), côté long limité à 2200 px
@@ -407,6 +482,7 @@ function updCount() {
 document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
   busy('Traitement…'); setTimeout(() => { pages[cur].f = b.dataset.f; renderPage(); busy(''); }, 30);
 });
+$('btnCrop').onclick = () => { const p = pages[cur]; shot = p.shot; corners = p.corners.slice(); editIdx = cur; openCrop('Recadrer la page ' + (cur + 1)); };
 $('btnRot').onclick = () => { const p = pages[cur]; p.rot = (p.rot + 90) % 360; renderPage(); };
 $('btnDel').onclick = () => { pages.splice(cur, 1); updCount(); show('sCam'); };
 $('btnMore').onclick = () => show('sCam');
