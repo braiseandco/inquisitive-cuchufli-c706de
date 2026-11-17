@@ -1,0 +1,43 @@
+plugins { id 'com.android.application' }
+
+// Clé d'envoi partagée avec le script Google (propriété SCAN_CLE) : hors du dépôt public, dans cle.properties
+def cle = new Properties()
+def f = rootProject.file('cle.properties')
+if (f.exists()) f.withInputStream { cle.load(it) }
+
+android {
+    namespace 'fr.braiseandco.scan'
+    compileSdk 34
+    buildToolsVersion '34.0.0'
+    defaultConfig {
+        applicationId 'fr.braiseandco.scan'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        buildConfigField 'String', 'SCAN_CLE', "\"${cle.getProperty('SCAN_CLE', '')}\""
+    }
+    buildFeatures { buildConfig true }
+    signingConfigs {
+        maison {
+            storeFile rootProject.file('scan.jks')
+            storePassword cle.getProperty('STORE_PASS', '')
+            keyAlias 'scan'
+            keyPassword cle.getProperty('STORE_PASS', '')
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.maison
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0'
+}

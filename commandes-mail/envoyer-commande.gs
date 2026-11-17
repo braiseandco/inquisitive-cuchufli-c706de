@@ -30,7 +30,7 @@ function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
     if (req.samier) return cmSamier(req.samier);
-    if (req.scan) return cmScan(req.scan, req.jeton);
+    if (req.scan) return cmScan(req.scan, req.jeton, req.cle);
     id = req.id; essai = !!req.essai;
     if (!id) return cmRep({ ok: false, error: 'id manquant' });
     const o = cmSb('cmd_commandes?id=eq.' + encodeURIComponent(id) + '&select=*,lignes:cmd_commande_lignes(*),f:cmd_fournisseurs(*)')[0];
@@ -73,10 +73,14 @@ function cmSamier(m) {
 // Appli Scanner (/scan/) : PDF envoyé à l'adresse choisie et rangé dans Drive /Scans/AAAA-MM,
 // synchronisé sur le PC. Destinataire libre, donc réservé aux appareils connectés :
 // sans ce contrôle, quiconque lit l'URL dans le dépôt public enverrait des mails au nom du resto.
-function cmScan(m, jeton) {
-  const key = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
-  const u = UrlFetchApp.fetch(CM_SB_URL + '/auth/v1/user', { muteHttpExceptions: true, headers: { apikey: key, Authorization: 'Bearer ' + (jeton || '') } });
-  if (u.getResponseCode() !== 200) return cmRep({ ok: false, error: 'Appareil non connecté' });
+// L'appli Android (scan/android) envoie à la place une clé, posée dans les propriétés du script (SCAN_CLE).
+function cmScan(m, jeton, cle) {
+  const cleOk = !!cle && cle === PropertiesService.getScriptProperties().getProperty('SCAN_CLE');
+  if (!cleOk) {
+    const key = 'sb_publishable_42K8PYF3PRqxWGXiUmhC5g_2hHhlH8X';
+    const u = UrlFetchApp.fetch(CM_SB_URL + '/auth/v1/user', { muteHttpExceptions: true, headers: { apikey: key, Authorization: 'Bearer ' + (jeton || '') } });
+    if (u.getResponseCode() !== 200) return cmRep({ ok: false, error: 'Appareil non connecté' });
+  }
   const dest = String(m.dest || '').trim();
   if (!/^[^@\s,;]+@[^@\s,;]+\.[a-z]{2,}$/i.test(dest)) return cmRep({ ok: false, error: 'Adresse mail invalide' });
   if (!m.pdf || m.pdf.length > 25000000) return cmRep({ ok: false, error: 'PDF manquant ou trop lourd' });
