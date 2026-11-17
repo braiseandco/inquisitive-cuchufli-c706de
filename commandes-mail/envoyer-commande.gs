@@ -92,6 +92,8 @@ function cmScan(m, jeton, cle) {
 
   const racine = cmDossier(DriveApp.getRootFolder(), 'Scans');
   const fichier = cmDossier(racine, Utilities.formatDate(now, tz, 'yyyy-MM')).createFile(pdf);
+  // Lu par importerScans (script Import Factures) : une facture déjà envoyée à M. Mailles ne lui est pas renvoyée
+  fichier.setDescription('dest: ' + dest);
   GmailApp.sendEmail(dest, titre + ' — Braise & Co', (String(m.texte || '').slice(0, 2000) || 'Bonjour,\n\nVeuillez trouver le document en pièce jointe.') +
     '\n\nBraise & Co\n174 av. de la Côte d\'Argent, 33380 Biganos', { attachments: [pdf], name: 'Braise & Co Biganos' });
   return cmRep({ ok: true, nom: nom, drive: fichier.getUrl() });
