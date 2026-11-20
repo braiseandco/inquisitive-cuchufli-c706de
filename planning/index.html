@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-11-17.1';
+const APP_VERSION = '2026-11-20.1';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -691,6 +691,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
     </div>
     <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn-add" style="width:100%;background:rgba(255,204,2,.15);color:var(--accent3);border:1px solid rgba(255,204,2,.4);padding:13px 14px;font-size:13px;font-weight:700" onclick="generateWeekFromBase()">📋 Générer la semaine (horaires de base)</button>
+      <button class="btn-add" style="width:100%;background:rgba(255,204,2,.08);color:var(--accent3);border:1px solid rgba(255,204,2,.3);padding:12px 14px;font-size:13px;font-weight:700" onclick="copyPreviousWeek()">🔁 Semaine identique à la semaine dernière</button>
       <button class="btn-add" style="flex:1;background:rgba(229,57,53,.15);color:var(--accent);border:1px solid rgba(229,57,53,.3)" onclick="openFermeture()">🔒 Fermeture</button>
       <button class="btn-add" style="background:rgba(255,112,67,.15);color:var(--accent2);border:1px solid rgba(255,112,67,.3);padding:10px 14px" onclick="printPlanningReport()">🖨️ PDF</button>
       <button class="btn-add" style="background:rgba(67,160,71,.15);color:#a5d6a7;border:1px solid rgba(67,160,71,.3);padding:10px 14px" onclick="openImportModal()">📥 Importer</button>
@@ -3815,6 +3816,51 @@ async function generateWeekFromBase() {
   } catch(e) {
     toast('Erreur : ' + e.message);
     console.error('generateWeekFromBase', e);
+  }
+}
+
+// Recopie les horaires de la semaine précédente sur la semaine affichée (décalage de 7 jours)
+async function copyPreviousWeek() {
+  try {
+    if (!employees.length) employees = await GET('employees?archived=is.false&select=*&order=display_order.asc,name.asc');
+    const dates = weekDates(planningWeek);
+    const weekStart = dateStr(planningWeek), weekEnd = dateStr(dates[6]);
+    const prevMonday = new Date(planningWeek); prevMonday.setDate(prevMonday.getDate() - 7);
+    const prevStart = dateStr(prevMonday), prevEnd = dateStr(weekDates(prevMonday)[6]);
+
+    const [prevOv, existingOv] = await Promise.all([
+      GET(`weekly_overrides?date=gte.${prevStart}&date=lte.${prevEnd}&select=*`),
+      GET(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}&select=employee_id`)
+    ]);
+    if (!prevOv.length) { toast('La semaine dernière est vide, rien à recopier'); return; }
+    if (existingOv.length && !confirm(
+      "Cette semaine contient déjà des horaires.\n\n" +
+      "Les remplacer par ceux de la semaine dernière ?\n" +
+      "⚠️ Vos ajustements de cette semaine seront remplacés."
+    )) return;
+
+    const empById = Object.fromEntries(employees.map(e => [e.id, e]));
+    const rows = [];
+    for (const ov of prevOv) {
+      const emp = empById[ov.employee_id];
+      const d = new Date(ov.date + 'T12:00'); d.setDate(d.getDate() + 7);
+      const ds = dateStr(d);
+      if (!emp || !empInPost(emp, ds)) continue;
+      const { id, ...row } = ov;
+      rows.push({ ...row, date: ds, fin_essai: false, fin_contrat: false });
+    }
+    if (!rows.length) { toast('Aucun employé de la semaine dernière en poste cette semaine'); return; }
+
+    await sb(`weekly_overrides?date=gte.${weekStart}&date=lte.${weekEnd}`,
+      { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    await sb('weekly_overrides',
+      { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(rows) });
+
+    toast('Semaine recopiée ✓ — ajustez les exceptions en touchant les cases');
+    loadPlanningTab();
+  } catch(e) {
+    toast('Erreur : ' + e.message);
+    console.error('copyPreviousWeek', e);
   }
 }
 
