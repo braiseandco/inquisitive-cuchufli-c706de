@@ -10,6 +10,9 @@ type Envoyer = (mobile: string, texte: string, tag: string) => Promise<string>;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const MAX_PAR_ENVOI = 100;
+const SMSGATE_URL = 'https://api.sms-gate.app/3rdparty/v1/message';
+// SMS internes au patron : partent de la ligne du resto (SMS Gate), pas de Brevo (demande du patron, 23/11/2026).
+const TYPES_LIGNE_RESTO = new Set(['controle_hebdo']);
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +54,19 @@ function departPrevu(): string | null {
   return new Date(Date.UTC(+p.year, +p.month - 1, jour, 10, 30) - decalage).toISOString();
 }
 
+async function envoyerParLigne(sb: SupabaseClient, tel: string, texte: string): Promise<string> {
+  const { data: ids } = await sb.rpc('sms_gateway_identifiants');
+  const cred = ids?.[0];
+  if (!cred?.utilisateur || !cred?.mot_de_passe) throw new Error("SMS Gate n'est pas branché");
+  const res = await fetch(SMSGATE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + btoa(cred.utilisateur + ':' + cred.mot_de_passe) },
+    body: JSON.stringify({ textMessage: { text: texte }, phoneNumbers: ['+33' + numeroFrancais(tel).slice(1)], priority: 100 }),
+  });
+  if (!res.ok) throw new Error('SMS Gate HTTP ' + res.status + ' ' + (await res.text()).slice(0, 200));
+  return (await res.json().catch(() => ({}))).id;
+}
+
 // Appel du cron sms-programmes : envoie les SMS dont l'heure est passée
 async function viderFile(sb: SupabaseClient, envoyerSms: Envoyer) {
   const { data: dus } = await sb.from('sms_programmes').select('id,telephone,texte,tentatives,type,essai')
@@ -63,7 +79,7 @@ async function viderFile(sb: SupabaseClient, envoyerSms: Envoyer) {
       continue;
     }
     try {
-      const id = await envoyerSms(s.telephone, s.texte, s.type);
+      const id = TYPES_LIGNE_RESTO.has(s.type) ? await envoyerParLigne(sb, s.telephone, s.texte) : await envoyerSms(s.telephone, s.texte, s.type);
       await sb.from('sms_envois').insert({ gate_id: id, telephone: numeroFrancais(s.telephone), type: s.type, texte: s.texte, essai: s.essai });
       await sb.from('sms_programmes').delete().eq('id', s.id);
       envoyes++;
