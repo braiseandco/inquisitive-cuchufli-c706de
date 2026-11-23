@@ -377,6 +377,9 @@
     }
     .cui-subtitle { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cui-subsub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .inv-in { width: 68px; background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px; color: var(--text); font-size: 15px; text-align: center; outline: none; }
+    .inv-u { font-size: 10px; color: var(--muted); margin-top: 2px; max-width: 68px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .inv-bar { position: sticky; bottom: 0; background: var(--surf); border-top: 1px solid var(--border); padding: 12px 16px 16px; z-index: 5; }
     .cui-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px 6px; scrollbar-width: none; }
     .cui-chips::-webkit-scrollbar { display: none; }
     .cui-chip {
@@ -549,6 +552,23 @@
     </div>
     <div class="cui-chips" id="cui-fact-chips"></div>
     <div id="cui-fact-list"></div>
+  </div>
+  <div id="cui-inv" class="hidden">
+    <div class="cui-subhead">
+      <button class="besoins-back" onclick="invHide()">‹</button>
+      <div class="cui-subtitle" style="flex:1">📋 Inventaire</div>
+      <input type="date" id="cui-inv-date" class="settings-field" style="width:auto;padding:8px 10px;font-size:13px" onchange="invSetDate(this.value)">
+    </div>
+    <div class="search-bar"><input type="search" class="search-input" id="cui-inv-search" placeholder="Rechercher un produit…" autocomplete="off" oninput="invRender()"></div>
+    <div class="cui-chips" id="cui-inv-chips"></div>
+    <div id="cui-inv-list"></div>
+    <div class="inv-bar">
+      <div id="cui-inv-total" style="font-weight:700;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:2" onclick="invPdf()">📄 Créer le PDF</button>
+        <button class="btn-secondary" style="flex:1" onclick="invCloturer()">Clôturer</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -899,7 +919,7 @@
 </div>
 
 <script>
-const APP_VERSION = '2026-11-20.1';
+const APP_VERSION = '2026-11-23.1';
 window.APP_VERSION = APP_VERSION;
 
 /* ═══════════════ SUPABASE ═══════════════ */
@@ -2862,5 +2882,6 @@ if (_isIOS && !_isStandalone) {
 <script src="cuisine.js"></script>
 <script src="factures.js"></script>
 <script src="documents.js"></script>
+<script src="inventaire.js"></script>
 </body>
 </html>

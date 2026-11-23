@@ -124,7 +124,7 @@ document.addEventListener('visibilitychange', () => {
 
 /* ─── Accueil : fournisseurs + dernières commandes ─── */
 function cuiShowHome() {
-  cui$('cui-home').classList.remove('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden');
+  cui$('cui-home').classList.remove('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-fact').classList.add('hidden'); cui$('cui-inv').classList.add('hidden');
   CUI.supId = null; cuiRenderHome(); cuiRenderBar();
 }
 const CUI_JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];

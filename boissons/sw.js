@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/boissons/cuisine.js',
   '/boissons/factures.js',
   '/boissons/documents.js',
+  '/boissons/inventaire.js',
   '/boissons/manifest.json',
   '/boissons/icon-192.png',
   '/boissons/icon-192-maskable.png',

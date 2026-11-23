@@ -57,6 +57,7 @@ async function cuiOpenPatron(deverrouille) {
     <div class="modal-actions">
       <button class="btn-primary" onclick="cuiCloseModal();facShow()">🧾 Factures${n ? ` · ${n} à contrôler` : ''}${c ? ` · ${c} contestée${c > 1 ? 's' : ''}` : ''}</button>
       <button class="btn-secondary" onclick="cuiOpenRecap()">📊 Récap des achats</button>
+      <button class="btn-secondary" onclick="invShow()">📋 Inventaire</button>
       <button class="btn-secondary" onclick="cuiCloseModal();switchTab('historique')">🍺 Historique bar</button>
       <button class="btn-close" onclick="facChangerPin()">Changer le code</button>
       <button class="btn-close" onclick="cuiCloseModal()">Fermer</button>
@@ -110,7 +111,7 @@ async function facChangerPin() {
 async function facShow() {
   switchTab('cuisine');
   if (!FAC.loaded) await facLoad();
-  cui$('cui-home').classList.add('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden');
+  cui$('cui-home').classList.add('hidden'); cui$('cui-sup').classList.add('hidden'); cui$('cui-hist').classList.add('hidden'); cui$('cui-inv').classList.add('hidden');
   cui$('cui-fact').classList.remove('hidden');
   CUI.supId = null; cuiRenderBar(); facRender();
 }
