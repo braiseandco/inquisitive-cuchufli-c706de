@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="../planning-icon-192.png">
 <title>Braise &amp; Co — Planning</title>
 <script>
-const APP_VERSION = '2026-11-24.1';
+const APP_VERSION = '2026-11-24.2';
 window.APP_VERSION = APP_VERSION;
 if('serviceWorker' in navigator){
   // Recharge automatiquement une seule fois quand une nouvelle version prend le contrôle
@@ -815,6 +815,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Raleway'
         <label class="form-label">Message (facultatif)</label>
         <textarea class="form-input" id="empRptMessage" rows="4" placeholder="Détails pour Samier : affichés sous le tableau du PDF et dans le mail" style="resize:vertical;font-family:'Raleway',sans-serif"></textarea>
       </div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-dim);cursor:pointer">
+        <input type="checkbox" id="empRptCoord"> Mettre les coordonnées du salarié dans le mail (pas dans le PDF)
+      </label>
       <button class="btn-primary" style="width:100%;margin-top:8px" onclick="printEmpReport()">🖨️ Générer le PDF employé</button>
       <button class="btn-primary" style="width:100%;margin-top:8px;background:rgba(156,39,176,.18);border:1px solid rgba(156,39,176,.4);color:#ce93d8" onclick="printEmpSignatureArchive()">🖊️ Archive des signatures (PDF)</button>
       <p style="font-size:11px;color:var(--text-faint);margin-top:8px;line-height:1.6">Document de preuve : chaque jour signé (date, service, horaires, signature) sur toute la période travaillée. À conserver avant d'archiver un salarié.</p>
@@ -4096,8 +4099,29 @@ async function printEmpReport() {
   openPrintOverlay(empHtml, null, {
     nom: `Planning ${emp.name} ${from ? from + ' au ' + to : ''}`.trim(),
     sujet: `Planning ${emp.name} ${periodeMail}`,
-    texte: `Bonjour,\n\nVeuillez trouver ci-joint le planning de ${emp.name} ${periodeMail} : horaires, heures et repas par semaine.\n\n${message ? message + '\n\n' : ''}Bonne journée,\nAlexandre – Braise & Co`
+    texte: `Bonjour,\n\nVeuillez trouver ci-joint le planning de ${emp.name} ${periodeMail} : horaires, heures et repas par semaine.\n\n${message ? message + '\n\n' : ''}${document.getElementById('empRptCoord').checked ? empCoordonnees(emp) + '\n\n' : ''}Bonne journée,\nAlexandre – Braise & Co`
   });
+}
+
+function empCoordonnees(emp) {
+  const d = v => v ? new Date(v + 'T12:00').toLocaleDateString('fr-FR') : '';
+  const contrat = [emp.type_contrat, emp.date_arrivee && 'du ' + d(emp.date_arrivee),
+    (emp.date_fin_contrat || emp.date_depart) && 'au ' + d(emp.date_fin_contrat || emp.date_depart),
+    emp.heures_hebdo_contrat && emp.heures_hebdo_contrat + ' h/semaine'].filter(Boolean).join(' ');
+  const lignes = [
+    ['Nom', [String(emp.nom || '').toUpperCase(), emp.prenom].filter(Boolean).join(' ') || emp.name],
+    ['Nom de naissance', emp.nom_naissance],
+    ['Adresse', (emp.adresse || '').replace(/\n/g, ', ')],
+    ['Né(e) le', [d(emp.date_naissance), emp.lieu_naissance && 'à ' + emp.lieu_naissance].filter(Boolean).join(' ')],
+    ['Nationalité', emp.nationalite],
+    ['N° de sécurité sociale', emp.num_secu],
+    ['Téléphone', emp.phone],
+    ['Email', emp.email],
+    ['Emploi', [emp.emploi, emp.niveau && 'niveau ' + emp.niveau, emp.echelon && 'échelon ' + emp.echelon].filter(Boolean).join(', ')],
+    ['Contrat', contrat],
+    ['Matricule', emp.matricule],
+  ].filter(([, v]) => v);
+  return 'Coordonnées du salarié :\n' + lignes.map(([k, v]) => `- ${k} : ${v}`).join('\n');
 }
 
 // Télécharge un fichier autonome (archive permanente, signatures intégrées)
