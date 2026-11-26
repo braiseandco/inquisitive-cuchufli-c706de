@@ -12,7 +12,7 @@
 <script src="/auth.js"></script>
 <script src="/update-check.js" defer></script>
 <script>
-const APP_VERSION = '2026-11-24.2';
+const APP_VERSION = '2026-11-26.1';
 window.APP_VERSION = APP_VERSION;
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/scan/sw.js', { scope: '/scan/', updateViaCache: 'none' });
 </script>
@@ -121,6 +121,8 @@ button.big { display:block; width:100%; margin-top:16px; padding:16px; font-size
     <textarea id="texte" placeholder="Bonjour, veuillez trouver le document en pièce jointe."></textarea>
     <button id="btnCompta" class="or big">Envoyer à M. Mailles</button>
     <div class="mut center">Comptable — cabinet ECE</div>
+    <button id="btnSamier" class="or big">Envoyer à Mme Samier</button>
+    <div class="mut center">Social et paie — cabinet ECE</div>
     <button id="btnAutre" class="big">Autre adresse…</button>
     <div id="autre" hidden>
       <label for="dest">Adresse mail</label>
@@ -143,6 +145,7 @@ button.big { display:block; width:100%; margin-top:16px; padding:16px; font-size
 const SCAN_URL = 'https://script.google.com/macros/s/AKfycby33o4eLrk5ACzJwkLJ91Zr9iWeZmDWAzUx3fIrcJs9mORUNZAPceugRA51SoIJ030M/exec';
 const CONTACTS_KEY = 'scan_contacts';
 const COMPTABLE = 'M.Mailles@agen-ece.com';
+const SAMIER = 'J.Samier@groupe-ece.com';
 const $ = id => document.getElementById(id);
 const video = $('video'), overlay = $('overlay'), hint = $('hint');
 let cvReady = false, stream = null, track = null, auto = true, torch = false;
@@ -540,6 +543,7 @@ $('btnSave').onclick = () => { busy('Création du PDF…'); setTimeout(() => { m
 
 $('btnAutre').onclick = () => { $('autre').hidden = false; $('btnAutre').hidden = true; $('dest').focus(); };
 $('btnCompta').onclick = () => envoyer(COMPTABLE);
+$('btnSamier').onclick = () => envoyer(SAMIER);
 $('btnSend').onclick = () => envoyer($('dest').value.trim());
 
 async function envoyer(dest) {
@@ -555,7 +559,7 @@ async function envoyer(dest) {
       body: JSON.stringify({ jeton: (h.Authorization || '').replace('Bearer ', ''), scan: { dest, titre: titre(), texte: $('texte').value.trim(), pdf } }) });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Envoi refusé');
-    if (dest !== COMPTABLE) try { localStorage.setItem(CONTACTS_KEY, JSON.stringify([dest, ...contacts().filter(m => m !== dest)].slice(0, 10))); } catch (e) {}
+    if (dest !== COMPTABLE && dest !== SAMIER) try { localStorage.setItem(CONTACTS_KEY, JSON.stringify([dest, ...contacts().filter(m => m !== dest)].slice(0, 10))); } catch (e) {}
     busy('');
     alert('PDF envoyé à ' + dest + '\nRangé sur le PC : Scans\\' + d.nom.slice(0, 7) + '\\' + d.nom);
     pages = []; cur = -1; $('titre').value = ''; $('texte').value = ''; $('dest').value = ''; updCount(); show('sCam');

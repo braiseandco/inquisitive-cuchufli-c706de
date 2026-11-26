@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
     // Même script que l'appli web /scan/ et les commandes fournisseurs (commandes-mail/envoyer-commande.gs)
     static final String SCRIPT = "https://script.google.com/macros/s/AKfycby33o4eLrk5ACzJwkLJ91Zr9iWeZmDWAzUx3fIrcJs9mORUNZAPceugRA51SoIJ030M/exec";
     static final String COMPTABLE = "M.Mailles@agen-ece.com";
+    static final String SAMIER = "J.Samier@groupe-ece.com";
     static final int REQ_SCAN = 1;
     static final int ORANGE = 0xFFFF7A1A, FOND = 0xFF141414, PANNEAU = 0xFF262626;
 
@@ -120,6 +121,11 @@ public class MainActivity extends Activity {
         sous.setGravity(Gravity.CENTER);
         col.addView(sous);
 
+        col.addView(gros("Envoyer à Mme Samier", true, v -> envoyer(SAMIER)));
+        TextView sousSamier = texte("Social et paie — cabinet ECE", 13, 0xFF9A9A9A);
+        sousSamier.setGravity(Gravity.CENTER);
+        col.addView(sousSamier);
+
         btnAutre = gros("Autre adresse…", false, v -> { blocAutre.setVisibility(View.VISIBLE); btnAutre.setVisibility(View.GONE); autre.requestFocus(); });
         col.addView(btnAutre);
 
@@ -166,7 +172,7 @@ public class MainActivity extends Activity {
                 JSONObject req = new JSONObject().put("scan", scan).put("cle", BuildConfig.SCAN_CLE);
                 JSONObject rep = new JSONObject(post(req.toString()));
                 if (!rep.optBoolean("ok")) throw new Exception(rep.optString("error", "Envoi refusé"));
-                if (!dest.equals(COMPTABLE)) retenir(dest);
+                if (!dest.equals(COMPTABLE) && !dest.equals(SAMIER)) retenir(dest);
                 String nom = rep.optString("nom");
                 ui.post(() -> { statut("PDF envoyé à " + dest + "\nRangé sur le PC : Scans\\" + (nom.length() >= 7 ? nom.substring(0, 7) : "") + "\\" + nom, 0xFF3ECF6E); setEnabled(true); });
             } catch (Exception e) {

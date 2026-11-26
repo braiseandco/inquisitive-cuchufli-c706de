@@ -13,8 +13,8 @@ android {
         applicationId 'fr.braiseandco.scan'
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1'
         buildConfigField 'String', 'SCAN_CLE', "\"${cle.getProperty('SCAN_CLE', '')}\""
     }
     buildFeatures { buildConfig true }
